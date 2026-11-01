@@ -1,0 +1,8 @@
+<h1>{{ event.title }}</h1>
+<dl class="facts">
+  <dt>{{ t.when }}</dt>
+  <dd><time datetime="{{ event.starts_at_iso }}">{{ event.starts_at }}</time></dd>
+  <dt>{{ t.place }}</dt>
+  <dd>{{ event.location }}</dd>
+</dl>
+<p class="description">{{ event.description }}</p>

@@ -1,21 +1,23 @@
-// The RSVP pages and the admin UI (milestones 3–5) are the callers; until then only the
-// tests use these.
+// The admin UI and open RSVP (milestones 4–5) call the rest; until then only the tests do.
 #![allow(dead_code)]
 
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
 use crate::i18n::Lang;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "rsvp_source", rename_all = "lowercase")]
 pub enum Source {
     Invite,
     Open,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "rsvp_response", rename_all = "lowercase")]
 pub enum Response {
     Pending,
@@ -23,7 +25,8 @@ pub enum Response {
     Declined,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "email_status", rename_all = "lowercase")]
 pub enum EmailStatus {
     None,
@@ -31,7 +34,7 @@ pub enum EmailStatus {
     Confirmed,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Rsvp {
     pub id: Uuid,
     pub source: Source,

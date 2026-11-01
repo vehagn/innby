@@ -108,7 +108,7 @@ Every guest has one **RSVP link**. Possession of the link is the authorisation; 
 - **E-mail confirmation links** use the same scheme, but sign the purpose, the expiry and the address itself: `"email" ‖ id ‖ email ‖ exp`. They expire after 48 hours and become invalid as soon as the address changes. There is no token table at all.
 - `LINK_KEY` is 32 random bytes in a SealedSecret. Rotating it invalidates **every** link, so it is kept stable for the event's lifetime.
 - **Hardening for links in URLs:**
-  - `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, `X-Robots-Tag: noindex` on `/r/*`.
+  - `Cache-Control: no-store` on `/r/*`; `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex` on every page.
   - No third-party resources on any page.
   - Access logs record the route pattern (`/r/{link}`), never the raw path.
 
@@ -211,10 +211,10 @@ fest/
 ├── src/
 │   ├── main.rs                # clap: serve | admin | mailer | janitor | migrate
 │   ├── config.rs              # env parsing + validation
-│   ├── db.rs                  # sqlx pool, queries, transactions
+│   ├── db/                    # sqlx pool, migrator, queries
 │   ├── link.rs                # HMAC sign/verify for rsvp + email links
 │   ├── i18n.rs                # nb/en Messages
-│   ├── web/                   # public handlers, middleware (rate limit, headers, CSRF)
+│   ├── web/                   # public pages, RSVP page, CSRF middleware, rate limit
 │   ├── admin/                 # invitations, headcount, CSV, QR
 │   ├── mailer.rs              # outbox worker + mail rendering
 │   └── janitor.rs             # retention rules, reminders
@@ -304,7 +304,7 @@ just deploy              # kubectl apply -k deploy/ (or leave to Argo CD)
 0. ✅ **Devcontainer:** Containerfile, compose and `devcontainer.json`, verified by building it and running every tool once.
 1. ✅ **Skeleton:** `cargo init`, `rust-toolchain.toml`, `Justfile`, config, `fest serve` with `/healthz`, an askama layout with embedded CSS, nb/en `Messages`.
 2. ✅ **Schema:** migrations, the `db` module, `.sqlx/` offline data, `#[sqlx::test]` integration tests.
-3. **Links and the RSVP page:** HMAC signing, `/r/{link}` (respond, party size, rename, export, delete), link hygiene headers, CSRF middleware.
+3. ✅ **Links and the RSVP page:** HMAC signing, `/r/{link}` (respond, party size, rename, export, delete), link hygiene headers, CSRF middleware.
 4. **Admin:** invitations (create, link and QR, revoke, delete), headcount, CSV, basic auth, and `fest invite` on the CLI.
 5. **Open RSVP:** `/join/{code}`, honeypot, rate limit, a "save your link" page, and the on/off flag.
 6. **Optional e-mail:** add and confirm an address, the outbox and mailer (Mailpit locally, MailerSend in the cluster), `/lost`, reminders.

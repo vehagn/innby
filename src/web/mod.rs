@@ -1,4 +1,6 @@
+mod csrf;
 mod pages;
+mod rsvp;
 
 use std::{convert::Infallible, sync::Arc};
 
@@ -7,7 +9,8 @@ use axum::{
     Router,
     extract::{FromRequestParts, MatchedPath, State},
     http::{HeaderValue, Request, StatusCode, header, request::Parts},
-    routing::get,
+    middleware,
+    routing::{get, post},
 };
 use sqlx::PgPool;
 use tokio::signal::unix::{SignalKind, signal};
@@ -19,7 +22,10 @@ use tracing::Level;
 
 use crate::{config::Config, db, i18n::Lang};
 
-const SECURITY_HEADERS: [(header::HeaderName, &str); 3] = [
+/// Version of the privacy notice, recorded with each answer.
+pub const PRIVACY_VERSION: &str = "2026-11-01";
+
+const SECURITY_HEADERS: [(header::HeaderName, &str); 4] = [
     (
         header::CONTENT_SECURITY_POLICY,
         "default-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; \
@@ -27,7 +33,12 @@ const SECURITY_HEADERS: [(header::HeaderName, &str); 3] = [
     ),
     (header::REFERRER_POLICY, "no-referrer"),
     (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+    // An invitation-only event: nothing here belongs in a search engine.
+    (header::HeaderName::from_static("x-robots-tag"), "noindex"),
 ];
+
+/// Pages addressed by a secret link must not be stored by browsers or proxies.
+const LINK_HEADERS: [(header::HeaderName, &str); 1] = [(header::CACHE_CONTROL, "no-store")];
 
 #[derive(Clone)]
 struct AppState {
@@ -46,38 +57,50 @@ pub async fn serve(config: Config, db: PgPool) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn router(config: Config, db: PgPool) -> Router {
+fn with_headers<S: Clone + Send + Sync + 'static>(
+    router: Router<S>,
+    headers: &[(header::HeaderName, &'static str)],
+) -> Router<S> {
+    headers.iter().fold(router, |router, (name, value)| {
+        router.layer(SetResponseHeaderLayer::overriding(
+            name.clone(),
+            HeaderValue::from_static(value),
+        ))
+    })
+}
+
+pub(crate) fn router(config: Config, db: PgPool) -> Router {
+    let origin: Arc<str> = config.base_url.as_str().into();
     let state = AppState {
         config: Arc::new(config),
         db,
     };
+    let links = Router::new()
+        .route("/r/{link}", get(rsvp::show).post(rsvp::answer))
+        .route("/r/{link}/name", post(rsvp::rename))
+        .route("/r/{link}/export", get(rsvp::export))
+        .route("/r/{link}/delete", post(rsvp::delete));
     let router = Router::new()
         .route("/", get(pages::index))
         .route("/static/style.css", get(pages::stylesheet))
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(ready))
-        .with_state(state);
+        .merge(with_headers(links, &LINK_HEADERS))
+        .with_state(state)
+        .layer(middleware::from_fn_with_state(origin, csrf::protect));
 
-    SECURITY_HEADERS
-        .into_iter()
-        .fold(router, |router, (name, value)| {
-            router.layer(SetResponseHeaderLayer::if_not_present(
-                name,
-                HeaderValue::from_static(value),
-            ))
-        })
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(|request: &Request<_>| {
-                    // Log the route pattern, never the raw path: RSVP links carry secrets.
-                    let route = request
-                        .extensions()
-                        .get::<MatchedPath>()
-                        .map_or("unmatched", MatchedPath::as_str);
-                    tracing::info_span!("request", method = %request.method(), route)
-                })
-                .on_response(DefaultOnResponse::new().level(Level::INFO)),
-        )
+    with_headers(router, &SECURITY_HEADERS).layer(
+        TraceLayer::new_for_http()
+            .make_span_with(|request: &Request<_>| {
+                // Log the route pattern, never the raw path: RSVP links carry secrets.
+                let route = request
+                    .extensions()
+                    .get::<MatchedPath>()
+                    .map_or("unmatched", MatchedPath::as_str);
+                tracing::info_span!("request", method = %request.method(), route)
+            })
+            .on_response(DefaultOnResponse::new().level(Level::INFO)),
+    )
 }
 
 /// Ready to take traffic only while the database answers.

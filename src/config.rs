@@ -1,14 +1,18 @@
 use std::net::SocketAddr;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, NaiveDateTime};
 use chrono_tz::Tz;
 
-use crate::i18n::Localized;
+use crate::{i18n::Localized, link::LinkKey};
 
 #[derive(Debug, Clone)]
 pub struct Config {
     pub listen: SocketAddr,
+    /// The site's origin, e.g. `https://fest.example.com`: checked against the `Origin`
+    /// header of form posts.
+    pub base_url: String,
+    pub link_key: LinkKey,
     pub event: Event,
 }
 
@@ -18,6 +22,15 @@ pub struct Event {
     pub description: Localized<String>,
     pub location: String,
     pub starts_at: DateTime<Tz>,
+    /// Guests can answer until then; unset means until the event.
+    pub rsvp_deadline: Option<DateTime<Tz>>,
+}
+
+impl Event {
+    /// Whether guests can still answer or change their answer.
+    pub fn accepts_answers(&self, now: DateTime<chrono::Utc>) -> bool {
+        now < self.rsvp_deadline.unwrap_or(self.starts_at)
+    }
 }
 
 /// The Postgres connection string. Kept apart from `Config` because `fest migrate`
@@ -49,26 +62,45 @@ impl Config {
             .parse()
             .with_context(|| format!("FEST_LISTEN: invalid socket address {listen:?}"))?;
 
+        let base_url = required("FEST_BASE_URL")?;
+        let base_url = base_url.trim_end_matches('/').to_owned();
+        let host = base_url
+            .strip_prefix("https://")
+            .or_else(|| base_url.strip_prefix("http://"));
+        ensure!(
+            host.is_some_and(|host| !host.is_empty() && !host.contains('/')),
+            "FEST_BASE_URL: expected an origin like https://fest.example.com, got {base_url:?}"
+        );
+
+        let link_key =
+            LinkKey::from_base64(&required("FEST_LINK_KEY")?).context("FEST_LINK_KEY")?;
+
         let tz_name = optional("FEST_EVENT_TIMEZONE").unwrap_or_else(|| "Europe/Oslo".into());
         let tz: Tz = tz_name
             .parse()
             .map_err(|_| anyhow!("FEST_EVENT_TIMEZONE: unknown time zone {tz_name:?}"))?;
-        let start = required("FEST_EVENT_START")?;
-        let starts_at = NaiveDateTime::parse_from_str(&start, "%Y-%m-%dT%H:%M")
-            .with_context(|| format!("FEST_EVENT_START: expected YYYY-MM-DDTHH:MM, got {start:?}"))?
-            .and_local_timezone(tz)
-            .single()
-            .ok_or_else(|| {
-                anyhow!("FEST_EVENT_START: {start} is ambiguous or skipped in {tz_name}")
-            })?;
+        let local_time = |key: &str, value: &str| -> Result<DateTime<Tz>> {
+            NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M")
+                .with_context(|| format!("{key}: expected YYYY-MM-DDTHH:MM, got {value:?}"))?
+                .and_local_timezone(tz)
+                .single()
+                .ok_or_else(|| anyhow!("{key}: {value} is ambiguous or skipped in {tz_name}"))
+        };
+        let starts_at = local_time("FEST_EVENT_START", &required("FEST_EVENT_START")?)?;
+        let rsvp_deadline = optional("FEST_RSVP_DEADLINE")
+            .map(|value| local_time("FEST_RSVP_DEADLINE", &value))
+            .transpose()?;
 
         Ok(Self {
             listen,
+            base_url,
+            link_key,
             event: Event {
                 title: localized("FEST_EVENT_TITLE")?,
                 description: localized("FEST_EVENT_DESCRIPTION")?,
                 location: required("FEST_EVENT_LOCATION")?,
                 starts_at,
+                rsvp_deadline,
             },
         })
     }
@@ -81,6 +113,8 @@ pub mod tests {
     use super::*;
 
     const VALID: &[(&str, &str)] = &[
+        ("FEST_BASE_URL", "https://fest.example.com"),
+        ("FEST_LINK_KEY", crate::link::tests::KEY),
         ("FEST_EVENT_TITLE_NB", "Julebord"),
         ("FEST_EVENT_TITLE_EN", "Christmas party"),
         ("FEST_EVENT_DESCRIPTION_NB", "Velkommen!"),
@@ -88,7 +122,7 @@ pub mod tests {
         ("FEST_EVENT_START", "2026-12-12T19:00"),
     ];
 
-    fn parse(overrides: &[(&str, &str)]) -> Result<Config> {
+    pub fn parse(overrides: &[(&str, &str)]) -> Result<Config> {
         let mut env: HashMap<&str, &str> = VALID.iter().copied().collect();
         env.extend(overrides.iter().copied());
         Config::from_lookup(|key| env.get(key).map(|value| value.to_string()))
@@ -128,5 +162,36 @@ pub mod tests {
         assert!(parse(&[("FEST_EVENT_TIMEZONE", "Europe/Atlantis")]).is_err());
         // 02:30 doesn't exist in Oslo on the night clocks spring forward.
         assert!(parse(&[("FEST_EVENT_START", "2026-03-29T02:30")]).is_err());
+    }
+
+    #[test]
+    fn base_url_must_be_an_origin() {
+        let config = parse(&[("FEST_BASE_URL", "http://localhost:8080/")]).unwrap();
+        assert_eq!(config.base_url, "http://localhost:8080");
+        for bad in [
+            "fest.example.com",
+            "https://",
+            "https://fest.example.com/rsvp",
+        ] {
+            assert!(parse(&[("FEST_BASE_URL", bad)]).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn answers_close_at_deadline_or_event_start() {
+        let at = |value: &str| {
+            chrono::DateTime::parse_from_rfc3339(value)
+                .unwrap()
+                .to_utc()
+        };
+        let event = parse(&[]).unwrap().event;
+        assert!(event.accepts_answers(at("2026-12-12T17:59:00Z")));
+        assert!(!event.accepts_answers(at("2026-12-12T18:00:00Z")));
+
+        let event = parse(&[("FEST_RSVP_DEADLINE", "2026-12-01T12:00")])
+            .unwrap()
+            .event;
+        assert!(event.accepts_answers(at("2026-12-01T10:59:00Z")));
+        assert!(!event.accepts_answers(at("2026-12-01T11:00:00Z")));
     }
 }

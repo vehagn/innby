@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.title }}{% endblock %}
+
+{% block content %}
+{% if saved %}<p class="notice success" role="status">{{ t.saved }}</p>{% endif %}
+{% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
+
+{% include "_event.html" %}
+
+<section class="card" aria-labelledby="answer-heading">
+  <h2 id="answer-heading">{{ t.greeting }}, {{ rsvp.name }}!</h2>
+  {% if first_visit %}
+  <p class="notice">{{ t.first_visit_notice }} <a href="/privacy?lang={{ lang.code() }}">{{ t.privacy_link }}</a></p>
+  {% endif %}
+  <p><strong>{{ t.your_answer }}:</strong> {{ status }}</p>
+  {% if let Some(deadline) = event.rsvp_deadline %}
+  <p class="muted">{{ t.reply_by }}: {{ deadline }}</p>
+  {% endif %}
+
+  {% if accepts_answers %}
+  <form method="post" action="/r/{{ link }}?lang={{ lang.code() }}">
+    {% if party_sizes.len() > 1 %}
+    <label for="party_size">{{ t.how_many }}</label>
+    <select id="party_size" name="party_size">
+      {% for (value, label, selected) in party_sizes %}
+      <option value="{{ value }}"{% if *selected %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    {% else %}
+    <input type="hidden" name="party_size" value="1">
+    {% endif %}
+    <div class="buttons">
+      <button name="response" value="attending">{{ t.attend }}</button>
+      <button name="response" value="declined" class="secondary">{{ t.decline }}</button>
+    </div>
+  </form>
+  {% else %}
+  <p class="muted">{{ t.answers_closed }}</p>
+  {% endif %}
+  <p class="muted small">{{ t.keep_link }}</p>
+</section>
+
+<details>
+  <summary>{{ t.name_heading }}</summary>
+  <form method="post" action="/r/{{ link }}/name?lang={{ lang.code() }}">
+    <label for="name">{{ t.name_heading }}</label>
+    <input id="name" name="name" value="{{ rsvp.name }}" required maxlength="100" autocomplete="name">
+    <button class="secondary">{{ t.change_name }}</button>
+  </form>
+</details>
+
+<details>
+  <summary>{{ t.data_heading }}</summary>
+  <p>{{ t.data_text }}</p>
+  <p><a href="/r/{{ link }}/export" download>{{ t.export }}</a></p>
+  <form method="post" action="/r/{{ link }}/delete?lang={{ lang.code() }}">
+    <label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> {{ t.delete_confirm }}</label>
+    <button class="danger">{{ t.delete }}</button>
+  </form>
+</details>
+{% endblock %}

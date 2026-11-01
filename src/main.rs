@@ -1,6 +1,7 @@
 mod config;
 mod db;
 mod i18n;
+mod link;
 mod web;
 
 use clap::{Parser, Subcommand};
