@@ -1,0 +1,45 @@
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Containerfile
+    command: sleep infinity
+    init: true
+    volumes:
+      - ..:/workspaces/fest:cached
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-target:/home/dev/.cache/target
+      - ${HOME}/.kube/config:/home/dev/.kube/config:ro
+    environment:
+      DATABASE_URL: postgres://fest:fest@db:5432/fest
+      FEST_SMTP_URL: smtp://mail:1025
+    depends_on:
+      db:
+        condition: service_healthy
+      mail:
+        condition: service_started
+
+  db:
+    image: docker.io/library/postgres:18.6-trixie
+    environment:
+      POSTGRES_USER: fest
+      POSTGRES_PASSWORD: fest
+      POSTGRES_DB: fest
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fest -d fest"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  mail:
+    image: docker.io/axllent/mailpit:v1.33.0
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+
+volumes:
+  cargo-registry:
+  cargo-target:
+  postgres:

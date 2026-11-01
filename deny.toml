@@ -1,0 +1,17 @@
+[advisories]
+ignore = [
+  # basic-toml is unmaintained, but only askama's derive macro uses it, at build time,
+  # to read askama.toml. Drop this once askama switches parsers.
+  { id = "RUSTSEC-2026-0374", reason = "build-time only, via askama_derive" },
+]
+
+[licenses]
+allow = ["Apache-2.0", "BSD-3-Clause", "MIT", "Unicode-3.0"]
+private = { ignore = true }
+
+[bans]
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

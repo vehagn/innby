@@ -1,0 +1,27 @@
+[package]
+name = "fest"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[dependencies]
+anyhow = "1.0.104"
+askama = "0.16.1"
+axum = "0.8.9"
+chrono = { version = "0.4.45", features = ["unstable-locales"] }
+chrono-tz = "0.10.4"
+clap = { version = "4.6.7", features = ["derive"] }
+tokio = { version = "1.54.1", features = ["macros", "net", "rt-multi-thread", "signal"] }
+tower-http = { version = "0.7.1", features = ["set-header", "trace"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+
+[dev-dependencies]
+http-body-util = "0.1.5"
+tower = { version = "0.5.3", features = ["util"] }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true

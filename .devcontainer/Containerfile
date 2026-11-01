@@ -1,0 +1,92 @@
+# Development container for fest: the Rust toolchain, cross-compilation to a
+# static x86_64 musl binary, and clients for Postgres and Kubernetes. Container
+# images are built outside this container. Bump the pinned versions below and
+# rebuild to upgrade.
+FROM docker.io/library/rust:1.99.1-trixie
+
+ARG USERNAME=dev
+ARG USER_UID=1000
+ARG ZIG_VERSION=0.16.0
+ARG ZIG_SHA256_X86_64=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
+ARG ZIG_SHA256_AARCH64=ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17
+ARG KUBECTL_VERSION=1.35.10
+ARG KUBESEAL_VERSION=0.38.4
+ARG CARGO_BINSTALL_VERSION=1.26.2
+ARG JUST_VERSION=1.59.0
+ARG CARGO_ZIGBUILD_VERSION=0.24.0
+ARG CARGO_DENY_VERSION=0.20.2
+ARG SQLX_CLI_VERSION=0.9.0
+
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+
+# psql 18 from the PostgreSQL apt repository.
+RUN apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl; \
+    install -d /usr/share/postgresql-common/pgdg; \
+    curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+      https://www.postgresql.org/media/keys/ACCC4CF8.asc; \
+    echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt trixie-pgdg main" \
+      > /etc/apt/sources.list.d/pgdg.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      bash-completion file jq less postgresql-client-18 sudo xz-utils; \
+    rm -rf /var/lib/apt/lists/*
+
+# Zig is the cross-linker used by cargo-zigbuild.
+RUN arch="$(uname -m)"; \
+    case "${arch}" in \
+      x86_64) sha="${ZIG_SHA256_X86_64}" ;; \
+      aarch64) sha="${ZIG_SHA256_AARCH64}" ;; \
+      *) echo "unsupported architecture: ${arch}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/zig.tar.xz "https://ziglang.org/download/${ZIG_VERSION}/zig-${arch}-linux-${ZIG_VERSION}.tar.xz"; \
+    echo "${sha}  /tmp/zig.tar.xz" | sha256sum -c -; \
+    install -d /opt/zig; \
+    tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1; \
+    ln -s /opt/zig/zig /usr/local/bin/zig; \
+    rm /tmp/zig.tar.xz
+
+# kubectl matches the cluster's minor version, kubeseal matches the sealed-secrets controller.
+RUN arch="$(dpkg --print-architecture)"; \
+    kubectl_url="https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${arch}/kubectl"; \
+    curl -fsSL -o /usr/local/bin/kubectl "${kubectl_url}"; \
+    echo "$(curl -fsSL "${kubectl_url}.sha256")  /usr/local/bin/kubectl" | sha256sum -c -; \
+    chmod 0755 /usr/local/bin/kubectl; \
+    kubeseal_base="https://github.com/bitnami/sealed-secrets/releases/download/v${KUBESEAL_VERSION}"; \
+    kubeseal_tar="kubeseal-${KUBESEAL_VERSION}-linux-${arch}.tar.gz"; \
+    curl -fsSL -o "/tmp/${kubeseal_tar}" "${kubeseal_base}/${kubeseal_tar}"; \
+    curl -fsSL "${kubeseal_base}/sealed-secrets_${KUBESEAL_VERSION}_checksums.txt" \
+      | grep " ${kubeseal_tar}\$" | (cd /tmp && sha256sum -c -); \
+    tar -xzf "/tmp/${kubeseal_tar}" -C /usr/local/bin kubeseal; \
+    rm "/tmp/${kubeseal_tar}"
+
+RUN rustup component add clippy rustfmt rust-src; \
+    rustup target add x86_64-unknown-linux-musl
+
+# Non-root user with passwordless sudo. Directories that compose mounts volumes onto
+# are created here so the volumes inherit the user's ownership.
+RUN useradd --create-home --shell /bin/bash --uid "${USER_UID}" "${USERNAME}"; \
+    echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/${USERNAME}"; \
+    chmod 0440 "/etc/sudoers.d/${USERNAME}"; \
+    install -d -o "${USERNAME}" -g "${USERNAME}" \
+      "/home/${USERNAME}/.kube" \
+      "/home/${USERNAME}/.cache/kube" \
+      "/home/${USERNAME}/.cache/target" \
+      "${CARGO_HOME}/registry"; \
+    chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}" "${CARGO_HOME}"
+
+USER ${USERNAME}
+
+RUN curl -fsSL "https://github.com/cargo-bins/cargo-binstall/releases/download/v${CARGO_BINSTALL_VERSION}/cargo-binstall-$(uname -m)-unknown-linux-musl.tgz" \
+      | tar -xz -C "${CARGO_HOME}/bin"; \
+    cargo binstall --no-confirm --locked --disable-strategies compile \
+      "just@${JUST_VERSION}" \
+      "cargo-zigbuild@${CARGO_ZIGBUILD_VERSION}" \
+      "cargo-deny@${CARGO_DENY_VERSION}"; \
+    cargo install --locked --no-default-features --features rustls,postgres "sqlx-cli@${SQLX_CLI_VERSION}"; \
+    rm -rf "${CARGO_HOME}/registry/"* "${CARGO_HOME}/git"
+
+ENV CARGO_TARGET_DIR=/home/${USERNAME}/.cache/target \
+    KUBECACHEDIR=/home/${USERNAME}/.cache/kube
+
+WORKDIR /workspaces/fest

@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="{{ lang.code() }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <a class="lang-switch" href="?lang={{ lang.other().code() }}" hreflang="{{ lang.other().code() }}" lang="{{ lang.other().code() }}">{{ t.other_language }}</a>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

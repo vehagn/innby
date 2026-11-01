@@ -1,0 +1,28 @@
+{
+  "name": "fest",
+  "dockerComposeFile": "compose.yaml",
+  "service": "dev",
+  "runServices": ["dev", "db", "mail"],
+  "workspaceFolder": "/workspaces/fest",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "dev",
+  "postCreateCommand": "git config --global --add safe.directory /workspaces/fest",
+  "forwardPorts": [8080, 8081, "mail:8025"],
+  "portsAttributes": {
+    "8080": { "label": "fest serve" },
+    "8081": { "label": "fest admin" },
+    "mail:8025": { "label": "Mailpit" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "nefrob.vscode-just-syntax"
+      ]
+    },
+    "jetbrains": {
+      "backend": "RustRover"
+    }
+  }
+}

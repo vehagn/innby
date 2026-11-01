@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+<dl class="facts">
+  <dt>{{ t.when }}</dt>
+  <dd><time datetime="{{ starts_at_iso }}">{{ starts_at }}</time></dd>
+  <dt>{{ t.place }}</dt>
+  <dd>{{ location }}</dd>
+</dl>
+<p class="description">{{ description }}</p>
+<p class="hint">{{ t.rsvp_hint }}</p>
+{% endblock %}
