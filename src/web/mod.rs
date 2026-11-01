@@ -5,10 +5,11 @@ use std::{convert::Infallible, sync::Arc};
 use anyhow::Context;
 use axum::{
     Router,
-    extract::{FromRequestParts, MatchedPath},
-    http::{HeaderValue, Request, header, request::Parts},
+    extract::{FromRequestParts, MatchedPath, State},
+    http::{HeaderValue, Request, StatusCode, header, request::Parts},
     routing::get,
 };
+use sqlx::PgPool;
 use tokio::signal::unix::{SignalKind, signal};
 use tower_http::{
     set_header::SetResponseHeaderLayer,
@@ -16,7 +17,7 @@ use tower_http::{
 };
 use tracing::Level;
 
-use crate::{config::Config, i18n::Lang};
+use crate::{config::Config, db, i18n::Lang};
 
 const SECURITY_HEADERS: [(header::HeaderName, &str); 3] = [
     (
@@ -31,28 +32,30 @@ const SECURITY_HEADERS: [(header::HeaderName, &str); 3] = [
 #[derive(Clone)]
 struct AppState {
     config: Arc<Config>,
+    db: PgPool,
 }
 
-pub async fn serve(config: Config) -> anyhow::Result<()> {
+pub async fn serve(config: Config, db: PgPool) -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(config.listen)
         .await
         .with_context(|| format!("binding {}", config.listen))?;
     tracing::info!(address = %listener.local_addr()?, "listening");
-    axum::serve(listener, router(config))
+    axum::serve(listener, router(config, db))
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     Ok(())
 }
 
-fn router(config: Config) -> Router {
+fn router(config: Config, db: PgPool) -> Router {
     let state = AppState {
         config: Arc::new(config),
+        db,
     };
     let router = Router::new()
         .route("/", get(pages::index))
         .route("/static/style.css", get(pages::stylesheet))
         .route("/healthz", get(|| async { "ok" }))
-        .route("/readyz", get(|| async { "ok" }))
+        .route("/readyz", get(ready))
         .with_state(state);
 
     SECURITY_HEADERS
@@ -75,6 +78,17 @@ fn router(config: Config) -> Router {
                 })
                 .on_response(DefaultOnResponse::new().level(Level::INFO)),
         )
+}
+
+/// Ready to take traffic only while the database answers.
+async fn ready(State(state): State<AppState>) -> StatusCode {
+    match db::ping(&state.db).await {
+        Ok(()) => StatusCode::OK,
+        Err(err) => {
+            tracing::warn!(error = %err, "database unavailable");
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+    }
 }
 
 async fn shutdown_signal() {
@@ -109,25 +123,36 @@ impl<S: Send + Sync> FromRequestParts<S> for Lang {
 
 #[cfg(test)]
 mod tests {
-    use axum::{
-        body::Body,
-        http::{Request, StatusCode},
-        response::Response,
-    };
+    use std::time::Duration;
+
+    use axum::{body::Body, http::Request, response::Response};
     use http_body_util::BodyExt;
+    use sqlx::postgres::PgPoolOptions;
     use tower::ServiceExt;
 
     use super::*;
 
-    async fn get(uri: &str, accept_language: Option<&str>) -> Response {
+    /// A pool pointing at a closed port, for tests that don't touch the database.
+    fn unreachable_db() -> PgPool {
+        PgPoolOptions::new()
+            .acquire_timeout(Duration::from_millis(200))
+            .connect_lazy("postgres://fest@127.0.0.1:1/fest")
+            .unwrap()
+    }
+
+    async fn request(db: PgPool, uri: &str, accept_language: Option<&str>) -> Response {
         let mut request = Request::get(uri);
         if let Some(value) = accept_language {
             request = request.header(header::ACCEPT_LANGUAGE, value);
         }
-        router(crate::config::tests::config())
+        router(crate::config::tests::config(), db)
             .oneshot(request.body(Body::empty()).unwrap())
             .await
             .unwrap()
+    }
+
+    async fn get(uri: &str, accept_language: Option<&str>) -> Response {
+        request(unreachable_db(), uri, accept_language).await
     }
 
     async fn body(response: Response) -> String {
@@ -136,10 +161,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn health_endpoints_respond() {
-        for uri in ["/healthz", "/readyz"] {
-            assert_eq!(get(uri, None).await.status(), StatusCode::OK);
-        }
+    async fn healthy_without_database() {
+        assert_eq!(get("/healthz", None).await.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn not_ready_without_database() {
+        assert_eq!(
+            get("/readyz", None).await.status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
+    }
+
+    #[sqlx::test]
+    async fn ready_with_database(pool: PgPool) {
+        assert_eq!(
+            request(pool, "/readyz", None).await.status(),
+            StatusCode::OK
+        );
     }
 
     #[tokio::test]

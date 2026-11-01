@@ -1,6 +1,7 @@
 use chrono::Locale;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[sqlx(type_name = "lang", rename_all = "lowercase")]
 pub enum Lang {
     Nb,
     En,

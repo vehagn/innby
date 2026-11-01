@@ -20,6 +20,15 @@ pub struct Event {
     pub starts_at: DateTime<Tz>,
 }
 
+/// The Postgres connection string. Kept apart from `Config` because `fest migrate`
+/// needs nothing else.
+pub fn database_url() -> Result<String> {
+    std::env::var("DATABASE_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| anyhow!("DATABASE_URL must be set"))
+}
+
 impl Config {
     pub fn from_env() -> Result<Self> {
         Self::from_lookup(|key| std::env::var(key).ok())

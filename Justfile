@@ -9,26 +9,35 @@ default:
     @just --list
 
 # Run the public site (reads .env, see .env.example)
-run:
+run: migrate
     cargo run -- serve
 
-# Run all tests
-test:
+# Run all tests; database tests get a throwaway database each
+test: migrate
     cargo test --locked
+
+# Apply the migrations to $DATABASE_URL (the query macros check against it at compile time)
+migrate:
+    sqlx migrate run
+
+# Regenerate the offline query data in .sqlx/ (commit it)
+prepare: migrate
+    cargo sqlx prepare -- --all-targets
 
 # Check formatting, lints and dependencies
 lint:
     cargo fmt --check
     cargo clippy --locked --all-targets -- -D warnings
+    cargo sqlx prepare --check -- --all-targets
     cargo deny check
 
 # Format the code
 fmt:
     cargo fmt
 
-# Build the static x86_64 musl release binary
+# Build the static x86_64 musl release binary (from .sqlx/, no database needed)
 build:
-    cargo zigbuild --locked --release --target {{ musl_target }}
+    SQLX_OFFLINE=true cargo zigbuild --locked --release --target {{ musl_target }}
     @echo "{{ target_dir }}/{{ musl_target }}/release/fest"
 
 # Build a scratch image that contains only the binary (needs buildah; not in the devcontainer)

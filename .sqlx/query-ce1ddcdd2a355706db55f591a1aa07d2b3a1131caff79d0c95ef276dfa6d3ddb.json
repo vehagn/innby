@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update rsvp set name = $2 where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ce1ddcdd2a355706db55f591a1aa07d2b3a1131caff79d0c95ef276dfa6d3ddb"
+}

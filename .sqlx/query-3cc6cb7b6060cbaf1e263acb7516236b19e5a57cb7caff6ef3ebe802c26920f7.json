@@ -1,0 +1,227 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into rsvp (source, name, max_party_size)\n        values ('invite', $1, $2)\n        returning id, source as \"source: Source\", name, response as \"response: Response\",\n            party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n            email_status as \"email_status: EmailStatus\", email_consent_at, privacy_version,\n            responded_at, created_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "source: Source",
+        "type_info": {
+          "Custom": {
+            "name": "rsvp_source",
+            "kind": {
+              "Enum": [
+                "invite",
+                "open"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "source"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "response: Response",
+        "type_info": {
+          "Custom": {
+            "name": "rsvp_response",
+            "kind": {
+              "Enum": [
+                "pending",
+                "attending",
+                "declined"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "response"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "party_size",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "party_size"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "max_party_size",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "max_party_size"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "link_nonce",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "link_nonce"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "lang: Lang",
+        "type_info": {
+          "Custom": {
+            "name": "lang",
+            "kind": {
+              "Enum": [
+                "nb",
+                "en"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "lang"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "email_status: EmailStatus",
+        "type_info": {
+          "Custom": {
+            "name": "email_status",
+            "kind": {
+              "Enum": [
+                "none",
+                "unconfirmed",
+                "confirmed"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "email_status"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "email_consent_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "email_consent_at"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "privacy_version",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "privacy_version"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "responded_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "responded_at"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "3cc6cb7b6060cbaf1e263acb7516236b19e5a57cb7caff6ef3ebe802c26920f7"
+}

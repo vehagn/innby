@@ -1,4 +1,5 @@
 mod config;
+mod db;
 mod i18n;
 mod web;
 
@@ -19,6 +20,8 @@ struct Cli {
 enum Command {
     /// Serve the public website.
     Serve,
+    /// Apply the database migrations.
+    Migrate,
 }
 
 #[tokio::main]
@@ -29,6 +32,10 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     match Cli::parse().command {
-        Command::Serve => web::serve(Config::from_env()?).await,
+        Command::Serve => {
+            let db = db::pool(&config::database_url()?)?;
+            web::serve(Config::from_env()?, db).await
+        }
+        Command::Migrate => db::migrate(&db::connect(&config::database_url()?).await?).await,
     }
 }

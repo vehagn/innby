@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update rsvp set link_nonce = link_nonce + 1 where id = $1 returning link_nonce",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "link_nonce",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "link_nonce"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8258fceb073a254cb0486da8ace74a33233bcbbc421d33085443c0013b8c7a94"
+}

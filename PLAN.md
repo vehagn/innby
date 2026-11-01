@@ -179,41 +179,15 @@ Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pendin
 
 PostgreSQL 18 is the newest major version (18.6). The cluster already runs `ghcr.io/cloudnative-pg/postgresql:18.x` for Authelia. PG18's built-in `uuidv7()` gives sortable IDs.
 
-```sql
-create table rsvp (
-    id               uuid primary key default uuidv7(),
-    source           text not null check (source in ('invite', 'open')),
-    name             text not null,                -- label for invites, self-given for open
-    response         text not null default 'pending'
-                     check (response in ('pending', 'attending', 'declined')),
-    party_size       int  not null default 1,
-    max_party_size   int  not null default 1,
-    link_nonce       int  not null default 0,      -- bump to revoke the link
-    lang             text not null default 'nb' check (lang in ('nb', 'en')),
-    email            text,                         -- optional, normalised (lower/trim)
-    email_status     text not null default 'none'
-                     check (email_status in ('none', 'unconfirmed', 'confirmed')),
-    email_consent_at timestamptz,
-    privacy_version  text,                         -- version shown when the guest last acted
-    responded_at     timestamptz,
-    created_at       timestamptz not null default now(),
-    check (party_size between 1 and max_party_size),
-    check ((email is null) = (email_status = 'none'))
-);
-create unique index rsvp_email_uq on rsvp (email) where email is not null;
+The schema lives in [`migrations/0001_rsvp_and_outbox.sql`](migrations/0001_rsvp_and_outbox.sql). In short:
 
-create table outbox (
-    id          bigint generated always as identity primary key,
-    rsvp_id     uuid not null references rsvp on delete cascade,
-    kind        text not null check (kind in ('confirm_email', 'email_in_use', 'rsvp_link', 'reminder')),
-    created_at  timestamptz not null default now(),
-    attempts    int not null default 0,
-    next_try_at timestamptz not null default now(),
-    sent_at     timestamptz,
-    last_error  text
-);
-create index outbox_due on outbox (next_try_at) where sent_at is null;
-```
+| Table | Columns | Constraints |
+|---|---|---|
+| `rsvp` | `id` (uuidv7), `source`, `name`, `response`, `party_size`, `max_party_size`, `link_nonce`, `lang`, `email`, `email_status`, `email_consent_at`, `privacy_version`, `responded_at`, `created_at` | name 1–100 chars; `party_size` within `1..=max_party_size` (max 20); e-mail present ⇔ status ≠ `none` ⇔ consent recorded; e-mail unique |
+| `outbox` | `id`, `rsvp_id` (cascade delete), `kind`, `attempts`, `next_try_at`, `sent_at`, `last_error` | partial index on unsent rows |
+
+- **Enums are Postgres enum types** (`rsvp_source`, `rsvp_response`, `email_status`, `lang`, `outbox_kind`) rather than `text` + `CHECK`. sqlx maps them straight to Rust enums with `#[derive(sqlx::Type)]`.
+- **Queries** in `src/db/rsvp.rs` use `query_as!`, so they're checked against the schema at compile time. `.sqlx/` holds the offline data, which lets builds and CI compile without a database.
 
 Notes on the model:
 
@@ -318,8 +292,8 @@ just prepare             # cargo sqlx prepare → .sqlx/ (commit it)
 just psql                # shell into dev db
 just invite "Kari & Ola" 2   # create an invitation from the CLI, print link
 just test                # cargo test (incl. #[sqlx::test] against db)
-just lint                # cargo fmt --check, clippy -D warnings, cargo deny check
-just build               # static x86_64 musl binary via cargo zigbuild
+just lint                # cargo fmt --check, clippy -D warnings, sqlx prepare --check, cargo deny check
+just build               # static x86_64 musl binary via cargo zigbuild (SQLX_OFFLINE)
 just image [tag]         # buildah: scratch + binary
 just push [tag]          # buildah push → ghcr.io/vehagn/fest
 just deploy              # kubectl apply -k deploy/ (or leave to Argo CD)
@@ -329,7 +303,7 @@ just deploy              # kubectl apply -k deploy/ (or leave to Argo CD)
 
 0. ✅ **Devcontainer:** Containerfile, compose and `devcontainer.json`, verified by building it and running every tool once.
 1. ✅ **Skeleton:** `cargo init`, `rust-toolchain.toml`, `Justfile`, config, `fest serve` with `/healthz`, an askama layout with embedded CSS, nb/en `Messages`.
-2. **Schema:** migrations, the `db` module, `.sqlx/` offline data, `#[sqlx::test]` integration tests.
+2. ✅ **Schema:** migrations, the `db` module, `.sqlx/` offline data, `#[sqlx::test]` integration tests.
 3. **Links and the RSVP page:** HMAC signing, `/r/{link}` (respond, party size, rename, export, delete), link hygiene headers, CSRF middleware.
 4. **Admin:** invitations (create, link and QR, revoke, delete), headcount, CSV, basic auth, and `fest invite` on the CLI.
 5. **Open RSVP:** `/join/{code}`, honeypot, rate limit, a "save your link" page, and the on/off flag.
