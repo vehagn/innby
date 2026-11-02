@@ -195,7 +195,7 @@ mod tests {
     use sqlx::PgPool;
 
     use super::*;
-    use crate::web::testing::{Site, body, location};
+    use crate::web::testing::{Site, body, en, escape, location};
 
     async fn all(site: &Site) -> Vec<rsvp::Rsvp> {
         rsvp::list(&site.db).await.unwrap()
@@ -248,10 +248,14 @@ mod tests {
             "no-store"
         );
         let html = body(response).await;
-        assert!(html.contains("Invited with: <strong>Climbing club</strong>"));
-        assert!(html.contains("Let us know you"));
+        let t = en();
+        assert!(html.contains(&format!("{}: <strong>Climbing club</strong>", t.join_group)));
+        assert!(html.contains(&escape(&t.join_heading)));
         assert!(html.contains(r#"name="website""#));
-        assert!(html.contains(r#"<option value="full" selected>Full name</option>"#));
+        assert!(html.contains(&format!(
+            r#"<option value="full" selected>{}</option>"#,
+            t.display_full
+        )));
         // No names on the page the link opens, which link previews fetch: they're on the
         // guest list, with the invited guest who hasn't answered as "Kari N.".
         assert!(!html.contains("Kari"), "{html}");
@@ -260,9 +264,10 @@ mod tests {
         let html = body(site.get(&list).await).await;
         assert!(html.contains("<li>Kari N.</li>"), "{html}");
         assert!(html.contains(&format!(
-            r#"href="/join/{link}?lang=en">Back to the sign-up"#
+            r#"href="/join/{link}?lang=en">{}"#,
+            t.back_to_sign_up
         )));
-        assert!(!html.contains("Other guests see you as"));
+        assert!(!html.contains(&t.listed_as));
 
         let response = site
             .post(
@@ -284,15 +289,15 @@ mod tests {
         assert_eq!(guest.name_display, Some(NameDisplay::Partial));
         assert_eq!(guest.response, rsvp::Response::Attending);
         assert_eq!((guest.party_size, guest.max_party_size), (2, 2));
-        assert_eq!(guest.lang, Lang::En);
+        assert_eq!(guest.lang, Lang::EnGb);
 
         let html = body(site.get(&target).await).await;
-        assert!(html.contains("Save your link!"));
+        assert!(html.contains(&escape(&t.save_link_title)));
         let path = target.split('?').next().unwrap();
         assert!(html.contains(&format!(r#"value="https://fest.example.com{path}""#)));
-        assert!(html.contains("Coming · 2 people"));
+        assert!(html.contains(&t.answer(rsvp::Response::Attending, 2)));
         let html = body(site.get(&format!("{path}/guests?lang=en")).await).await;
-        assert!(html.contains(r#"Per H. <span class="muted">(you)</span>"#));
+        assert!(html.contains(&format!(r#"Per H. <span class="muted">({})</span>"#, t.you)));
     }
 
     #[sqlx::test]

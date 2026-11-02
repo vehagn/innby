@@ -268,7 +268,7 @@ mod tests {
     use sqlx::PgPool;
 
     use super::*;
-    use crate::web::testing::{Site, body, location};
+    use crate::web::testing::{Site, body, en, escape, location};
 
     async fn queued(site: &Site) -> Vec<(uuid::Uuid, Kind)> {
         sqlx::query!(
@@ -319,7 +319,7 @@ mod tests {
         assert_eq!(added.email.as_deref(), Some("kari@example.com"));
         assert_eq!(
             (added.email_status, added.lang),
-            (EmailStatus::Unconfirmed, Lang::En)
+            (EmailStatus::Unconfirmed, Lang::EnGb)
         );
         assert_eq!(queued(&site).await, [(guest.id, Kind::ConfirmEmail)]);
 
@@ -328,7 +328,7 @@ mod tests {
                 .await,
         )
         .await;
-        assert!(html.contains("Check your inbox to confirm the address."));
+        assert!(html.contains(&escape(&en().email_sent_notice)));
         assert!(html.contains("<strong>kari@example.com</strong>"));
 
         // GET only shows a button.

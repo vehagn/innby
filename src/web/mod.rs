@@ -352,11 +352,34 @@ mod tests {
     #[tokio::test]
     async fn index_follows_accept_language() {
         let html = body(get("/", Some("en-GB,en;q=0.9")).await).await;
-        assert!(html.contains(r#"<html lang="en">"#));
+        assert!(html.contains(r#"<html lang="en-GB">"#));
         assert!(html.contains("<h1>Christmas party</h1>"));
-        assert!(html.contains("Saturday 12 December 2026, 19:00"));
+        let starts_at = crate::config::tests::config().event.starts_at;
+        assert!(html.contains(&Lang::EnGb.format_date(starts_at)));
         // No English description configured, so the Norwegian one is shown.
         assert!(html.contains("Velkommen!"));
+    }
+
+    #[tokio::test]
+    async fn offers_nynorsk_and_both_englishes() {
+        let html = body(get("/", Some("nn-NO,nb;q=0.9")).await).await;
+        assert!(html.contains(r#"<html lang="nn">"#));
+        assert!(html.contains("laurdag 12. desember 2026 kl. 19:00"));
+        // The switch offers the other three, each in its own language.
+        for (code, tag, name) in [
+            ("nb", "nb", "Bokmål"),
+            ("en", "en-GB", "English (Traditional)"),
+            ("en-us", "en-US", "English (Simplified)"),
+        ] {
+            let link =
+                format!(r#"<a href="?lang={code}" hreflang="{tag}" lang="{tag}">{name}</a>"#);
+            assert!(html.contains(&link), "{link}");
+        }
+        assert!(!html.contains(">Nynorsk</a>"));
+
+        let html = body(get("/", Some("en-US,en;q=0.9")).await).await;
+        assert!(html.contains(r#"<html lang="en-US">"#));
+        assert!(html.contains("Sat, Dec 12, 2026, 7:00 PM"));
     }
 
     #[tokio::test]
@@ -394,12 +417,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn privacy_notice_in_both_languages() {
+    async fn privacy_notice_in_every_language() {
         let html = body(get("/privacy", None).await).await;
         assert!(html.contains("<h1>Personvernerklæring</h1>"));
         assert!(html.contains(&format!("Versjon {PRIVACY_VERSION}")));
         assert!(html.contains("mailto:kari@example.com"));
         assert!(html.contains("slettes 30 dager etter festen"));
+
+        let html = body(get("/privacy?lang=nn", None).await).await;
+        assert!(html.contains("<h1>Personvernerklæring</h1>"));
+        assert!(html.contains("blir sletta 30 dagar etter festen"));
+
+        let html = body(get("/privacy?lang=en-us", None).await).await;
+        assert!(html.contains("<h1>Privacy</h1>"));
+        assert!(html.contains("deleted after 7 days"));
 
         let html = body(get("/privacy?lang=en", None).await).await;
         assert!(html.contains("<h1>Privacy notice</h1>"));

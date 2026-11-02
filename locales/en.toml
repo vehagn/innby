@@ -1,186 +1,194 @@
-# English texts for the public site and the mails. Every language has the
-# same keys; a missing or unknown key fails the tests and stops fest at start.
+# British English, the "traditional" variant, with a touch of polish. Every language has
+# the same keys; a missing or unknown key fails the tests and stops fest at start.
 # `{name}` and the like are filled in; keep them as they are.
 
-# Name of the other language, shown on the language switch.
-other_language = "Norsk"
+# The language's own name, on the language switch.
+language_name = "English (Traditional)"
+# What the language switch is, for screen readers.
+languages = "Languages"
 privacy_link = "Privacy"
 
 # Event
-# `chrono` format for dates and times.
-date_format = "%A %-d %B %Y, %H:%M"
+# `chrono` format for dates and times: "Saturday 12 December 2026 at 7.00 pm".
+date_format = "%A %-d %B %Y at %-I.%M %P"
 when = "When"
-place = "Where"
-rsvp_hint = "Got an invitation? Use the link you received to respond."
+place = "Venue"
+rsvp_hint = "Received an invitation? Kindly reply using the link that came with it."
 
 # RSVP page
-greeting = "Hi"
+greeting = "Good day"
 # Shown until the guest has answered: what we store and why (GDPR Art. 13/14).
 first_visit_notice = """
-You're invited! To plan the party we store your name, your answer and how many of you \
-are coming. Nothing else, and it's all deleted 30 days after the event. On the guest \
-list, other guests see your first name and initial, and you can choose what they see."""
+You are cordially invited! To plan the occasion, we keep your name, your reply and the \
+size of your party. Nothing more, and every last bit is deleted 30 days after the event. \
+On the guest list, other guests see your first name and initial, and you may choose what \
+they see."""
 keep_link = """
-This is your personal page. Keep the link to change your answer later, and don't share \
-it."""
-saved = "Saved!"
-your_answer = "Your answer"
-answer_pending = "Not answered yet"
-answer_attending = "Coming"
-answer_declined = "Not coming"
-how_many = "How many are coming?"
-people_one = "{n} person"
-people_other = "{n} people"
-attend = "I'm coming"
-decline = "I can't make it"
-reply_by = "Reply by"
-answers_closed = "The reply deadline has passed. Contact the host if something has changed."
+This page is yours alone. Do keep the link should you wish to change your reply, and \
+kindly don't share it."""
+saved = "Splendid, all saved."
+your_answer = "Your reply"
+answer_pending = "Not yet replied"
+answer_attending = "Attending"
+answer_declined = "Regretfully declined"
+how_many = "How many in your party?"
+people_one = "{n} guest"
+people_other = "{n} guests"
+attend = "I shall attend"
+decline = "Regretfully, I cannot"
+reply_by = "Kindly reply by"
+answers_closed = """
+The time for replies has passed. Do contact the host should anything have changed."""
 name_heading = "Name"
-change_name = "Change name"
-data_heading = "Your data"
-data_text = "You can download everything we store about you, or delete it now."
+change_name = "Amend name"
+data_heading = "Your particulars"
+data_text = "You may download everything we hold about you, or delete it forthwith."
 export = "Download (JSON)"
-delete_confirm = "Yes, delete my RSVP and everything stored about me"
+delete_confirm = "Yes, delete my reply and everything held about me"
 delete = "Delete"
-save_link_title = "Save your link!"
+save_link_title = "Do keep your link safe!"
 save_link_text = """
-It's the only way to change or delete your answer. Bookmark this page or copy the link \
-somewhere safe."""
+It is the only means of changing or withdrawing your reply. Bookmark this page, or keep \
+the link somewhere safe."""
 
 # Optional e-mail
 email_heading = "Reminders by e-mail"
-email_intro = "Want a reminder and your link by e-mail? It's entirely optional."
+email_intro = "Should you care for a reminder and your link by e-mail? Entirely optional."
 email_label = "E-mail address"
 # The consent statement next to the unticked box (GDPR Art. 7).
-email_consent = "Yes, e-mail me reminders and my link. I can remove my address at any time."
+email_consent = """
+Yes, please e-mail me reminders and my link. I may remove my address at any time."""
 email_add = "Add"
-email_pending = "We've sent a confirmation link to"
-email_pending_hint = "It works for 48 hours."
-email_confirmed = "Reminders go to"
+email_pending = "We have sent a confirmation link to"
+email_pending_hint = "The link remains valid for 48 hours."
+email_confirmed = "Reminders shall be sent to"
 email_remove = "Remove my e-mail address"
-email_sent_notice = "Check your inbox to confirm the address."
+email_sent_notice = "Do check your inbox to confirm the address."
 email_removed_notice = "Your e-mail address has been removed."
-email_confirmed_notice = "Your e-mail address is confirmed. We'll send you your link."
-invalid_email = "Enter a valid e-mail address."
-consent_required = "Tick the box to give your consent."
+email_confirmed_notice = "Your e-mail address is confirmed. Your link is on its way."
+invalid_email = "Kindly enter a valid e-mail address."
+consent_required = "Kindly tick the box to give your consent."
 confirm_title = "Confirm your e-mail address"
 confirm_text = """
-Press the button to confirm that you want reminders and your link by e-mail."""
+Kindly press the button to confirm that you wish to receive reminders and your link by \
+e-mail."""
 confirm_button = "Confirm"
 confirm_invalid_text = """
-The confirmation link has expired or is no longer valid. Add your address again from \
-your RSVP page."""
-lost_link = "Lost your link?"
-lost_title = "Lost your link?"
-lost_text = "If you added and confirmed your e-mail address, we'll send your link again."
+Alas, the confirmation link has expired or is no longer valid. Do add your address again \
+from your RSVP page."""
+lost_link = "Mislaid your link?"
+lost_title = "Mislaid your link?"
+lost_text = "If you added and confirmed your e-mail address, we shall send your link again."
 lost_button = "Send me my link"
-lost_sent_title = "Check your inbox"
-lost_sent_text = "If the address is registered and confirmed, we've sent you your link."
+lost_sent_title = "Do check your inbox"
+lost_sent_text = "If the address is registered and confirmed, your link is on its way."
 
 # Guest list
-guest_list_heading = "Guest list"
+guest_list_heading = "The guest list"
 # The button to the guest list, which is on a page of its own.
-see_guest_list = "See who's coming"
-back_to_your_page = "Back to your page"
-back_to_sign_up = "Back to the sign-up"
-guest_list_coming = "Coming"
-guest_list_pending = "Not answered yet"
+see_guest_list = "See who else is attending"
+back_to_your_page = "Return to your page"
+back_to_sign_up = "Return to the reply form"
+guest_list_coming = "Attending"
+guest_list_pending = "Yet to reply"
 # "+ {n} more", for guests who'd rather not be listed.
 guest_list_more = "+ {n} more"
-guest_list_empty = "Nobody on the list yet."
-guest_list_note = "Guests who can't come aren't listed."
+guest_list_empty = "Nobody on the list as yet."
+guest_list_note = "Guests who have sent their regrets are not listed."
 you = "you"
 listed_as = "Other guests see you as"
-listed_hidden = "Your name isn't on the list."
-listed_declined = "You're not on the list, since you can't come."
+listed_hidden = "Your name does not appear on the list."
+listed_declined = "You are not on the list, having sent your regrets."
 show_instead = "Show instead"
 name_display_label = "Your name on the guest list"
 display_full = "Full name"
 display_partial = "First name and initial"
-display_hidden = "Don't show my name"
+display_hidden = "Kindly omit my name"
 
 # Group sign-up
-join_group = "Invited with"
-join_heading = "Let us know you're coming"
+join_group = "Invited via"
+join_heading = "Kindly confirm your attendance"
 # What we store and why (GDPR Art. 13), shown where the data is collected.
 join_notice = """
-We only store your name and how many of you are coming, to plan the party. Other guests \
-see your name on the guest list as you choose above. It's all deleted 30 days after the \
-event, and you can delete it yourself at any time."""
+We keep only your name and the size of your party, to plan the occasion. Other guests \
+see your name on the guest list as you choose above. Everything is deleted 30 days after \
+the event, and you may delete it yourself at any time."""
 your_name = "Your name"
-join_button = "I'm coming!"
+join_button = "I shall attend!"
 
 # Errors and outcomes
-invalid_party_size = "Choose a valid number."
-invalid_name = "The name must be between 1 and 100 characters."
-confirm_delete = "Tick the box to confirm the deletion."
-gone_title = "This link doesn't work"
+invalid_party_size = "Kindly choose a valid number."
+invalid_name = "Kindly enter a name of between 1 and 100 characters."
+confirm_delete = "Kindly tick the box to confirm the deletion."
+gone_title = "Alas, this link does not work"
 gone_text = """
-It may be mistyped, replaced by a new link, or the RSVP has been deleted. Ask the host \
-for a new link."""
-deleted_title = "Your RSVP has been deleted"
+It may have been mistyped, replaced by a new link, or the reply deleted. Do ask the host \
+for a fresh one."""
+deleted_title = "Your reply has been deleted"
 deleted_text = """
-We've deleted your name, your answer and everything else we stored about you. Changed \
-your mind? Ask the host for a new invitation."""
-to_event = "Back to the event"
-too_many_attempts = "Too many attempts from here. Try again in an hour."
+We have deleted your name, your reply and everything else we held about you. A change of \
+heart? Do ask the host for a fresh invitation."""
+to_event = "Return to the event"
+too_many_attempts = "Rather too many attempts from here, I'm afraid. Do try again in an hour."
 not_found_title = "Page not found"
-not_found_text = "Check that the link is right, or ask the host."
+not_found_text = "Do check that the link is correct, or ask the host."
 
 # Mails. Each is plain text; `{url}` is a link on the site and `{title}` the event.
 [mail]
 # Under every mail. `{base}` is the site's address.
 footer = """
-You're getting this e-mail because the address was added on {base}. You can remove it \
+You are receiving this e-mail because the address was added on {base}. You may remove it \
 from your RSVP page at any time."""
 
 # To an address a guest typed in, before it's confirmed. Anyone can type in
 # any address, so this mail must not include anything a guest wrote, such as `{name}`.
 [mail.confirm_email]
-subject = "Confirm your e-mail address – {title}"
+subject = "Kindly confirm your e-mail address – {title}"
 body = """
-Hi!
+Good day,
 
-Open the link and press "Confirm" to get reminders and your link for {title} by e-mail:
+Do open the link and press "Confirm" to receive reminders and your link for {title} by \
+e-mail:
 
 {url}
 
-The link works for 48 hours. If this wasn't you, ignore this e-mail and the address is \
-deleted automatically."""
+The link remains valid for 48 hours. If this was not you, kindly disregard this e-mail; \
+the address shall be deleted automatically."""
 
 # To the confirmed owner when someone else adds their address.
 [mail.email_in_use]
 subject = "Your e-mail address is already registered – {title}"
 body = """
-Hi!
+Good day,
 
-Someone, perhaps you, tried to add this e-mail address to an RSVP for {title}, but it's \
-already in use. If you've lost your link, you can have it sent to you here:
+Someone, perhaps yourself, attempted to add this e-mail address to a reply for {title}, \
+but it is already in use. Should you have mislaid your link, you may have it sent to you \
+here:
 
 {url}
 
-If this wasn't you, ignore this e-mail."""
+If this was not you, kindly disregard this e-mail."""
 
 # The guest's own link, after confirming or from /lost.
 [mail.rsvp_link]
 subject = "Your link – {title}"
 body = """
-Hi, {name}!
+Good day, {name},
 
-Here's your personal link for {title}. Use it to change or delete your answer:
+Herewith your personal link for {title}. Do use it to change or withdraw your reply:
 
 {url}
 
-Don't share the link with anyone."""
+Kindly share it with no one."""
 
 # From the host's Send reminders. `{when}`, `{place}`, `{answer}`.
 [mail.reminder]
-subject = "Reminder: {title}"
+subject = "A gentle reminder: {title}"
 body = """
-Hi, {name}!
+Good day, {name},
 
-A reminder about {title}: {when}, {place}.
+A gentle reminder of {title}: {when}, {place}.
 
-Your answer: {answer}. Change it here:
+Your reply: {answer}. Should you wish to change it:
 
 {url}"""

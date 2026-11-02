@@ -13,6 +13,7 @@ use tower::ServiceExt;
 use crate::{
     config::{Config, tests::parse},
     db::rsvp::{self, Rsvp},
+    i18n::{Lang, Messages},
     link::Purpose,
 };
 
@@ -79,6 +80,20 @@ pub fn form_post(uri: &str, form: &str, fetch_site: &str) -> Request<Body> {
 pub async fn body(response: Response) -> String {
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     String::from_utf8(bytes.to_vec()).unwrap()
+}
+
+/// The British English texts, which tests ask for with `?lang=en`.
+pub fn en() -> &'static Messages {
+    Lang::EnGb.messages()
+}
+
+/// A text as a template writes it into HTML.
+pub fn escape(text: &str) -> String {
+    text.replace('&', "&#38;")
+        .replace('<', "&#60;")
+        .replace('>', "&#62;")
+        .replace('"', "&#34;")
+        .replace('\'', "&#39;")
 }
 
 pub fn location(response: &Response) -> &str {

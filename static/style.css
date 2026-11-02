@@ -42,6 +42,13 @@ header {
   padding: 1rem;
 }
 
+.lang-switch {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem 1rem;
+}
+
 main {
   padding: 0 1rem 3rem;
 }

@@ -2,8 +2,10 @@
 # same keys; a missing or unknown key fails the tests and stops fest at start.
 # `{name}` and the like are filled in; keep them as they are.
 
-# Name of the other language, shown on the language switch.
-other_language = "English"
+# The language's own name, on the language switch.
+language_name = "Bokmål"
+# What the language switch is, for screen readers.
+languages = "Språk"
 privacy_link = "Personvern"
 
 # Event

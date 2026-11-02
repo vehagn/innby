@@ -6,30 +6,59 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::rsvp::{NameDisplay, Response};
 
+/// The site's languages. Enum order is `Lang::ALL` order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "lang", rename_all = "lowercase")]
 pub enum Lang {
+    /// Norwegian Bokmål.
     Nb,
-    En,
+    /// Norwegian Nynorsk.
+    Nn,
+    /// British English, "traditional".
+    #[serde(rename = "en")]
+    #[sqlx(rename = "en")]
+    EnGb,
+    /// American English, "simplified".
+    #[serde(rename = "en-us")]
+    #[sqlx(rename = "en-us")]
+    EnUs,
 }
 
 impl Lang {
     pub const DEFAULT: Lang = Lang::Nb;
-    pub const ALL: [Lang; 2] = [Lang::Nb, Lang::En];
+    pub const ALL: [Lang; 4] = [Lang::Nb, Lang::Nn, Lang::EnGb, Lang::EnUs];
 
+    /// The `?lang=` value.
     pub fn code(self) -> &'static str {
         match self {
             Lang::Nb => "nb",
-            Lang::En => "en",
+            Lang::Nn => "nn",
+            Lang::EnGb => "en",
+            Lang::EnUs => "en-us",
         }
     }
 
-    /// Parses a primary language subtag. Nynorsk and plain "no" map to bokmål.
+    /// The language tag, for `<html lang>` and `hreflang`.
+    pub fn tag(self) -> &'static str {
+        match self {
+            Lang::Nb => "nb",
+            Lang::Nn => "nn",
+            Lang::EnGb => "en-GB",
+            Lang::EnUs => "en-US",
+        }
+    }
+
+    /// Parses a `?lang=` value or a language tag such as "nn-NO". Plain "no" is Bokmål,
+    /// and English is British unless it's from the US.
     pub fn from_code(code: &str) -> Option<Self> {
-        match code.to_ascii_lowercase().as_str() {
-            "nb" | "nn" | "no" => Some(Lang::Nb),
-            "en" => Some(Lang::En),
+        let code = code.trim().to_ascii_lowercase();
+        let (language, region) = code.split_once(['-', '_']).unwrap_or((&code, ""));
+        match (language, region) {
+            ("nb" | "no", _) => Some(Lang::Nb),
+            ("nn", _) => Some(Lang::Nn),
+            ("en", "us") => Some(Lang::EnUs),
+            ("en", _) => Some(Lang::EnGb),
             _ => None,
         }
     }
@@ -39,11 +68,11 @@ impl Lang {
         let mut best: Option<(f32, Lang)> = None;
         for item in accept_language.split(',') {
             let mut parts = item.split(';');
-            let primary = parts.next().unwrap_or_default().trim().split('-').next();
+            let tag = parts.next().unwrap_or_default();
             let quality = parts
                 .find_map(|param| param.trim().strip_prefix("q="))
                 .map_or(Some(1.0), |q| q.parse::<f32>().ok());
-            if let (Some(lang), Some(quality)) = (primary.and_then(Lang::from_code), quality)
+            if let (Some(lang), Some(quality)) = (Lang::from_code(tag), quality)
                 && quality > 0.0
                 && best.is_none_or(|(best_quality, _)| quality > best_quality)
             {
@@ -53,38 +82,40 @@ impl Lang {
         best.map(|(_, lang)| lang)
     }
 
-    pub fn other(self) -> Lang {
-        match self {
-            Lang::Nb => Lang::En,
-            Lang::En => Lang::Nb,
-        }
+    /// The languages to offer on the language switch.
+    pub fn others(self) -> Vec<Lang> {
+        Lang::ALL.into_iter().filter(|&lang| lang != self).collect()
     }
 
     pub fn messages(self) -> &'static Messages {
-        match self {
-            Lang::Nb => &NB,
-            Lang::En => &EN,
-        }
+        &MESSAGES[self as usize]
     }
 
     fn file(self) -> &'static str {
         match self {
             Lang::Nb => include_str!("../locales/nb.toml"),
-            Lang::En => include_str!("../locales/en.toml"),
+            Lang::Nn => include_str!("../locales/nn.toml"),
+            Lang::EnGb => include_str!("../locales/en.toml"),
+            Lang::EnUs => include_str!("../locales/en-us.toml"),
         }
     }
 
     fn locale(self) -> Locale {
         match self {
             Lang::Nb => Locale::nb_NO,
-            Lang::En => Locale::en_GB,
+            Lang::Nn => Locale::nn_NO,
+            Lang::EnGb => Locale::en_GB,
+            Lang::EnUs => Locale::en_US,
         }
     }
 
     /// A date and time as people write it, e.g. "lørdag 12. desember 2026 kl. 19:00".
     pub fn format_date(self, date: DateTime<Tz>) -> String {
-        date.format_localized(&self.messages().date_format, self.locale())
-            .to_string()
+        let date = date
+            .format_localized(&self.messages().date_format, self.locale())
+            .to_string();
+        // Some locales' day and month names end in a space ("laurdag ").
+        date.split_whitespace().collect::<Vec<_>>().join(" ")
     }
 }
 
@@ -92,20 +123,23 @@ impl Lang {
 #[derive(Debug, Clone)]
 pub struct Localized<T> {
     pub nb: T,
-    pub en: T,
+    pub nn: T,
+    pub en_gb: T,
+    pub en_us: T,
 }
 
 impl<T> Localized<T> {
     pub fn get(&self, lang: Lang) -> &T {
         match lang {
             Lang::Nb => &self.nb,
-            Lang::En => &self.en,
+            Lang::Nn => &self.nn,
+            Lang::EnGb => &self.en_gb,
+            Lang::EnUs => &self.en_us,
         }
     }
 }
 
-static NB: LazyLock<Messages> = LazyLock::new(|| Messages::load(Lang::Nb));
-static EN: LazyLock<Messages> = LazyLock::new(|| Messages::load(Lang::En));
+static MESSAGES: LazyLock<[Messages; 4]> = LazyLock::new(|| Lang::ALL.map(Messages::load));
 
 /// Reads every language's texts now, so a broken file stops the program at start rather
 /// than failing the first page that needs it.
@@ -115,13 +149,15 @@ pub fn load() {
     }
 }
 
-/// Every user-facing string, from `locales/{lang}.toml`. Each file must have exactly
+/// Every user-facing string, from `locales/{code}.toml`. Each file must have exactly
 /// these keys. `{name}` and the like in a text are filled in with `fill`.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Messages {
-    /// Name of the other language, shown on the language switch.
-    pub other_language: String,
+    /// The language's own name, on the language switch.
+    pub language_name: String,
+    /// What the language switch is, for screen readers.
+    pub languages: String,
     pub privacy_link: String,
 
     // Event
@@ -329,15 +365,22 @@ pub fn fill(text: &str, values: &[(&str, &dyn Display)]) -> String {
 mod tests {
     use std::collections::BTreeSet;
 
+    use chrono::TimeZone;
     use serde_json::Value;
 
     use super::*;
 
     #[test]
-    fn negotiates_by_quality() {
-        assert_eq!(Lang::negotiate("en-GB,en;q=0.9,nb;q=0.8"), Some(Lang::En));
-        assert_eq!(Lang::negotiate("de-DE, nb;q=0.5, en;q=0.7"), Some(Lang::En));
-        assert_eq!(Lang::negotiate("nn-NO, en;q=0.3"), Some(Lang::Nb));
+    fn negotiates_by_quality_and_region() {
+        assert_eq!(Lang::negotiate("en-GB,en;q=0.9,nb;q=0.8"), Some(Lang::EnGb));
+        assert_eq!(
+            Lang::negotiate("de-DE, nb;q=0.5, en;q=0.7"),
+            Some(Lang::EnGb)
+        );
+        assert_eq!(Lang::negotiate("nn-NO, nb;q=0.9"), Some(Lang::Nn));
+        assert_eq!(Lang::negotiate("no, en;q=0.3"), Some(Lang::Nb));
+        assert_eq!(Lang::negotiate("en-US,en;q=0.9"), Some(Lang::EnUs));
+        assert_eq!(Lang::negotiate("en-AU"), Some(Lang::EnGb));
     }
 
     #[test]
@@ -348,6 +391,32 @@ mod tests {
         assert_eq!(Lang::negotiate(""), None);
     }
 
+    #[test]
+    fn codes_and_tags_round_trip() {
+        for lang in Lang::ALL {
+            assert_eq!(Lang::from_code(lang.code()), Some(lang));
+            assert_eq!(Lang::from_code(lang.tag()), Some(lang));
+            assert_eq!(lang.others().len(), Lang::ALL.len() - 1);
+        }
+    }
+
+    #[test]
+    fn formats_dates_the_local_way() {
+        let party = chrono_tz::Europe::Oslo
+            .with_ymd_and_hms(2026, 12, 12, 19, 0, 0)
+            .unwrap();
+        let dates = Lang::ALL.map(|lang| lang.format_date(party));
+        assert_eq!(
+            dates,
+            [
+                "lørdag 12. desember 2026 kl. 19:00",
+                "laurdag 12. desember 2026 kl. 19:00",
+                "Saturday 12 December 2026 at 7.00 pm",
+                "Sat, Dec 12, 2026, 7:00 PM",
+            ]
+        );
+    }
+
     /// The `{…}` placeholders in a text.
     fn placeholders(text: &str) -> BTreeSet<&str> {
         text.split('{')
@@ -356,33 +425,36 @@ mod tests {
             .collect()
     }
 
-    /// Every text as `(key, nb, en)`, for comparing the languages.
-    fn texts() -> Vec<(String, String, String)> {
-        fn walk(path: String, nb: &Value, en: &Value, out: &mut Vec<(String, String, String)>) {
-            match (nb, en) {
-                (Value::Object(nb), Value::Object(en)) => {
+    /// Every text of `lang` next to the Bokmål one, as `(key, bokmål, text)`.
+    fn next_to_bokmal(lang: Lang) -> Vec<(String, String, String)> {
+        fn walk(path: String, nb: &Value, other: &Value, out: &mut Vec<(String, String, String)>) {
+            match (nb, other) {
+                (Value::Object(nb), Value::Object(other)) => {
                     for (key, nb) in nb {
-                        walk(format!("{path}{key}."), nb, &en[key], out);
+                        walk(format!("{path}{key}."), nb, &other[key], out);
                     }
                 }
-                (Value::String(nb), Value::String(en)) => {
-                    out.push((path, nb.clone(), en.clone()));
+                (Value::String(nb), Value::String(other)) => {
+                    out.push((path, nb.clone(), other.clone()));
                 }
-                other => panic!("{path}: {other:?}"),
+                mismatch => panic!("{path}: {mismatch:?}"),
             }
         }
+        let [nb, other] =
+            [Lang::Nb, lang].map(|lang| serde_json::to_value(lang.messages()).unwrap());
         let mut out = Vec::new();
-        let [nb, en] = Lang::ALL.map(|lang| serde_json::to_value(lang.messages()).unwrap());
-        walk(String::new(), &nb, &en, &mut out);
+        walk(String::new(), &nb, &other, &mut out);
         out
     }
 
     #[test]
     fn languages_use_the_same_placeholders() {
-        let texts = texts();
-        assert!(texts.len() > 90, "{}", texts.len());
-        for (key, nb, en) in texts {
-            assert_eq!(placeholders(&nb), placeholders(&en), "{key}");
+        for lang in Lang::ALL {
+            let texts = next_to_bokmal(lang);
+            assert!(texts.len() > 90, "{}", texts.len());
+            for (key, nb, text) in texts {
+                assert_eq!(placeholders(&nb), placeholders(&text), "{lang:?} {key}");
+            }
         }
     }
 
@@ -407,12 +479,15 @@ mod tests {
 
     #[test]
     fn counts_people() {
-        assert_eq!(EN.people_count(1), "1 person");
-        assert_eq!(NB.people_count(3), "3 personer");
-        assert_eq!(EN.people_count(2), "2 people");
-        assert_eq!(EN.answer(Response::Attending, 2), "Coming · 2 people");
-        assert_eq!(NB.answer(Response::Declined, 2), "Kommer ikke");
-        assert_eq!(EN.more_guests(3), "+ 3 more");
-        assert_eq!(NB.more_guests(1), "+ 1 til");
+        let [nb, nn, en, us] = Lang::ALL.map(Lang::messages);
+        assert_eq!(en.people_count(1), "1 guest");
+        assert_eq!(nb.people_count(3), "3 personer");
+        assert_eq!(nn.people_count(3), "3 personar");
+        assert_eq!(us.people_count(2), "2 people");
+        assert_eq!(en.answer(Response::Attending, 2), "Attending · 2 guests");
+        assert_eq!(us.answer(Response::Attending, 2), "Going · 2 people");
+        assert_eq!(nb.answer(Response::Declined, 2), "Kommer ikke");
+        assert_eq!(en.more_guests(3), "+ 3 more");
+        assert_eq!(nb.more_guests(1), "+ 1 til");
     }
 }
