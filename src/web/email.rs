@@ -1,28 +1,27 @@
 //! The optional e-mail address: adding it with consent, the double opt-in, removing it,
 //! and `/lost` for guests who lost their link.
 
-use std::net::{IpAddr, Ipv4Addr};
-
 use askama::Template;
 use axum::{
     Form,
     extract::{Path, State},
     http::StatusCode,
-    response::{IntoResponse, Response},
+    response::Response,
 };
 use chrono::Utc;
 use serde::Deserialize;
+use sqlx::PgPool;
 
 use super::{
     AppState, PRIVACY_VERSION,
     pages::{MessagePage, render, render_with, server_error},
     rate_limit::ClientIp,
-    rsvp::{Notice, RsvpPage, load, redirect},
+    rsvp::{Guest, Notice, RsvpPage, redirect},
 };
 use crate::{
     db::{
         outbox::{self, Kind},
-        rsvp,
+        rsvp::{self, EmailStatus, Rsvp},
     },
     i18n::{Lang, Messages},
     link::EmailLink,
@@ -40,58 +39,38 @@ pub struct AddForm {
 pub async fn add(
     State(state): State<AppState>,
     lang: Lang,
-    ClientIp(client): ClientIp,
-    Path(link): Path<String>,
+    client: ClientIp,
+    guest: Guest,
     Form(form): Form<AddForm>,
 ) -> Response {
-    let guest = match load(&state, lang, &link).await {
-        Ok(guest) => guest,
-        Err(err) => return err.into_response(),
-    };
-    let invalid = |pick: fn(&Messages) -> &'static str| {
-        render_with(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            RsvpPage::new(&state, lang, &link, &guest).with_error(pick),
-        )
-    };
+    let page = || RsvpPage::new(&state, lang, &guest);
     if form.consent.is_none() {
-        return invalid(|t| t.consent_required);
+        return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.consent_required);
     }
     let Some(email) = rsvp::normalize_email(&form.email) else {
-        return invalid(|t| t.invalid_email);
+        return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_email);
     };
     // Each attempt can mail an address the guest typed in, so it's limited like /lost.
-    if !state
-        .mail_limiter
-        .check(client.unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)))
-    {
+    if !state.mail_limiter.check(client) {
         tracing::warn!("add e-mail rate limit hit");
-        return render_with(
-            StatusCode::TOO_MANY_REQUESTS,
-            RsvpPage::new(&state, lang, &link, &guest).with_error(|t| t.too_many_attempts),
-        );
+        return page().render_error(StatusCode::TOO_MANY_REQUESTS, |t| t.too_many_attempts);
     }
 
-    match add_email(&state, &guest, &email, lang).await {
-        Ok(()) => redirect(&link, lang, Notice::EmailSent),
+    match add_email(&state.db, &guest.rsvp, &email, lang).await {
+        Ok(()) => redirect(&guest.link, lang, Notice::EmailSent),
         Err(err) => server_error(err),
     }
 }
 
-async fn add_email(
-    state: &AppState,
-    guest: &rsvp::Rsvp,
-    email: &str,
-    lang: Lang,
-) -> sqlx::Result<()> {
+async fn add_email(db: &PgPool, guest: &Rsvp, email: &str, lang: Lang) -> sqlx::Result<()> {
     if guest.email.as_deref() == Some(email) {
         // Already there: at most resend the confirmation.
-        if guest.email_status == rsvp::EmailStatus::Unconfirmed {
-            outbox::enqueue_once(&state.db, guest.id, Kind::ConfirmEmail).await?;
+        if guest.email_status == EmailStatus::Unconfirmed {
+            outbox::enqueue_once(db, guest.id, Kind::ConfirmEmail).await?;
         }
         return Ok(());
     }
-    let mut tx = state.db.begin().await?;
+    let mut tx = db.begin().await?;
     if let Some(owner) = rsvp::find_by_email(&mut *tx, email).await? {
         outbox::enqueue_once(&mut *tx, owner.id, Kind::EmailInUse).await?;
         tracing::info!(rsvp = %guest.id, "e-mail address already in use");
@@ -118,26 +97,18 @@ async fn add_email(
 }
 
 /// Withdraws consent: the address and any mail waiting for it are deleted.
-pub async fn remove(
-    State(state): State<AppState>,
-    lang: Lang,
-    Path(link): Path<String>,
-) -> Response {
-    let guest = match load(&state, lang, &link).await {
-        Ok(guest) => guest,
-        Err(err) => return err.into_response(),
-    };
+pub async fn remove(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
     let result = async {
         let mut tx = state.db.begin().await?;
-        rsvp::remove_email(&mut *tx, guest.id).await?;
-        outbox::cancel_unsent(&mut *tx, guest.id).await?;
+        rsvp::remove_email(&mut *tx, guest.rsvp.id).await?;
+        outbox::cancel_unsent(&mut *tx, guest.rsvp.id).await?;
         tx.commit().await
     }
     .await;
     match result {
         Ok(()) => {
-            tracing::info!(rsvp = %guest.id, "e-mail address removed");
-            redirect(&link, lang, Notice::EmailRemoved)
+            tracing::info!(rsvp = %guest.rsvp.id, "e-mail address removed");
+            redirect(&guest.link, lang, Notice::EmailRemoved)
         }
         Err(err) => server_error(err),
     }
@@ -158,28 +129,22 @@ fn invalid_confirmation(lang: Lang) -> Response {
     )
 }
 
-/// Checks a confirmation link against the guest's current address and the clock.
-async fn verify(
-    state: &AppState,
-    token: &str,
-) -> Result<Option<(rsvp::Rsvp, String)>, sqlx::Error> {
+/// The guest a confirmation link is for, if it's unexpired and signed for their current,
+/// still unconfirmed address.
+async fn verify(state: &AppState, token: &str) -> sqlx::Result<Option<Rsvp>> {
     let Ok(link) = token.parse::<EmailLink>() else {
         return Ok(None);
     };
     if link.expires <= Utc::now() {
         return Ok(None);
     }
-    let Some(guest) = rsvp::find(&state.db, link.id).await? else {
-        return Ok(None);
-    };
-    let valid = guest.email_status == rsvp::EmailStatus::Unconfirmed
-        && guest
-            .email
-            .as_deref()
-            .is_some_and(|email| state.config.link_key.verify_email(&link, email));
-    Ok(valid.then(|| {
-        let email = guest.email.clone().unwrap_or_default();
-        (guest, email)
+    let guest = rsvp::find(&state.db, link.id).await?;
+    Ok(guest.filter(|guest| {
+        guest.email_status == EmailStatus::Unconfirmed
+            && guest
+                .email
+                .as_deref()
+                .is_some_and(|email| state.config.link_key.verify_email(&link, email))
     }))
 }
 
@@ -206,14 +171,15 @@ pub async fn confirm(
     lang: Lang,
     Path(token): Path<String>,
 ) -> Response {
-    let (guest, email) = match verify(&state, &token).await {
-        Ok(Some(found)) => found,
+    let guest = match verify(&state, &token).await {
+        Ok(Some(guest)) => guest,
         Ok(None) => return invalid_confirmation(lang),
         Err(err) => return server_error(err),
     };
+    let email = guest.email.as_deref().unwrap_or_default();
     let result = async {
         let mut tx = state.db.begin().await?;
-        let confirmed = rsvp::confirm_email(&mut *tx, guest.id, &email).await?;
+        let confirmed = rsvp::confirm_email(&mut *tx, guest.id, email).await?;
         if confirmed {
             outbox::enqueue(&mut *tx, guest.id, Kind::RsvpLink).await?;
         }
@@ -241,12 +207,18 @@ struct LostPage {
     error: Option<&'static str>,
 }
 
+impl LostPage {
+    fn new(lang: Lang) -> Self {
+        Self {
+            lang,
+            t: lang.messages(),
+            error: None,
+        }
+    }
+}
+
 pub async fn lost_page(lang: Lang) -> Response {
-    render(LostPage {
-        lang,
-        t: lang.messages(),
-        error: None,
-    })
+    render(LostPage::new(lang))
 }
 
 #[derive(Deserialize)]
@@ -259,49 +231,40 @@ pub struct LostForm {
 pub async fn lost(
     State(state): State<AppState>,
     lang: Lang,
-    ClientIp(client): ClientIp,
+    client: ClientIp,
     Form(form): Form<LostForm>,
 ) -> Response {
-    let page = |status, error: fn(&Messages) -> &'static str| {
-        let t = lang.messages();
-        render_with(
-            status,
-            LostPage {
-                lang,
-                t,
-                error: Some(error(t)),
-            },
-        )
+    let fail = |status, pick: fn(&Messages) -> &'static str| {
+        let mut page = LostPage::new(lang);
+        page.error = Some(pick(page.t));
+        render_with(status, page)
     };
     let Some(email) = rsvp::normalize_email(&form.email) else {
-        return page(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_email);
+        return fail(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_email);
     };
-    if !state
-        .mail_limiter
-        .check(client.unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)))
-    {
+    if !state.mail_limiter.check(client) {
         tracing::warn!("lost link rate limit hit");
-        return page(StatusCode::TOO_MANY_REQUESTS, |t| t.too_many_attempts);
+        return fail(StatusCode::TOO_MANY_REQUESTS, |t| t.too_many_attempts);
     }
-    let result = async {
-        match rsvp::find_by_email(&state.db, &email).await? {
-            Some(guest) if guest.email_status == rsvp::EmailStatus::Confirmed => {
-                let queued = outbox::enqueue_once(&state.db, guest.id, Kind::RsvpLink).await?;
-                if queued {
-                    tracing::info!(rsvp = %guest.id, "lost link mailed");
-                }
-                Ok(())
-            }
-            _ => Ok::<_, sqlx::Error>(()),
-        }
-    }
-    .await;
-    match result {
+    match mail_link(&state.db, &email).await {
         Ok(()) => render(MessagePage::new(lang, |t| {
             (t.lost_sent_title, t.lost_sent_text)
         })),
         Err(err) => server_error(err),
     }
+}
+
+/// Queues the link for the guest with this address, if it's confirmed.
+async fn mail_link(db: &PgPool, email: &str) -> sqlx::Result<()> {
+    let Some(guest) = rsvp::find_by_email(db, email).await? else {
+        return Ok(());
+    };
+    if guest.email_status == EmailStatus::Confirmed
+        && outbox::enqueue_once(db, guest.id, Kind::RsvpLink).await?
+    {
+        tracing::info!(rsvp = %guest.id, "lost link mailed");
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -310,10 +273,7 @@ mod tests {
     use sqlx::PgPool;
 
     use super::*;
-    use crate::{
-        db::rsvp::EmailStatus,
-        web::testing::{Site, body, location},
-    };
+    use crate::web::testing::{Site, body, location};
 
     async fn queued(site: &Site) -> Vec<(uuid::Uuid, Kind)> {
         sqlx::query!(
@@ -327,7 +287,7 @@ mod tests {
         .collect()
     }
 
-    fn confirm_token(site: &Site, guest: &rsvp::Rsvp, email: &str) -> String {
+    fn confirm_token(site: &Site, guest: &Rsvp, email: &str) -> String {
         site.config
             .link_key
             .email_link(guest.id, email, Utc::now() + Duration::hours(48))
@@ -344,7 +304,10 @@ mod tests {
                 "email=+Kari%40Example.com&consent=yes",
             )
             .await;
-        assert_eq!(location(&response), format!("/r/{link}?lang=en&email_sent"));
+        assert_eq!(
+            location(&response),
+            format!("/r/{link}?lang=en&notice=email_sent")
+        );
         let added = site.find(&guest).await.unwrap();
         assert_eq!(added.email.as_deref(), Some("kari@example.com"));
         assert_eq!(
@@ -353,7 +316,11 @@ mod tests {
         );
         assert_eq!(queued(&site).await, [(guest.id, Kind::ConfirmEmail)]);
 
-        let html = body(site.get(&format!("/r/{link}?lang=en&email_sent")).await).await;
+        let html = body(
+            site.get(&format!("/r/{link}?lang=en&notice=email_sent"))
+                .await,
+        )
+        .await;
         assert!(html.contains("Check your inbox to confirm the address."));
         assert!(html.contains("<strong>kari@example.com</strong>"));
 
@@ -369,7 +336,7 @@ mod tests {
         let response = site.post(&format!("/e/{token}?lang=en"), "").await;
         assert_eq!(
             location(&response),
-            format!("/r/{link}?lang=en&email_confirmed")
+            format!("/r/{link}?lang=en&notice=email_confirmed")
         );
         assert_eq!(
             site.find(&guest).await.unwrap().email_status,
@@ -386,7 +353,7 @@ mod tests {
         let response = site.post(&format!("/r/{link}/email/remove"), "").await;
         assert_eq!(
             location(&response),
-            format!("/r/{link}?lang=nb&email_removed")
+            format!("/r/{link}?lang=nb&notice=email_removed")
         );
         let removed = site.find(&guest).await.unwrap();
         assert_eq!(
@@ -423,7 +390,7 @@ mod tests {
         let response = site.post(&format!("/r/{other_link}/email"), form).await;
         assert_eq!(
             location(&response),
-            format!("/r/{other_link}?lang=nb&email_sent")
+            format!("/r/{other_link}?lang=nb&notice=email_sent")
         );
         assert_eq!(site.find(&other).await.unwrap().email, None);
         assert_eq!(

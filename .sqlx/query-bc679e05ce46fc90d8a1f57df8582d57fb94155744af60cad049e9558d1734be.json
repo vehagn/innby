@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        update rsvp\n        set response = $2, party_size = $3, lang = $4, privacy_version = $5, responded_at = now()\n        where id = $1\n        returning id, source as \"source: Source\", name, response as \"response: Response\",\n            party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n            email_status as \"email_status: EmailStatus\", email_consent_at, privacy_version,\n            responded_at, created_at\n        ",
+  "query": "update rsvp set response = $2, party_size = $3, lang = $4, privacy_version = $5, responded_at = now() where id = $1 returning id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at ",
   "describe": {
     "columns": [
       {
@@ -247,5 +247,5 @@
       false
     ]
   },
-  "hash": "aaee8c475849cacf5868eba3dcb2cab97206edd2be8caad6339332bd6a16343d"
+  "hash": "bc679e05ce46fc90d8a1f57df8582d57fb94155744af60cad049e9558d1734be"
 }

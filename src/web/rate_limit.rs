@@ -1,9 +1,10 @@
-//! A per-client, in-memory rate limit for the open RSVP form. Addresses are only held in
-//! memory for the length of a window and never logged or stored.
+//! A per-client, in-memory rate limit for the forms anyone can post: the open RSVP and
+//! the ones that send mail. Addresses are only held in memory for the length of a window
+//! and never logged or stored.
 
 use std::{
     collections::HashMap,
-    net::{IpAddr, Ipv6Addr},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::Mutex,
     time::{Duration, Instant},
 };
@@ -30,7 +31,7 @@ impl RateLimiter {
     }
 
     /// Counts a request and says whether it's within the limit.
-    pub fn check(&self, client: IpAddr) -> bool {
+    pub fn check(&self, ClientIp(client): ClientIp) -> bool {
         self.check_at(client, Instant::now())
     }
 
@@ -64,8 +65,10 @@ fn network(client: IpAddr) -> IpAddr {
 }
 
 /// The client's address: the TCP peer, or behind a trusted gateway the address it
-/// appended to `X-Forwarded-For`. Unknown (as in tests) when neither is available.
-pub struct ClientIp(pub Option<IpAddr>);
+/// appended to `X-Forwarded-For`. Clients without either (only in tests) share
+/// `0.0.0.0`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClientIp(pub IpAddr);
 
 impl ClientIp {
     fn from_parts(parts: &Parts, trust_forwarded: bool) -> Self {
@@ -82,10 +85,11 @@ impl ClientIp {
         let peer = || {
             parts
                 .extensions
-                .get::<ConnectInfo<std::net::SocketAddr>>()
+                .get::<ConnectInfo<SocketAddr>>()
                 .map(|ConnectInfo(address)| address.ip())
         };
-        Self(trust_forwarded.then(forwarded).flatten().or_else(peer))
+        let client = trust_forwarded.then(forwarded).flatten().or_else(peer);
+        Self(client.unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)))
     }
 }
 
@@ -137,14 +141,11 @@ mod tests {
             .body(())
             .unwrap()
             .into_parts();
-        parts.extensions.insert(ConnectInfo::<std::net::SocketAddr>(
-            "10.0.0.5:1234".parse().unwrap(),
-        ));
+        parts
+            .extensions
+            .insert(ConnectInfo::<SocketAddr>("10.0.0.5:1234".parse().unwrap()));
 
-        assert_eq!(
-            ClientIp::from_parts(&parts, true).0,
-            Some(ip("198.51.100.7"))
-        );
-        assert_eq!(ClientIp::from_parts(&parts, false).0, Some(ip("10.0.0.5")));
+        assert_eq!(ClientIp::from_parts(&parts, true).0, ip("198.51.100.7"));
+        assert_eq!(ClientIp::from_parts(&parts, false).0, ip("10.0.0.5"));
     }
 }

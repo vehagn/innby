@@ -23,6 +23,13 @@ pub struct Config {
     pub event: Event,
 }
 
+impl Config {
+    /// Whether the site is served over HTTPS, which turns on HSTS.
+    pub fn is_https(&self) -> bool {
+        self.base_url.starts_with("https://")
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Controller {
     pub name: String,
@@ -49,15 +56,17 @@ impl Event {
 /// The Postgres connection string. Kept apart from `Config` because `fest migrate`
 /// needs nothing else.
 pub fn database_url() -> Result<String> {
-    std::env::var("DATABASE_URL")
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| anyhow!("DATABASE_URL must be set"))
+    Env(process_env).required("DATABASE_URL")
 }
 
 /// Reads settings from any key lookup, so tests don't touch the process environment.
 /// Blank values count as unset.
 struct Env<F>(F);
+
+/// The real lookup, for `Env`.
+fn process_env(key: &str) -> Option<String> {
+    std::env::var(key).ok()
+}
 
 impl<F: Fn(&str) -> Option<String>> Env<F> {
     fn optional(&self, key: &str) -> Option<String> {
@@ -109,12 +118,12 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
 
 /// When the event starts. `fest janitor` needs only this, besides the database.
 pub fn event_start() -> Result<DateTime<Tz>> {
-    Env(|key: &str| std::env::var(key).ok()).event_start()
+    Env(process_env).event_start()
 }
 
 impl Config {
     pub fn from_env() -> Result<Self> {
-        Self::from_lookup(|key| std::env::var(key).ok())
+        Self::from_lookup(process_env)
     }
 
     fn from_lookup(get: impl Fn(&str) -> Option<String>) -> Result<Self> {
@@ -196,7 +205,7 @@ pub struct AdminConfig {
 
 impl AdminConfig {
     pub fn from_env() -> Result<Self> {
-        Self::from_lookup(|key| std::env::var(key).ok())
+        Self::from_lookup(process_env)
     }
 
     fn from_lookup(get: impl Fn(&str) -> Option<String>) -> Result<Self> {
@@ -235,7 +244,7 @@ impl std::fmt::Debug for MailConfig {
 
 impl MailConfig {
     pub fn from_env() -> Result<Self> {
-        Self::from_lookup(|key| std::env::var(key).ok())
+        Self::from_lookup(process_env)
     }
 
     fn from_lookup(get: impl Fn(&str) -> Option<String>) -> Result<Self> {

@@ -5,7 +5,7 @@ mod pages;
 mod rate_limit;
 mod rsvp;
 #[cfg(test)]
-mod testing;
+pub(crate) mod testing;
 
 pub use join::OPEN_MAX_PARTY_SIZE;
 pub use pages::{render, render_with, server_error, stylesheet};
@@ -66,6 +66,8 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 /// Pages addressed by a secret link must not be stored by browsers or proxies.
 const LINK_HEADERS: [(header::HeaderName, &str); 1] = [(header::CACHE_CONTROL, "no-store")];
 
+const HOUR: Duration = Duration::from_secs(60 * 60);
+
 #[derive(Clone)]
 struct AppState {
     config: Arc<Config>,
@@ -119,19 +121,13 @@ pub fn no_store<S: Clone + Send + Sync + 'static>(router: Router<S>) -> Router<S
 }
 
 pub(crate) fn router(config: Config, db: PgPool) -> Router {
-    let https = config.base_url.starts_with("https://");
+    let https = config.is_https();
     let state = AppState {
         config: Arc::new(config),
         db,
         // Generous enough for a household sharing one address.
-        join_limiter: Arc::new(rate_limit::RateLimiter::new(
-            10,
-            Duration::from_secs(60 * 60),
-        )),
-        mail_limiter: Arc::new(rate_limit::RateLimiter::new(
-            5,
-            Duration::from_secs(60 * 60),
-        )),
+        join_limiter: Arc::new(rate_limit::RateLimiter::new(10, HOUR)),
+        mail_limiter: Arc::new(rate_limit::RateLimiter::new(5, HOUR)),
     };
     let links = Router::new()
         .route("/join/{code}", get(join::show).post(join::join))
@@ -231,11 +227,10 @@ mod tests {
     use std::time::Duration;
 
     use axum::{body::Body, http::Request, response::Response};
-    use http_body_util::BodyExt;
     use sqlx::postgres::PgPoolOptions;
     use tower::ServiceExt;
 
-    use super::*;
+    use super::{testing::body, *};
 
     /// A pool pointing at a closed port, for tests that don't touch the database.
     fn unreachable_db() -> PgPool {
@@ -258,11 +253,6 @@ mod tests {
 
     async fn get(uri: &str, accept_language: Option<&str>) -> Response {
         request(unreachable_db(), uri, accept_language).await
-    }
-
-    async fn body(response: Response) -> String {
-        let bytes = response.into_body().collect().await.unwrap().to_bytes();
-        String::from_utf8(bytes.to_vec()).unwrap()
     }
 
     #[tokio::test]

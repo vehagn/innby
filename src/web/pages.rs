@@ -6,8 +6,6 @@ use axum::{
     http::{StatusCode, header},
     response::{Html, IntoResponse, Response},
 };
-use chrono::DateTime;
-use chrono_tz::Tz;
 
 use super::{AppState, PRIVACY_VERSION};
 use crate::{
@@ -32,18 +30,33 @@ impl<'a> EventView<'a> {
             title: event.title.get(lang),
             description: event.description.get(lang),
             location: &event.location,
-            starts_at: local_date(event.starts_at, lang),
+            starts_at: lang.format_date(event.starts_at),
             starts_at_iso: event.starts_at.to_rfc3339(),
             rsvp_deadline: event
                 .rsvp_deadline
-                .map(|deadline| local_date(deadline, lang)),
+                .map(|deadline| lang.format_date(deadline)),
         }
     }
 }
 
-fn local_date(date: DateTime<Tz>, lang: Lang) -> String {
-    date.format_localized(lang.messages().date_format, lang.locale())
-        .to_string()
+/// One choice in the "How many are coming?" list (`_party_size.html`).
+pub struct PartySize {
+    pub value: i32,
+    pub label: String,
+    pub selected: bool,
+}
+
+impl PartySize {
+    /// The choices from 1 to `max`, with `selected` preselected.
+    pub fn choices(t: &Messages, max: i32, selected: i32) -> Vec<Self> {
+        (1..=max)
+            .map(|value| Self {
+                value,
+                label: t.people_count(value),
+                selected: value == selected,
+            })
+            .collect()
+    }
 }
 
 #[derive(Template)]

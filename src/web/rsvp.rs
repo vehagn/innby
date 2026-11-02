@@ -3,8 +3,8 @@
 use askama::Template;
 use axum::{
     Form, Json,
-    extract::{Path, Query, State},
-    http::{StatusCode, header},
+    extract::{FromRequestParts, Path, Query, State},
+    http::{StatusCode, header, request::Parts},
     response::{IntoResponse, Redirect, Response},
 };
 use chrono::Utc;
@@ -12,13 +12,49 @@ use serde::Deserialize;
 
 use super::{
     AppState, PRIVACY_VERSION,
-    pages::{EventView, MessagePage, render, render_with, server_error},
+    pages::{EventView, MessagePage, PartySize, render, render_with, server_error},
 };
 use crate::{
     db::rsvp::{self, Rsvp},
     i18n::{Lang, Messages},
     link::RsvpLink,
 };
+
+/// The guest behind the `{link}` in the path. Malformed, forged, revoked and deleted
+/// links are all turned away with the same page.
+pub(super) struct Guest {
+    pub link: String,
+    pub rsvp: Rsvp,
+}
+
+impl FromRequestParts<AppState> for Guest {
+    type Rejection = Response;
+
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Response> {
+        let Ok(lang) = Lang::from_request_parts(parts, state).await;
+        let Path(link) = Path::<String>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| gone(lang))?;
+        let Ok(parsed) = link.parse::<RsvpLink>() else {
+            return Err(gone(lang));
+        };
+        match rsvp::find(&state.db, parsed.id).await {
+            Ok(Some(rsvp)) if state.config.link_key.verify_rsvp(&parsed, rsvp.link_nonce) => {
+                Ok(Self { link, rsvp })
+            }
+            Ok(_) => Err(gone(lang)),
+            Err(err) => Err(server_error(err)),
+        }
+    }
+}
+
+/// The page every link that doesn't lead to a guest gets.
+fn gone(lang: Lang) -> Response {
+    render_with(
+        StatusCode::NOT_FOUND,
+        MessagePage::new(lang, |t| (t.gone_title, t.gone_text)),
+    )
+}
 
 #[derive(Template)]
 #[template(path = "rsvp.html")]
@@ -30,8 +66,7 @@ pub(super) struct RsvpPage<'a> {
     rsvp: &'a Rsvp,
     /// The guest's current answer, e.g. "Coming · 2 people".
     status: String,
-    /// Party size choices: value, label and whether it's the current one.
-    party_sizes: Vec<(i32, String, bool)>,
+    party_sizes: Vec<PartySize>,
     first_visit: bool,
     accepts_answers: bool,
     email_confirmed: bool,
@@ -43,29 +78,17 @@ pub(super) struct RsvpPage<'a> {
 }
 
 impl<'a> RsvpPage<'a> {
-    pub(super) fn new(state: &'a AppState, lang: Lang, link: &'a str, rsvp: &'a Rsvp) -> Self {
+    pub(super) fn new(state: &'a AppState, lang: Lang, guest: &'a Guest) -> Self {
         let t = lang.messages();
-        let status = match rsvp.response {
-            rsvp::Response::Pending => t.answer_pending.to_owned(),
-            rsvp::Response::Attending => {
-                format!(
-                    "{} · {}",
-                    t.answer_attending,
-                    t.people_count(rsvp.party_size)
-                )
-            }
-            rsvp::Response::Declined => t.answer_declined.to_owned(),
-        };
+        let rsvp = &guest.rsvp;
         Self {
             lang,
             t,
             event: EventView::new(&state.config.event, lang),
-            link,
+            link: &guest.link,
             rsvp,
-            status,
-            party_sizes: (1..=rsvp.max_party_size)
-                .map(|n| (n, t.people_count(n), n == rsvp.party_size))
-                .collect(),
+            status: t.answer(rsvp.response, rsvp.party_size),
+            party_sizes: PartySize::choices(t, rsvp.max_party_size, rsvp.party_size),
             first_visit: rsvp.privacy_version.is_none(),
             accepts_answers: state.config.event.accepts_answers(Utc::now()),
             email_confirmed: rsvp.email_status == rsvp::EmailStatus::Confirmed,
@@ -75,48 +98,18 @@ impl<'a> RsvpPage<'a> {
         }
     }
 
-    pub(super) fn with_error(mut self, pick: impl Fn(&Messages) -> &'static str) -> Self {
+    /// The page again with an error message, e.g. for an invalid form.
+    pub(super) fn render_error(
+        mut self,
+        status: StatusCode,
+        pick: impl Fn(&Messages) -> &'static str,
+    ) -> Response {
         self.error = Some(pick(self.t));
-        self
+        render_with(status, self)
     }
 }
 
-/// Malformed, forged, revoked and deleted links all get this same page.
-fn gone(lang: Lang) -> Response {
-    render_with(
-        StatusCode::NOT_FOUND,
-        MessagePage::new(lang, |t| (t.gone_title, t.gone_text)),
-    )
-}
-
-/// Why a link didn't lead to a guest.
-pub(super) enum LoadError {
-    Gone(Lang),
-    Database(sqlx::Error),
-}
-
-impl IntoResponse for LoadError {
-    fn into_response(self) -> Response {
-        match self {
-            LoadError::Gone(lang) => gone(lang),
-            LoadError::Database(err) => server_error(err),
-        }
-    }
-}
-
-/// Finds the guest behind a link.
-pub(super) async fn load(state: &AppState, lang: Lang, link: &str) -> Result<Rsvp, LoadError> {
-    let parsed = link
-        .parse::<RsvpLink>()
-        .map_err(|()| LoadError::Gone(lang))?;
-    match rsvp::find(&state.db, parsed.id).await {
-        Ok(Some(rsvp)) if state.config.link_key.verify_rsvp(&parsed, rsvp.link_nonce) => Ok(rsvp),
-        Ok(_) => Err(LoadError::Gone(lang)),
-        Err(err) => Err(LoadError::Database(err)),
-    }
-}
-
-/// What the RSVP page confirms after a change. The name is the query flag.
+/// What the RSVP page confirms after a change, passed as `?notice=`.
 #[derive(Clone, Copy)]
 pub(super) enum Notice {
     Saved,
@@ -126,71 +119,68 @@ pub(super) enum Notice {
 }
 
 impl Notice {
-    fn flag(self) -> &'static str {
+    const ALL: [Self; 4] = [
+        Self::Saved,
+        Self::EmailSent,
+        Self::EmailRemoved,
+        Self::EmailConfirmed,
+    ];
+
+    fn code(self) -> &'static str {
         match self {
-            Notice::Saved => "saved",
-            Notice::EmailSent => "email_sent",
-            Notice::EmailRemoved => "email_removed",
-            Notice::EmailConfirmed => "email_confirmed",
+            Self::Saved => "saved",
+            Self::EmailSent => "email_sent",
+            Self::EmailRemoved => "email_removed",
+            Self::EmailConfirmed => "email_confirmed",
         }
+    }
+
+    fn from_code(code: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|notice| notice.code() == code)
     }
 
     fn text(self, t: &Messages) -> &'static str {
         match self {
-            Notice::Saved => t.saved,
-            Notice::EmailSent => t.email_sent_notice,
-            Notice::EmailRemoved => t.email_removed_notice,
-            Notice::EmailConfirmed => t.email_confirmed_notice,
+            Self::Saved => t.saved,
+            Self::EmailSent => t.email_sent_notice,
+            Self::EmailRemoved => t.email_removed_notice,
+            Self::EmailConfirmed => t.email_confirmed_notice,
         }
     }
 }
 
 /// Back to the RSVP page after a change (post/redirect/get).
 pub(super) fn redirect(link: &str, lang: Lang, notice: Notice) -> Response {
-    Redirect::to(&format!("/r/{link}?lang={}&{}", lang.code(), notice.flag())).into_response()
-}
-
-fn saved_redirect(link: &str, lang: Lang) -> Response {
-    redirect(link, lang, Notice::Saved)
+    Redirect::to(&format!(
+        "/r/{link}?lang={}&notice={}",
+        lang.code(),
+        notice.code()
+    ))
+    .into_response()
 }
 
 #[derive(Deserialize)]
 pub struct ShowQuery {
-    saved: Option<String>,
-    email_sent: Option<String>,
-    email_removed: Option<String>,
-    email_confirmed: Option<String>,
+    notice: Option<String>,
+    /// Set right after an open RSVP.
     new: Option<String>,
-}
-
-impl ShowQuery {
-    fn notice(&self) -> Option<Notice> {
-        [
-            (&self.saved, Notice::Saved),
-            (&self.email_sent, Notice::EmailSent),
-            (&self.email_removed, Notice::EmailRemoved),
-            (&self.email_confirmed, Notice::EmailConfirmed),
-        ]
-        .into_iter()
-        .find_map(|(flag, notice)| flag.is_some().then_some(notice))
-    }
 }
 
 pub async fn show(
     State(state): State<AppState>,
     lang: Lang,
-    Path(link): Path<String>,
+    guest: Guest,
     Query(query): Query<ShowQuery>,
 ) -> Response {
-    let rsvp = match load(&state, lang, &link).await {
-        Ok(rsvp) => rsvp,
-        Err(err) => return err.into_response(),
-    };
-    let mut page = RsvpPage::new(&state, lang, &link, &rsvp);
-    page.flash = query.notice().map(|notice| notice.text(page.t));
+    let mut page = RsvpPage::new(&state, lang, &guest);
+    page.flash = query
+        .notice
+        .as_deref()
+        .and_then(Notice::from_code)
+        .map(|notice| notice.text(page.t));
     page.new_link = query
         .new
-        .map(|_| format!("{}/r/{link}", state.config.base_url));
+        .map(|_| format!("{}/r/{}", state.config.base_url, guest.link));
     render(page)
 }
 
@@ -210,44 +200,35 @@ pub struct AnswerForm {
 pub async fn answer(
     State(state): State<AppState>,
     lang: Lang,
-    Path(link): Path<String>,
+    guest: Guest,
     Form(form): Form<AnswerForm>,
 ) -> Response {
-    let rsvp = match load(&state, lang, &link).await {
-        Ok(rsvp) => rsvp,
-        Err(err) => return err.into_response(),
-    };
-    let page = || RsvpPage::new(&state, lang, &link, &rsvp);
+    let page = || RsvpPage::new(&state, lang, &guest);
     if !state.config.event.accepts_answers(Utc::now()) {
-        return render_with(
-            StatusCode::FORBIDDEN,
-            page().with_error(|t| t.answers_closed),
-        );
+        return page().render_error(StatusCode::FORBIDDEN, |t| t.answers_closed);
     }
-    if !(1..=rsvp.max_party_size).contains(&form.party_size) {
-        return render_with(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            page().with_error(|t| t.invalid_party_size),
-        );
+    if !(1..=guest.rsvp.max_party_size).contains(&form.party_size) {
+        return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_party_size);
     }
 
     let response = match form.response {
         Answer::Attending => rsvp::Response::Attending,
         Answer::Declined => rsvp::Response::Declined,
     };
-    let result = rsvp::respond(
+    let id = guest.rsvp.id;
+    match rsvp::respond(
         &state.db,
-        rsvp.id,
+        id,
         response,
         form.party_size,
         lang,
         PRIVACY_VERSION,
     )
-    .await;
-    match result {
+    .await
+    {
         Ok(Some(_)) => {
-            tracing::info!(rsvp = %rsvp.id, ?response, "rsvp answered");
-            saved_redirect(&link, lang)
+            tracing::info!(rsvp = %id, ?response, "rsvp answered");
+            redirect(&guest.link, lang, Notice::Saved)
         }
         // Deleted in the meantime.
         Ok(None) => gone(lang),
@@ -263,45 +244,33 @@ pub struct NameForm {
 pub async fn rename(
     State(state): State<AppState>,
     lang: Lang,
-    Path(link): Path<String>,
+    guest: Guest,
     Form(form): Form<NameForm>,
 ) -> Response {
-    let rsvp = match load(&state, lang, &link).await {
-        Ok(rsvp) => rsvp,
-        Err(err) => return err.into_response(),
-    };
     let Some(name) = rsvp::normalize_name(&form.name) else {
-        return render_with(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            RsvpPage::new(&state, lang, &link, &rsvp).with_error(|t| t.invalid_name),
-        );
+        return RsvpPage::new(&state, lang, &guest)
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_name);
     };
-    match rsvp::rename(&state.db, rsvp.id, &name).await {
-        Ok(_) => {
-            tracing::info!(rsvp = %rsvp.id, "rsvp renamed");
-            saved_redirect(&link, lang)
+    match rsvp::rename(&state.db, guest.rsvp.id, &name).await {
+        Ok(true) => {
+            tracing::info!(rsvp = %guest.rsvp.id, "rsvp renamed");
+            redirect(&guest.link, lang, Notice::Saved)
         }
+        Ok(false) => gone(lang),
         Err(err) => server_error(err),
     }
 }
 
 /// Everything stored about the guest, as a download (GDPR Art. 15 and 20).
-pub async fn export(
-    State(state): State<AppState>,
-    lang: Lang,
-    Path(link): Path<String>,
-) -> Response {
-    match load(&state, lang, &link).await {
-        Ok(rsvp) => (
-            [(
-                header::CONTENT_DISPOSITION,
-                r#"attachment; filename="rsvp.json""#,
-            )],
-            Json(rsvp),
-        )
-            .into_response(),
-        Err(err) => err.into_response(),
-    }
+pub async fn export(guest: Guest) -> Response {
+    (
+        [(
+            header::CONTENT_DISPOSITION,
+            r#"attachment; filename="rsvp.json""#,
+        )],
+        Json(guest.rsvp),
+    )
+        .into_response()
 }
 
 #[derive(Deserialize)]
@@ -313,22 +282,16 @@ pub struct DeleteForm {
 pub async fn delete(
     State(state): State<AppState>,
     lang: Lang,
-    Path(link): Path<String>,
+    guest: Guest,
     Form(form): Form<DeleteForm>,
 ) -> Response {
-    let rsvp = match load(&state, lang, &link).await {
-        Ok(rsvp) => rsvp,
-        Err(err) => return err.into_response(),
-    };
     if form.confirm.is_none() {
-        return render_with(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            RsvpPage::new(&state, lang, &link, &rsvp).with_error(|t| t.confirm_delete),
-        );
+        return RsvpPage::new(&state, lang, &guest)
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.confirm_delete);
     }
-    match rsvp::delete(&state.db, rsvp.id).await {
+    match rsvp::delete(&state.db, guest.rsvp.id).await {
         Ok(_) => {
-            tracing::info!(rsvp = %rsvp.id, "rsvp deleted by guest");
+            tracing::info!(rsvp = %guest.rsvp.id, "rsvp deleted by guest");
             render(MessagePage::new(lang, |t| {
                 (t.deleted_title, t.deleted_text)
             }))
@@ -368,7 +331,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
             response.headers()[header::LOCATION],
-            format!("/r/{link}?lang=en&saved").as_str()
+            format!("/r/{link}?lang=en&notice=saved").as_str()
         );
 
         let answered = site.find(&invite).await.unwrap();
@@ -376,7 +339,7 @@ mod tests {
         assert_eq!((answered.party_size, answered.lang), (2, Lang::En));
         assert_eq!(answered.privacy_version.as_deref(), Some(PRIVACY_VERSION));
 
-        let html = body(site.get(&format!("/r/{link}?lang=en&saved")).await).await;
+        let html = body(site.get(&format!("/r/{link}?lang=en&notice=saved")).await).await;
         assert!(html.contains("Saved!"));
         assert!(html.contains("Coming · 2 people"));
         assert!(!html.contains("You're invited!"));

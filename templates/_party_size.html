@@ -1,0 +1,6 @@
+    <label for="party_size">{{ t.how_many }}</label>
+    <select id="party_size" name="party_size">
+      {% for choice in party_sizes %}
+      <option value="{{ choice.value }}"{% if choice.selected %} selected{% endif %}>{{ choice.label }}</option>
+      {% endfor %}
+    </select>

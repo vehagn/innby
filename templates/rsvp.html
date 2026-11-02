@@ -29,12 +29,7 @@
   {% if accepts_answers %}
   <form method="post" action="/r/{{ link }}?lang={{ lang.code() }}">
     {% if party_sizes.len() > 1 %}
-    <label for="party_size">{{ t.how_many }}</label>
-    <select id="party_size" name="party_size">
-      {% for (value, label, selected) in party_sizes %}
-      <option value="{{ value }}"{% if *selected %} selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
+    {% include "_party_size.html" %}
     {% else %}
     <input type="hidden" name="party_size" value="1">
     {% endif %}

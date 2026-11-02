@@ -3,6 +3,9 @@
   --fg: #1f1c18;
   --muted: #6b645b;
   --accent: #b3261e;
+  --success: #2e7d32;
+  /* Borders and rules. */
+  --line: color-mix(in srgb, var(--muted) 30%, transparent);
   color-scheme: light dark;
 }
 
@@ -26,17 +29,20 @@ body {
   font: 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
+header,
+main,
+footer {
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
 header {
   display: flex;
   justify-content: flex-end;
-  max-width: 40rem;
-  margin: 0 auto;
   padding: 1rem;
 }
 
 main {
-  max-width: 40rem;
-  margin: 0 auto;
   padding: 0 1rem 3rem;
 }
 
@@ -71,7 +77,7 @@ h1 {
 
 .hint {
   color: var(--muted);
-  border-top: 1px solid color-mix(in srgb, var(--muted) 30%, transparent);
+  border-top: 1px solid var(--line);
   padding-top: 1rem;
 }
 
@@ -81,8 +87,6 @@ h2 {
 }
 
 footer {
-  max-width: 40rem;
-  margin: 0 auto;
   padding: 0 1rem 2rem;
   font-size: 0.875rem;
 }
@@ -96,7 +100,7 @@ footer {
 }
 
 .card {
-  border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent);
+  border: 1px solid var(--line);
   border-radius: 0.75rem;
   padding: 1.25rem;
   margin: 0 0 1.5rem;
@@ -110,7 +114,7 @@ footer {
 }
 
 .notice.success {
-  border-color: #2e7d32;
+  border-color: var(--success);
 }
 
 .notice.error {
@@ -132,6 +136,7 @@ label.checkbox {
 input:not([type]),
 input[type="text"],
 input[type="email"],
+input[type="number"],
 select {
   font: inherit;
   width: 100%;
@@ -174,7 +179,7 @@ button.danger {
 }
 
 details {
-  border-top: 1px solid color-mix(in srgb, var(--muted) 30%, transparent);
+  border-top: 1px solid var(--line);
   padding: 0.75rem 0;
 }
 
@@ -188,14 +193,7 @@ details > :not(summary) {
 }
 
 input[type="number"] {
-  font: inherit;
   width: 6rem;
-  padding: 0.5rem 0.625rem;
-  margin: 0 0 0.75rem;
-  border: 1px solid var(--muted);
-  border-radius: 0.375rem;
-  background: var(--bg);
-  color: var(--fg);
 }
 
 /* Admin */
@@ -238,7 +236,7 @@ th,
 td {
   text-align: left;
   padding: 0.5rem 0.75rem 0.5rem 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
+  border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
 
@@ -268,7 +266,7 @@ input[readonly] {
 }
 
 .save-link {
-  border-color: #2e7d32;
+  border-color: var(--success);
   margin: 0 0 1.5rem;
 }
 

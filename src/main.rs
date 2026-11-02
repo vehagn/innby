@@ -56,32 +56,26 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     match Cli::parse().command {
-        Command::Serve => {
-            let db = db::pool(&config::database_url()?)?;
-            web::serve(Config::from_env()?, db).await
-        }
+        Command::Serve => web::serve(Config::from_env()?, db::pool()?).await,
         Command::Admin => {
-            let db = db::pool(&config::database_url()?)?;
-            admin::serve(Config::from_env()?, AdminConfig::from_env()?, db).await
+            admin::serve(Config::from_env()?, AdminConfig::from_env()?, db::pool()?).await
         }
         Command::Mailer => {
-            let db = db::pool(&config::database_url()?)?;
-            mailer::run(Config::from_env()?, MailConfig::from_env()?, db).await
+            mailer::run(Config::from_env()?, MailConfig::from_env()?, db::pool()?).await
         }
         Command::Janitor => {
             let event_start = config::event_start()?.to_utc();
-            let db = db::connect(&config::database_url()?).await?;
-            janitor::run(&db, event_start, chrono::Utc::now())
+            janitor::run(&db::connect().await?, event_start, chrono::Utc::now())
                 .await
                 .map(drop)
         }
-        Command::Migrate => db::migrate(&db::connect(&config::database_url()?).await?).await,
+        Command::Migrate => db::migrate(&db::connect().await?).await,
         Command::Invite {
             name,
             max_party_size,
         } => {
             let config = Config::from_env()?;
-            let db = db::connect(&config::database_url()?).await?;
+            let db = db::connect().await?;
             println!(
                 "{}",
                 admin::invite(&config, &db, &name, max_party_size).await?

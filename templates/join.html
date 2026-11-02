@@ -13,12 +13,7 @@
   <form method="post" action="/join/{{ code }}?lang={{ lang.code() }}">
     <label for="name">{{ t.your_name }}</label>
     <input id="name" name="name" value="{{ name }}" required maxlength="100" autocomplete="name">
-    <label for="party_size">{{ t.how_many }}</label>
-    <select id="party_size" name="party_size">
-      {% for (value, label, selected) in party_sizes %}
-      <option value="{{ value }}"{% if *selected %} selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
+    {% include "_party_size.html" %}
     <div class="hp" aria-hidden="true">
       <label for="website">Website</label>
       <input id="website" name="website" tabindex="-1" autocomplete="off">

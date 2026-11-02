@@ -7,6 +7,8 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 
+use crate::config::database_url;
+
 /// The migrations in `migrations/`, compiled into the binary.
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
 
@@ -16,18 +18,18 @@ fn pool_options() -> PgPoolOptions {
         .acquire_timeout(Duration::from_secs(3))
 }
 
-/// A pool that connects on first use, so the server starts (and reports not ready)
-/// while the database is unavailable.
-pub fn pool(database_url: &str) -> Result<PgPool> {
+/// A pool for `DATABASE_URL` that connects on first use, so the servers start (and
+/// report not ready) while the database is unavailable.
+pub fn pool() -> Result<PgPool> {
     pool_options()
-        .connect_lazy(database_url)
+        .connect_lazy(&database_url()?)
         .context("parsing DATABASE_URL")
 }
 
 /// A pool with an established connection, for commands that need the database right away.
-pub async fn connect(database_url: &str) -> Result<PgPool> {
+pub async fn connect() -> Result<PgPool> {
     pool_options()
-        .connect(database_url)
+        .connect(&database_url()?)
         .await
         .context("connecting to the database")
 }

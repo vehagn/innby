@@ -105,7 +105,7 @@ pub mod tests {
 
     use super::*;
 
-    /// A hash of "secret" with tiny argon2 parameters, so tests stay fast.
+    /// A hash with tiny argon2 parameters, so tests stay fast.
     pub fn cheap_hash(password: &str) -> String {
         let params = Params::new(8, 1, 1, None).unwrap();
         Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
