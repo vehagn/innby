@@ -9,10 +9,11 @@ use axum::{
 use chrono::DateTime;
 use chrono_tz::Tz;
 
-use super::AppState;
+use super::{AppState, PRIVACY_VERSION};
 use crate::{
-    config::Event,
+    config::{Controller, Event},
     i18n::{Lang, Messages},
+    janitor::{KEEP_AFTER_EVENT, KEEP_SENT_MAIL},
 };
 
 /// The event details shown at the top of the public pages.
@@ -58,6 +59,33 @@ pub async fn index(State(state): State<AppState>, lang: Lang) -> Response {
         lang,
         t: lang.messages(),
         event: EventView::new(&state.config.event, lang),
+    })
+}
+
+#[derive(Template)]
+#[template(path = "privacy.html")]
+struct PrivacyPage<'a> {
+    lang: Lang,
+    t: &'static Messages,
+    nb: bool,
+    version: &'static str,
+    event_title: &'a str,
+    controller: &'a Controller,
+    keep_after_event_days: i64,
+    keep_sent_mail_days: i64,
+}
+
+/// The privacy notice (GDPR Art. 13 and 14). Its version is recorded with each answer.
+pub async fn privacy(State(state): State<AppState>, lang: Lang) -> Response {
+    render(PrivacyPage {
+        lang,
+        t: lang.messages(),
+        nb: lang == Lang::Nb,
+        version: PRIVACY_VERSION,
+        event_title: state.config.event.title.get(lang),
+        controller: &state.config.controller,
+        keep_after_event_days: KEEP_AFTER_EVENT.num_days(),
+        keep_sent_mail_days: KEEP_SENT_MAIL.num_days(),
     })
 }
 

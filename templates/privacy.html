@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.privacy_link }}{% endblock %}
+
+{% block content %}
+<article class="prose">
+{% if nb %}{% include "privacy/nb.html" %}{% else %}{% include "privacy/en.html" %}{% endif %}
+</article>
+<p><a href="/?lang={{ lang.code() }}">{{ t.to_event }}</a></p>
+{% endblock %}

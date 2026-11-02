@@ -18,7 +18,15 @@ pub struct Config {
     /// Take the client address from the last `X-Forwarded-For` entry, which the gateway
     /// appends. Only safe when every request comes through that gateway.
     pub trust_forwarded: bool,
+    /// Who is responsible for the guests' data, for the privacy notice.
+    pub controller: Controller,
     pub event: Event,
+}
+
+#[derive(Debug, Clone)]
+pub struct Controller {
+    pub name: String,
+    pub email: String,
 }
 
 #[derive(Debug, Clone)]
@@ -69,12 +77,39 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
         Ok(Localized { nb, en })
     }
 
+    fn time_zone(&self) -> Result<Tz> {
+        let name = self
+            .optional("FEST_EVENT_TIMEZONE")
+            .unwrap_or_else(|| "Europe/Oslo".into());
+        name.parse()
+            .map_err(|_| anyhow!("FEST_EVENT_TIMEZONE: unknown time zone {name:?}"))
+    }
+
+    /// A local time like `2026-12-12T19:00` in the event's time zone.
+    fn local_time(&self, key: &str, value: &str, tz: Tz) -> Result<DateTime<Tz>> {
+        NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M")
+            .with_context(|| format!("{key}: expected YYYY-MM-DDTHH:MM, got {value:?}"))?
+            .and_local_timezone(tz)
+            .single()
+            .ok_or_else(|| anyhow!("{key}: {value} is ambiguous or skipped in {tz}"))
+    }
+
+    fn event_start(&self) -> Result<DateTime<Tz>> {
+        let start = self.required("FEST_EVENT_START")?;
+        self.local_time("FEST_EVENT_START", &start, self.time_zone()?)
+    }
+
     fn socket_address(&self, key: &str, default: &str) -> Result<SocketAddr> {
         let value = self.optional(key).unwrap_or_else(|| default.into());
         value
             .parse()
             .with_context(|| format!("{key}: invalid socket address {value:?}"))
     }
+}
+
+/// When the event starts. `fest janitor` needs only this, besides the database.
+pub fn event_start() -> Result<DateTime<Tz>> {
+    Env(|key: &str| std::env::var(key).ok()).event_start()
 }
 
 impl Config {
@@ -117,24 +152,17 @@ impl Config {
             }
         };
 
-        let tz_name = env
-            .optional("FEST_EVENT_TIMEZONE")
-            .unwrap_or_else(|| "Europe/Oslo".into());
-        let tz: Tz = tz_name
-            .parse()
-            .map_err(|_| anyhow!("FEST_EVENT_TIMEZONE: unknown time zone {tz_name:?}"))?;
-        let local_time = |key: &str, value: &str| -> Result<DateTime<Tz>> {
-            NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M")
-                .with_context(|| format!("{key}: expected YYYY-MM-DDTHH:MM, got {value:?}"))?
-                .and_local_timezone(tz)
-                .single()
-                .ok_or_else(|| anyhow!("{key}: {value} is ambiguous or skipped in {tz_name}"))
-        };
-        let starts_at = local_time("FEST_EVENT_START", &env.required("FEST_EVENT_START")?)?;
+        let starts_at = env.event_start()?;
         let rsvp_deadline = env
             .optional("FEST_RSVP_DEADLINE")
-            .map(|value| local_time("FEST_RSVP_DEADLINE", &value))
+            .map(|value| env.local_time("FEST_RSVP_DEADLINE", &value, starts_at.timezone()))
             .transpose()?;
+
+        let controller_email = env.required("FEST_CONTROLLER_EMAIL")?;
+        ensure!(
+            crate::db::rsvp::normalize_email(&controller_email).is_some(),
+            "FEST_CONTROLLER_EMAIL: not an e-mail address: {controller_email:?}"
+        );
 
         Ok(Self {
             listen,
@@ -142,6 +170,10 @@ impl Config {
             link_key,
             open_rsvp_code,
             trust_forwarded,
+            controller: Controller {
+                name: env.required("FEST_CONTROLLER_NAME")?,
+                email: controller_email,
+            },
             event: Event {
                 title: env.localized("FEST_EVENT_TITLE")?,
                 description: env.localized("FEST_EVENT_DESCRIPTION")?,
@@ -240,6 +272,8 @@ pub mod tests {
         ("FEST_EVENT_DESCRIPTION_NB", "Velkommen!"),
         ("FEST_EVENT_LOCATION", "Storgata 1, Oslo"),
         ("FEST_EVENT_START", "2026-12-12T19:00"),
+        ("FEST_CONTROLLER_NAME", "Kari Nordmann"),
+        ("FEST_CONTROLLER_EMAIL", "kari@example.com"),
     ];
 
     pub fn parse(overrides: &[(&str, &str)]) -> Result<Config> {

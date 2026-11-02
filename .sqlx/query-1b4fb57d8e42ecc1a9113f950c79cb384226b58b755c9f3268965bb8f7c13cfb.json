@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update rsvp set email_consent_at = email_consent_at - make_interval(hours => $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1b4fb57d8e42ecc1a9113f950c79cb384226b58b755c9f3268965bb8f7c13cfb"
+}

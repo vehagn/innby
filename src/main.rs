@@ -2,6 +2,7 @@ mod admin;
 mod config;
 mod db;
 mod i18n;
+mod janitor;
 mod link;
 mod mailer;
 mod web;
@@ -30,6 +31,8 @@ enum Command {
     Admin,
     /// Send queued mail.
     Mailer,
+    /// Delete data that is past its retention, then exit.
+    Janitor,
     /// Apply the database migrations.
     Migrate,
     /// Create an invitation and print the guest's link.
@@ -64,6 +67,13 @@ async fn main() -> anyhow::Result<()> {
         Command::Mailer => {
             let db = db::pool(&config::database_url()?)?;
             mailer::run(Config::from_env()?, MailConfig::from_env()?, db).await
+        }
+        Command::Janitor => {
+            let event_start = config::event_start()?.to_utc();
+            let db = db::connect(&config::database_url()?).await?;
+            janitor::run(&db, event_start, chrono::Utc::now())
+                .await
+                .map(drop)
         }
         Command::Migrate => db::migrate(&db::connect(&config::database_url()?).await?).await,
         Command::Invite {

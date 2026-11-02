@@ -30,7 +30,8 @@ use tracing::Level;
 use crate::{config::Config, db, i18n::Lang};
 
 /// Version of the privacy notice, recorded with each answer.
-pub const PRIVACY_VERSION: &str = "2026-11-01";
+/// Bump it whenever the notice in `templates/privacy/` changes in substance.
+pub const PRIVACY_VERSION: &str = "2026-11-02";
 
 const SECURITY_HEADERS: [(header::HeaderName, &str); 4] = [
     (
@@ -125,6 +126,7 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         .route("/lost", get(email::lost_page).post(email::lost));
     let router = Router::new()
         .route("/", get(pages::index))
+        .route("/privacy", get(pages::privacy))
         .route("/static/style.css", get(pages::stylesheet))
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(ready))
@@ -293,6 +295,20 @@ mod tests {
             response.headers()[header::CONTENT_TYPE],
             "text/css; charset=utf-8"
         );
+    }
+
+    #[tokio::test]
+    async fn privacy_notice_in_both_languages() {
+        let html = body(get("/privacy", None).await).await;
+        assert!(html.contains("<h1>Personvernerklæring</h1>"));
+        assert!(html.contains(&format!("Versjon {PRIVACY_VERSION}")));
+        assert!(html.contains("mailto:kari@example.com"));
+        assert!(html.contains("slettes 30 dager etter festen"));
+
+        let html = body(get("/privacy?lang=en", None).await).await;
+        assert!(html.contains("<h1>Privacy notice</h1>"));
+        assert!(html.contains("Kari Nordmann is hosting the event"));
+        assert!(html.contains("deleted after 7 days"));
     }
 
     #[tokio::test]
