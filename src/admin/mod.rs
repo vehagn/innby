@@ -131,7 +131,30 @@ struct IndexPage<'a> {
     notice: Option<String>,
     rows: Vec<Row>,
     max_party_size: i32,
+    open_rsvp: Option<OpenRsvp>,
     error: Option<&'static str>,
+}
+
+/// The shared `/join/{code}` link, for a group chat or a poster.
+struct OpenRsvp {
+    url: String,
+    qr: String,
+    max_party_size: i32,
+    /// False once the answer deadline has passed.
+    accepts_answers: bool,
+}
+
+impl OpenRsvp {
+    fn new(config: &Config) -> Option<Self> {
+        let code = config.open_rsvp_code.as_deref()?;
+        let url = format!("{}/join/{code}", config.base_url);
+        Some(Self {
+            qr: qr_svg(&url),
+            url,
+            max_party_size: web::OPEN_MAX_PARTY_SIZE,
+            accepts_answers: config.event.accepts_answers(Utc::now()),
+        })
+    }
 }
 
 async fn index_page(
@@ -155,6 +178,7 @@ async fn index_page(
         notice,
         rows: rsvps.iter().map(|rsvp| Row::new(rsvp, tz)).collect(),
         max_party_size: MAX_PARTY_SIZE,
+        open_rsvp: OpenRsvp::new(&state.config),
         error,
     };
     match error {
@@ -249,7 +273,7 @@ fn guest_url(config: &Config, rsvp: &Rsvp) -> String {
     format!("{}/r/{link}", config.base_url)
 }
 
-/// The link as an inline SVG QR code, for printing on paper invitations.
+/// The link as an inline SVG QR code, for printing on paper invitations or posters.
 fn qr_svg(url: &str) -> String {
     let Ok(code) = QrCode::new(url.as_bytes()) else {
         return String::new();
@@ -643,6 +667,30 @@ mod tests {
         assert!(lines[1].starts_with(r#""'=cmd|' /C calc'!A0","invitation","no answer","1","1""#));
         assert!(lines[2].starts_with(r#""Kari ""K"" Ø","#));
         assert!(lines[2].contains(r#""https://fest.example.com/r/"#));
+    }
+
+    #[sqlx::test]
+    async fn shows_the_open_sign_up_link(db: PgPool) {
+        let mut admin = Admin::new(db);
+        let html = body(admin.get("/").await).await;
+        assert!(html.contains("Off. Set <code>FEST_OPEN_RSVP_CODE</code>"));
+        assert!(!html.contains("<svg"));
+
+        admin.config =
+            crate::config::tests::parse(&[("FEST_OPEN_RSVP_CODE", "jul-2026-hemmelig")]).unwrap();
+        let html = body(admin.get("/").await).await;
+        assert!(html.contains(r#"value="https://fest.example.com/join/jul-2026-hemmelig""#));
+        assert!(html.contains("<svg"));
+        assert!(html.contains("up to 2 people each"));
+        assert!(!html.contains("Closed: the answer deadline has passed."));
+
+        admin.config = crate::config::tests::parse(&[
+            ("FEST_OPEN_RSVP_CODE", "jul-2026-hemmelig"),
+            ("FEST_RSVP_DEADLINE", "2020-01-01T12:00"),
+        ])
+        .unwrap();
+        let html = body(admin.get("/").await).await;
+        assert!(html.contains("Closed: the answer deadline has passed."));
     }
 
     #[sqlx::test]

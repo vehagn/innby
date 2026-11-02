@@ -26,6 +26,26 @@
   </form>
 </section>
 
+<section class="card">
+  <h2>Open sign-up link</h2>
+  {% if let Some(open) = open_rsvp %}
+  <p class="muted small">Post this in a group chat. Anyone with it can sign up with a name,
+    up to {{ open.max_party_size }} people each, and gets their own link back. Anyone the link
+    is forwarded to can sign up too. To close it, change or remove
+    <code>FEST_OPEN_RSVP_CODE</code>.</p>
+  {% if !open.accepts_answers %}<p class="notice" role="status">Closed: the answer deadline has passed.</p>{% endif %}
+  <label for="open-url">Sign-up link</label>
+  <input id="open-url" type="text" readonly value="{{ open.url }}">
+  <details>
+    <summary>QR code</summary>
+    <div class="qr">{{ open.qr|safe }}</div>
+  </details>
+  {% else %}
+  <p class="muted small">Off. Set <code>FEST_OPEN_RSVP_CODE</code> to get a link anyone can
+    sign up with, for a group chat or a poster.</p>
+  {% endif %}
+</section>
+
 {% if rows.is_empty() %}
 <p class="muted">No guests yet.</p>
 {% else %}

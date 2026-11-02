@@ -7,6 +7,7 @@ mod rsvp;
 #[cfg(test)]
 mod testing;
 
+pub use join::OPEN_MAX_PARTY_SIZE;
 pub use pages::{render, render_with, server_error, stylesheet};
 
 use std::{convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
