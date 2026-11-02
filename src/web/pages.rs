@@ -12,7 +12,7 @@ use uuid::Uuid;
 use super::{AppState, PRIVACY_VERSION};
 use crate::{
     config::{Controller, Event},
-    db::rsvp::{self, NameDisplay, Response as Answer},
+    db::rsvp::{self, NameDisplay, Response as Answer, Rsvp},
     i18n::{Lang, Messages},
     janitor::{KEEP_AFTER_EVENT, KEEP_SENT_MAIL},
 };
@@ -139,6 +139,47 @@ impl GuestList {
     }
 }
 
+/// The guest list on a page of its own. Link previews in chat apps and mail scanners
+/// fetch only the link that was shared, so they never see a name; a guest gets here
+/// with a button.
+#[derive(Template)]
+#[template(path = "guests.html")]
+pub struct GuestsPage<'a> {
+    pub lang: Lang,
+    pub t: &'static Messages,
+    pub event: EventView<'a>,
+    pub guests: GuestList,
+    /// For a guest: how they show up, and the other ways they could.
+    pub you: Option<YourListing>,
+    pub flash: Option<&'static str>,
+    /// The page the list was opened from.
+    pub back: String,
+    pub back_label: &'static str,
+}
+
+pub struct YourListing {
+    /// The guest's name as the list shows it, if it does.
+    pub name: Option<String>,
+    pub declined: bool,
+    pub others: Vec<DisplayChoice>,
+    /// Where the buttons for the others post.
+    pub action: String,
+}
+
+impl YourListing {
+    pub fn new(t: &Messages, rsvp: &Rsvp, action: String) -> Self {
+        Self {
+            name: rsvp.listed().apply(&rsvp.name),
+            declined: rsvp.response == Answer::Declined,
+            others: DisplayChoice::choices(t, None, rsvp.listed())
+                .into_iter()
+                .filter(|choice| !choice.selected)
+                .collect(),
+            action,
+        }
+    }
+}
+
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexPage<'a> {
@@ -213,6 +254,16 @@ pub async fn not_found(lang: Lang) -> Response {
     render_with(
         StatusCode::NOT_FOUND,
         MessagePage::new(lang, |t| (&t.not_found_title, &t.not_found_text)),
+    )
+}
+
+/// Turns every crawler away: an invitation-only event has nothing for them. Link
+/// previews in chat apps may not ask, which is why the guest list is on a page of its
+/// own (`GuestsPage`).
+pub async fn robots() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        "User-agent: *\nDisallow: /\n",
     )
 }
 

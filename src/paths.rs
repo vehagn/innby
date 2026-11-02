@@ -12,16 +12,19 @@ pub const HOME: &str = "/";
 pub const PRIVACY: &str = "/privacy";
 pub const LOST: &str = "/lost";
 pub const STYLESHEET: &str = "/static/style.css";
+pub const ROBOTS: &str = "/robots.txt";
 pub const HEALTH: &str = "/healthz";
 pub const READY: &str = "/readyz";
 pub const RSVP: &str = "/r/{link}";
 pub const RSVP_NAME: &str = "/r/{link}/name";
+pub const RSVP_GUESTS: &str = "/r/{link}/guests";
 pub const RSVP_LISTING: &str = "/r/{link}/listing";
 pub const RSVP_EXPORT: &str = "/r/{link}/export";
 pub const RSVP_DELETE: &str = "/r/{link}/delete";
 pub const RSVP_EMAIL: &str = "/r/{link}/email";
 pub const RSVP_EMAIL_REMOVE: &str = "/r/{link}/email/remove";
 pub const JOIN: &str = "/join/{link}";
+pub const JOIN_GUESTS: &str = "/join/{link}/guests";
 pub const CONFIRM_EMAIL: &str = "/e/{link}";
 
 // The admin site.
@@ -68,6 +71,7 @@ impl Lang {
 /// A guest's page and what its forms post to, in the page's language.
 pub struct GuestLinks {
     pub page: String,
+    pub guests: String,
     pub name: String,
     pub listing: String,
     pub email: String,
@@ -81,6 +85,7 @@ impl GuestLinks {
         let at = |pattern| localized(&path(pattern, link), lang);
         Self {
             page: at(RSVP),
+            guests: at(RSVP_GUESTS),
             name: at(RSVP_NAME),
             listing: at(RSVP_LISTING),
             email: at(RSVP_EMAIL),

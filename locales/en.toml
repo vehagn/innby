@@ -79,6 +79,10 @@ lost_sent_text = "If the address is registered and confirmed, we've sent you you
 
 # Guest list
 guest_list_heading = "Guest list"
+# The button to the guest list, which is on a page of its own.
+see_guest_list = "See who's coming"
+back_to_your_page = "Back to your page"
+back_to_sign_up = "Back to the sign-up"
 guest_list_coming = "Coming"
 guest_list_pending = "Not answered yet"
 # "+ {n} more", for guests who'd rather not be listed.

@@ -9,13 +9,12 @@ use axum::{
 };
 use chrono::Utc;
 use serde::Deserialize;
-use sqlx::PgPool;
 
 use super::{
     AppState, PRIVACY_VERSION,
     pages::{
-        DisplayChoice, EventView, GuestList, MessagePage, PartySize, render, render_with,
-        server_error,
+        DisplayChoice, EventView, GuestList, GuestsPage, MessagePage, PartySize, YourListing,
+        render, render_with, server_error,
     },
 };
 use crate::{
@@ -80,12 +79,6 @@ pub(super) struct RsvpPage<'a> {
     /// For the answer form: the guest's choice, or their full name if they haven't made
     /// one, since that's the default once they're coming.
     display_choices: Vec<DisplayChoice>,
-    guests: GuestList,
-    /// The guest's name as the list shows it, if it does.
-    listed_as: Option<String>,
-    /// The other ways the guest can show up in the list.
-    other_displays: Vec<DisplayChoice>,
-    declined: bool,
     first_visit: bool,
     accepts_answers: bool,
     email_confirmed: bool,
@@ -94,7 +87,6 @@ pub(super) struct RsvpPage<'a> {
     /// The full link, shown right after a group sign-up so the guest can keep it.
     new_link: Option<String>,
     error: Option<&'static str>,
-    db: &'a PgPool,
 }
 
 impl<'a> RsvpPage<'a> {
@@ -111,41 +103,23 @@ impl<'a> RsvpPage<'a> {
             status: t.answer(rsvp.response, rsvp.party_size),
             party_sizes: PartySize::choices(t, rsvp.max_party_size, rsvp.party_size),
             display_choices: DisplayChoice::choices(t, Some(&rsvp.name), chosen),
-            guests: GuestList::default(),
-            listed_as: rsvp.listed().apply(&rsvp.name),
-            other_displays: DisplayChoice::choices(t, None, rsvp.listed())
-                .into_iter()
-                .filter(|choice| !choice.selected)
-                .collect(),
-            declined: rsvp.response == rsvp::Response::Declined,
             first_visit: rsvp.privacy_version.is_none(),
             accepts_answers: state.config.event.accepts_answers(Utc::now()),
             email_confirmed: rsvp.email_status == rsvp::EmailStatus::Confirmed,
             flash: None,
             new_link: None,
             error: None,
-            db: &state.db,
-        }
-    }
-
-    async fn render(mut self, status: StatusCode) -> Response {
-        match GuestList::load(self.db, Some(self.rsvp.id)).await {
-            Ok(guests) => {
-                self.guests = guests;
-                render_with(status, self)
-            }
-            Err(err) => server_error(err),
         }
     }
 
     /// The page again with an error message, e.g. for an invalid form.
-    pub(super) async fn render_error(
+    pub(super) fn render_error(
         mut self,
         status: StatusCode,
         pick: impl Fn(&'static Messages) -> &'static str,
     ) -> Response {
         self.error = Some(pick(self.t));
-        self.render(status).await
+        render_with(status, self)
     }
 }
 
@@ -191,8 +165,21 @@ impl Notice {
 
 /// Back to the RSVP page after a change (post/redirect/get).
 pub(super) fn redirect(link: &str, lang: Lang, notice: Notice) -> Response {
-    let page = paths::localized(&paths::path(paths::RSVP, link), lang);
+    redirect_to(paths::RSVP, link, lang, notice)
+}
+
+/// Back to one of the guest's pages after a change.
+fn redirect_to(pattern: &str, link: &str, lang: Lang, notice: Notice) -> Response {
+    let page = paths::localized(&paths::path(pattern, link), lang);
     Redirect::to(&format!("{page}&notice={}", notice.code())).into_response()
+}
+
+impl Notice {
+    fn flash(notice: Option<&str>, t: &'static Messages) -> Option<&'static str> {
+        notice
+            .and_then(Self::from_code)
+            .map(|notice| notice.text(t))
+    }
 }
 
 #[derive(Deserialize)]
@@ -209,15 +196,36 @@ pub async fn show(
     Query(query): Query<ShowQuery>,
 ) -> Response {
     let mut page = RsvpPage::new(&state, lang, &guest);
-    page.flash = query
-        .notice
-        .as_deref()
-        .and_then(Notice::from_code)
-        .map(|notice| notice.text(page.t));
+    page.flash = Notice::flash(query.notice.as_deref(), page.t);
     page.new_link = query
         .new
         .map(|_| state.config.url(&paths::path(paths::RSVP, &guest.link)));
-    page.render(StatusCode::OK).await
+    render(page)
+}
+
+/// The guest list, with how the guest shows up in it.
+pub async fn guests(
+    State(state): State<AppState>,
+    lang: Lang,
+    guest: Guest,
+    Query(query): Query<ShowQuery>,
+) -> Response {
+    let guests = match GuestList::load(&state.db, Some(guest.rsvp.id)).await {
+        Ok(guests) => guests,
+        Err(err) => return server_error(err),
+    };
+    let t = lang.messages();
+    let links = GuestLinks::new(&guest.link, lang);
+    render(GuestsPage {
+        lang,
+        t,
+        event: EventView::new(&state.config.event, lang),
+        guests,
+        you: Some(YourListing::new(t, &guest.rsvp, links.listing)),
+        flash: Notice::flash(query.notice.as_deref(), t),
+        back: links.page,
+        back_label: &t.back_to_your_page,
+    })
 }
 
 #[derive(Deserialize)]
@@ -242,14 +250,10 @@ pub async fn answer(
 ) -> Response {
     let page = || RsvpPage::new(&state, lang, &guest);
     if !state.config.event.accepts_answers(Utc::now()) {
-        return page()
-            .render_error(StatusCode::FORBIDDEN, |t| &t.answers_closed)
-            .await;
+        return page().render_error(StatusCode::FORBIDDEN, |t| &t.answers_closed);
     }
     if !(1..=guest.rsvp.max_party_size).contains(&form.party_size) {
-        return page()
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size)
-            .await;
+        return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size);
     }
 
     let response = match form.response {
@@ -291,8 +295,7 @@ pub async fn rename(
 ) -> Response {
     let Some(name) = rsvp::normalize_name(&form.name) else {
         return RsvpPage::new(&state, lang, &guest)
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name)
-            .await;
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name);
     };
     match rsvp::rename(&state.db, guest.rsvp.id, &name).await {
         Ok(true) => {
@@ -317,7 +320,7 @@ pub async fn listing(
     Form(form): Form<ListingForm>,
 ) -> Response {
     match rsvp::set_name_display(&state.db, guest.rsvp.id, form.name_display).await {
-        Ok(true) => redirect(&guest.link, lang, Notice::Saved),
+        Ok(true) => redirect_to(paths::RSVP_GUESTS, &guest.link, lang, Notice::Saved),
         Ok(false) => gone(lang),
         Err(err) => server_error(err),
     }
@@ -349,8 +352,7 @@ pub async fn delete(
 ) -> Response {
     if form.confirm.is_none() {
         return RsvpPage::new(&state, lang, &guest)
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.confirm_delete)
-            .await;
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.confirm_delete);
     }
     match rsvp::delete(&state.db, guest.rsvp.id).await {
         Ok(_) => {
@@ -378,7 +380,7 @@ mod tests {
         let response = site.get(&format!("/r/{link}")).await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
-        assert_eq!(response.headers()["x-robots-tag"], "noindex");
+        assert_eq!(response.headers()["x-robots-tag"], "noindex, nofollow");
         let html = body(response).await;
         assert!(html.contains("Hei, Kari &#38; Ola!"), "{html}");
         assert!(html.contains("Du er invitert!"));
@@ -541,13 +543,23 @@ mod tests {
         let (_, ola) = site.invite("Ola Hansen", 1).await;
         let (_, per) = site.invite("Per Berg", 1).await;
         site.invite("Anne Lie", 1).await;
+        let guests = |link: &str| format!("/r/{link}/guests?lang=en");
 
         // Coming defaults to the full name.
         let html = body(site.get(&format!("/r/{kari}?lang=en")).await).await;
         assert!(
             html.contains(r#"<option value="full" selected>Full name (Kari Nordmann)</option>"#)
         );
-        assert!(html.contains("<li>Ola H.</li>"));
+        // The page a link opens has no other guest's name: link previews fetch it.
+        assert!(!html.contains("Ola") && !html.contains("Anne"), "{html}");
+        assert!(html.contains(&format!(
+            r#"<a class="button secondary" href="/r/{kari}/guests?lang=en" rel="nofollow">"#
+        )));
+        assert!(
+            body(site.get(&guests(&kari)).await)
+                .await
+                .contains("<li>Ola H.</li>")
+        );
         for (link, answer) in [
             (&kari, "attending&name_display=full"),
             (&ola, "attending&name_display=hidden"),
@@ -557,13 +569,16 @@ mod tests {
             site.post(&format!("/r/{link}"), &form).await;
         }
 
-        let html = body(site.get(&format!("/r/{kari}?lang=en")).await).await;
+        let response = site.get(&guests(&kari)).await;
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        let html = body(response).await;
         assert!(html.contains(r#"<li>Kari Nordmann <span class="muted">(you)</span></li>"#));
         assert!(html.contains("<li>Anne L.</li>"));
         // Ola is coming but hidden, and Per declined.
         assert!(html.contains(r#"<li class="muted">+ 1 more</li>"#));
         assert!(!html.contains("Ola H") && !html.contains("Per B"));
         assert!(html.contains("Other guests see you as <strong>Kari Nordmann</strong></p>"));
+        assert!(html.contains(&format!(r#"href="/r/{kari}?lang=en">Back to your page"#)));
 
         let response = site
             .post(
@@ -571,17 +586,21 @@ mod tests {
                 "name_display=partial",
             )
             .await;
-        assert_eq!(
-            location(&response),
-            format!("/r/{kari}?lang=en&notice=saved")
-        );
-        let html = body(site.get(&format!("/r/{ola}?lang=en")).await).await;
+        let back = location(&response).to_owned();
+        assert_eq!(back, format!("/r/{kari}/guests?lang=en&notice=saved"));
+        assert!(body(site.get(&back).await).await.contains("Saved!"));
+        let html = body(site.get(&guests(&ola)).await).await;
         assert!(html.contains("<li>Kari N.</li>"));
         assert!(html.contains("Your name isn&#39;t on the list."));
         // Answering again keeps the choice the form shows.
+        let html = body(site.get(&format!("/r/{ola}?lang=en")).await).await;
         assert!(html.contains(r#"<option value="hidden" selected>"#));
-        let html = body(site.get(&format!("/r/{per}?lang=en")).await).await;
+        let html = body(site.get(&guests(&per)).await).await;
         assert!(html.contains("You&#39;re not on the list, since you can&#39;t come."));
+        assert!(!html.contains("Show instead"));
+
+        let response = site.get("/r/garbage/guests").await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[sqlx::test]
