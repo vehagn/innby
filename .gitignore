@@ -1,2 +1,5 @@
 /target
 .env
+
+# Real secrets for `just seal`
+/deploy/secrets.env

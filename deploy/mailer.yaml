@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fest-mailer
+  labels:
+    app.kubernetes.io/name: fest
+    app.kubernetes.io/component: mailer
+spec:
+  replicas: 1
+  # One sender is plenty, and a restart shouldn't overlap with a second one.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fest
+      app.kubernetes.io/component: mailer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fest
+        app.kubernetes.io/component: mailer
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: fest
+          image: ghcr.io/vehagn/fest
+          args: [ mailer ]
+          envFrom:
+            - configMapRef: { name: fest-config }
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: fest-postgres-app, key: uri }
+            - name: FEST_LINK_KEY
+              valueFrom:
+                secretKeyRef: { name: fest, key: FEST_LINK_KEY }
+            - name: FEST_SMTP_USER
+              valueFrom:
+                secretKeyRef: { name: fest, key: FEST_SMTP_USER }
+            - name: FEST_SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: fest, key: FEST_SMTP_PASSWORD }
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ ALL ]
