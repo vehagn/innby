@@ -273,15 +273,15 @@ The devcontainer is a Compose project with three services:
 | Resource | Notes |
 |---|---|
 | Namespace | `fest` |
-| Postgres | A **CNPG `Cluster`**: 1 instance, image `postgresql:18.x`, created with `bootstrap.initdb` (database `fest`, owner `fest`). The CNPG-generated `fest-app` secret provides `uri`. |
-| Deployments | `fest-web` (`serve`, 2 replicas), `fest-admin` (`admin`, 1 replica), `fest-mailer` (`mailer`, 1 replica). `fest migrate` runs as an **init container** on `fest-web` or as an Argo CD PreSync hook Job. |
+| Postgres | A **CNPG `Cluster`** `fest-postgres`: 1 instance, image `postgresql:18.6-minimal-trixie` (same as dev), 1 Gi on `proxmox-csi`, created with `bootstrap.initdb` (database `fest`, owner `fest`). The CNPG-generated `fest-postgres-app` secret provides `uri`. No backups, on purpose. |
+| Deployments | `fest-web` (`serve`, 2 replicas), `fest-admin` (`admin`, 1 replica), `fest-mailer` (`mailer`, 1 replica, `Recreate`). `fest migrate` runs as an **init container** on `fest-web`. |
 | CronJob | `fest-janitor`: hourly, with `concurrencyPolicy: Forbid`. |
 | HTTPRoutes | Public routes on `gateway/external`. The admin hostname on `gateway/internal`. TLS comes from the existing cert-manager setup. |
-| Secrets (SealedSecrets) | `LINK_KEY`, the open-RSVP code, the admin basic-auth hash, and the MailerSend SMTP credentials. |
-| NetworkPolicies (Cilium) | `web` accepts ingress from the external gateway. `admin` accepts ingress from the internal gateway only. `mailer` has no ingress and egress to `smtp.mailersend.net:587` only. `janitor` has egress to the DB only. Postgres accepts ingress from these pods and the CNPG operator. |
+| Secrets (SealedSecrets) | One `fest` secret, sealed by `just seal` from the gitignored `deploy/secrets.env`: the link key, the open-RSVP code, the admin hash, and the MailerSend SMTP credentials. Each workload references only the keys it needs. |
+| NetworkPolicies (Cilium) | `web` and `admin` accept traffic from the gateways (`fromEntities: ingress`); which gateway reaches which is decided by the HTTPRoutes. `mailer` has no ingress and egress to `smtp.mailersend.net:587` only. `janitor` has egress to the DB only. Postgres accepts ingress from the fest pods and the CNPG operator. |
 | Pod security | `runAsNonRoot`, `readOnlyRootFilesystem`, `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault`, and the namespace labelled `pod-security.kubernetes.io/enforce: restricted`. |
-| Observability | `/metrics` on a separate port: responses, headcount, open-RSVP rate-limit hits, outbox lag, mail failures. |
-| Delivery | Kustomize in `deploy/`, plus an Argo CD `Application` in `vehagn/homelab` → `k8s/apps/…/fest`. |
+| Observability | JSON logs. `/metrics` (responses, headcount, rate-limit hits, outbox lag, mail failures) is left for hardening. |
+| Delivery | Kustomize in `deploy/` (see `deploy/README.md`), copied to `vehagn/homelab` → `k8s/apps/<group>/fest`, where the group's ApplicationSet picks it up. |
 
 ## 12. Justfile (draft)
 
@@ -298,7 +298,8 @@ just lint                # cargo fmt --check, clippy -D warnings, sqlx prepare -
 just build               # static x86_64 musl binary via cargo zigbuild (SQLX_OFFLINE)
 just image [tag]         # buildah: scratch + binary
 just push [tag]          # buildah push → ghcr.io/vehagn/fest
-just deploy              # kubectl apply -k deploy/ (or leave to Argo CD)
+just seal                # deploy/secrets.env → deploy/sealed-secrets.yaml
+just manifests           # render deploy/ with kustomize (Argo CD does the deploying)
 ```
 
 ## 13. Milestones
@@ -312,7 +313,7 @@ just deploy              # kubectl apply -k deploy/ (or leave to Argo CD)
 6. ✅ **Optional e-mail:** add and confirm an address, the outbox and mailer (Mailpit locally, MailerSend in the cluster), `/lost`, reminders.
 7. ✅ **Janitor and privacy:** retention rules, `/privacy` (nb/en), `docs/ropa.md`.
 8. ✅ **Image:** buildah recipe, plus a CI workflow that pushes to GHCR.
-9. **Deploy:** CNPG cluster, workloads, HTTPRoutes, SealedSecrets, NetworkPolicies, Argo CD app.
+9. ✅ **Deploy:** CNPG cluster, workloads, HTTPRoutes, SealedSecrets, NetworkPolicies, Argo CD app.
 10. **Hardening and polish:** strict CSP, `cargo deny`, a load sanity check, optional `LISTEN/NOTIFY`, optional Authelia OIDC.
 
 ## 14. Decisions

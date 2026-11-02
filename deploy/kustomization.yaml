@@ -1,0 +1,29 @@
+# Copy this directory to vehagn/homelab k8s/apps/<group>/fest, where the ApplicationSet
+# picks it up. Add the fest namespace to that group's AppProject destinations.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: fest
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: fest
+
+resources:
+  - ns.yaml
+  - cnpg-db.yaml
+  - web.yaml
+  - admin.yaml
+  - mailer.yaml
+  - janitor.yaml
+  - network-policies.yaml
+  # Created by `just seal` from secrets.env; the workloads wait for it.
+  # - sealed-secrets.yaml
+
+configMapGenerator:
+  - name: fest-config
+    envs: [config.env]
+
+images:
+  - name: ghcr.io/vehagn/fest
+    # Pin to a sha-<commit> tag from CI for repeatable deploys.
+    newTag: latest

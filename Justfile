@@ -85,6 +85,19 @@ image tag="dev": build
 push tag="dev":
     buildah push "{{ image }}:{{ tag }}"
 
+# Seal deploy/secrets.env with the cluster's key into deploy/sealed-secrets.yaml
+seal:
+    kubectl create secret generic fest --namespace fest \
+      --from-env-file=deploy/secrets.env --dry-run=client --output=yaml \
+      | kubeseal --controller-namespace sealed-secrets \
+          --controller-name sealed-secrets-controller --format yaml \
+      > deploy/sealed-secrets.yaml
+    @echo "deploy/sealed-secrets.yaml: add it to deploy/kustomization.yaml"
+
+# Render the Kubernetes manifests
+manifests:
+    kubectl kustomize deploy
+
 # Open psql against the dev database
 psql:
     psql "$DATABASE_URL"
