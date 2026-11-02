@@ -314,7 +314,7 @@ just manifests           # render deploy/ with kustomize (Argo CD does the deplo
 7. ✅ **Janitor and privacy:** retention rules, `/privacy` (nb/en), `docs/ropa.md`.
 8. ✅ **Image:** buildah recipe, plus a CI workflow that pushes to GHCR.
 9. ✅ **Deploy:** CNPG cluster, workloads, HTTPRoutes, SealedSecrets, NetworkPolicies, Argo CD app.
-10. **Hardening and polish:** strict CSP, `cargo deny`, a load sanity check, optional `LISTEN/NOTIFY`, optional Authelia OIDC.
+10. ✅ **Hardening and polish:** strict CSP (no inline styles or scripts anywhere), HSTS, `Cross-Origin-Opener-Policy` and `-Resource-Policy`, a 15-second request timeout, `cargo deny` in CI, and a load sanity check (5000 RSVP-page requests at concurrency 50: p50 0.5 ms, p99 4.5 ms). Still optional: `LISTEN/NOTIFY` for the mailer (it polls every 5 seconds), Authelia OIDC for the admin UI, and `/metrics`.
 
 ## 14. Decisions
 

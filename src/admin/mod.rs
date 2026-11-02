@@ -48,6 +48,8 @@ pub async fn serve(config: Config, admin: AdminConfig, db: PgPool) -> anyhow::Re
 }
 
 fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
+    // The admin hostname is served the same way as the public one.
+    let https = config.base_url.starts_with("https://");
     let state = AdminState {
         config: Arc::new(config),
         db,
@@ -71,7 +73,7 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(web::ready))
         .with_state(state);
-    web::harden(router)
+    web::harden(router, https)
 }
 
 /// One guest as the admin tables show it.
