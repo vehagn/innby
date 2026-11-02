@@ -23,6 +23,7 @@ use sqlx::PgPool;
 use tokio::signal::unix::{SignalKind, signal};
 use tower_http::{
     set_header::SetResponseHeaderLayer,
+    timeout::TimeoutLayer,
     trace::{DefaultOnResponse, TraceLayer},
 };
 use tracing::Level;
@@ -33,7 +34,7 @@ use crate::{config::Config, db, i18n::Lang};
 /// Bump it whenever the notice in `templates/privacy/` changes in substance.
 pub const PRIVACY_VERSION: &str = "2026-11-02";
 
-const SECURITY_HEADERS: [(header::HeaderName, &str); 4] = [
+const SECURITY_HEADERS: [(header::HeaderName, &str); 6] = [
     (
         header::CONTENT_SECURITY_POLICY,
         "default-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; \
@@ -41,9 +42,25 @@ const SECURITY_HEADERS: [(header::HeaderName, &str); 4] = [
     ),
     (header::REFERRER_POLICY, "no-referrer"),
     (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+    // No other site may hold a window handle to ours or embed its responses.
+    (
+        header::HeaderName::from_static("cross-origin-opener-policy"),
+        "same-origin",
+    ),
+    (
+        header::HeaderName::from_static("cross-origin-resource-policy"),
+        "same-origin",
+    ),
     // An invitation-only event: nothing here belongs in a search engine.
     (header::HeaderName::from_static("x-robots-tag"), "noindex"),
 ];
+
+/// Sent when the site is served over HTTPS, so browsers never fall back to plain HTTP.
+const HSTS: [(header::HeaderName, &str); 1] =
+    [(header::STRICT_TRANSPORT_SECURITY, "max-age=31536000")];
+
+/// Requests that take longer are cut off, so slow clients can't hold connections open.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Pages addressed by a secret link must not be stored by browsers or proxies.
 const LINK_HEADERS: [(header::HeaderName, &str); 1] = [(header::CACHE_CONTROL, "no-store")];
@@ -101,6 +118,7 @@ pub fn no_store<S: Clone + Send + Sync + 'static>(router: Router<S>) -> Router<S
 }
 
 pub(crate) fn router(config: Config, db: PgPool) -> Router {
+    let https = config.base_url.starts_with("https://");
     let state = AppState {
         config: Arc::new(config),
         db,
@@ -133,13 +151,26 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         .merge(no_store(links))
         .fallback(pages::not_found)
         .with_state(state);
-    harden(router)
+    harden(router, https)
 }
 
-/// What every listener gets: CSRF protection, security headers and request logging.
-pub fn harden(router: Router) -> Router {
-    let router = router.layer(middleware::from_fn(csrf::protect));
-    with_headers(router, &SECURITY_HEADERS).layer(
+/// What every listener gets: CSRF protection, security headers, a request timeout and
+/// request logging. `https` adds HSTS.
+pub fn harden(router: Router, https: bool) -> Router {
+    let router =
+        router
+            .layer(middleware::from_fn(csrf::protect))
+            .layer(TimeoutLayer::with_status_code(
+                StatusCode::REQUEST_TIMEOUT,
+                REQUEST_TIMEOUT,
+            ));
+    let router = with_headers(router, &SECURITY_HEADERS);
+    let router = if https {
+        with_headers(router, &HSTS)
+    } else {
+        router
+    };
+    router.layer(
         TraceLayer::new_for_http()
             .make_span_with(|request: &Request<_>| {
                 // Log the route pattern, never the raw path: RSVP links carry secrets.
@@ -282,7 +313,7 @@ mod tests {
     #[tokio::test]
     async fn responses_carry_security_headers() {
         let response = get("/", None).await;
-        for (name, value) in SECURITY_HEADERS {
+        for (name, value) in SECURITY_HEADERS.into_iter().chain(HSTS) {
             assert_eq!(response.headers()[&name], value, "{name}");
         }
     }
