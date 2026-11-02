@@ -1,9 +1,10 @@
 set dotenv-load
 
-musl_target := "x86_64-unknown-linux-musl"
 target_dir := env("CARGO_TARGET_DIR", justfile_directory() / "target")
 image := env("INNBY_IMAGE", "ghcr.io/vehagn/innby")
 revision := `git rev-parse HEAD 2>/dev/null || echo unknown`
+# Compose for `just up`; any Compose implementation works, e.g. COMPOSE="podman compose".
+compose := env("COMPOSE", "docker compose")
 
 # List available recipes
 default:
@@ -58,32 +59,60 @@ lint:
 fmt:
     cargo fmt
 
-# Build the static x86_64 musl release binary (from .sqlx/, no database needed)
+# Build static musl release binaries for amd64 and arm64 (offline, from .sqlx/)
 build:
-    SQLX_OFFLINE=true cargo zigbuild --locked --release --target {{ musl_target }}
-    @echo "{{ target_dir }}/{{ musl_target }}/release/innby"
+    SQLX_OFFLINE=true cargo zigbuild --locked --release \
+      --target x86_64-unknown-linux-musl --target aarch64-unknown-linux-musl
 
-# Build a scratch image that contains only the binary (needs buildah; not in the devcontainer)
+# Build an amd64 and an arm64 scratch image into one image index (needs buildah)
 image tag="dev": build
     #!/usr/bin/env bash
     set -euo pipefail
-    ctr=$(buildah from --arch amd64 --os linux scratch)
-    buildah copy --chmod 0555 "$ctr" "{{ target_dir }}/{{ musl_target }}/release/innby" /innby
-    buildah config \
-      --entrypoint '["/innby"]' \
-      --cmd serve \
-      --user 65532:65532 \
-      --port 8080 \
-      --label org.opencontainers.image.source=https://github.com/vehagn/fest \
-      --label org.opencontainers.image.version={{ tag }} \
-      --label org.opencontainers.image.revision={{ revision }} \
-      "$ctr"
-    buildah commit --quiet --rm "$ctr" "{{ image }}:{{ tag }}" >/dev/null
-    echo "{{ image }}:{{ tag }}"
+    index="{{ image }}:{{ tag }}"
+    buildah manifest rm "$index" >/dev/null 2>&1 || true
+    buildah manifest create "$index" >/dev/null
+    for arch in amd64 arm64; do
+      case "$arch" in
+        amd64) target=x86_64-unknown-linux-musl ;;
+        arm64) target=aarch64-unknown-linux-musl ;;
+      esac
+      ctr=$(buildah from scratch)
+      buildah copy --chmod 0555 "$ctr" "{{ target_dir }}/$target/release/innby" /innby
+      buildah config \
+        --os linux \
+        --arch "$arch" \
+        --entrypoint '["/innby"]' \
+        --cmd serve \
+        --user 65532:65532 \
+        --port 8080 \
+        --label org.opencontainers.image.source=https://github.com/vehagn/innby \
+        --label org.opencontainers.image.version={{ tag }} \
+        --label org.opencontainers.image.revision={{ revision }} \
+        "$ctr"
+      buildah commit --quiet --rm --format oci --manifest "$index" "$ctr" >/dev/null
+    done
+    echo "$index"
 
-# Push the image to the registry (run `buildah login ghcr.io` first)
-push tag="dev":
-    buildah push "{{ image }}:{{ tag }}"
+# Push the OCI image index under each tag given (`buildah login ghcr.io` first)
+push tag="dev" *also:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for tag in {{ tag }} {{ also }}; do
+      buildah manifest push --all --format oci "{{ image }}:{{ tag }}" "docker://{{ image }}:$tag"
+    done
+
+# Run a local copy of the published image (see compose.yaml): site :8080, admin :8081, mail :8025
+up tag="latest":
+    INNBY_TAG={{ tag }} {{ compose }} up --detach --pull missing
+    @echo "http://localhost:8080  http://localhost:8081  http://localhost:8025"
+
+# Run the local copy's retention rules once
+up-janitor:
+    {{ compose }} run --rm janitor
+
+# Stop the local copy, keeping its database (`down --volumes` deletes it)
+down:
+    {{ compose }} down
 
 # Seal deploy/secrets.env with the cluster's key into deploy/sealed-secrets.yaml
 seal:
