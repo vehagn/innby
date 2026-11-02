@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update invite_group set name = $2, max_party_size = $3 where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b0d1136a88c12a6f90713ca8c466df0e7bb71ef33fae7ca9e581d281822815fa"
+}

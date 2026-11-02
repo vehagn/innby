@@ -9,15 +9,19 @@ use axum::{
 };
 use chrono::Utc;
 use serde::Deserialize;
+use sqlx::PgPool;
 
 use super::{
     AppState, PRIVACY_VERSION,
-    pages::{EventView, MessagePage, PartySize, render, render_with, server_error},
+    pages::{
+        DisplayChoice, EventView, GuestList, MessagePage, PartySize, render, render_with,
+        server_error,
+    },
 };
 use crate::{
-    db::rsvp::{self, Rsvp},
+    db::rsvp::{self, NameDisplay, Rsvp},
     i18n::{Lang, Messages},
-    link::RsvpLink,
+    link::IdLink,
 };
 
 /// The guest behind the `{link}` in the path. Malformed, forged, revoked and deleted
@@ -35,7 +39,7 @@ impl FromRequestParts<AppState> for Guest {
         let Path(link) = Path::<String>::from_request_parts(parts, state)
             .await
             .map_err(|_| gone(lang))?;
-        let Ok(parsed) = link.parse::<RsvpLink>() else {
+        let Ok(parsed) = link.parse::<IdLink>() else {
             return Err(gone(lang));
         };
         match rsvp::find(&state.db, parsed.id).await {
@@ -67,20 +71,31 @@ pub(super) struct RsvpPage<'a> {
     /// The guest's current answer, e.g. "Coming · 2 people".
     status: String,
     party_sizes: Vec<PartySize>,
+    /// For the answer form: the guest's choice, or their full name if they haven't made
+    /// one, since that's the default once they're coming.
+    display_choices: Vec<DisplayChoice>,
+    guests: GuestList,
+    /// The guest's name as the list shows it, if it does.
+    listed_as: Option<String>,
+    /// The other ways the guest can show up in the list.
+    other_displays: Vec<DisplayChoice>,
+    declined: bool,
     first_visit: bool,
     accepts_answers: bool,
     email_confirmed: bool,
     /// A one-off confirmation after a change, e.g. "Saved!".
     flash: Option<&'static str>,
-    /// The full link, shown right after an open RSVP so the guest can keep it.
+    /// The full link, shown right after a group sign-up so the guest can keep it.
     new_link: Option<String>,
     error: Option<&'static str>,
+    db: &'a PgPool,
 }
 
 impl<'a> RsvpPage<'a> {
     pub(super) fn new(state: &'a AppState, lang: Lang, guest: &'a Guest) -> Self {
         let t = lang.messages();
         let rsvp = &guest.rsvp;
+        let chosen = rsvp.name_display.unwrap_or(NameDisplay::Full);
         Self {
             lang,
             t,
@@ -89,23 +104,42 @@ impl<'a> RsvpPage<'a> {
             rsvp,
             status: t.answer(rsvp.response, rsvp.party_size),
             party_sizes: PartySize::choices(t, rsvp.max_party_size, rsvp.party_size),
+            display_choices: DisplayChoice::choices(t, Some(&rsvp.name), chosen),
+            guests: GuestList::default(),
+            listed_as: rsvp.listed().apply(&rsvp.name),
+            other_displays: DisplayChoice::choices(t, None, rsvp.listed())
+                .into_iter()
+                .filter(|choice| !choice.selected)
+                .collect(),
+            declined: rsvp.response == rsvp::Response::Declined,
             first_visit: rsvp.privacy_version.is_none(),
             accepts_answers: state.config.event.accepts_answers(Utc::now()),
             email_confirmed: rsvp.email_status == rsvp::EmailStatus::Confirmed,
             flash: None,
             new_link: None,
             error: None,
+            db: &state.db,
+        }
+    }
+
+    async fn render(mut self, status: StatusCode) -> Response {
+        match GuestList::load(self.db, Some(self.rsvp.id)).await {
+            Ok(guests) => {
+                self.guests = guests;
+                render_with(status, self)
+            }
+            Err(err) => server_error(err),
         }
     }
 
     /// The page again with an error message, e.g. for an invalid form.
-    pub(super) fn render_error(
+    pub(super) async fn render_error(
         mut self,
         status: StatusCode,
         pick: impl Fn(&Messages) -> &'static str,
     ) -> Response {
         self.error = Some(pick(self.t));
-        render_with(status, self)
+        self.render(status).await
     }
 }
 
@@ -162,7 +196,7 @@ pub(super) fn redirect(link: &str, lang: Lang, notice: Notice) -> Response {
 #[derive(Deserialize)]
 pub struct ShowQuery {
     notice: Option<String>,
-    /// Set right after an open RSVP.
+    /// Set right after a group sign-up.
     new: Option<String>,
 }
 
@@ -181,7 +215,7 @@ pub async fn show(
     page.new_link = query
         .new
         .map(|_| format!("{}/r/{}", state.config.base_url, guest.link));
-    render(page)
+    page.render(StatusCode::OK).await
 }
 
 #[derive(Deserialize)]
@@ -195,6 +229,7 @@ pub enum Answer {
 pub struct AnswerForm {
     response: Answer,
     party_size: i32,
+    name_display: Option<NameDisplay>,
 }
 
 pub async fn answer(
@@ -205,10 +240,14 @@ pub async fn answer(
 ) -> Response {
     let page = || RsvpPage::new(&state, lang, &guest);
     if !state.config.event.accepts_answers(Utc::now()) {
-        return page().render_error(StatusCode::FORBIDDEN, |t| t.answers_closed);
+        return page()
+            .render_error(StatusCode::FORBIDDEN, |t| t.answers_closed)
+            .await;
     }
     if !(1..=guest.rsvp.max_party_size).contains(&form.party_size) {
-        return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_party_size);
+        return page()
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_party_size)
+            .await;
     }
 
     let response = match form.response {
@@ -221,6 +260,7 @@ pub async fn answer(
         id,
         response,
         form.party_size,
+        form.name_display,
         lang,
         PRIVACY_VERSION,
     )
@@ -249,13 +289,33 @@ pub async fn rename(
 ) -> Response {
     let Some(name) = rsvp::normalize_name(&form.name) else {
         return RsvpPage::new(&state, lang, &guest)
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_name);
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_name)
+            .await;
     };
     match rsvp::rename(&state.db, guest.rsvp.id, &name).await {
         Ok(true) => {
             tracing::info!(rsvp = %guest.rsvp.id, "rsvp renamed");
             redirect(&guest.link, lang, Notice::Saved)
         }
+        Ok(false) => gone(lang),
+        Err(err) => server_error(err),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct DisplayForm {
+    name_display: NameDisplay,
+}
+
+/// Changes how the guest's name shows in the guest list.
+pub async fn display(
+    State(state): State<AppState>,
+    lang: Lang,
+    guest: Guest,
+    Form(form): Form<DisplayForm>,
+) -> Response {
+    match rsvp::set_name_display(&state.db, guest.rsvp.id, form.name_display).await {
+        Ok(true) => redirect(&guest.link, lang, Notice::Saved),
         Ok(false) => gone(lang),
         Err(err) => server_error(err),
     }
@@ -287,7 +347,8 @@ pub async fn delete(
 ) -> Response {
     if form.confirm.is_none() {
         return RsvpPage::new(&state, lang, &guest)
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.confirm_delete);
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.confirm_delete)
+            .await;
     }
     match rsvp::delete(&state.db, guest.rsvp.id).await {
         Ok(_) => {
@@ -305,7 +366,7 @@ mod tests {
     use sqlx::PgPool;
 
     use super::*;
-    use crate::web::testing::{Site, body, form_post};
+    use crate::web::testing::{Site, body, form_post, location};
 
     #[sqlx::test]
     async fn guest_answers_through_their_link(db: PgPool) {
@@ -468,6 +529,57 @@ mod tests {
         assert_eq!(json["name"], "Kari");
         assert_eq!(json["response"], "pending");
         assert_eq!(json["email"], serde_json::Value::Null);
+        assert_eq!(json["name_display"], serde_json::Value::Null);
+    }
+
+    #[sqlx::test]
+    async fn guest_list_shows_names_as_each_guest_chose(db: PgPool) {
+        let site = Site::new(db);
+        let (_, kari) = site.invite("Kari Nordmann", 1).await;
+        let (_, ola) = site.invite("Ola Hansen", 1).await;
+        let (_, per) = site.invite("Per Berg", 1).await;
+        site.invite("Anne Lie", 1).await;
+
+        // Coming defaults to the full name.
+        let html = body(site.get(&format!("/r/{kari}?lang=en")).await).await;
+        assert!(
+            html.contains(r#"<option value="full" selected>Full name (Kari Nordmann)</option>"#)
+        );
+        assert!(html.contains("<li>Ola H.</li>"));
+        for (link, answer) in [
+            (&kari, "attending&name_display=full"),
+            (&ola, "attending&name_display=hidden"),
+            (&per, "declined&name_display=full"),
+        ] {
+            let form = format!("party_size=1&response={answer}");
+            site.post(&format!("/r/{link}"), &form).await;
+        }
+
+        let html = body(site.get(&format!("/r/{kari}?lang=en")).await).await;
+        assert!(html.contains(r#"<li>Kari Nordmann <span class="muted">(you)</span></li>"#));
+        assert!(html.contains("<li>Anne L.</li>"));
+        // Ola is coming but hidden, and Per declined.
+        assert!(html.contains(r#"<li class="muted">+ 1 more</li>"#));
+        assert!(!html.contains("Ola H") && !html.contains("Per B"));
+        assert!(html.contains("Other guests see you as <strong>Kari Nordmann</strong>."));
+
+        let response = site
+            .post(
+                &format!("/r/{kari}/display?lang=en"),
+                "name_display=partial",
+            )
+            .await;
+        assert_eq!(
+            location(&response),
+            format!("/r/{kari}?lang=en&notice=saved")
+        );
+        let html = body(site.get(&format!("/r/{ola}?lang=en")).await).await;
+        assert!(html.contains("<li>Kari N.</li>"));
+        assert!(html.contains("Your name isn&#39;t on the list."));
+        // Answering again keeps the choice the form shows.
+        assert!(html.contains(r#"<option value="hidden" selected>"#));
+        let html = body(site.get(&format!("/r/{per}?lang=en")).await).await;
+        assert!(html.contains("You&#39;re not on the list, since you can&#39;t come."));
     }
 
     #[sqlx::test]

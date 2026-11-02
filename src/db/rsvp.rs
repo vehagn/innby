@@ -1,8 +1,9 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
+use super::group::Group;
 use crate::i18n::Lang;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
@@ -31,6 +32,60 @@ pub enum EmailStatus {
     Confirmed,
 }
 
+/// How a guest's name shows in the guest list other guests see.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(type_name = "name_display", rename_all = "lowercase")]
+pub enum NameDisplay {
+    Full,
+    /// First name and an initial: "Kari N.".
+    Partial,
+    Hidden,
+}
+
+impl NameDisplay {
+    pub const ALL: [Self; 3] = [Self::Full, Self::Partial, Self::Hidden];
+
+    /// The form value.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Full => "full",
+            Self::Partial => "partial",
+            Self::Hidden => "hidden",
+        }
+    }
+
+    /// How a name shows in the list. Until the guest chooses, it's their first name and
+    /// an initial, or their full name once they're coming. Declined guests aren't listed.
+    pub fn listed(response: Response, chosen: Option<Self>) -> Self {
+        match (response, chosen) {
+            (Response::Declined, _) => Self::Hidden,
+            (_, Some(chosen)) => chosen,
+            (Response::Attending, None) => Self::Full,
+            (Response::Pending, None) => Self::Partial,
+        }
+    }
+
+    /// The name as this choice shows it, or `None` for hidden.
+    pub fn apply(self, name: &str) -> Option<String> {
+        match self {
+            Self::Full => Some(name.to_owned()),
+            Self::Partial => Some(partial_name(name)),
+            Self::Hidden => None,
+        }
+    }
+}
+
+/// The first word and the initial of the last: "Kari Nordmann" becomes "Kari N.".
+fn partial_name(name: &str) -> String {
+    let mut words = name.split_whitespace();
+    let first = words.next().unwrap_or_default();
+    match words.next_back().and_then(|last| last.chars().next()) {
+        Some(initial) => format!("{first} {}.", initial.to_uppercase()),
+        None => first.to_owned(),
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Rsvp {
     pub id: Uuid,
@@ -47,11 +102,22 @@ pub struct Rsvp {
     pub privacy_version: Option<String>,
     pub responded_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    /// The group whose link the guest signed up through.
+    pub group_id: Option<Uuid>,
+    /// The guest's choice for the guest list, if they've made one.
+    pub name_display: Option<NameDisplay>,
+}
+
+impl Rsvp {
+    /// How the guest's name shows in the guest list right now.
+    pub fn listed(&self) -> NameDisplay {
+        NameDisplay::listed(self.response, self.name_display)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Headcount {
-    /// Invitations and open RSVPs that answered "attending".
+    /// Invitations and sign-ups that answered "attending".
     pub attending_parties: i64,
     /// The sum of their party sizes: the number of people coming.
     pub attending_people: i64,
@@ -79,7 +145,8 @@ macro_rules! query_rsvp {
             r#" id, source as "source: Source", name, response as "response: Response",
                 party_size, max_party_size, link_nonce, lang as "lang: Lang", email,
                 email_status as "email_status: EmailStatus", email_consent_at,
-                privacy_version, responded_at, created_at "#
+                privacy_version, responded_at, created_at, group_id,
+                name_display as "name_display: NameDisplay" "#
             $(+ $tail)*
             $(, $arg)*
         )
@@ -101,23 +168,31 @@ pub async fn create_invite(
     .await
 }
 
-/// Creates an open RSVP, which is "attending" from the start.
+/// What someone gives when they sign up through a group's link.
+pub struct SignUp<'a> {
+    pub group: &'a Group,
+    pub name: &'a str,
+    pub party_size: i32,
+    pub name_display: NameDisplay,
+    pub lang: Lang,
+}
+
+/// Creates an RSVP through a group link, which is "attending" from the start.
 pub async fn create_open(
     db: impl PgExecutor<'_>,
-    name: &str,
-    party_size: i32,
-    max_party_size: i32,
-    lang: Lang,
+    sign_up: &SignUp<'_>,
     privacy_version: &str,
 ) -> sqlx::Result<Rsvp> {
     query_rsvp!(
-        "insert into rsvp (source, name, response, party_size, max_party_size, lang, \
-            privacy_version, responded_at) \
-         values ('open', $1, 'attending', $2, $3, $4, $5, now())" returning,
-        name,
-        party_size,
-        max_party_size,
-        lang as Lang,
+        "insert into rsvp (source, group_id, name, response, party_size, max_party_size, \
+            name_display, lang, privacy_version, responded_at) \
+         values ('open', $1, $2, 'attending', $3, $4, $5, $6, $7, now())" returning,
+        sign_up.group.id,
+        sign_up.name,
+        sign_up.party_size,
+        sign_up.group.max_party_size,
+        sign_up.name_display as NameDisplay,
+        sign_up.lang as Lang,
         privacy_version,
     )
     .fetch_one(db)
@@ -147,28 +222,69 @@ pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Rsvp>> {
         .await
 }
 
-/// Records the guest's answer. A party size outside `1..=max_party_size` violates a
-/// check constraint, so callers validate it first.
+/// Records the guest's answer, and their choice for the guest list if they made one. A
+/// party size outside `1..=max_party_size` violates a check constraint, so callers
+/// validate it first.
 pub async fn respond(
     db: impl PgExecutor<'_>,
     id: Uuid,
     response: Response,
     party_size: i32,
+    name_display: Option<NameDisplay>,
     lang: Lang,
     privacy_version: &str,
 ) -> sqlx::Result<Option<Rsvp>> {
     query_rsvp!(
         "update rsvp \
-         set response = $2, party_size = $3, lang = $4, privacy_version = $5, \
-            responded_at = now() \
+         set response = $2, party_size = $3, name_display = coalesce($4, name_display), \
+            lang = $5, privacy_version = $6, responded_at = now() \
          where id = $1" returning,
         id,
         response as Response,
         party_size,
+        name_display as Option<NameDisplay>,
         lang as Lang,
         privacy_version,
     )
     .fetch_optional(db)
+    .await
+}
+
+pub async fn set_name_display(
+    db: impl PgExecutor<'_>,
+    id: Uuid,
+    name_display: NameDisplay,
+) -> sqlx::Result<bool> {
+    let result = sqlx::query!(
+        "update rsvp set name_display = $2 where id = $1",
+        id,
+        name_display as NameDisplay,
+    )
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
+
+/// What the guest list needs about one guest.
+pub struct Listing {
+    pub id: Uuid,
+    pub name: String,
+    pub response: Response,
+    pub name_display: Option<NameDisplay>,
+}
+
+/// Everyone who hasn't declined, for the guest list.
+pub async fn guest_list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Listing>> {
+    sqlx::query_as!(
+        Listing,
+        r#"
+        select id, name, response as "response: Response",
+            name_display as "name_display: NameDisplay"
+        from rsvp
+        where response <> 'declined'
+        "#
+    )
+    .fetch_all(db)
     .await
 }
 
@@ -342,11 +458,24 @@ pub async fn headcount(db: impl PgExecutor<'_>) -> sqlx::Result<Headcount> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use sqlx::PgPool;
 
     use super::*;
-    use crate::web::PRIVACY_VERSION;
+    use crate::{db::group, web::PRIVACY_VERSION};
+
+    /// Signs `name` up, in English, through a new group link for up to two people.
+    pub async fn sign_up(pool: &PgPool, name: &str, party_size: i32) -> sqlx::Result<Rsvp> {
+        let group = group::create(pool, "Climbing club", 2).await?;
+        let sign_up = SignUp {
+            group: &group,
+            name,
+            party_size,
+            name_display: NameDisplay::Full,
+            lang: Lang::En,
+        };
+        create_open(pool, &sign_up, PRIVACY_VERSION).await
+    }
     const CHECK_VIOLATION: &str = "23514";
 
     fn is_check_violation(err: &sqlx::Error) -> bool {
@@ -370,8 +499,10 @@ mod tests {
 
     #[sqlx::test]
     async fn open_rsvp_is_attending_immediately(pool: PgPool) -> sqlx::Result<()> {
-        let rsvp = create_open(&pool, "Per", 2, 2, Lang::En, PRIVACY_VERSION).await?;
+        let rsvp = sign_up(&pool, "Per", 2).await?;
         assert_eq!(rsvp.source, Source::Open);
+        assert!(rsvp.group_id.is_some());
+        assert_eq!(rsvp.name_display, Some(NameDisplay::Full));
         assert_eq!(rsvp.response, Response::Attending);
         assert_eq!((rsvp.party_size, rsvp.lang), (2, Lang::En));
         assert_eq!(rsvp.privacy_version.as_deref(), Some(PRIVACY_VERSION));
@@ -387,6 +518,7 @@ mod tests {
             invite.id,
             Response::Attending,
             2,
+            None,
             Lang::En,
             PRIVACY_VERSION,
         )
@@ -409,6 +541,7 @@ mod tests {
             invite.id,
             Response::Attending,
             3,
+            None,
             Lang::Nb,
             PRIVACY_VERSION,
         )
@@ -423,13 +556,58 @@ mod tests {
         let id = Uuid::max();
         assert!(find(&pool, id).await?.is_none());
         assert!(
-            respond(&pool, id, Response::Declined, 1, Lang::Nb, PRIVACY_VERSION)
-                .await?
-                .is_none()
+            respond(
+                &pool,
+                id,
+                Response::Declined,
+                1,
+                None,
+                Lang::Nb,
+                PRIVACY_VERSION
+            )
+            .await?
+            .is_none()
         );
         assert!(!rename(&pool, id, "Nobody").await?);
         assert!(revoke_link(&pool, id).await?.is_none());
         assert!(!delete(&pool, id).await?);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn guest_list_leaves_out_declined_guests(pool: PgPool) -> sqlx::Result<()> {
+        let kari = create_invite(&pool, "Kari Nordmann", 1).await?;
+        let ola = create_invite(&pool, "Ola", 1).await?;
+        respond(
+            &pool,
+            ola.id,
+            Response::Declined,
+            1,
+            Some(NameDisplay::Full),
+            Lang::Nb,
+            PRIVACY_VERSION,
+        )
+        .await?;
+        assert!(set_name_display(&pool, kari.id, NameDisplay::Hidden).await?);
+
+        let [listed] = guest_list(&pool).await?.try_into().ok().unwrap();
+        assert_eq!(
+            (listed.id, listed.name_display),
+            (kari.id, Some(NameDisplay::Hidden))
+        );
+        // Answering without a choice keeps the one made before.
+        let answered = respond(
+            &pool,
+            kari.id,
+            Response::Attending,
+            1,
+            None,
+            Lang::Nb,
+            PRIVACY_VERSION,
+        )
+        .await?
+        .unwrap();
+        assert_eq!(answered.listed(), NameDisplay::Hidden);
         Ok(())
     }
 
@@ -469,6 +647,27 @@ mod tests {
         for reordering in ["Bob\u{202e}gnp.exe", "\u{2067}Kari"] {
             assert!(normalize_name(reordering).is_none(), "{reordering:?}");
         }
+    }
+
+    #[test]
+    fn partial_names_keep_the_first_name_and_an_initial() {
+        assert_eq!(partial_name("Kari Nordmann"), "Kari N.");
+        assert_eq!(partial_name("Kari & Ola  Østby"), "Kari Ø.");
+        assert_eq!(partial_name("Per"), "Per");
+        assert_eq!(partial_name("anne van der berg"), "anne B.");
+    }
+
+    #[test]
+    fn lists_names_by_answer_and_choice() {
+        use NameDisplay::{Full, Hidden, Partial};
+        use Response::{Attending, Declined, Pending};
+        assert_eq!(NameDisplay::listed(Pending, None), Partial);
+        assert_eq!(NameDisplay::listed(Attending, None), Full);
+        assert_eq!(NameDisplay::listed(Pending, Some(Full)), Full);
+        assert_eq!(NameDisplay::listed(Attending, Some(Hidden)), Hidden);
+        assert_eq!(NameDisplay::listed(Declined, Some(Full)), Hidden);
+        assert_eq!(Partial.apply("Kari Nordmann").as_deref(), Some("Kari N."));
+        assert_eq!(Hidden.apply("Kari Nordmann"), None);
     }
 
     #[test]
@@ -573,6 +772,7 @@ mod tests {
             invite.id,
             Response::Attending,
             4,
+            None,
             Lang::Nb,
             PRIVACY_VERSION,
         )
@@ -597,7 +797,7 @@ mod tests {
 
     #[sqlx::test]
     async fn delete_removes_pending_mail(pool: PgPool) -> sqlx::Result<()> {
-        let rsvp = create_open(&pool, "Per", 1, 2, Lang::Nb, PRIVACY_VERSION).await?;
+        let rsvp = sign_up(&pool, "Per", 1).await?;
         sqlx::query("insert into outbox (rsvp_id, kind) values ($1, 'rsvp_link')")
             .bind(rsvp.id)
             .execute(&pool)
@@ -651,6 +851,7 @@ mod tests {
             family.id,
             Response::Attending,
             3,
+            None,
             Lang::Nb,
             PRIVACY_VERSION,
         )
@@ -661,12 +862,13 @@ mod tests {
             busy.id,
             Response::Declined,
             1,
+            None,
             Lang::Nb,
             PRIVACY_VERSION,
         )
         .await?;
         create_invite(&pool, "Kari", 1).await?;
-        create_open(&pool, "Per", 2, 2, Lang::En, PRIVACY_VERSION).await?;
+        sign_up(&pool, "Per", 2).await?;
 
         assert_eq!(
             headcount(&pool).await?,

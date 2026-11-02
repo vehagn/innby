@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select * from invite_group where id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "invite_group",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "invite_group",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "max_party_size",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "invite_group",
+            "name": "max_party_size"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "link_nonce",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "invite_group",
+            "name": "link_nonce"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "invite_group",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b7fdd41c5660288b22bb3666db58c2f4bb1842f1b5e4eb52fd358dcdf9480e6e"
+}

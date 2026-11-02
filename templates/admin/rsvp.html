@@ -8,7 +8,8 @@
 <dl class="facts">
   <dt>Answer</dt><dd>{{ row.answer }}</dd>
   <dt>People</dt><dd>{{ row.party }}</dd>
-  <dt>Source</dt><dd>{{ row.source }}</dd>
+  <dt>Source</dt><dd>{% if let Some(group_id) = row.group_id %}<a href="/groups/{{ group_id }}">{{ row.source }}</a>{% else %}{{ row.source }}{% endif %}</dd>
+  <dt>Guest list</dt><dd>{{ row.listed }}</dd>
   {% if !row.email.is_empty() %}<dt>E-mail</dt><dd>{{ row.email }}</dd>{% endif %}
   <dt>Created</dt><dd>{{ row.created }}</dd>
   {% if !row.responded.is_empty() %}<dt>Answered</dt><dd>{{ row.responded }}</dd>{% endif %}

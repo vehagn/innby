@@ -3,7 +3,7 @@
 {% block title %}Guests{% endblock %}
 
 {% block content %}
-{% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
+{% if let Some(notice) = feedback.notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
 <h1>{{ title }}</h1>
 <p class="stats">
   <strong>{{ headcount.attending_people }}</strong> people coming
@@ -12,38 +12,52 @@
 </p>
 
 <section class="card">
-  <h2>New invitation</h2>
-  <form method="post" action="/invitations" class="inline">
-    <div>
-      <label for="name">Name or household</label>
-      <input id="name" name="name" required maxlength="100" placeholder="Kari &amp; Ola">
-    </div>
-    <div>
-      <label for="max_party_size">Max people</label>
-      <input id="max_party_size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="2" required>
-    </div>
-    <button>Create</button>
+  <h2>New invitations</h2>
+  <p class="muted small">One guest or household per line, and each gets their own link. To give
+    a line its own maximum, end it with a comma and a number.</p>
+  <form method="post" action="/invitations">
+    <label for="names">Names</label>
+    <textarea id="names" name="names" rows="5" required placeholder="Kari &amp; Ola Nordmann, 2&#10;Per Hansen">{{ feedback.invitations }}</textarea>
+    <label for="max_party_size">Max people per invitation</label>
+    <input id="max_party_size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="2" required>
+    <button>Create invitations</button>
   </form>
+  <p><a href="/invitations">All invitation links</a></p>
 </section>
 
-<section class="card">
-  <h2>Open sign-up link</h2>
-  {% if let Some(open) = open_rsvp %}
-  <p class="muted small">Post this in a group chat. Anyone with it can sign up with a name,
-    up to {{ open.max_party_size }} people each, and gets their own link back. Anyone the link
-    is forwarded to can sign up too. To close it, change or remove
-    <code>FEST_OPEN_RSVP_CODE</code>.</p>
-  {% if !open.accepts_answers %}<p class="notice" role="status">Closed: the answer deadline has passed.</p>{% endif %}
-  <label for="open-url">Sign-up link</label>
-  <input id="open-url" type="text" readonly value="{{ open.url }}">
-  <details>
-    <summary>QR code</summary>
-    <div class="qr">{{ open.qr|safe }}</div>
-  </details>
+<section class="card" id="groups">
+  <h2>Group links</h2>
+  <p class="muted small">A sign-up link for a group of people, for its group chat or a poster.
+    Anyone with it can sign up with a name and gets their own link back.</p>
+  {% if !accepts_answers %}<p class="notice" role="status">Closed: the answer deadline has passed.</p>{% endif %}
+  {% if groups.is_empty() %}
+  <p class="muted">No groups yet.</p>
   {% else %}
-  <p class="muted small">Off. Set <code>FEST_OPEN_RSVP_CODE</code> to get a link anyone can
-    sign up with, for a group chat or a poster.</p>
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>Group</th><th>Signed up</th><th>People each</th><th>Link</th></tr>
+    </thead>
+    <tbody>
+      {% for group in groups %}
+      <tr>
+        <td><a href="/groups/{{ group.id }}">{{ group.name }}</a></td>
+        <td>{{ group.sign_ups }}</td>
+        <td>{{ group.max_party_size }}</td>
+        <td><input type="text" readonly value="{{ group.url }}" aria-label="Link for {{ group.name }}"></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
   {% endif %}
+  <form method="post" action="/groups">
+    <label for="group-names">New groups, one per line</label>
+    <textarea id="group-names" name="names" rows="3" required placeholder="Climbing club&#10;Neighbours, 4">{{ feedback.groups }}</textarea>
+    <label for="group-size">Max people per sign-up</label>
+    <input id="group-size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="2" required>
+    <button>Create groups</button>
+  </form>
 </section>
 
 {% if rows.is_empty() %}
@@ -52,7 +66,7 @@
 <div class="table-wrap">
 <table>
   <thead>
-    <tr><th>Name</th><th>Answer</th><th>People</th><th>Source</th><th>E-mail</th><th>Answered</th></tr>
+    <tr><th>Name</th><th>Answer</th><th>People</th><th>Source</th><th>Guest list</th><th>E-mail</th><th>Answered</th></tr>
   </thead>
   <tbody>
     {% for row in rows %}
@@ -61,6 +75,7 @@
       <td>{{ row.answer }}</td>
       <td>{{ row.party }}</td>
       <td>{{ row.source }}</td>
+      <td>{{ row.listed }}</td>
       <td>{{ row.email }}</td>
       <td>{{ row.responded }}</td>
     </tr>

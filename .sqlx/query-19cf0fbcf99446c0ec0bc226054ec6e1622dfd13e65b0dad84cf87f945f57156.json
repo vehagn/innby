@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from invite_group where id = $1 and not exists (select from rsvp where group_id = $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "19cf0fbcf99446c0ec0bc226054ec6e1622dfd13e65b0dad84cf87f945f57156"
+}

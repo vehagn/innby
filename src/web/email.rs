@@ -45,15 +45,21 @@ pub async fn add(
 ) -> Response {
     let page = || RsvpPage::new(&state, lang, &guest);
     if form.consent.is_none() {
-        return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.consent_required);
+        return page()
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.consent_required)
+            .await;
     }
     let Some(email) = rsvp::normalize_email(&form.email) else {
-        return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_email);
+        return page()
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_email)
+            .await;
     };
     // Each attempt can mail an address the guest typed in, so it's limited like /lost.
     if !state.may_send_mail(client) {
         tracing::warn!("add e-mail rate limit hit");
-        return page().render_error(StatusCode::TOO_MANY_REQUESTS, |t| t.too_many_attempts);
+        return page()
+            .render_error(StatusCode::TOO_MANY_REQUESTS, |t| t.too_many_attempts)
+            .await;
     }
 
     match add_email(&state.db, &guest.rsvp, &email, lang).await {

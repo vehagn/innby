@@ -1,0 +1,76 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ group.name }}{% endblock %}
+
+{% block content %}
+{% if saved %}<p class="notice success" role="status">Saved.</p>{% endif %}
+<h1>{{ group.name }}</h1>
+<dl class="facts">
+  <dt>Signed up</dt><dd>{{ members.len() }}</dd>
+  <dt>Created</dt><dd>{{ created }}</dd>
+</dl>
+
+<section class="card">
+  <h2>Sign-up link</h2>
+  <p class="muted small">Post this where the group will see it, for example in its group chat.
+    Anyone with the link can sign up with a name, up to {{ group.max_party_size }}
+    {% if group.max_party_size == 1 %}person{% else %}people{% endif %} each, and gets their own
+    link back. Anyone it's forwarded to can sign up too.</p>
+  {% if !accepts_answers %}<p class="notice" role="status">Closed: the answer deadline has passed.</p>{% endif %}
+  <label for="url">Group's link</label>
+  <input id="url" type="text" readonly value="{{ url }}">
+  <div class="qr">{{ qr|safe }}</div>
+  <form method="post" action="/groups/{{ group.id }}/revoke">
+    <button class="secondary">Make a new link</button>
+    <span class="muted small">The current link stops working. Those who signed up keep their own links.</span>
+  </form>
+</section>
+
+<h2>Signed up</h2>
+{% if members.is_empty() %}
+<p class="muted">Nobody has signed up through this link yet.</p>
+{% else %}
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>Name</th><th>Answer</th><th>People</th><th>Guest list</th><th>Signed up</th></tr>
+  </thead>
+  <tbody>
+    {% for row in members %}
+    <tr>
+      <td><a href="/rsvp/{{ row.id }}">{{ row.name }}</a></td>
+      <td>{{ row.answer }}</td>
+      <td>{{ row.party }}</td>
+      <td>{{ row.listed }}</td>
+      <td>{{ row.created }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<details>
+  <summary>Edit</summary>
+  <form method="post" action="/groups/{{ group.id }}">
+    <label for="name">Group name</label>
+    <input id="name" name="name" required maxlength="100" value="{{ group.name }}">
+    <label for="max_party_size">Max people per sign-up, for new sign-ups</label>
+    <input id="max_party_size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="{{ group.max_party_size }}" required>
+    <button class="secondary">Save</button>
+  </form>
+</details>
+
+<details>
+  <summary>Delete</summary>
+  {% if members.is_empty() %}
+  <form method="post" action="/groups/{{ group.id }}/delete">
+    <label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> Delete the group {{ group.name }} and its link</label>
+    <button class="danger">Delete</button>
+  </form>
+  {% else %}
+  <p class="muted small">People have signed up through this group, so it can't be deleted. To
+    stop new sign-ups, make a new link and don't share it.</p>
+  {% endif %}
+</details>
+{% endblock %}

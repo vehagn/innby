@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at from rsvp where id = $1",
+  "query": "select id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\" from rsvp where id = $1",
   "describe": {
     "columns": [
       {
@@ -198,6 +198,39 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 14,
+        "name": "group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "group_id"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "name_display: NameDisplay",
+        "type_info": {
+          "Custom": {
+            "name": "name_display",
+            "kind": {
+              "Enum": [
+                "full",
+                "partial",
+                "hidden"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "name_display"
+          }
+        }
       }
     ],
     "parameters": {
@@ -219,8 +252,10 @@
       true,
       true,
       true,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "5e167f713d13731f0ddcd263e6ccbf242e23dc9077b90a5e9a21e26822bc3276"
+  "hash": "b7403fee0b30317d7b8eac72c7ef218b72f62496a67e019b8a5fc4dcb9f35e47"
 }

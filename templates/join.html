@@ -8,12 +8,18 @@
 {% include "_event.html" %}
 
 <section class="card" aria-labelledby="join-heading">
+  <p class="muted">{{ t.join_group }}: <strong>{{ group.name }}</strong></p>
   <h2 id="join-heading">{{ t.join_heading }}</h2>
   {% if accepts_answers %}
-  <form method="post" action="/join/{{ code }}?lang={{ lang.code() }}">
+  <form method="post" action="/join/{{ link }}?lang={{ lang.code() }}">
     <label for="name">{{ t.your_name }}</label>
     <input id="name" name="name" value="{{ name }}" required maxlength="100" autocomplete="name">
+    {% if party_sizes.len() > 1 %}
     {% include "_party_size.html" %}
+    {% else %}
+    <input type="hidden" name="party_size" value="1">
+    {% endif %}
+    {% include "_name_display.html" %}
     <div class="hp" aria-hidden="true">
       <label for="website">Website</label>
       <input id="website" name="website" tabindex="-1" autocomplete="off">
@@ -27,4 +33,9 @@
   <p class="muted">{{ t.answers_closed }}</p>
   {% endif %}
 </section>
+
+<details open>
+  <summary>{{ t.guest_list_heading }}</summary>
+  {% include "_guest_list.html" %}
+</details>
 {% endblock %}

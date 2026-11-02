@@ -2,7 +2,7 @@ use chrono::{DateTime, Locale};
 use chrono_tz::Tz;
 use serde::Serialize;
 
-use crate::db::rsvp::Response;
+use crate::db::rsvp::{NameDisplay, Response};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
@@ -161,7 +161,26 @@ pub struct Messages {
     pub lost_sent_title: &'static str,
     pub lost_sent_text: &'static str,
 
-    // Open RSVP
+    // Guest list
+    pub guest_list_heading: &'static str,
+    pub guest_list_coming: &'static str,
+    pub guest_list_pending: &'static str,
+    /// "+ {n} more", for guests who'd rather not be listed.
+    pub guest_list_more: &'static str,
+    pub guest_list_empty: &'static str,
+    pub guest_list_note: &'static str,
+    pub you: &'static str,
+    pub listed_as: &'static str,
+    pub listed_hidden: &'static str,
+    pub listed_declined: &'static str,
+    pub show_instead: &'static str,
+    pub name_display_label: &'static str,
+    pub display_full: &'static str,
+    pub display_partial: &'static str,
+    pub display_hidden: &'static str,
+
+    // Group sign-up
+    pub join_group: &'static str,
     pub join_heading: &'static str,
     /// What we store and why (GDPR Art. 13), shown where the data is collected.
     pub join_notice: &'static str,
@@ -186,6 +205,20 @@ impl Messages {
     /// "1 person", "3 people".
     pub fn people_count(&self, n: i32) -> String {
         format!("{n} {}", if n == 1 { self.person } else { self.people })
+    }
+
+    /// "+ 3 more".
+    pub fn more_guests(&self, n: impl std::fmt::Display) -> String {
+        self.guest_list_more.replace("{n}", &n.to_string())
+    }
+
+    /// The label for a guest list choice.
+    pub fn name_display(&self, display: NameDisplay) -> &'static str {
+        match display {
+            NameDisplay::Full => self.display_full,
+            NameDisplay::Partial => self.display_partial,
+            NameDisplay::Hidden => self.display_hidden,
+        }
     }
 
     /// A guest's answer, e.g. "Coming · 2 people".
@@ -215,7 +248,8 @@ static NB: Messages = Messages {
 
     greeting: "Hei",
     first_visit_notice: "Du er invitert! For å planlegge festen lagrer vi navnet ditt, svaret \
-        ditt og hvor mange dere blir. Ikke noe mer, og alt slettes 30 dager etter festen.",
+        ditt og hvor mange dere blir. Ikke noe mer, og alt slettes 30 dager etter festen. På \
+        gjestelisten ser andre gjester fornavnet og initialen din, og du kan velge hva de ser.",
     keep_link: "Dette er din personlige side. Ta vare på lenken for å endre svaret senere, \
         og ikke del den med andre.",
     saved: "Lagret!",
@@ -269,9 +303,27 @@ static NB: Messages = Messages {
     lost_sent_title: "Sjekk innboksen din",
     lost_sent_text: "Hvis adressen er registrert og bekreftet, har vi sendt deg lenken din.",
 
+    guest_list_heading: "Gjestelisten",
+    guest_list_coming: "Kommer",
+    guest_list_pending: "Har ikke svart ennå",
+    guest_list_more: "+ {n} til",
+    guest_list_empty: "Ingen på listen ennå.",
+    guest_list_note: "Gjester som ikke kommer, står ikke på listen.",
+    you: "deg",
+    listed_as: "Andre gjester ser deg som",
+    listed_hidden: "Navnet ditt står ikke på listen.",
+    listed_declined: "Du står ikke på listen, siden du ikke kommer.",
+    show_instead: "Vis i stedet",
+    name_display_label: "Navnet ditt på gjestelisten",
+    display_full: "Fullt navn",
+    display_partial: "Fornavn og initial",
+    display_hidden: "Ikke vis navnet mitt",
+
+    join_group: "Invitert via",
     join_heading: "Si at du kommer",
     join_notice: "Vi lagrer bare navnet ditt og hvor mange dere blir, for å planlegge \
-        festen. Alt slettes 30 dager etter festen, og du kan slette det selv når som helst.",
+        festen. Andre gjester ser navnet ditt på gjestelisten slik du velger over. Alt \
+        slettes 30 dager etter festen, og du kan slette det selv når som helst.",
     your_name: "Navnet ditt",
     join_button: "Jeg kommer!",
 
@@ -302,7 +354,8 @@ static EN: Messages = Messages {
     greeting: "Hi",
     first_visit_notice: "You're invited! To plan the party we store your name, your answer \
         and how many of you are coming. Nothing else, and it's all deleted 30 days after \
-        the event.",
+        the event. On the guest list, other guests see your first name and initial, and you \
+        can choose what they see.",
     keep_link: "This is your personal page. Keep the link to change your answer later, and \
         don't share it.",
     saved: "Saved!",
@@ -356,9 +409,27 @@ static EN: Messages = Messages {
     lost_sent_title: "Check your inbox",
     lost_sent_text: "If the address is registered and confirmed, we've sent you your link.",
 
+    guest_list_heading: "Guest list",
+    guest_list_coming: "Coming",
+    guest_list_pending: "Not answered yet",
+    guest_list_more: "+ {n} more",
+    guest_list_empty: "Nobody on the list yet.",
+    guest_list_note: "Guests who can't come aren't listed.",
+    you: "you",
+    listed_as: "Other guests see you as",
+    listed_hidden: "Your name isn't on the list.",
+    listed_declined: "You're not on the list, since you can't come.",
+    show_instead: "Show instead",
+    name_display_label: "Your name on the guest list",
+    display_full: "Full name",
+    display_partial: "First name and initial",
+    display_hidden: "Don't show my name",
+
+    join_group: "Invited with",
     join_heading: "Let us know you're coming",
     join_notice: "We only store your name and how many of you are coming, to plan the \
-        party. It's all deleted 30 days after the event, and you can delete it yourself at \
+        party. Other guests see your name on the guest list as you choose above. It's all \
+        deleted 30 days after the event, and you can delete it yourself at \
         any time.",
     your_name: "Your name",
     join_button: "I'm coming!",
@@ -403,5 +474,7 @@ mod tests {
         assert_eq!(NB.people_count(3), "3 personer");
         assert_eq!(EN.answer(Response::Attending, 2), "Coming · 2 people");
         assert_eq!(NB.answer(Response::Declined, 2), "Kommer ikke");
+        assert_eq!(EN.more_guests(3), "+ 3 more");
+        assert_eq!(NB.more_guests(1), "+ 1 til");
     }
 }

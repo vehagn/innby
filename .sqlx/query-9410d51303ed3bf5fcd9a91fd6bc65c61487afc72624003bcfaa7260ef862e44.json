@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at from rsvp where email = $1 and email_status = 'confirmed'",
+  "query": "insert into rsvp (source, group_id, name, response, party_size, max_party_size, name_display, lang, privacy_version, responded_at) values ('open', $1, $2, 'attending', $3, $4, $5, $6, $7, now()) returning id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\" ",
   "describe": {
     "columns": [
       {
@@ -198,10 +198,70 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 14,
+        "name": "group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "group_id"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "name_display: NameDisplay",
+        "type_info": {
+          "Custom": {
+            "name": "name_display",
+            "kind": {
+              "Enum": [
+                "full",
+                "partial",
+                "hidden"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "name_display"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
+        "Uuid",
+        "Text",
+        "Int4",
+        "Int4",
+        {
+          "Custom": {
+            "name": "name_display",
+            "kind": {
+              "Enum": [
+                "full",
+                "partial",
+                "hidden"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "lang",
+            "kind": {
+              "Enum": [
+                "nb",
+                "en"
+              ]
+            }
+          }
+        },
         "Text"
       ]
     },
@@ -219,8 +279,10 @@
       true,
       true,
       true,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "2682c305c3edc3de35cdaa60edaf117c82f4213fda620635237dd747e86bb715"
+  "hash": "9410d51303ed3bf5fcd9a91fd6bc65c61487afc72624003bcfaa7260ef862e44"
 }

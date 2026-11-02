@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update invite_group set link_nonce = link_nonce + 1 where id = $1 returning link_nonce",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "link_nonce",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "invite_group",
+            "name": "link_nonce"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4a9343dc742e4c1a905ee9e75c850d4434050b950466acc5390c581a25d2805d"
+}

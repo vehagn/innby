@@ -1,0 +1,74 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select * from invite_group order by id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "invite_group",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "invite_group",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "max_party_size",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "invite_group",
+            "name": "max_party_size"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "link_nonce",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "invite_group",
+            "name": "link_nonce"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "invite_group",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2bb0525ed7891e982714e480c0e81c6231d69f7c300c9c286691643c22c532e0"
+}
