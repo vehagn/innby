@@ -44,7 +44,7 @@ enum Command {
         #[arg(default_value_t = 1)]
         max_party_size: i32,
     },
-    /// Hash a password read from stdin, for FEST_ADMIN_PASSWORD_HASH.
+    /// Hash a password read from stdin, for INNBY_ADMIN_PASSWORD_HASH.
     HashPassword,
 }
 

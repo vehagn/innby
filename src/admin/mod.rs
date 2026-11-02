@@ -1,4 +1,4 @@
-//! `fest admin`: the host's UI for invitations, group links and the headcount. English
+//! `innby admin`: the host's UI for invitations, group links and the headcount. English
 //! only, and served on its own listener behind the internal gateway and basic auth.
 
 pub mod auth;
@@ -601,7 +601,7 @@ fn csv_line(out: &mut String, fields: &[&str]) {
     out.push_str("\r\n");
 }
 
-/// `fest invite`: creates an invitation and returns the guest's link.
+/// `innby invite`: creates an invitation and returns the guest's link.
 pub async fn invite(
     config: &Config,
     db: &PgPool,

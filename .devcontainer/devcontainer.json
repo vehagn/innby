@@ -1,16 +1,16 @@
 {
-  "name": "fest",
+  "name": "innby",
   "dockerComposeFile": "compose.yaml",
   "service": "dev",
   "runServices": ["dev", "db", "mail"],
-  "workspaceFolder": "/workspaces/fest",
+  "workspaceFolder": "/workspaces/innby",
   "shutdownAction": "stopCompose",
   "remoteUser": "dev",
-  "postCreateCommand": "git config --global --add safe.directory /workspaces/fest",
+  "postCreateCommand": "git config --global --add safe.directory /workspaces/innby",
   "forwardPorts": [8080, 8081, "mail:8025"],
   "portsAttributes": {
-    "8080": { "label": "fest serve" },
-    "8081": { "label": "fest admin" },
+    "8080": { "label": "innby serve" },
+    "8081": { "label": "innby admin" },
     "mail:8025": { "label": "Mailpit" }
   },
   "customizations": {

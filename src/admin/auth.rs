@@ -45,7 +45,7 @@ pub fn check_hash(hash: &str) -> Result<()> {
     Ok(())
 }
 
-/// Hashes a password with argon2id and a random salt, for `FEST_ADMIN_PASSWORD_HASH`.
+/// Hashes a password with argon2id and a random salt, for `INNBY_ADMIN_PASSWORD_HASH`.
 pub fn hash_password(password: &str) -> Result<String> {
     Argon2::default()
         .hash_password(password.as_bytes())
@@ -169,7 +169,7 @@ pub async fn require_login(
             StatusCode::UNAUTHORIZED,
             [(
                 header::WWW_AUTHENTICATE,
-                r#"Basic realm="fest admin", charset="UTF-8""#,
+                r#"Basic realm="Innby admin", charset="UTF-8""#,
             )],
             "login required",
         )

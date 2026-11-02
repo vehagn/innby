@@ -3,16 +3,16 @@
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: fest-web
+  name: innby-web
 spec:
   endpointSelector:
-    matchLabels: { app.kubernetes.io/name: fest, app.kubernetes.io/component: web }
+    matchLabels: { app.kubernetes.io/name: innby, app.kubernetes.io/component: web }
   ingress:
     # Traffic from the Gateway API listeners (external and internal).
     - fromEntities: [ ingress ]
       toPorts: [ { ports: [ { port: "8080", protocol: TCP } ] } ]
   egress:
-    - toEndpoints: [ { matchLabels: { cnpg.io/cluster: fest-postgres } } ]
+    - toEndpoints: [ { matchLabels: { cnpg.io/cluster: innby-postgres } } ]
       toPorts: [ { ports: [ { port: "5432", protocol: TCP } ] } ]
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
@@ -21,15 +21,15 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: fest-admin
+  name: innby-admin
 spec:
   endpointSelector:
-    matchLabels: { app.kubernetes.io/name: fest, app.kubernetes.io/component: admin }
+    matchLabels: { app.kubernetes.io/name: innby, app.kubernetes.io/component: admin }
   ingress:
     - fromEntities: [ ingress ]
       toPorts: [ { ports: [ { port: "8081", protocol: TCP } ] } ]
   egress:
-    - toEndpoints: [ { matchLabels: { cnpg.io/cluster: fest-postgres } } ]
+    - toEndpoints: [ { matchLabels: { cnpg.io/cluster: innby-postgres } } ]
       toPorts: [ { ports: [ { port: "5432", protocol: TCP } ] } ]
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
@@ -39,14 +39,14 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: fest-mailer
+  name: innby-mailer
 spec:
   endpointSelector:
-    matchLabels: { app.kubernetes.io/name: fest, app.kubernetes.io/component: mailer }
+    matchLabels: { app.kubernetes.io/name: innby, app.kubernetes.io/component: mailer }
   # An empty rule allows nothing but turns on default deny for ingress.
   ingress: [ { } ]
   egress:
-    - toEndpoints: [ { matchLabels: { cnpg.io/cluster: fest-postgres } } ]
+    - toEndpoints: [ { matchLabels: { cnpg.io/cluster: innby-postgres } } ]
       toPorts: [ { ports: [ { port: "5432", protocol: TCP } ] } ]
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
@@ -60,30 +60,30 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: fest-janitor
+  name: innby-janitor
 spec:
   endpointSelector:
-    matchLabels: { app.kubernetes.io/name: fest, app.kubernetes.io/component: janitor }
+    matchLabels: { app.kubernetes.io/name: innby, app.kubernetes.io/component: janitor }
   # An empty rule allows nothing but turns on default deny for ingress.
   ingress: [ { } ]
   egress:
-    - toEndpoints: [ { matchLabels: { cnpg.io/cluster: fest-postgres } } ]
+    - toEndpoints: [ { matchLabels: { cnpg.io/cluster: innby-postgres } } ]
       toPorts: [ { ports: [ { port: "5432", protocol: TCP } ] } ]
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
       toPorts: [ { ports: [ { port: "53", protocol: ANY } ] } ]
 ---
-# Postgres accepts the fest workloads and the CloudNativePG operator. Its own egress
+# Postgres accepts the Innby workloads and the CloudNativePG operator. Its own egress
 # (to the API server) is left alone.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: fest-postgres
+  name: innby-postgres
 spec:
   endpointSelector:
-    matchLabels: { cnpg.io/cluster: fest-postgres }
+    matchLabels: { cnpg.io/cluster: innby-postgres }
   ingress:
-    - fromEndpoints: [ { matchLabels: { app.kubernetes.io/name: fest } } ]
+    - fromEndpoints: [ { matchLabels: { app.kubernetes.io/name: innby } } ]
       toPorts: [ { ports: [ { port: "5432", protocol: TCP } ] } ]
     - fromEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: cnpg-system }

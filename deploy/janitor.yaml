@@ -1,9 +1,9 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: fest-janitor
+  name: innby-janitor
   labels:
-    app.kubernetes.io/name: fest
+    app.kubernetes.io/name: innby
     app.kubernetes.io/component: janitor
 spec:
   schedule: "17 * * * *"
@@ -18,7 +18,7 @@ spec:
       template:
         metadata:
           labels:
-            app.kubernetes.io/name: fest
+            app.kubernetes.io/name: innby
             app.kubernetes.io/component: janitor
         spec:
           restartPolicy: OnFailure
@@ -30,15 +30,15 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           containers:
-            - name: fest
-              image: ghcr.io/vehagn/fest
+            - name: innby
+              image: ghcr.io/vehagn/innby
               args: [ janitor ]
               envFrom:
-                - configMapRef: { name: fest-config }
+                - configMapRef: { name: innby-config }
               env:
                 - name: DATABASE_URL
                   valueFrom:
-                    secretKeyRef: { name: fest-postgres-app, key: uri }
+                    secretKeyRef: { name: innby-postgres-app, key: uri }
               resources:
                 requests: { cpu: 10m, memory: 16Mi }
                 limits: { memory: 64Mi }

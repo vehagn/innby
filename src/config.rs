@@ -9,7 +9,7 @@ use crate::{i18n::Localized, link::LinkKey};
 /// Secrets that `.env.example` publishes. Anyone could sign links or log in with them,
 /// so a public site, one with an https base URL, refuses them.
 const EXAMPLE_LINK_KEY: &str = "ZGV2LW9ubHktbGluay1rZXktZG8tbm90LXVzZS1pbi1wcm9k";
-const EXAMPLE_ADMIN_PASSWORD: &str = "fest";
+const EXAMPLE_ADMIN_PASSWORD: &str = "innby";
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -61,7 +61,7 @@ impl Event {
     }
 }
 
-/// The Postgres connection string. Kept apart from `Config` because `fest migrate`
+/// The Postgres connection string. Kept apart from `Config` because `innby migrate`
 /// needs nothing else.
 pub fn database_url() -> Result<String> {
     Env(process_env).required("DATABASE_URL")
@@ -109,10 +109,10 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
 
     fn time_zone(&self) -> Result<Tz> {
         let name = self
-            .optional("FEST_EVENT_TIMEZONE")
+            .optional("INNBY_EVENT_TIMEZONE")
             .unwrap_or_else(|| "Europe/Oslo".into());
         name.parse()
-            .map_err(|_| anyhow!("FEST_EVENT_TIMEZONE: unknown time zone {name:?}"))
+            .map_err(|_| anyhow!("INNBY_EVENT_TIMEZONE: unknown time zone {name:?}"))
     }
 
     /// A local time like `2026-12-12T19:00` in the event's time zone.
@@ -125,8 +125,8 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
     }
 
     fn event_start(&self) -> Result<DateTime<Tz>> {
-        let start = self.required("FEST_EVENT_START")?;
-        self.local_time("FEST_EVENT_START", &start, self.time_zone()?)
+        let start = self.required("INNBY_EVENT_START")?;
+        self.local_time("INNBY_EVENT_START", &start, self.time_zone()?)
     }
 
     fn socket_address(&self, key: &str, default: &str) -> Result<SocketAddr> {
@@ -137,7 +137,7 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
     }
 }
 
-/// When the event starts. `fest janitor` needs only this, besides the database.
+/// When the event starts. `innby janitor` needs only this, besides the database.
 pub fn event_start() -> Result<DateTime<Tz>> {
     Env(process_env).event_start()
 }
@@ -149,42 +149,42 @@ impl Config {
 
     fn from_lookup(get: impl Fn(&str) -> Option<String>) -> Result<Self> {
         let env = Env(get);
-        let listen = env.socket_address("FEST_LISTEN", "0.0.0.0:8080")?;
+        let listen = env.socket_address("INNBY_LISTEN", "0.0.0.0:8080")?;
 
-        let base_url = env.required("FEST_BASE_URL")?;
+        let base_url = env.required("INNBY_BASE_URL")?;
         let base_url = base_url.trim_end_matches('/').to_owned();
         let host = base_url
             .strip_prefix("https://")
             .or_else(|| base_url.strip_prefix("http://"));
         ensure!(
             host.is_some_and(|host| !host.is_empty() && !host.contains('/')),
-            "FEST_BASE_URL: expected an origin like https://fest.example.com, got {base_url:?}"
+            "INNBY_BASE_URL: expected an origin like https://fest.example.com, got {base_url:?}"
         );
 
-        let link_key = env.required("FEST_LINK_KEY")?;
+        let link_key = env.required("INNBY_LINK_KEY")?;
         ensure!(
             !base_url.starts_with("https://") || link_key.trim() != EXAMPLE_LINK_KEY,
-            "FEST_LINK_KEY: that's the example from .env.example, which anyone can read"
+            "INNBY_LINK_KEY: that's the example from .env.example, which anyone can read"
         );
-        let link_key = LinkKey::from_base64(&link_key).context("FEST_LINK_KEY")?;
-        let trust_forwarded = match env.optional("FEST_TRUST_FORWARDED").as_deref() {
+        let link_key = LinkKey::from_base64(&link_key).context("INNBY_LINK_KEY")?;
+        let trust_forwarded = match env.optional("INNBY_TRUST_FORWARDED").as_deref() {
             None | Some("false") => false,
             Some("true") => true,
             Some(other) => {
-                anyhow::bail!("FEST_TRUST_FORWARDED: expected true or false, got {other:?}")
+                anyhow::bail!("INNBY_TRUST_FORWARDED: expected true or false, got {other:?}")
             }
         };
 
         let starts_at = env.event_start()?;
         let rsvp_deadline = env
-            .optional("FEST_RSVP_DEADLINE")
-            .map(|value| env.local_time("FEST_RSVP_DEADLINE", &value, starts_at.timezone()))
+            .optional("INNBY_RSVP_DEADLINE")
+            .map(|value| env.local_time("INNBY_RSVP_DEADLINE", &value, starts_at.timezone()))
             .transpose()?;
 
-        let controller_email = env.required("FEST_CONTROLLER_EMAIL")?;
+        let controller_email = env.required("INNBY_CONTROLLER_EMAIL")?;
         ensure!(
             crate::db::rsvp::normalize_email(&controller_email).is_some(),
-            "FEST_CONTROLLER_EMAIL: not an e-mail address: {controller_email:?}"
+            "INNBY_CONTROLLER_EMAIL: not an e-mail address: {controller_email:?}"
         );
 
         Ok(Self {
@@ -193,13 +193,13 @@ impl Config {
             link_key,
             trust_forwarded,
             controller: Controller {
-                name: env.required("FEST_CONTROLLER_NAME")?,
+                name: env.required("INNBY_CONTROLLER_NAME")?,
                 email: controller_email,
             },
             event: Event {
-                title: env.localized("FEST_EVENT_TITLE")?,
-                description: env.localized("FEST_EVENT_DESCRIPTION")?,
-                location: env.required("FEST_EVENT_LOCATION")?,
+                title: env.localized("INNBY_EVENT_TITLE")?,
+                description: env.localized("INNBY_EVENT_DESCRIPTION")?,
+                location: env.required("INNBY_EVENT_LOCATION")?,
                 starts_at,
                 rsvp_deadline,
             },
@@ -207,12 +207,12 @@ impl Config {
     }
 }
 
-/// Settings only `fest admin` needs, on top of `Config`.
+/// Settings only `innby admin` needs, on top of `Config`.
 #[derive(Debug, Clone)]
 pub struct AdminConfig {
     pub listen: SocketAddr,
     pub user: String,
-    /// An argon2 PHC string from `fest hash-password`.
+    /// An argon2 PHC string from `innby hash-password`.
     pub password_hash: String,
 }
 
@@ -223,25 +223,25 @@ impl AdminConfig {
 
     fn from_lookup(get: impl Fn(&str) -> Option<String>, config: &Config) -> Result<Self> {
         let env = Env(get);
-        let password_hash = env.required("FEST_ADMIN_PASSWORD_HASH")?;
-        crate::admin::auth::check_hash(&password_hash).context("FEST_ADMIN_PASSWORD_HASH")?;
+        let password_hash = env.required("INNBY_ADMIN_PASSWORD_HASH")?;
+        crate::admin::auth::check_hash(&password_hash).context("INNBY_ADMIN_PASSWORD_HASH")?;
         ensure!(
             !config.is_https()
                 || !crate::admin::auth::verify(&password_hash, EXAMPLE_ADMIN_PASSWORD),
-            "FEST_ADMIN_PASSWORD_HASH: that's a hash of the example password from \
+            "INNBY_ADMIN_PASSWORD_HASH: that's a hash of the example password from \
              .env.example; make one for a real password with `just hash-password`"
         );
         Ok(Self {
-            listen: env.socket_address("FEST_ADMIN_LISTEN", "0.0.0.0:8081")?,
+            listen: env.socket_address("INNBY_ADMIN_LISTEN", "0.0.0.0:8081")?,
             user: env
-                .optional("FEST_ADMIN_USER")
+                .optional("INNBY_ADMIN_USER")
                 .unwrap_or_else(|| "admin".into()),
             password_hash,
         })
     }
 }
 
-/// Settings only `fest mailer` needs, on top of `Config`.
+/// Settings only `innby mailer` needs, on top of `Config`.
 #[derive(Clone)]
 pub struct MailConfig {
     /// `smtp://host:port` with `?tls=required` for STARTTLS, or `smtps://host:port`.
@@ -268,20 +268,20 @@ impl MailConfig {
 
     fn from_lookup(get: impl Fn(&str) -> Option<String>) -> Result<Self> {
         let env = Env(get);
-        let from = env.required("FEST_MAIL_FROM")?;
-        let smtp_user = env.optional("FEST_SMTP_USER");
-        let smtp_password = env.optional("FEST_SMTP_PASSWORD");
+        let from = env.required("INNBY_MAIL_FROM")?;
+        let smtp_user = env.optional("INNBY_SMTP_USER");
+        let smtp_password = env.optional("INNBY_SMTP_PASSWORD");
         ensure!(
             smtp_user.is_some() == smtp_password.is_some(),
-            "FEST_SMTP_USER and FEST_SMTP_PASSWORD go together"
+            "INNBY_SMTP_USER and INNBY_SMTP_PASSWORD go together"
         );
         Ok(Self {
-            smtp_url: env.required("FEST_SMTP_URL")?,
+            smtp_url: env.required("INNBY_SMTP_URL")?,
             smtp_user,
             smtp_password,
             from: from
                 .parse()
-                .with_context(|| format!("FEST_MAIL_FROM: not a mailbox: {from:?}"))?,
+                .with_context(|| format!("INNBY_MAIL_FROM: not a mailbox: {from:?}"))?,
         })
     }
 }
@@ -293,15 +293,15 @@ pub mod tests {
     use super::*;
 
     const VALID: &[(&str, &str)] = &[
-        ("FEST_BASE_URL", "https://fest.example.com"),
-        ("FEST_LINK_KEY", crate::link::tests::KEY),
-        ("FEST_EVENT_TITLE_NB", "Julebord"),
-        ("FEST_EVENT_TITLE_EN", "Christmas party"),
-        ("FEST_EVENT_DESCRIPTION_NB", "Velkommen!"),
-        ("FEST_EVENT_LOCATION", "Storgata 1, Oslo"),
-        ("FEST_EVENT_START", "2026-12-12T19:00"),
-        ("FEST_CONTROLLER_NAME", "Kari Nordmann"),
-        ("FEST_CONTROLLER_EMAIL", "kari@example.com"),
+        ("INNBY_BASE_URL", "https://fest.example.com"),
+        ("INNBY_LINK_KEY", crate::link::tests::KEY),
+        ("INNBY_EVENT_TITLE_NB", "Julebord"),
+        ("INNBY_EVENT_TITLE_EN", "Christmas party"),
+        ("INNBY_EVENT_DESCRIPTION_NB", "Velkommen!"),
+        ("INNBY_EVENT_LOCATION", "Storgata 1, Oslo"),
+        ("INNBY_EVENT_START", "2026-12-12T19:00"),
+        ("INNBY_CONTROLLER_NAME", "Kari Nordmann"),
+        ("INNBY_CONTROLLER_EMAIL", "kari@example.com"),
     ];
 
     pub fn parse(overrides: &[(&str, &str)]) -> Result<Config> {
@@ -335,8 +335,8 @@ pub mod tests {
         assert_eq!(event.title.zh_hant, "Christmas party");
 
         let event = parse(&[
-            ("FEST_EVENT_TITLE_NN", "Juleball"),
-            ("FEST_EVENT_TITLE_EN_US", "Holiday party"),
+            ("INNBY_EVENT_TITLE_NN", "Juleball"),
+            ("INNBY_EVENT_TITLE_EN_US", "Holiday party"),
         ])
         .unwrap()
         .event;
@@ -348,21 +348,21 @@ pub mod tests {
 
     #[test]
     fn blank_required_value_is_an_error() {
-        let err = parse(&[("FEST_EVENT_LOCATION", "  ")]).unwrap_err();
-        assert_eq!(err.to_string(), "FEST_EVENT_LOCATION must be set");
+        let err = parse(&[("INNBY_EVENT_LOCATION", "  ")]).unwrap_err();
+        assert_eq!(err.to_string(), "INNBY_EVENT_LOCATION must be set");
     }
 
     #[test]
     fn rejects_bad_start_and_time_zone() {
-        assert!(parse(&[("FEST_EVENT_START", "12.12.2026 19:00")]).is_err());
-        assert!(parse(&[("FEST_EVENT_TIMEZONE", "Europe/Atlantis")]).is_err());
+        assert!(parse(&[("INNBY_EVENT_START", "12.12.2026 19:00")]).is_err());
+        assert!(parse(&[("INNBY_EVENT_TIMEZONE", "Europe/Atlantis")]).is_err());
         // 02:30 doesn't exist in Oslo on the night clocks spring forward.
-        assert!(parse(&[("FEST_EVENT_START", "2026-03-29T02:30")]).is_err());
+        assert!(parse(&[("INNBY_EVENT_START", "2026-03-29T02:30")]).is_err());
     }
 
     fn admin_with_hash(hash: &str, config: &Config) -> Result<AdminConfig> {
         AdminConfig::from_lookup(
-            |key| (key == "FEST_ADMIN_PASSWORD_HASH").then(|| hash.to_owned()),
+            |key| (key == "INNBY_ADMIN_PASSWORD_HASH").then(|| hash.to_owned()),
             config,
         )
     }
@@ -377,13 +377,13 @@ pub mod tests {
 
         assert!(AdminConfig::from_lookup(|_| None, &config).is_err());
         let err = admin_with_hash("hunter2", &config).unwrap_err();
-        assert!(format!("{err:#}").starts_with("FEST_ADMIN_PASSWORD_HASH"));
+        assert!(format!("{err:#}").starts_with("INNBY_ADMIN_PASSWORD_HASH"));
     }
 
     #[test]
     fn public_site_refuses_the_example_secrets() {
-        let local = [("FEST_BASE_URL", "http://localhost:8080")];
-        let example = ("FEST_LINK_KEY", EXAMPLE_LINK_KEY);
+        let local = [("INNBY_BASE_URL", "http://localhost:8080")];
+        let example = ("INNBY_LINK_KEY", EXAMPLE_LINK_KEY);
         let err = parse(&[example]).unwrap_err();
         assert!(err.to_string().contains(".env.example"), "{err}");
         parse(&[local[0], example]).unwrap();
@@ -402,8 +402,8 @@ pub mod tests {
                 .find_map(|line| line.strip_prefix(key)?.strip_prefix('='))
                 .unwrap_or_else(|| panic!("{key} in .env.example"))
         };
-        assert_eq!(value("FEST_LINK_KEY"), EXAMPLE_LINK_KEY);
-        let hash = value("FEST_ADMIN_PASSWORD_HASH").trim_matches('\'');
+        assert_eq!(value("INNBY_LINK_KEY"), EXAMPLE_LINK_KEY);
+        let hash = value("INNBY_ADMIN_PASSWORD_HASH").trim_matches('\'');
         assert!(crate::admin::auth::verify(hash, EXAMPLE_ADMIN_PASSWORD));
     }
 
@@ -411,11 +411,11 @@ pub mod tests {
     fn trusts_forwarded_for_only_when_told() {
         assert!(!parse(&[]).unwrap().trust_forwarded);
         assert!(
-            parse(&[("FEST_TRUST_FORWARDED", "true")])
+            parse(&[("INNBY_TRUST_FORWARDED", "true")])
                 .unwrap()
                 .trust_forwarded
         );
-        assert!(parse(&[("FEST_TRUST_FORWARDED", "yes")]).is_err());
+        assert!(parse(&[("INNBY_TRUST_FORWARDED", "yes")]).is_err());
     }
 
     #[test]
@@ -429,8 +429,8 @@ pub mod tests {
             }
         };
         let mail = MailConfig::from_lookup(env(&[
-            ("FEST_SMTP_URL", "smtp://mail:1025"),
-            ("FEST_MAIL_FROM", "Julebord <fest@example.com>"),
+            ("INNBY_SMTP_URL", "smtp://mail:1025"),
+            ("INNBY_MAIL_FROM", "Julebord <fest@example.com>"),
         ]))
         .unwrap();
         assert_eq!(mail.from.email.to_string(), "fest@example.com");
@@ -438,16 +438,16 @@ pub mod tests {
 
         assert!(
             MailConfig::from_lookup(env(&[
-                ("FEST_SMTP_URL", "smtp://mail:1025"),
-                ("FEST_MAIL_FROM", "not an address"),
+                ("INNBY_SMTP_URL", "smtp://mail:1025"),
+                ("INNBY_MAIL_FROM", "not an address"),
             ]))
             .is_err()
         );
         assert!(
             MailConfig::from_lookup(env(&[
-                ("FEST_SMTP_URL", "smtp://mail:1025"),
-                ("FEST_MAIL_FROM", "fest@example.com"),
-                ("FEST_SMTP_USER", "user"),
+                ("INNBY_SMTP_URL", "smtp://mail:1025"),
+                ("INNBY_MAIL_FROM", "fest@example.com"),
+                ("INNBY_SMTP_USER", "user"),
             ]))
             .is_err()
         );
@@ -455,14 +455,14 @@ pub mod tests {
 
     #[test]
     fn base_url_must_be_an_origin() {
-        let config = parse(&[("FEST_BASE_URL", "http://localhost:8080/")]).unwrap();
+        let config = parse(&[("INNBY_BASE_URL", "http://localhost:8080/")]).unwrap();
         assert_eq!(config.base_url, "http://localhost:8080");
         for bad in [
             "fest.example.com",
             "https://",
             "https://fest.example.com/rsvp",
         ] {
-            assert!(parse(&[("FEST_BASE_URL", bad)]).is_err(), "{bad}");
+            assert!(parse(&[("INNBY_BASE_URL", bad)]).is_err(), "{bad}");
         }
     }
 
@@ -477,7 +477,7 @@ pub mod tests {
         assert!(event.accepts_answers(at("2026-12-12T17:59:00Z")));
         assert!(!event.accepts_answers(at("2026-12-12T18:00:00Z")));
 
-        let event = parse(&[("FEST_RSVP_DEADLINE", "2026-12-01T12:00")])
+        let event = parse(&[("INNBY_RSVP_DEADLINE", "2026-12-01T12:00")])
             .unwrap()
             .event;
         assert!(event.accepts_answers(at("2026-12-01T10:59:00Z")));

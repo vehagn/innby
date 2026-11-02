@@ -1,4 +1,4 @@
-//! `fest janitor`: enforces the retention promised in the privacy notice. Runs once and
+//! `innby janitor`: enforces the retention promised in the privacy notice. Runs once and
 //! exits; a Kubernetes CronJob runs it every hour.
 
 use chrono::{DateTime, Duration, Utc};

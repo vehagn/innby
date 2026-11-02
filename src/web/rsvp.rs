@@ -481,7 +481,7 @@ mod tests {
 
     #[sqlx::test]
     async fn answers_close_at_the_deadline(db: PgPool) {
-        let site = Site::with(db, &[("FEST_RSVP_DEADLINE", "2020-01-01T12:00")]);
+        let site = Site::with(db, &[("INNBY_RSVP_DEADLINE", "2020-01-01T12:00")]);
         let (invite, link) = site.invite("Kari", 1).await;
 
         let html = body(site.get(&format!("/r/{link}")).await).await;

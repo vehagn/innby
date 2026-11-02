@@ -300,7 +300,7 @@ mod tests {
     fn unreachable_db() -> PgPool {
         PgPoolOptions::new()
             .acquire_timeout(Duration::from_millis(200))
-            .connect_lazy("postgres://fest@127.0.0.1:1/fest")
+            .connect_lazy("postgres://innby@127.0.0.1:1/innby")
             .unwrap()
     }
 
