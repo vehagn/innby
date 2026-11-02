@@ -8,13 +8,14 @@ image := env("FEST_IMAGE", "ghcr.io/vehagn/fest")
 default:
     @just --list
 
-# Run the public site on :8080 and the admin UI on :8081 (reads .env, see .env.example)
+# Run the public site (:8080), the admin UI (:8081) and the mailer (reads .env, see .env.example)
 run: migrate
     #!/usr/bin/env bash
     set -euo pipefail
     cargo build --quiet
     trap 'kill 0' EXIT
     cargo run --quiet -- admin &
+    cargo run --quiet -- mailer &
     cargo run --quiet -- serve
 
 # Create an invitation and print the guest's link

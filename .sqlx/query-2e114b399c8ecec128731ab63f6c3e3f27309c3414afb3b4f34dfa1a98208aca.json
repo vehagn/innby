@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into outbox (rsvp_id, kind) values ($1, $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "outbox_kind",
+            "kind": {
+              "Enum": [
+                "confirm_email",
+                "email_in_use",
+                "rsvp_link",
+                "reminder"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2e114b399c8ecec128731ab63f6c3e3f27309c3414afb3b4f34dfa1a98208aca"
+}

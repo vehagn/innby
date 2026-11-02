@@ -22,7 +22,7 @@ use crate::{
 
 #[derive(Template)]
 #[template(path = "rsvp.html")]
-struct RsvpPage<'a> {
+pub(super) struct RsvpPage<'a> {
     lang: Lang,
     t: &'static Messages,
     event: EventView<'a>,
@@ -34,14 +34,16 @@ struct RsvpPage<'a> {
     party_sizes: Vec<(i32, String, bool)>,
     first_visit: bool,
     accepts_answers: bool,
-    saved: bool,
+    email_confirmed: bool,
+    /// A one-off confirmation after a change, e.g. "Saved!".
+    flash: Option<&'static str>,
     /// The full link, shown right after an open RSVP so the guest can keep it.
     new_link: Option<String>,
     error: Option<&'static str>,
 }
 
 impl<'a> RsvpPage<'a> {
-    fn new(state: &'a AppState, lang: Lang, link: &'a str, rsvp: &'a Rsvp) -> Self {
+    pub(super) fn new(state: &'a AppState, lang: Lang, link: &'a str, rsvp: &'a Rsvp) -> Self {
         let t = lang.messages();
         let status = match rsvp.response {
             rsvp::Response::Pending => t.answer_pending.to_owned(),
@@ -66,13 +68,14 @@ impl<'a> RsvpPage<'a> {
                 .collect(),
             first_visit: rsvp.privacy_version.is_none(),
             accepts_answers: state.config.event.accepts_answers(Utc::now()),
-            saved: false,
+            email_confirmed: rsvp.email_status == rsvp::EmailStatus::Confirmed,
+            flash: None,
             new_link: None,
             error: None,
         }
     }
 
-    fn with_error(mut self, pick: impl Fn(&Messages) -> &'static str) -> Self {
+    pub(super) fn with_error(mut self, pick: impl Fn(&Messages) -> &'static str) -> Self {
         self.error = Some(pick(self.t));
         self
     }
@@ -87,7 +90,7 @@ fn gone(lang: Lang) -> Response {
 }
 
 /// Why a link didn't lead to a guest.
-enum LoadError {
+pub(super) enum LoadError {
     Gone(Lang),
     Database(sqlx::Error),
 }
@@ -102,7 +105,7 @@ impl IntoResponse for LoadError {
 }
 
 /// Finds the guest behind a link.
-async fn load(state: &AppState, lang: Lang, link: &str) -> Result<Rsvp, LoadError> {
+pub(super) async fn load(state: &AppState, lang: Lang, link: &str) -> Result<Rsvp, LoadError> {
     let parsed = link
         .parse::<RsvpLink>()
         .map_err(|()| LoadError::Gone(lang))?;
@@ -113,14 +116,64 @@ async fn load(state: &AppState, lang: Lang, link: &str) -> Result<Rsvp, LoadErro
     }
 }
 
+/// What the RSVP page confirms after a change. The name is the query flag.
+#[derive(Clone, Copy)]
+pub(super) enum Notice {
+    Saved,
+    EmailSent,
+    EmailRemoved,
+    EmailConfirmed,
+}
+
+impl Notice {
+    fn flag(self) -> &'static str {
+        match self {
+            Notice::Saved => "saved",
+            Notice::EmailSent => "email_sent",
+            Notice::EmailRemoved => "email_removed",
+            Notice::EmailConfirmed => "email_confirmed",
+        }
+    }
+
+    fn text(self, t: &Messages) -> &'static str {
+        match self {
+            Notice::Saved => t.saved,
+            Notice::EmailSent => t.email_sent_notice,
+            Notice::EmailRemoved => t.email_removed_notice,
+            Notice::EmailConfirmed => t.email_confirmed_notice,
+        }
+    }
+}
+
+/// Back to the RSVP page after a change (post/redirect/get).
+pub(super) fn redirect(link: &str, lang: Lang, notice: Notice) -> Response {
+    Redirect::to(&format!("/r/{link}?lang={}&{}", lang.code(), notice.flag())).into_response()
+}
+
 fn saved_redirect(link: &str, lang: Lang) -> Response {
-    Redirect::to(&format!("/r/{link}?lang={}&saved", lang.code())).into_response()
+    redirect(link, lang, Notice::Saved)
 }
 
 #[derive(Deserialize)]
 pub struct ShowQuery {
     saved: Option<String>,
+    email_sent: Option<String>,
+    email_removed: Option<String>,
+    email_confirmed: Option<String>,
     new: Option<String>,
+}
+
+impl ShowQuery {
+    fn notice(&self) -> Option<Notice> {
+        [
+            (&self.saved, Notice::Saved),
+            (&self.email_sent, Notice::EmailSent),
+            (&self.email_removed, Notice::EmailRemoved),
+            (&self.email_confirmed, Notice::EmailConfirmed),
+        ]
+        .into_iter()
+        .find_map(|(flag, notice)| flag.is_some().then_some(notice))
+    }
 }
 
 pub async fn show(
@@ -134,7 +187,7 @@ pub async fn show(
         Err(err) => return err.into_response(),
     };
     let mut page = RsvpPage::new(&state, lang, &link, &rsvp);
-    page.saved = query.saved.is_some();
+    page.flash = query.notice().map(|notice| notice.text(page.t));
     page.new_link = query
         .new
         .map(|_| format!("{}/r/{link}", state.config.base_url));

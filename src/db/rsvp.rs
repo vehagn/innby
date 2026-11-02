@@ -132,6 +132,23 @@ pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Rsvp
     .await
 }
 
+pub async fn find_by_email(db: impl PgExecutor<'_>, email: &str) -> sqlx::Result<Option<Rsvp>> {
+    sqlx::query_as!(
+        Rsvp,
+        r#"
+        select id, source as "source: Source", name, response as "response: Response",
+            party_size, max_party_size, link_nonce, lang as "lang: Lang", email,
+            email_status as "email_status: EmailStatus", email_consent_at, privacy_version,
+            responded_at, created_at
+        from rsvp
+        where email = $1
+        "#,
+        email,
+    )
+    .fetch_optional(db)
+    .await
+}
+
 /// All RSVPs, oldest first (the ids are UUIDv7, so they sort by creation time).
 pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Rsvp>> {
     sqlx::query_as!(
@@ -190,10 +207,83 @@ pub fn normalize_name(name: &str) -> Option<String> {
 
 pub const MAX_PARTY_SIZE: i32 = 20;
 
+/// Trims and lower-cases an address and checks that it looks deliverable. Lower-casing
+/// the local part is technically wrong, but no real mailbox depends on it, and it keeps
+/// one address from being registered twice.
+pub fn normalize_email(email: &str) -> Option<String> {
+    let email = email.trim().to_lowercase();
+    let (local, domain) = email.split_once('@')?;
+    let valid = email.len() <= 254
+        && (1..=64).contains(&local.len())
+        && !domain.contains('@')
+        && domain.contains('.')
+        && !domain.starts_with(['.', '-'])
+        && !domain.ends_with(['.', '-'])
+        && !email
+            .chars()
+            .any(|c| c.is_whitespace() || c.is_control() || "<>(),;:\\\"[]".contains(c));
+    valid.then_some(email)
+}
+
 pub async fn rename(db: impl PgExecutor<'_>, id: Uuid, name: &str) -> sqlx::Result<bool> {
     let result = sqlx::query!("update rsvp set name = $2 where id = $1", id, name)
         .execute(db)
         .await?;
+    Ok(result.rows_affected() == 1)
+}
+
+/// Stores a new, unconfirmed address with the guest's consent. Fails with a unique
+/// violation if another RSVP has the address.
+pub async fn set_email(
+    db: impl PgExecutor<'_>,
+    id: Uuid,
+    email: &str,
+    lang: Lang,
+    privacy_version: &str,
+) -> sqlx::Result<bool> {
+    let result = sqlx::query!(
+        r#"
+        update rsvp
+        set email = $2, email_status = 'unconfirmed', email_consent_at = now(), lang = $3,
+            privacy_version = $4
+        where id = $1
+        "#,
+        id,
+        email,
+        lang as Lang,
+        privacy_version,
+    )
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
+
+/// Confirms the address, as long as it's still the one the confirmation was sent to.
+pub async fn confirm_email(db: impl PgExecutor<'_>, id: Uuid, email: &str) -> sqlx::Result<bool> {
+    let result = sqlx::query!(
+        r#"
+        update rsvp set email_status = 'confirmed'
+        where id = $1 and email = $2 and email_status = 'unconfirmed'
+        "#,
+        id,
+        email,
+    )
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
+
+/// Forgets the address and the consent that came with it. The RSVP itself stays.
+pub async fn remove_email(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<bool> {
+    let result = sqlx::query!(
+        r#"
+        update rsvp set email = null, email_status = 'none', email_consent_at = null
+        where id = $1 and email is not null
+        "#,
+        id,
+    )
+    .execute(db)
+    .await?;
     Ok(result.rows_affected() == 1)
 }
 
@@ -355,6 +445,71 @@ mod tests {
         assert!(normalize_name("   ").is_none());
         assert!(normalize_name(&"a".repeat(101)).is_none());
         assert!(normalize_name("Kari\u{0}").is_none());
+    }
+
+    #[test]
+    fn normalizes_emails() {
+        assert_eq!(
+            normalize_email("  Kari@Example.COM ").unwrap(),
+            "kari@example.com"
+        );
+        assert_eq!(
+            normalize_email("ola+fest@sub.example.no").unwrap(),
+            "ola+fest@sub.example.no"
+        );
+        for bad in [
+            "",
+            "kari",
+            "kari@",
+            "@example.com",
+            "kari@example",
+            "kari@@example.com",
+            "kari@exa mple.com",
+            "kari@.example.com",
+            "kari@example.com.",
+            "<kari@example.com>",
+        ] {
+            assert!(normalize_email(bad).is_none(), "{bad:?}");
+        }
+        assert!(normalize_email(&format!("{}@example.com", "a".repeat(65))).is_none());
+    }
+
+    #[sqlx::test]
+    async fn email_lifecycle(pool: PgPool) -> sqlx::Result<()> {
+        let rsvp = create_invite(&pool, "Kari", 1).await?;
+        assert!(set_email(&pool, rsvp.id, "kari@example.com", Lang::En, PRIVACY).await?);
+        let stored = find_by_email(&pool, "kari@example.com").await?.unwrap();
+        assert_eq!(
+            (stored.id, stored.email_status),
+            (rsvp.id, EmailStatus::Unconfirmed)
+        );
+        assert_eq!(stored.lang, Lang::En);
+        assert!(stored.email_consent_at.is_some());
+
+        assert!(!confirm_email(&pool, rsvp.id, "other@example.com").await?);
+        assert!(confirm_email(&pool, rsvp.id, "kari@example.com").await?);
+        assert!(!confirm_email(&pool, rsvp.id, "kari@example.com").await?);
+        let confirmed = find(&pool, rsvp.id).await?.unwrap();
+        assert_eq!(confirmed.email_status, EmailStatus::Confirmed);
+
+        let other = create_invite(&pool, "Ola", 1).await?;
+        let err = set_email(&pool, other.id, "kari@example.com", Lang::Nb, PRIVACY)
+            .await
+            .unwrap_err();
+        assert!(
+            err.as_database_error()
+                .is_some_and(|err| err.is_unique_violation())
+        );
+
+        assert!(remove_email(&pool, rsvp.id).await?);
+        assert!(!remove_email(&pool, rsvp.id).await?);
+        let removed = find(&pool, rsvp.id).await?.unwrap();
+        assert_eq!(
+            (removed.email, removed.email_status),
+            (None, EmailStatus::None)
+        );
+        assert!(removed.email_consent_at.is_none());
+        Ok(())
     }
 
     #[sqlx::test]

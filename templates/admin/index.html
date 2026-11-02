@@ -3,6 +3,7 @@
 {% block title %}Guests{% endblock %}
 
 {% block content %}
+{% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
 <h1>{{ title }}</h1>
 <p class="stats">
   <strong>{{ headcount.attending_people }}</strong> people coming
@@ -49,4 +50,12 @@
 </div>
 {% endif %}
 <p><a href="/rsvp.csv" download>Download CSV</a></p>
+
+<section class="card">
+  <h2>Reminders</h2>
+  <p>{{ subscribers }} {% if subscribers == 1 %}guest has{% else %}guests have{% endif %} a confirmed e-mail address. A reminder goes to those who haven't declined, once per guest.</p>
+  <form method="post" action="/reminders">
+    <button class="secondary">Send reminders</button>
+  </form>
+</section>
 {% endblock %}

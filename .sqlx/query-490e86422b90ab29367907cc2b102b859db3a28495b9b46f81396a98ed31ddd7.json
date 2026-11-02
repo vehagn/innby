@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update outbox set next_try_at = now(), attempts = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "490e86422b90ab29367907cc2b102b859db3a28495b9b46f81396a98ed31ddd7"
+}

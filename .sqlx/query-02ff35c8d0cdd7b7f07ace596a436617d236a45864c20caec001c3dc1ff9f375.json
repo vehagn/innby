@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select id, rsvp_id, kind as \"kind: Kind\", attempts\n        from outbox\n        where sent_at is null and next_try_at <= now() and attempts < $2\n        order by id\n        limit $1\n        for update skip locked\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "outbox",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "rsvp_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "outbox",
+            "name": "rsvp_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "kind: Kind",
+        "type_info": {
+          "Custom": {
+            "name": "outbox_kind",
+            "kind": {
+              "Enum": [
+                "confirm_email",
+                "email_in_use",
+                "rsvp_link",
+                "reminder"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "outbox",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "attempts",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "outbox",
+            "name": "attempts"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "02ff35c8d0cdd7b7f07ace596a436617d236a45864c20caec001c3dc1ff9f375"
+}

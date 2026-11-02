@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from outbox where rsvp_id = $1 and sent_at is null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2ea57e5368089e8a7632633925bd956299ec5ac5c697ee2c8fbf39bb78d12b8f"
+}

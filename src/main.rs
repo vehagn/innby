@@ -3,6 +3,7 @@ mod config;
 mod db;
 mod i18n;
 mod link;
+mod mailer;
 mod web;
 
 use std::io::Read;
@@ -11,7 +12,7 @@ use anyhow::Context;
 use clap::{Parser, Subcommand};
 use tracing_subscriber::EnvFilter;
 
-use crate::config::{AdminConfig, Config};
+use crate::config::{AdminConfig, Config, MailConfig};
 
 /// RSVP service for a single event.
 #[derive(Parser)]
@@ -27,6 +28,8 @@ enum Command {
     Serve,
     /// Serve the host's admin UI.
     Admin,
+    /// Send queued mail.
+    Mailer,
     /// Apply the database migrations.
     Migrate,
     /// Create an invitation and print the guest's link.
@@ -57,6 +60,10 @@ async fn main() -> anyhow::Result<()> {
         Command::Admin => {
             let db = db::pool(&config::database_url()?)?;
             admin::serve(Config::from_env()?, AdminConfig::from_env()?, db).await
+        }
+        Command::Mailer => {
+            let db = db::pool(&config::database_url()?)?;
+            mailer::run(Config::from_env()?, MailConfig::from_env()?, db).await
         }
         Command::Migrate => db::migrate(&db::connect(&config::database_url()?).await?).await,
         Command::Invite {
