@@ -1,0 +1,52 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Guests{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+<p class="stats">
+  <strong>{{ headcount.attending_people }}</strong> people coming
+  ({{ headcount.attending_parties }} {% if headcount.attending_parties == 1 %}party{% else %}parties{% endif %}) ·
+  {{ headcount.declined }} not coming · {{ headcount.pending }} no answer
+</p>
+
+<section class="card">
+  <h2>New invitation</h2>
+  <form method="post" action="/invitations" class="inline">
+    <div>
+      <label for="name">Name or household</label>
+      <input id="name" name="name" required maxlength="100" placeholder="Kari &amp; Ola">
+    </div>
+    <div>
+      <label for="max_party_size">Max people</label>
+      <input id="max_party_size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="2" required>
+    </div>
+    <button>Create</button>
+  </form>
+</section>
+
+{% if rows.is_empty() %}
+<p class="muted">No guests yet.</p>
+{% else %}
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>Name</th><th>Answer</th><th>People</th><th>Source</th><th>E-mail</th><th>Answered</th></tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td><a href="/rsvp/{{ row.id }}">{{ row.name }}</a></td>
+      <td>{{ row.answer }}</td>
+      <td>{{ row.party }}</td>
+      <td>{{ row.source }}</td>
+      <td>{{ row.email }}</td>
+      <td>{{ row.responded }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+<p><a href="/rsvp.csv" download>Download CSV</a></p>
+{% endblock %}

@@ -210,7 +210,7 @@ pub async fn rename(
         Ok(rsvp) => rsvp,
         Err(err) => return err.into_response(),
     };
-    let Some(name) = normalize_name(&form.name) else {
+    let Some(name) = rsvp::normalize_name(&form.name) else {
         return render_with(
             StatusCode::UNPROCESSABLE_ENTITY,
             RsvpPage::new(&state, lang, &link, &rsvp).with_error(|t| t.invalid_name),
@@ -223,14 +223,6 @@ pub async fn rename(
         }
         Err(err) => server_error(err),
     }
-}
-
-/// Collapses whitespace and checks the length the database allows. Control characters
-/// are refused rather than stripped, since no keyboard produces them.
-pub fn normalize_name(name: &str) -> Option<String> {
-    let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
-    let length = name.chars().count();
-    ((1..=100).contains(&length) && !name.chars().any(char::is_control)).then_some(name)
 }
 
 /// Everything stored about the guest, as a download (GDPR Art. 15 and 20).
@@ -537,20 +529,5 @@ mod tests {
             site.get(&format!("/r/{link}")).await.status(),
             StatusCode::NOT_FOUND
         );
-    }
-
-    #[test]
-    fn normalizes_names() {
-        assert_eq!(
-            normalize_name("  Kari \t Nordmann ").unwrap(),
-            "Kari Nordmann"
-        );
-        assert_eq!(
-            normalize_name(&"ø".repeat(100)).unwrap().chars().count(),
-            100
-        );
-        assert!(normalize_name("   ").is_none());
-        assert!(normalize_name(&"a".repeat(101)).is_none());
-        assert!(normalize_name("Kari\u{0}").is_none());
     }
 }

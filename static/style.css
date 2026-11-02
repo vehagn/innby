@@ -186,3 +186,74 @@ summary {
 details > :not(summary) {
   margin-top: 0.75rem;
 }
+
+input[type="number"] {
+  font: inherit;
+  width: 6rem;
+  padding: 0.5rem 0.625rem;
+  margin: 0 0 0.75rem;
+  border: 1px solid var(--muted);
+  border-radius: 0.375rem;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+/* Admin */
+
+body.admin header,
+body.admin main {
+  max-width: 64rem;
+}
+
+body.admin header {
+  justify-content: flex-start;
+}
+
+.stats {
+  font-size: 1.125rem;
+}
+
+form.inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+  align-items: flex-end;
+}
+
+form.inline button {
+  margin-bottom: 0.75rem;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.5rem 0.75rem 0.5rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
+  white-space: nowrap;
+}
+
+th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.qr svg {
+  width: 12rem;
+  height: auto;
+  display: block;
+  margin: 0.5rem 0 1rem;
+}
+
+input[readonly] {
+  max-width: none;
+}

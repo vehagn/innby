@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update rsvp set name = $2, max_party_size = $3, party_size = least(party_size, $3) where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c4d74e9a0da9556970974b308ebb7a9ef9cfac23faf6689b93b3fa9d847288d3"
+}

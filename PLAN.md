@@ -44,7 +44,7 @@ You had no preference, and the devcontainer removes Go's main advantage (it was 
 | Admin | `argon2` (basic-auth hash), `csv`, `qrcode` (SVG output) |
 | TLS roots | `rustls` + `webpki-roots`: CA roots compiled in, so the image needs no `/etc/ssl` |
 
-- **CSRF:** axum has no built-in equivalent of Go's `CrossOriginProtection`, so we add a ~20-line middleware that does the same thing. For unsafe methods it requires `Sec-Fetch-Site` to be `same-origin` or `none`, or `Origin` to match the configured base URL. This needs no cookies.
+- **CSRF:** axum has no built-in equivalent of Go's `CrossOriginProtection`, so we add a ~20-line middleware that does the same thing. For unsafe methods it requires `Sec-Fetch-Site` to be `same-origin` or `none`, or (for older browsers) the `Origin` host to match the `Host` header. This needs no cookies, and works unchanged for both the public and the admin hostname.
 - **i18n:** two languages don't need Fluent. Each language gets a `Messages` struct, the templates read strings from it, and the compiler catches a missing translation.
 - **Cross-compiling:** the devcontainer runs arm64 on your Mac and the cluster is amd64. `cargo zigbuild --target x86_64-unknown-linux-musl` (with Zig as the linker) handles that, including the C code inside `ring`.
 
@@ -286,11 +286,12 @@ The devcontainer is a Compose project with three services:
 
 ```
 just                     # list recipes
-just run                 # serve + admin + mailer locally (inside the devcontainer)
+just run                 # serve (:8080) + admin (:8081) locally (+ mailer from milestone 6)
 just migrate             # apply migrations to $DATABASE_URL
 just prepare             # cargo sqlx prepare → .sqlx/ (commit it)
 just psql                # shell into dev db
 just invite "Kari & Ola" 2   # create an invitation from the CLI, print link
+just hash-password       # argon2 hash for FEST_ADMIN_PASSWORD_HASH
 just test                # cargo test (incl. #[sqlx::test] against db)
 just lint                # cargo fmt --check, clippy -D warnings, sqlx prepare --check, cargo deny check
 just build               # static x86_64 musl binary via cargo zigbuild (SQLX_OFFLINE)
@@ -305,7 +306,7 @@ just deploy              # kubectl apply -k deploy/ (or leave to Argo CD)
 1. ✅ **Skeleton:** `cargo init`, `rust-toolchain.toml`, `Justfile`, config, `fest serve` with `/healthz`, an askama layout with embedded CSS, nb/en `Messages`.
 2. ✅ **Schema:** migrations, the `db` module, `.sqlx/` offline data, `#[sqlx::test]` integration tests.
 3. ✅ **Links and the RSVP page:** HMAC signing, `/r/{link}` (respond, party size, rename, export, delete), link hygiene headers, CSRF middleware.
-4. **Admin:** invitations (create, link and QR, revoke, delete), headcount, CSV, basic auth, and `fest invite` on the CLI.
+4. ✅ **Admin:** invitations (create, link and QR, revoke, delete), headcount, CSV, basic auth, and `fest invite` on the CLI.
 5. **Open RSVP:** `/join/{code}`, honeypot, rate limit, a "save your link" page, and the on/off flag.
 6. **Optional e-mail:** add and confirm an address, the outbox and mailer (Mailpit locally, MailerSend in the cluster), `/lost`, reminders.
 7. **Janitor and privacy:** retention rules, `/privacy` (nb/en), `docs/ropa.md`.

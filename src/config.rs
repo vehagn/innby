@@ -9,8 +9,8 @@ use crate::{i18n::Localized, link::LinkKey};
 #[derive(Debug, Clone)]
 pub struct Config {
     pub listen: SocketAddr,
-    /// The site's origin, e.g. `https://fest.example.com`: checked against the `Origin`
-    /// header of form posts.
+    /// The public site's origin, e.g. `https://fest.example.com`, for links the admin UI
+    /// and mails hand out.
     pub base_url: String,
     pub link_key: LinkKey,
     pub event: Event,
@@ -42,27 +42,46 @@ pub fn database_url() -> Result<String> {
         .ok_or_else(|| anyhow!("DATABASE_URL must be set"))
 }
 
+/// Reads settings from any key lookup, so tests don't touch the process environment.
+/// Blank values count as unset.
+struct Env<F>(F);
+
+impl<F: Fn(&str) -> Option<String>> Env<F> {
+    fn optional(&self, key: &str) -> Option<String> {
+        (self.0)(key).filter(|value| !value.trim().is_empty())
+    }
+
+    fn required(&self, key: &str) -> Result<String> {
+        self.optional(key)
+            .ok_or_else(|| anyhow!("{key} must be set"))
+    }
+
+    fn localized(&self, key: &str) -> Result<Localized<String>> {
+        let nb = self.required(&format!("{key}_NB"))?;
+        let en = self
+            .optional(&format!("{key}_EN"))
+            .unwrap_or_else(|| nb.clone());
+        Ok(Localized { nb, en })
+    }
+
+    fn socket_address(&self, key: &str, default: &str) -> Result<SocketAddr> {
+        let value = self.optional(key).unwrap_or_else(|| default.into());
+        value
+            .parse()
+            .with_context(|| format!("{key}: invalid socket address {value:?}"))
+    }
+}
+
 impl Config {
     pub fn from_env() -> Result<Self> {
         Self::from_lookup(|key| std::env::var(key).ok())
     }
 
-    /// Builds the config from any key lookup, so tests don't touch the process environment.
     fn from_lookup(get: impl Fn(&str) -> Option<String>) -> Result<Self> {
-        let optional = |key: &str| get(key).filter(|value| !value.trim().is_empty());
-        let required = |key: &str| optional(key).ok_or_else(|| anyhow!("{key} must be set"));
-        let localized = |key: &str| -> Result<Localized<String>> {
-            let nb = required(&format!("{key}_NB"))?;
-            let en = optional(&format!("{key}_EN")).unwrap_or_else(|| nb.clone());
-            Ok(Localized { nb, en })
-        };
+        let env = Env(get);
+        let listen = env.socket_address("FEST_LISTEN", "0.0.0.0:8080")?;
 
-        let listen = optional("FEST_LISTEN").unwrap_or_else(|| "0.0.0.0:8080".into());
-        let listen = listen
-            .parse()
-            .with_context(|| format!("FEST_LISTEN: invalid socket address {listen:?}"))?;
-
-        let base_url = required("FEST_BASE_URL")?;
+        let base_url = env.required("FEST_BASE_URL")?;
         let base_url = base_url.trim_end_matches('/').to_owned();
         let host = base_url
             .strip_prefix("https://")
@@ -73,9 +92,11 @@ impl Config {
         );
 
         let link_key =
-            LinkKey::from_base64(&required("FEST_LINK_KEY")?).context("FEST_LINK_KEY")?;
+            LinkKey::from_base64(&env.required("FEST_LINK_KEY")?).context("FEST_LINK_KEY")?;
 
-        let tz_name = optional("FEST_EVENT_TIMEZONE").unwrap_or_else(|| "Europe/Oslo".into());
+        let tz_name = env
+            .optional("FEST_EVENT_TIMEZONE")
+            .unwrap_or_else(|| "Europe/Oslo".into());
         let tz: Tz = tz_name
             .parse()
             .map_err(|_| anyhow!("FEST_EVENT_TIMEZONE: unknown time zone {tz_name:?}"))?;
@@ -86,8 +107,9 @@ impl Config {
                 .single()
                 .ok_or_else(|| anyhow!("{key}: {value} is ambiguous or skipped in {tz_name}"))
         };
-        let starts_at = local_time("FEST_EVENT_START", &required("FEST_EVENT_START")?)?;
-        let rsvp_deadline = optional("FEST_RSVP_DEADLINE")
+        let starts_at = local_time("FEST_EVENT_START", &env.required("FEST_EVENT_START")?)?;
+        let rsvp_deadline = env
+            .optional("FEST_RSVP_DEADLINE")
             .map(|value| local_time("FEST_RSVP_DEADLINE", &value))
             .transpose()?;
 
@@ -96,12 +118,40 @@ impl Config {
             base_url,
             link_key,
             event: Event {
-                title: localized("FEST_EVENT_TITLE")?,
-                description: localized("FEST_EVENT_DESCRIPTION")?,
-                location: required("FEST_EVENT_LOCATION")?,
+                title: env.localized("FEST_EVENT_TITLE")?,
+                description: env.localized("FEST_EVENT_DESCRIPTION")?,
+                location: env.required("FEST_EVENT_LOCATION")?,
                 starts_at,
                 rsvp_deadline,
             },
+        })
+    }
+}
+
+/// Settings only `fest admin` needs, on top of `Config`.
+#[derive(Debug, Clone)]
+pub struct AdminConfig {
+    pub listen: SocketAddr,
+    pub user: String,
+    /// An argon2 PHC string from `fest hash-password`.
+    pub password_hash: String,
+}
+
+impl AdminConfig {
+    pub fn from_env() -> Result<Self> {
+        Self::from_lookup(|key| std::env::var(key).ok())
+    }
+
+    fn from_lookup(get: impl Fn(&str) -> Option<String>) -> Result<Self> {
+        let env = Env(get);
+        let password_hash = env.required("FEST_ADMIN_PASSWORD_HASH")?;
+        crate::admin::auth::check_hash(&password_hash).context("FEST_ADMIN_PASSWORD_HASH")?;
+        Ok(Self {
+            listen: env.socket_address("FEST_ADMIN_LISTEN", "0.0.0.0:8081")?,
+            user: env
+                .optional("FEST_ADMIN_USER")
+                .unwrap_or_else(|| "admin".into()),
+            password_hash,
         })
     }
 }
@@ -162,6 +212,21 @@ pub mod tests {
         assert!(parse(&[("FEST_EVENT_TIMEZONE", "Europe/Atlantis")]).is_err());
         // 02:30 doesn't exist in Oslo on the night clocks spring forward.
         assert!(parse(&[("FEST_EVENT_START", "2026-03-29T02:30")]).is_err());
+    }
+
+    #[test]
+    fn admin_config_needs_a_valid_hash() {
+        let hash = crate::admin::auth::tests::cheap_hash("secret");
+        let admin = AdminConfig::from_lookup(|key| {
+            (key == "FEST_ADMIN_PASSWORD_HASH").then(|| hash.clone())
+        })
+        .unwrap();
+        assert_eq!(admin.user, "admin");
+        assert_eq!(admin.listen, "0.0.0.0:8081".parse().unwrap());
+
+        assert!(AdminConfig::from_lookup(|_| None).is_err());
+        let err = AdminConfig::from_lookup(|_| Some("hunter2".into())).unwrap_err();
+        assert!(format!("{err:#}").starts_with("FEST_ADMIN_PASSWORD_HASH"));
     }
 
     #[test]

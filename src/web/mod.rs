@@ -2,12 +2,14 @@ mod csrf;
 mod pages;
 mod rsvp;
 
-use std::{convert::Infallible, sync::Arc};
+pub use pages::{render, render_with, server_error, stylesheet};
+
+use std::{convert::Infallible, net::SocketAddr, sync::Arc};
 
 use anyhow::Context;
 use axum::{
     Router,
-    extract::{FromRequestParts, MatchedPath, State},
+    extract::{FromRef, FromRequestParts, MatchedPath, State},
     http::{HeaderValue, Request, StatusCode, header, request::Parts},
     middleware,
     routing::{get, post},
@@ -46,12 +48,24 @@ struct AppState {
     db: PgPool,
 }
 
+impl FromRef<AppState> for PgPool {
+    fn from_ref(state: &AppState) -> Self {
+        state.db.clone()
+    }
+}
+
 pub async fn serve(config: Config, db: PgPool) -> anyhow::Result<()> {
-    let listener = tokio::net::TcpListener::bind(config.listen)
+    let address = config.listen;
+    listen(address, router(config, db)).await
+}
+
+/// Serves the app until SIGTERM or Ctrl-C, finishing requests in flight.
+pub async fn listen(address: SocketAddr, app: Router) -> anyhow::Result<()> {
+    let listener = tokio::net::TcpListener::bind(address)
         .await
-        .with_context(|| format!("binding {}", config.listen))?;
+        .with_context(|| format!("binding {address}"))?;
     tracing::info!(address = %listener.local_addr()?, "listening");
-    axum::serve(listener, router(config, db))
+    axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     Ok(())
@@ -69,8 +83,12 @@ fn with_headers<S: Clone + Send + Sync + 'static>(
     })
 }
 
+/// For pages that show secret links: browsers and proxies must not keep them.
+pub fn no_store<S: Clone + Send + Sync + 'static>(router: Router<S>) -> Router<S> {
+    with_headers(router, &LINK_HEADERS)
+}
+
 pub(crate) fn router(config: Config, db: PgPool) -> Router {
-    let origin: Arc<str> = config.base_url.as_str().into();
     let state = AppState {
         config: Arc::new(config),
         db,
@@ -85,10 +103,14 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         .route("/static/style.css", get(pages::stylesheet))
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(ready))
-        .merge(with_headers(links, &LINK_HEADERS))
-        .with_state(state)
-        .layer(middleware::from_fn_with_state(origin, csrf::protect));
+        .merge(no_store(links))
+        .with_state(state);
+    harden(router)
+}
 
+/// What every listener gets: CSRF protection, security headers and request logging.
+pub fn harden(router: Router) -> Router {
+    let router = router.layer(middleware::from_fn(csrf::protect));
     with_headers(router, &SECURITY_HEADERS).layer(
         TraceLayer::new_for_http()
             .make_span_with(|request: &Request<_>| {
@@ -104,8 +126,8 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
 }
 
 /// Ready to take traffic only while the database answers.
-async fn ready(State(state): State<AppState>) -> StatusCode {
-    match db::ping(&state.db).await {
+pub async fn ready(State(db): State<PgPool>) -> StatusCode {
+    match db::ping(&db).await {
         Ok(()) => StatusCode::OK,
         Err(err) => {
             tracing::warn!(error = %err, "database unavailable");

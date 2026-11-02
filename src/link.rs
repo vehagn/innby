@@ -57,7 +57,6 @@ impl LinkKey {
     }
 
     /// The path segment of a guest's RSVP link: `{id}.{tag}`.
-    #[allow(dead_code)] // The admin UI (milestone 4) hands these out.
     pub fn rsvp_link(&self, id: Uuid, nonce: i32) -> String {
         let tag = self.rsvp_mac(id, nonce).finalize().into_bytes();
         format!(

@@ -8,9 +8,26 @@ image := env("FEST_IMAGE", "ghcr.io/vehagn/fest")
 default:
     @just --list
 
-# Run the public site (reads .env, see .env.example)
+# Run the public site on :8080 and the admin UI on :8081 (reads .env, see .env.example)
 run: migrate
-    cargo run -- serve
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build --quiet
+    trap 'kill 0' EXIT
+    cargo run --quiet -- admin &
+    cargo run --quiet -- serve
+
+# Create an invitation and print the guest's link
+invite name max_party_size="1": migrate
+    cargo run --quiet -- invite "{{ name }}" {{ max_party_size }}
+
+# Hash an admin password for FEST_ADMIN_PASSWORD_HASH (prompts without echo)
+hash-password:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    read -rsp "Password: " password
+    echo >&2
+    printf %s "$password" | cargo run --quiet -- hash-password
 
 # Run all tests; database tests get a throwaway database each
 test: migrate

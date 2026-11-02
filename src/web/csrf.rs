@@ -2,19 +2,16 @@
 //! `http.CrossOriginProtection`: browsers say where a request comes from, and we refuse
 //! state-changing requests that come from another site.
 
-use std::sync::Arc;
-
 use axum::{
-    extract::{Request, State},
+    extract::Request,
     http::{HeaderMap, Method, StatusCode, header},
     middleware::Next,
     response::{IntoResponse, Response},
 };
 
-/// Rejects unsafe requests that a browser marks as cross-site. `origin` is the site's own
-/// origin, used for older browsers that send `Origin` but not `Sec-Fetch-Site`.
-pub async fn protect(State(origin): State<Arc<str>>, request: Request, next: Next) -> Response {
-    if is_allowed(request.method(), request.headers(), &origin) {
+/// Rejects unsafe requests that a browser marks as cross-site.
+pub async fn protect(request: Request, next: Next) -> Response {
+    if is_allowed(request.method(), request.headers()) {
         next.run(request).await
     } else {
         tracing::warn!(method = %request.method(), "cross-origin request rejected");
@@ -22,7 +19,7 @@ pub async fn protect(State(origin): State<Arc<str>>, request: Request, next: Nex
     }
 }
 
-fn is_allowed(method: &Method, headers: &HeaderMap, origin: &str) -> bool {
+fn is_allowed(method: &Method, headers: &HeaderMap) -> bool {
     if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
         return true;
     }
@@ -30,11 +27,21 @@ fn is_allowed(method: &Method, headers: &HeaderMap, origin: &str) -> bool {
         // `none` is a user-initiated navigation, such as a bookmark.
         return matches!(site.as_bytes(), b"same-origin" | b"none");
     }
+    // Older browsers send only `Origin`: its host must be the one the request is for.
     // Requests without either header don't come from a browser, so a forged form can't
     // produce them.
-    headers
-        .get(header::ORIGIN)
-        .is_none_or(|value| value.as_bytes() == origin.as_bytes())
+    let Some(origin) = headers.get(header::ORIGIN) else {
+        return true;
+    };
+    let origin_host = origin
+        .to_str()
+        .ok()
+        .and_then(|origin| origin.split_once("://"))
+        .map(|(_, host)| host);
+    let host = headers
+        .get(header::HOST)
+        .and_then(|host| host.to_str().ok());
+    origin_host.is_some_and(|origin_host| Some(origin_host) == host)
 }
 
 #[cfg(test)]
@@ -45,12 +52,13 @@ mod tests {
 
     const ORIGIN: &str = "https://fest.example.com";
 
+    /// Checks a request for `fest.example.com` with the given extra headers.
     fn allowed(method: Method, headers: &[(&'static str, &'static str)]) -> bool {
-        let headers = headers
-            .iter()
+        let headers = std::iter::once(("host", "fest.example.com"))
+            .chain(headers.iter().copied())
             .map(|(name, value)| (name.parse().unwrap(), HeaderValue::from_static(value)))
             .collect();
-        is_allowed(&method, &headers, ORIGIN)
+        is_allowed(&method, &headers)
     }
 
     #[test]
@@ -78,6 +86,10 @@ mod tests {
             &[("origin", "https://evil.example")]
         ));
         assert!(!allowed(Method::DELETE, &[("origin", "null")]));
+        assert!(!allowed(
+            Method::POST,
+            &[("origin", "http://fest.example.com.evil")]
+        ));
         assert!(allowed(Method::POST, &[]));
     }
 }

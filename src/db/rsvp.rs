@@ -1,4 +1,4 @@
-// The admin UI and open RSVP (milestones 4–5) call the rest; until then only the tests do.
+// Open RSVP (milestone 5) calls `create_open`; until then only the tests do.
 #![allow(dead_code)]
 
 use chrono::{DateTime, Utc};
@@ -183,10 +183,40 @@ pub async fn respond(
     .await
 }
 
+/// Collapses whitespace and checks the length the database allows. Control characters
+/// are refused rather than stripped, since no keyboard produces them.
+pub fn normalize_name(name: &str) -> Option<String> {
+    let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
+    let length = name.chars().count();
+    ((1..=100).contains(&length) && !name.chars().any(char::is_control)).then_some(name)
+}
+
+pub const MAX_PARTY_SIZE: i32 = 20;
+
 pub async fn rename(db: impl PgExecutor<'_>, id: Uuid, name: &str) -> sqlx::Result<bool> {
     let result = sqlx::query!("update rsvp set name = $2 where id = $1", id, name)
         .execute(db)
         .await?;
+    Ok(result.rows_affected() == 1)
+}
+
+/// Changes an invitation's label and size. A party already larger than the new maximum
+/// shrinks to fit.
+pub async fn update_invite(
+    db: impl PgExecutor<'_>,
+    id: Uuid,
+    name: &str,
+    max_party_size: i32,
+) -> sqlx::Result<bool> {
+    let result = sqlx::query!(
+        "update rsvp set name = $2, max_party_size = $3, party_size = least(party_size, $3) \
+         where id = $1",
+        id,
+        name,
+        max_party_size,
+    )
+    .execute(db)
+    .await?;
     Ok(result.rows_affected() == 1)
 }
 
@@ -312,6 +342,35 @@ mod tests {
 
         let err = rename(&pool, invite.id, "").await.unwrap_err();
         assert!(is_check_violation(&err), "{err}");
+        Ok(())
+    }
+
+    #[test]
+    fn normalizes_names() {
+        assert_eq!(
+            normalize_name("  Kari \t Nordmann ").unwrap(),
+            "Kari Nordmann"
+        );
+        assert_eq!(
+            normalize_name(&"ø".repeat(100)).unwrap().chars().count(),
+            100
+        );
+        assert!(normalize_name("   ").is_none());
+        assert!(normalize_name(&"a".repeat(101)).is_none());
+        assert!(normalize_name("Kari\u{0}").is_none());
+    }
+
+    #[sqlx::test]
+    async fn shrinking_an_invitation_shrinks_the_party(pool: PgPool) -> sqlx::Result<()> {
+        let invite = create_invite(&pool, "Familien Hansen", 4).await?;
+        respond(&pool, invite.id, Response::Attending, 4, Lang::Nb, PRIVACY).await?;
+        assert!(update_invite(&pool, invite.id, "Hansen", 2).await?);
+        let rsvp = find(&pool, invite.id).await?.unwrap();
+        assert_eq!(
+            (rsvp.name.as_str(), rsvp.party_size, rsvp.max_party_size),
+            ("Hansen", 2, 2)
+        );
+        assert!(!update_invite(&pool, Uuid::max(), "Nobody", 1).await?);
         Ok(())
     }
 
