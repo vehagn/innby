@@ -1,16 +1,17 @@
 # fest
 
 An RSVP site for one event and about 100 guests. Guests answer through a personal link,
-with no account or e-mail address needed; an open sign-up link and e-mail reminders are
-optional. Pages are in Norwegian and English, use no cookies or JavaScript, and all
+with no account or e-mail address needed, or sign up through a link the host makes for
+their group. Every link shows a guest list, with each name shown as its guest chose. E-mail
+reminders are optional. Pages are in Norwegian and English, use no cookies or JavaScript, and all
 guest data is deleted 30 days after the event.
 
 One Rust binary, run as several workloads:
 
 | Command | What it does |
 |---|---|
-| `fest serve` | The public site: event page, `/r/{link}` RSVP pages, `/join/{code}`, `/lost`, `/privacy` |
-| `fest admin` | The host's UI: invitations with links and QR codes, headcount, CSV, reminders |
+| `fest serve` | The public site: event page, `/r/{link}` RSVP pages, `/join/{link}` group sign-up, `/lost`, `/privacy` |
+| `fest admin` | The host's UI: invitations and group links in batches, QR codes, headcount, CSV, reminders |
 | `fest mailer` | Sends queued mail (confirmations, links, reminders) |
 | `fest janitor` | Deletes data past its retention; run hourly |
 | `fest migrate` | Applies the database migrations |

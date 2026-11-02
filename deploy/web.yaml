@@ -54,9 +54,6 @@ spec:
             - name: FEST_LINK_KEY
               valueFrom:
                 secretKeyRef: { name: fest, key: FEST_LINK_KEY }
-            - name: FEST_OPEN_RSVP_CODE
-              valueFrom:
-                secretKeyRef: { name: fest, key: FEST_OPEN_RSVP_CODE, optional: true }
           ports:
             - name: http
               containerPort: 8080

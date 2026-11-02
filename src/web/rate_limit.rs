@@ -1,5 +1,5 @@
 //! An in-memory rate limit, per client or for all clients together, for the forms anyone
-//! can post (the open RSVP and the ones that send mail) and for admin logins. Addresses
+//! can post (group sign-up and the ones that send mail) and for admin logins. Addresses
 //! are only held in memory for the length of a window and never logged or stored.
 
 use std::{

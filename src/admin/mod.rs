@@ -1,7 +1,8 @@
-//! `fest admin`: the host's UI for invitations and the headcount. English only, and
-//! served on its own listener behind the internal gateway and basic auth.
+//! `fest admin`: the host's UI for invitations, group links and the headcount. English
+//! only, and served on its own listener behind the internal gateway and basic auth.
 
 pub mod auth;
+mod groups;
 
 use std::sync::Arc;
 
@@ -24,8 +25,9 @@ use uuid::Uuid;
 use crate::{
     config::{AdminConfig, Config},
     db::{
+        group::{self, Group},
         outbox,
-        rsvp::{self, EmailStatus, Headcount, MAX_PARTY_SIZE, Rsvp, Source},
+        rsvp::{self, EmailStatus, Headcount, MAX_PARTY_SIZE, NameDisplay, Rsvp, Source},
     },
     web::{self, render, render_with, server_error},
 };
@@ -57,7 +59,11 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
     let login = Arc::new(auth::Login::new(admin));
     let pages = Router::new()
         .route("/", get(index))
-        .route("/invitations", post(create))
+        .route("/invitations", get(invitations).post(create_invitations))
+        .route("/groups", post(groups::create))
+        .route("/groups/{id}", get(groups::show).post(groups::edit))
+        .route("/groups/{id}/revoke", post(groups::revoke))
+        .route("/groups/{id}/delete", post(groups::delete))
         .route("/rsvp/{id}", get(show).post(edit))
         .route("/rsvp/{id}/revoke", post(revoke))
         .route("/rsvp/{id}/delete", post(delete))
@@ -77,23 +83,30 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
 struct Row {
     id: Uuid,
     name: String,
-    source: &'static str,
+    /// An invitation, or which group link the guest signed up through.
+    source: String,
+    group_id: Option<Uuid>,
     answer: &'static str,
     party: String,
     email: &'static str,
+    /// How other guests see the name in the guest list.
+    listed: &'static str,
     responded: String,
     created: String,
 }
 
 impl Row {
-    fn new(rsvp: &Rsvp, tz: Tz) -> Self {
+    fn new(rsvp: &Rsvp, tz: Tz, groups: &[Group]) -> Self {
+        let group = groups.iter().find(|group| Some(group.id) == rsvp.group_id);
         Self {
             id: rsvp.id,
             name: rsvp.name.clone(),
-            source: match rsvp.source {
-                Source::Invite => "invitation",
-                Source::Open => "open RSVP",
+            source: match (rsvp.source, group) {
+                (Source::Invite, _) => "invitation".to_owned(),
+                (Source::Open, Some(group)) => format!("sign-up: {}", group.name),
+                (Source::Open, None) => "sign-up".to_owned(),
             },
+            group_id: rsvp.group_id,
             answer: match rsvp.response {
                 rsvp::Response::Pending => "no answer",
                 rsvp::Response::Attending => "coming",
@@ -104,6 +117,11 @@ impl Row {
                 EmailStatus::None => "",
                 EmailStatus::Unconfirmed => "unconfirmed",
                 EmailStatus::Confirmed => "confirmed",
+            },
+            listed: match rsvp.listed() {
+                NameDisplay::Full => "full name",
+                NameDisplay::Partial => "first name and initial",
+                NameDisplay::Hidden => "not listed",
             },
             responded: rsvp
                 .responded_at
@@ -125,46 +143,39 @@ struct IndexPage<'a> {
     headcount: Headcount,
     /// Guests with a confirmed address.
     subscribers: usize,
-    notice: Option<String>,
     rows: Vec<Row>,
+    groups: Vec<groups::GroupRow>,
     max_party_size: i32,
-    open_rsvp: Option<OpenRsvp>,
-    error: Option<&'static str>,
-}
-
-/// The shared `/join/{code}` link, for a group chat or a poster.
-struct OpenRsvp {
-    url: String,
-    qr: String,
-    max_party_size: i32,
-    /// False once the answer deadline has passed.
+    /// False once the answer deadline has passed, which closes the group links too.
     accepts_answers: bool,
+    feedback: Feedback,
+    error: Option<String>,
 }
 
-impl OpenRsvp {
-    fn new(config: &Config) -> Option<Self> {
-        let code = config.open_rsvp_code.as_deref()?;
-        let url = format!("{}/join/{code}", config.base_url);
-        Some(Self {
-            qr: qr_svg(&url),
-            url,
-            max_party_size: web::OPEN_MAX_PARTY_SIZE,
-            accepts_answers: config.event.accepts_answers(Utc::now()),
-        })
-    }
-}
-
-async fn index_page(
-    state: &AdminState,
-    error: Option<&'static str>,
+/// What the index page shows on top of the data: a notice after a change, and the text
+/// of the batch forms, kept when a line needs fixing.
+#[derive(Default)]
+struct Feedback {
     notice: Option<String>,
-) -> Response {
-    let (rsvps, headcount) =
-        match tokio::try_join!(rsvp::list(&state.db), rsvp::headcount(&state.db)) {
-            Ok(result) => result,
-            Err(err) => return server_error(err),
-        };
+    invitations: String,
+    groups: String,
+}
+
+async fn index_page(state: &AdminState, error: Option<String>, feedback: Feedback) -> Response {
+    let loaded = tokio::try_join!(
+        rsvp::list(&state.db),
+        rsvp::headcount(&state.db),
+        group::list(&state.db),
+    );
+    let (rsvps, headcount, groups) = match loaded {
+        Ok(loaded) => loaded,
+        Err(err) => return server_error(err),
+    };
     let tz = state.config.event.starts_at.timezone();
+    let status = match error {
+        Some(_) => StatusCode::UNPROCESSABLE_ENTITY,
+        None => StatusCode::OK,
+    };
     let page = IndexPage {
         title: &state.config.event.title.nb,
         headcount,
@@ -172,29 +183,47 @@ async fn index_page(
             .iter()
             .filter(|rsvp| rsvp.email_status == EmailStatus::Confirmed)
             .count(),
-        notice,
-        rows: rsvps.iter().map(|rsvp| Row::new(rsvp, tz)).collect(),
+        rows: rsvps
+            .iter()
+            .map(|rsvp| Row::new(rsvp, tz, &groups))
+            .collect(),
+        groups: groups
+            .iter()
+            .map(|group| groups::GroupRow::new(&state.config, group, &rsvps))
+            .collect(),
         max_party_size: MAX_PARTY_SIZE,
-        open_rsvp: OpenRsvp::new(&state.config),
+        accepts_answers: state.config.event.accepts_answers(Utc::now()),
+        feedback,
         error,
     };
-    match error {
-        Some(_) => render_with(StatusCode::UNPROCESSABLE_ENTITY, page),
-        None => render(page),
-    }
+    render_with(status, page)
 }
 
 #[derive(Deserialize)]
 struct IndexQuery {
-    reminders: Option<u64>,
+    reminders: Option<usize>,
+    groups: Option<usize>,
+}
+
+/// "1 reminder", "3 reminders".
+fn count(n: usize, thing: &str) -> String {
+    match n {
+        1 => format!("1 {thing}"),
+        n => format!("{n} {thing}s"),
+    }
 }
 
 async fn index(State(state): State<AdminState>, Query(query): Query<IndexQuery>) -> Response {
-    let notice = query.reminders.map(|count| match count {
-        1 => "1 reminder queued.".to_owned(),
-        count => format!("{count} reminders queued."),
-    });
-    index_page(&state, None, notice).await
+    let notice = match (query.reminders, query.groups) {
+        (Some(n), _) => Some(format!("{} queued.", count(n, "reminder"))),
+        (_, Some(n)) => Some(format!("{} created.", count(n, "group"))),
+        (None, None) => None,
+    };
+    let feedback = Feedback {
+        notice,
+        ..Feedback::default()
+    };
+    index_page(&state, None, feedback).await
 }
 
 /// Queues a reminder for everyone with a confirmed address who hasn't declined. Each
@@ -209,6 +238,7 @@ async fn queue_reminders(State(state): State<AdminState>) -> Response {
     }
 }
 
+/// A name and a party size: an invitation's, or a group's for each sign-up.
 #[derive(Deserialize)]
 struct InviteForm {
     name: String,
@@ -217,25 +247,130 @@ struct InviteForm {
 
 impl InviteForm {
     fn validate(&self) -> Result<String, &'static str> {
-        if !(1..=MAX_PARTY_SIZE).contains(&self.max_party_size) {
-            return Err("The party size must be between 1 and 20.");
-        }
-        rsvp::normalize_name(&self.name).ok_or("The name must be between 1 and 100 characters.")
+        validate(&self.name, self.max_party_size)
     }
 }
 
-async fn create(State(state): State<AdminState>, Form(form): Form<InviteForm>) -> Response {
-    let name = match form.validate() {
-        Ok(name) => name,
-        Err(error) => return index_page(&state, Some(error), None).await,
+fn validate(name: &str, max_party_size: i32) -> Result<String, &'static str> {
+    if !(1..=MAX_PARTY_SIZE).contains(&max_party_size) {
+        return Err("The party size must be between 1 and 20.");
+    }
+    rsvp::normalize_name(name).ok_or("Enter a name of up to 100 characters.")
+}
+
+/// Several names at once, one per line.
+#[derive(Deserialize)]
+struct BatchForm {
+    names: String,
+    /// For lines that don't give their own.
+    max_party_size: i32,
+}
+
+impl BatchForm {
+    /// Each line's name and party size. A line can end in a comma and its own party size;
+    /// blank lines are skipped. One invalid line fails the whole batch.
+    fn parse(&self) -> Result<Vec<(String, i32)>, String> {
+        let mut entries = Vec::new();
+        for (index, line) in self.names.lines().enumerate() {
+            if line.trim().is_empty() {
+                continue;
+            }
+            let (name, max_party_size) = line
+                .rsplit_once(',')
+                .and_then(|(name, size)| Some((name, size.trim().parse().ok()?)))
+                .unwrap_or((line, self.max_party_size));
+            let name = validate(name, max_party_size)
+                .map_err(|error| format!("Line {}: {error}", index + 1))?;
+            entries.push((name, max_party_size));
+        }
+        if entries.is_empty() {
+            return Err("Enter at least one name.".to_owned());
+        }
+        Ok(entries)
+    }
+}
+
+/// Creates an invitation per line, all or none, then shows their links.
+async fn create_invitations(
+    State(state): State<AdminState>,
+    Form(form): Form<BatchForm>,
+) -> Response {
+    let entries = match form.parse() {
+        Ok(entries) => entries,
+        Err(error) => {
+            let feedback = Feedback {
+                invitations: form.names,
+                ..Feedback::default()
+            };
+            return index_page(&state, Some(error), feedback).await;
+        }
     };
-    match rsvp::create_invite(&state.db, &name, form.max_party_size).await {
-        Ok(invite) => {
-            tracing::info!(rsvp = %invite.id, "invitation created");
-            Redirect::to(&format!("/rsvp/{}", invite.id)).into_response()
+    let created = async {
+        let mut tx = state.db.begin().await?;
+        let mut ids = Vec::new();
+        for (name, max_party_size) in &entries {
+            ids.push(
+                rsvp::create_invite(&mut *tx, name, *max_party_size)
+                    .await?
+                    .id,
+            );
+        }
+        tx.commit().await.map(|()| ids)
+    }
+    .await;
+    match created {
+        Ok(ids) => {
+            tracing::info!(count = ids.len(), "invitations created");
+            // The ids are UUIDv7, so the new ones are those from the first on.
+            Redirect::to(&format!("/invitations?from={}", ids[0])).into_response()
         }
         Err(err) => server_error(err),
     }
+}
+
+#[derive(Template)]
+#[template(path = "admin/invitations.html")]
+struct InvitationsPage {
+    /// Only the invitations just created.
+    new: bool,
+    invitations: Vec<Invitation>,
+    error: Option<&'static str>,
+}
+
+struct Invitation {
+    row: Row,
+    url: String,
+}
+
+#[derive(Deserialize)]
+struct InvitationsQuery {
+    from: Option<Uuid>,
+}
+
+/// Every invitation's link, for sending them out.
+async fn invitations(
+    State(state): State<AdminState>,
+    Query(query): Query<InvitationsQuery>,
+) -> Response {
+    let rsvps = match rsvp::list(&state.db).await {
+        Ok(rsvps) => rsvps,
+        Err(err) => return server_error(err),
+    };
+    let tz = state.config.event.starts_at.timezone();
+    let invitations = rsvps
+        .iter()
+        .filter(|rsvp| rsvp.source == Source::Invite)
+        .filter(|rsvp| query.from.is_none_or(|from| rsvp.id >= from))
+        .map(|rsvp| Invitation {
+            row: Row::new(rsvp, tz, &[]),
+            url: guest_url(&state.config, rsvp),
+        })
+        .collect();
+    render(InvitationsPage {
+        new: query.from.is_some(),
+        invitations,
+        error: None,
+    })
 }
 
 #[derive(Template)]
@@ -251,10 +386,10 @@ struct RsvpPage {
 }
 
 impl RsvpPage {
-    fn new(config: &Config, rsvp: Rsvp) -> Self {
+    fn new(config: &Config, rsvp: Rsvp, groups: &[Group]) -> Self {
         let url = guest_url(config, &rsvp);
         Self {
-            row: Row::new(&rsvp, config.event.starts_at.timezone()),
+            row: Row::new(&rsvp, config.event.starts_at.timezone(), groups),
             qr: qr_svg(&url),
             url,
             rsvp,
@@ -265,12 +400,21 @@ impl RsvpPage {
     }
 
     /// The guest's page again with an error, for an invalid form.
+    async fn load(state: &AdminState, id: Uuid) -> Result<Self, PageError> {
+        let (rsvp, groups) = tokio::try_join!(rsvp::find(&state.db, id), group::list(&state.db))?;
+        Ok(Self::new(
+            &state.config,
+            rsvp.ok_or(PageError::Missing)?,
+            &groups,
+        ))
+    }
+
     async fn render_error(
         state: &AdminState,
         id: Uuid,
         error: &'static str,
-    ) -> Result<Response, GuestError> {
-        let mut page = Self::new(&state.config, find(state, id).await?);
+    ) -> Result<Response, PageError> {
+        let mut page = Self::load(state, id).await?;
         page.error = Some(error);
         Ok(render_with(StatusCode::UNPROCESSABLE_ENTITY, page))
     }
@@ -292,29 +436,25 @@ fn qr_svg(url: &str) -> String {
         .map_or(svg.clone(), |start| svg[start..].to_owned())
 }
 
-/// Why a request about one guest failed.
-enum GuestError {
+/// Why a request about one guest or group failed.
+enum PageError {
     Missing,
     Database(sqlx::Error),
 }
 
-impl From<sqlx::Error> for GuestError {
+impl From<sqlx::Error> for PageError {
     fn from(err: sqlx::Error) -> Self {
         Self::Database(err)
     }
 }
 
-impl IntoResponse for GuestError {
+impl IntoResponse for PageError {
     fn into_response(self) -> Response {
         match self {
-            Self::Missing => (StatusCode::NOT_FOUND, "no such guest").into_response(),
+            Self::Missing => (StatusCode::NOT_FOUND, "not found").into_response(),
             Self::Database(err) => server_error(err),
         }
     }
-}
-
-async fn find(state: &AdminState, id: Uuid) -> Result<Rsvp, GuestError> {
-    rsvp::find(&state.db, id).await?.ok_or(GuestError::Missing)
 }
 
 #[derive(Deserialize)]
@@ -326,8 +466,8 @@ async fn show(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
     Query(query): Query<ShowQuery>,
-) -> Result<Response, GuestError> {
-    let mut page = RsvpPage::new(&state.config, find(&state, id).await?);
+) -> Result<Response, PageError> {
+    let mut page = RsvpPage::load(&state, id).await?;
     page.saved = query.saved.is_some();
     Ok(render(page))
 }
@@ -340,13 +480,13 @@ async fn edit(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
     Form(form): Form<InviteForm>,
-) -> Result<Response, GuestError> {
+) -> Result<Response, PageError> {
     let name = match form.validate() {
         Ok(name) => name,
         Err(error) => return RsvpPage::render_error(&state, id, error).await,
     };
     if !rsvp::update_invite(&state.db, id, &name, form.max_party_size).await? {
-        return Err(GuestError::Missing);
+        return Err(PageError::Missing);
     }
     Ok(saved_redirect(id))
 }
@@ -354,10 +494,10 @@ async fn edit(
 async fn revoke(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
-) -> Result<Response, GuestError> {
+) -> Result<Response, PageError> {
     rsvp::revoke_link(&state.db, id)
         .await?
-        .ok_or(GuestError::Missing)?;
+        .ok_or(PageError::Missing)?;
     tracing::info!(rsvp = %id, "link revoked");
     Ok(saved_redirect(id))
 }
@@ -371,7 +511,7 @@ async fn delete(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
     Form(form): Form<DeleteForm>,
-) -> Result<Response, GuestError> {
+) -> Result<Response, PageError> {
     if form.confirm.is_none() {
         return RsvpPage::render_error(&state, id, "Tick the box to confirm the deletion.").await;
     }
@@ -382,8 +522,8 @@ async fn delete(
 
 /// The guest list as CSV, with each guest's link for a mail merge.
 async fn export_csv(State(state): State<AdminState>) -> Response {
-    let rsvps = match rsvp::list(&state.db).await {
-        Ok(rsvps) => rsvps,
+    let (rsvps, groups) = match tokio::try_join!(rsvp::list(&state.db), group::list(&state.db)) {
+        Ok(loaded) => loaded,
         Err(err) => return server_error(err),
     };
     let tz = state.config.event.starts_at.timezone();
@@ -398,21 +538,23 @@ async fn export_csv(State(state): State<AdminState>) -> Response {
             "people",
             "max people",
             "e-mail",
+            "guest list",
             "answered",
             "link",
         ],
     );
     for rsvp in &rsvps {
-        let row = Row::new(rsvp, tz);
+        let row = Row::new(rsvp, tz, &groups);
         csv_line(
             &mut csv,
             &[
                 &row.name,
-                row.source,
+                &row.source,
                 row.answer,
                 &rsvp.party_size.to_string(),
                 &rsvp.max_party_size.to_string(),
                 row.email,
+                row.listed,
                 &row.responded,
                 &guest_url(&state.config, rsvp),
             ],
@@ -473,8 +615,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        config::tests::{config, parse},
-        link::RsvpLink,
+        config::tests::config,
+        link::IdLink,
         web::testing::{body, location},
     };
 
@@ -549,47 +691,98 @@ mod tests {
         assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
     }
 
-    #[sqlx::test]
-    async fn creates_an_invitation_with_a_working_link(db: PgPool) {
-        let admin = Admin::new(db);
-        let response = admin
-            .post("/invitations", "name=Kari+%26+Ola&max_party_size=2")
-            .await;
-        assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        let detail = location(&response).to_owned();
-
-        let html = body(admin.get(&detail).await).await;
-        assert!(html.contains("<h1>Kari &#38; Ola</h1>"), "{html}");
-        assert!(html.contains("<svg"));
-        let url = html
-            .split("value=\"https://fest.example.com/r/")
-            .nth(1)
-            .and_then(|rest| rest.split('"').next())
-            .expect("guest link on the page");
-        let link: RsvpLink = url.parse().unwrap();
-        let invite = rsvp::find(&admin.db, link.id).await.unwrap().unwrap();
-        assert!(admin.config.link_key.verify_rsvp(&link, invite.link_nonce));
-        assert_eq!(
-            (invite.name.as_str(), invite.max_party_size),
-            ("Kari & Ola", 2)
-        );
-
-        let html = body(admin.get("/").await).await;
-        assert!(html.contains("Kari &#38; Ola"));
-        assert!(html.contains("no answer"));
+    /// The `value` of every read-only link field on the page.
+    fn links(html: &str) -> Vec<&str> {
+        html.split(r#"readonly value=""#)
+            .skip(1)
+            .filter_map(|rest| rest.split('"').next())
+            .collect()
     }
 
     #[sqlx::test]
-    async fn rejects_invalid_invitations(db: PgPool) {
+    async fn creates_invitations_in_a_batch(db: PgPool) {
         let admin = Admin::new(db);
-        for form in ["name=+&max_party_size=2", "name=Kari&max_party_size=21"] {
+        let response = admin
+            .post(
+                "/invitations",
+                "names=Kari+%26+Ola%2C+2%0D%0A%0D%0APer+Hansen%0D%0ANordmann%2C+Anne&max_party_size=1",
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let page = location(&response).to_owned();
+        assert!(page.starts_with("/invitations?from="), "{page}");
+
+        let html = body(admin.get(&page).await).await;
+        assert!(html.contains("3 invitations created."), "{html}");
+        let invites = rsvp::list(&admin.db).await.unwrap();
+        let sizes: Vec<_> = invites
+            .iter()
+            .map(|invite| (invite.name.as_str(), invite.max_party_size))
+            .collect();
+        assert_eq!(
+            sizes,
+            [("Kari & Ola", 2), ("Per Hansen", 1), ("Nordmann, Anne", 1)]
+        );
+        let urls = links(&html);
+        assert_eq!(urls.len(), 3);
+        let link: IdLink = urls[0]
+            .strip_prefix("https://fest.example.com/r/")
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(link.id, invites[0].id);
+        assert!(
+            admin
+                .config
+                .link_key
+                .verify_rsvp(&link, invites[0].link_nonce)
+        );
+
+        // Later batches list only their own invitations; the full list has them all.
+        let response = admin
+            .post("/invitations", "names=Eva&max_party_size=1")
+            .await;
+        let html = body(admin.get(location(&response)).await).await;
+        assert_eq!(links(&html).len(), 1);
+        let html = body(admin.get("/invitations").await).await;
+        assert_eq!(links(&html).len(), 4);
+    }
+
+    #[sqlx::test]
+    async fn rejects_a_batch_with_an_invalid_line(db: PgPool) {
+        let admin = Admin::new(db);
+        for (form, error) in [
+            (
+                "names=Kari%0D%0AOla%2C+21&max_party_size=2",
+                "Line 2: The party size must be between 1 and 20.",
+            ),
+            (
+                "names=Kari%0D%0A+-+%0D%0A&max_party_size=2",
+                "Line 2: Enter a name of up to 100 characters.",
+            ),
+            ("names=+%0D%0A&max_party_size=2", "Enter at least one name."),
+            (
+                "names=Kari&max_party_size=0",
+                "Line 1: The party size must be between 1 and 20.",
+            ),
+        ] {
             let response = admin.post("/invitations", form).await;
             assert_eq!(
                 response.status(),
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "{form}"
             );
+            let html = body(response).await;
+            assert!(html.contains(error), "{form}: {html}");
         }
+        // The text stays in the form to fix.
+        let html = body(
+            admin
+                .post("/invitations", "names=Kari%0D%0AOla%2C+21&max_party_size=2")
+                .await,
+        )
+        .await;
+        assert!(html.contains(">Kari\r\nOla, 21</textarea>"), "{html}");
         assert!(rsvp::list(&admin.db).await.unwrap().is_empty());
     }
 
@@ -646,33 +839,85 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn shows_the_open_sign_up_link(db: PgPool) {
-        let mut admin = Admin::new(db);
-        let html = body(admin.get("/").await).await;
-        assert!(html.contains("Off. Set <code>FEST_OPEN_RSVP_CODE</code>"));
-        assert!(!html.contains("<svg"));
+    async fn creates_and_manages_groups(db: PgPool) {
+        let admin = Admin::new(db);
+        let response = admin
+            .post(
+                "/groups",
+                "names=Climbing+club%0D%0ANeighbours%2C+4&max_party_size=2",
+            )
+            .await;
+        assert_eq!(location(&response), "/?groups=2#groups");
+        let html = body(admin.get("/?groups=2").await).await;
+        assert!(html.contains("2 groups created."));
+        let [climbing, neighbours] = group::list(&admin.db).await.unwrap().try_into().unwrap();
+        assert_eq!(
+            (neighbours.name.as_str(), neighbours.max_party_size),
+            ("Neighbours", 4)
+        );
+        let url = format!(
+            "https://fest.example.com/join/{}",
+            admin.config.link_key.group_link(climbing.id, 0)
+        );
+        assert!(links(&html).contains(&url.as_str()));
 
-        admin.config = parse(&[("FEST_OPEN_RSVP_CODE", "jul-2026-hemmelig")]).unwrap();
-        let html = body(admin.get("/").await).await;
-        assert!(html.contains(r#"value="https://fest.example.com/join/jul-2026-hemmelig""#));
+        let page = format!("/groups/{}", climbing.id);
+        let html = body(admin.get(&page).await).await;
+        assert!(html.contains("<h1>Climbing club</h1>"));
+        assert!(html.contains(&format!(r#"value="{url}""#)));
         assert!(html.contains("<svg"));
-        assert!(html.contains("up to 2 people each"));
-        assert!(!html.contains("Closed: the answer deadline has passed."));
 
-        admin.config = parse(&[
-            ("FEST_OPEN_RSVP_CODE", "jul-2026-hemmelig"),
-            ("FEST_RSVP_DEADLINE", "2020-01-01T12:00"),
-        ])
-        .unwrap();
+        // Someone signs up; the group shows them and can't be deleted any more.
+        let sign_up = rsvp::SignUp {
+            group: &climbing,
+            name: "Per Hansen",
+            party_size: 1,
+            name_display: rsvp::NameDisplay::Partial,
+            lang: crate::i18n::Lang::Nb,
+        };
+        rsvp::create_open(&admin.db, &sign_up, web::PRIVACY_VERSION)
+            .await
+            .unwrap();
+        let html = body(admin.get(&page).await).await;
+        assert!(html.contains("Per Hansen"));
+        assert!(html.contains("first name and initial"));
         let html = body(admin.get("/").await).await;
-        assert!(html.contains("Closed: the answer deadline has passed."));
+        assert!(html.contains("sign-up: Climbing club"));
+        let response = admin.post(&format!("{page}/delete"), "confirm=yes").await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(body(response).await.contains("can&#39;t be deleted"));
+
+        admin
+            .post(&page, "name=Climbing+friends&max_party_size=3")
+            .await;
+        admin.post(&format!("{page}/revoke"), "").await;
+        let edited = group::find(&admin.db, climbing.id).await.unwrap().unwrap();
+        assert_eq!(
+            (
+                edited.name.as_str(),
+                edited.max_party_size,
+                edited.link_nonce
+            ),
+            ("Climbing friends", 3, 1)
+        );
+
+        let response = admin
+            .post(&format!("/groups/{}/delete", neighbours.id), "confirm=yes")
+            .await;
+        assert_eq!(location(&response), "/#groups");
+        assert!(
+            group::find(&admin.db, neighbours.id)
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[sqlx::test]
     async fn invite_command_prints_a_working_link(db: PgPool) {
         let config = config();
         let url = invite(&config, &db, "  Per  ", 2).await.unwrap();
-        let link: RsvpLink = url
+        let link: IdLink = url
             .strip_prefix("https://fest.example.com/r/")
             .unwrap()
             .parse()

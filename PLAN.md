@@ -1,6 +1,6 @@
 # fest — event RSVP page
 
-Plan for a small, GDPR-compliant page where ~100 guests say whether they're coming to one event. **Guests need no account and no e-mail address.** They respond through a personal invite link, or through an open RSVP link where they only give a name. E-mail is an optional extra for reminders.
+Plan for a small, GDPR-compliant page where ~100 guests say whether they're coming to one event. **Guests need no account and no e-mail address.** They respond through a personal invite link, or through a group link where they only give a name. Everyone with a link sees a guest list, with each name shown as its guest chose. E-mail is an optional extra for reminders.
 
 ## 1. Goals and non-goals
 
@@ -8,11 +8,12 @@ Plan for a small, GDPR-compliant page where ~100 guests say whether they're comi
 
 - Three ways in, all ending at the same personal RSVP page:
   1. **Personal invite link.** You create an invitation per guest or household and share the link or QR code however you like (SMS, Messenger, paper). The guest opens it and taps *Attending* / *Can't come*.
-  2. **Open RSVP.** One shared, unlisted link (`/join/{code}`). The guest types a name and how many are coming (up to 2), taps *I'm coming*, then gets their own private link to change or cancel later.
+  2. **Group link.** You make an unlisted sign-up link per group of people (`/join/{link}`), e.g. "Climbing club", for its group chat. The guest types a name and how many are coming, taps *I'm coming*, then gets their own private link to change or cancel later.
   3. **Optional e-mail.** From their RSVP page a guest can add an e-mail address (with double opt-in) to get reminders and their link by mail.
 - Guests can change their answer, party size and name at any time, and can export or delete their data.
+- A guest list on every personal and group link page (§5.6), showing who's coming and who hasn't answered. Each guest chooses whether others see their full name, their first name and initial, or nothing.
 - Pages in **Norwegian (bokmål) and English**, chosen from the browser's `Accept-Language`, with a manual switch through `?lang=` (no cookie).
-- An admin UI for you: create and revoke invitations, see the headcount, export CSV.
+- An admin UI for you: create invitations and group links in batches, revoke them, see the headcount, export CSV.
 - Built for GDPR from the start: minimal data, clear retention, automatic deletion, no cookies or third-party assets.
 - A tiny OCI image that holds nothing but the binary, built with buildah and driven by `just`.
 - A **devcontainer** with every tool needed to develop and deploy, so the host needs nothing but a container runtime. Images are built outside it (§10).
@@ -62,7 +63,7 @@ For 100 guests, one process is more than enough. Since this is for fun, here are
 
 | Subcommand | Kubernetes workload | Responsibility | Needs |
 |---|---|---|---|
-| `fest serve` | Deployment (public) | Event page, `/join/{code}`, RSVP pages, e-mail confirm, privacy notice | DB, link key. Reachable from the **external** gateway. |
+| `fest serve` | Deployment (public) | Event page, `/join/{link}`, RSVP pages, e-mail confirm, privacy notice | DB, link key. Reachable from the **external** gateway. |
 | `fest admin` | Deployment (internal) | Invitations, headcount, CSV | DB, link key. Reachable from the **internal** gateway only. |
 | `fest mailer` | Deployment (1 replica) | Processes the outbox and sends e-mail through MailerSend | DB, link key, SMTP credentials, outbound SMTP. No ingress. |
 | `fest janitor` | CronJob (hourly) | Enforces retention and deletes expired data | DB and the event start (`FEST_EVENT_START`, `FEST_EVENT_TIMEZONE`) only. |
@@ -116,16 +117,16 @@ Every guest has one **RSVP link**. Possession of the link is the authorisation; 
 
 ### 5.1 Personal invitation
 
-1. In `fest admin` you create an invitation with a label (e.g. "Kari & Ola") and a maximum party size. The admin UI shows the link, a copy button and a QR code.
+1. In `fest admin` you create invitations, one label per line (e.g. "Kari & Ola, 2"), each with a maximum party size. The admin UI then lists the new links; each invitation's page shows its link and a QR code.
 2. You share it however you like.
-3. The guest opens `/r/{link}`. On the first visit, a short notice explains what is stored, with a link to `/privacy`. The page shows the event, a party-size picker (1…max), and **Attending** / **Can't come** buttons.
-4. `POST /r/{link}` saves the response, party size and `responded_at`. The guest can come back and change it any time until the optional RSVP deadline.
+3. The guest opens `/r/{link}`. On the first visit, a short notice explains what is stored, with a link to `/privacy`. The page shows the event, a party-size picker (1…max), how to show their name on the guest list (preset to their full name), **Attending** / **Can't come** buttons, and the guest list.
+4. `POST /r/{link}` saves the response, party size, name choice and `responded_at`. The guest can come back and change it any time until the optional RSVP deadline.
 
-### 5.2 Open RSVP
+### 5.2 Group links
 
-1. `/` shows only the event info. To RSVP, people need an invite link or the unlisted join link `/join/{code}`. The code comes from config (at least 16 characters, so it can't be guessed) and can be rotated if the link spreads too far.
-2. The guest enters a name and party size (1 or 2), then taps **I'm coming**.
-   - Abuse protection: a honeypot field and a per-IP in-memory rate limit (10 sign-ups per hour, generous for a shared household connection). Behind the gateway, `FEST_TRUST_FORWARDED=true` takes the client address from the `X-Forwarded-For` entry the gateway appends. You can also delete entries in the admin UI, or switch the feature off by unsetting `FEST_OPEN_RSVP_CODE` (the join link then 404s).
+1. `/` shows only the event info. To RSVP, people need an invite link or a group link, `/join/{id}.{sig}`. You create groups in `fest admin`, one per line with a descriptive name and how many people each sign-up may cover (e.g. "Neighbours, 4"). A group's link is signed like an RSVP link, and *Make a new link* replaces it if it spreads too far.
+2. The guest sees the group's name, the guest list, and a form for their name, party size and how to show their name (preset to full), then taps **I'm coming**.
+   - Abuse protection: a honeypot field and a per-IP in-memory rate limit (10 sign-ups per hour, generous for a shared household connection). Behind the gateway, `FEST_TRUST_FORWARDED=true` takes the client address from the `X-Forwarded-For` entry the gateway appends. You can also delete entries in the admin UI. A group can only be deleted while nobody has signed up through it.
 3. The guest is sent straight to their new `/r/{link}`, with a clear "**Bookmark or save this link** to change your answer later" box, plus copy and share buttons and an optional "add your e-mail" field. From there it's identical to 5.1.
 
 ### 5.3 Optional e-mail
@@ -155,16 +156,29 @@ Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pendin
 
 ### 5.5 Host (`fest admin`)
 
-- **Invitations:** create and edit them (label, maximum party size), show the link and QR code, revoke the link (bumps the nonce), delete. Optionally import invitations from a CSV.
+- **Invitations:** create them in a batch, one per line, and get a page of their links; edit them (label, maximum party size), show the link and QR code, revoke the link (bumps the nonce), delete.
+- **Groups:** create them in a batch, one per line; each has a page with its link, QR code and sign-ups, and can be renamed, given a new link, or deleted while nobody has signed up.
 - **Overview:** attending, declined and no-answer counts, a total headcount, and a CSV export.
 - **Authentication:** reachable only through the internal gateway (LAN or VPN), plus basic auth with an argon2 hash from a SealedSecret, since the admin can change data. Each argon2 check needs 19 MiB, so checks run one at a time, a login that checked out is remembered for an hour, and after 10 checks in 15 minutes new logins get 429 (remembered ones keep working). Later, for fun: OIDC login against Authelia.
+
+### 5.6 Guest list
+
+Every personal and group link page shows two lists, **Coming** and **Not answered yet**, of everyone invited who hasn't declined. Each name shows as its guest chose:
+
+| Choice | Shown as |
+|---|---|
+| Full name | "Kari Nordmann" |
+| First name and initial | "Kari N." |
+| Hidden | not listed; the list ends with "+ 1 more" |
+
+Until a guest chooses, their name shows as first name and initial before they answer and in full once they're coming. The answer form presets the full name, and the list has buttons to change the choice at any time. Declined guests are never listed.
 
 ## 6. GDPR checklist
 
 | Area | Decision |
 |---|---|
-| Lawful basis | **RSVP data** (name, response, party size): **legitimate interest** (Art. 6(1)(f)) in organising an event the guest was invited to or chose to join. The balancing test is documented in `docs/ropa.md`. Consent would be awkward, because you create invitations before the guest has agreed to anything. **Optional e-mail:** **consent** (Art. 6(1)(a)), with double opt-in and `email_consent_at` and `privacy_version` recorded. (A private party might fall under the household exemption in Art. 2(2)(c), but we don't rely on it.) |
-| Transparency | Invitation data is entered by you, not the guest, so Art. 14 information appears on their first visit to the link. Open RSVP and e-mail show the Art. 13 notice at the point where the data is collected. The notice is available in Norwegian and English. |
+| Lawful basis | **RSVP data** (name, response, party size) and **the guest list**: **legitimate interest** (Art. 6(1)(f)) in organising an event the guest was invited to or chose to join, and in guests knowing who else is coming. Guests can hide their name from the list. The balancing test is documented in `docs/ropa.md`. Consent would be awkward, because you create invitations before the guest has agreed to anything. **Optional e-mail:** **consent** (Art. 6(1)(a)), with double opt-in and `email_consent_at` and `privacy_version` recorded. (A private party might fall under the household exemption in Art. 2(2)(c), but we don't rely on it.) |
+| Transparency | Invitation data is entered by you, not the guest, so Art. 14 information appears on their first visit to the link. Group sign-up and e-mail show the Art. 13 notice at the point where the data is collected. The notice is available in Norwegian and English. |
 | Data minimisation | Required: a name or label, the response and the party size. E-mail is optional. No free-text notes field, and **no dietary or allergy info**: it can count as health data (Art. 9) and would need explicit consent. Invitation labels should be first names or household names. |
 | IP addresses | Never stored. Rate limiting works per IP in memory only, and logs drop or truncate IPs. |
 | Cookies | **None.** CSRF is handled by the `Sec-Fetch-Site`/`Origin` middleware (§2), authorisation by the signed link, and the language choice by `?lang=`, so no cookie banner is needed. |
@@ -181,14 +195,15 @@ Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pendin
 
 PostgreSQL 18 is the newest major version (18.6). The cluster already runs `ghcr.io/cloudnative-pg/postgresql:18.x` for Authelia. PG18's built-in `uuidv7()` gives sortable IDs.
 
-The schema lives in [`migrations/0001_rsvp_and_outbox.sql`](migrations/0001_rsvp_and_outbox.sql). In short:
+The schema lives in [`migrations/`](migrations/). In short:
 
 | Table | Columns | Constraints |
 |---|---|---|
-| `rsvp` | `id` (uuidv7), `source`, `name`, `response`, `party_size`, `max_party_size`, `link_nonce`, `lang`, `email`, `email_status`, `email_consent_at`, `privacy_version`, `responded_at`, `created_at` | name 1–100 chars; `party_size` within `1..=max_party_size` (max 20); e-mail present ⇔ status ≠ `none` ⇔ consent recorded; a confirmed e-mail is unique |
+| `rsvp` | `id` (uuidv7), `source`, `name`, `response`, `party_size`, `max_party_size`, `link_nonce`, `lang`, `email`, `email_status`, `email_consent_at`, `privacy_version`, `responded_at`, `created_at`, `group_id`, `name_display` | name 1–100 chars; `party_size` within `1..=max_party_size` (max 20); e-mail present ⇔ status ≠ `none` ⇔ consent recorded; a confirmed e-mail is unique; `name_display` null until the guest chooses |
+| `invite_group` | `id` (uuidv7), `name`, `max_party_size`, `link_nonce`, `created_at` | can't be deleted while an RSVP references it |
 | `outbox` | `id`, `rsvp_id` (cascade delete), `kind`, `attempts`, `next_try_at`, `sent_at`, `last_error` | partial index on unsent rows |
 
-- **Enums are Postgres enum types** (`rsvp_source`, `rsvp_response`, `email_status`, `lang`, `outbox_kind`) rather than `text` + `CHECK`. sqlx maps them straight to Rust enums with `#[derive(sqlx::Type)]`.
+- **Enums are Postgres enum types** (`rsvp_source`, `rsvp_response`, `email_status`, `lang`, `outbox_kind`, `name_display`) rather than `text` + `CHECK`. sqlx maps them straight to Rust enums with `#[derive(sqlx::Type)]`.
 - **Queries** in `src/db/rsvp.rs` use `query_as!`, so they're checked against the schema at compile time. `.sqlx/` holds the offline data, which lets builds and CI compile without a database.
 
 Notes on the model:
@@ -248,7 +263,7 @@ The devcontainer is a Compose project with three services:
   - Integration tests with `#[sqlx::test]`, which creates a throwaway database per test against `db`.
   - End-to-end tests over axum's `Router` with `tower::ServiceExt::oneshot`:
     - create invite → respond → change → delete.
-    - open RSVP → link shown → add e-mail → confirm in Mailpit → `/lost`.
+    - group link → link shown → add e-mail → confirm in Mailpit → `/lost`.
 
 ## 10. Container image (buildah, binary only)
 
@@ -310,23 +325,25 @@ just manifests           # render deploy/ with kustomize (Argo CD does the deplo
 2. ✅ **Schema:** migrations, the `db` module, `.sqlx/` offline data, `#[sqlx::test]` integration tests.
 3. ✅ **Links and the RSVP page:** HMAC signing, `/r/{link}` (respond, party size, rename, export, delete), link hygiene headers, CSRF middleware.
 4. ✅ **Admin:** invitations (create, link and QR, revoke, delete), headcount, CSV, basic auth, and `fest invite` on the CLI.
-5. ✅ **Open RSVP:** `/join/{code}`, honeypot, rate limit, a "save your link" page, and the on/off flag.
+5. ✅ **Open RSVP:** `/join/{code}`, honeypot, rate limit, a "save your link" page, and the on/off flag. Replaced by group links in 12.
 6. ✅ **Optional e-mail:** add and confirm an address, the outbox and mailer (Mailpit locally, MailerSend in the cluster), `/lost`, reminders.
 7. ✅ **Janitor and privacy:** retention rules, `/privacy` (nb/en), `docs/ropa.md`.
 8. ✅ **Image:** buildah recipe, plus a CI workflow that pushes to GHCR.
 9. ✅ **Deploy:** CNPG cluster, workloads, HTTPRoutes, SealedSecrets, NetworkPolicies, Argo CD app.
 10. ✅ **Hardening and polish:** strict CSP (no inline styles or scripts anywhere), HSTS, `Cross-Origin-Opener-Policy` and `-Resource-Policy`, a 15-second request timeout and a 10-second header timeout, `cargo deny` in CI, and a load sanity check (5000 RSVP-page requests at concurrency 50: p50 0.5 ms, p99 4.5 ms). Still optional: `LISTEN/NOTIFY` for the mailer (it polls every 5 seconds), Authelia OIDC for the admin UI, and `/metrics`.
 11. ✅ **Pentest fixes:** a bounded admin login check with lockout, a confirmation mail without guest text, a site-wide mail cap, unconfirmed addresses that can be shared, the example secrets from `.env.example` refused on an https site, a header timeout, names without invisible or reordering characters, and `/lost` lookups after the response.
+12. ✅ **Groups and guest list:** batch-created invitations and group links (replacing `FEST_OPEN_RSVP_CODE`), and a guest list on every link with a full, partial or hidden name per guest.
 
 ## 14. Decisions
 
 - **Language:** Rust (no preference given; the devcontainer makes the toolchain a non-issue).
-- **RSVP style:** both personal invite links and an open name-only RSVP (§5.1, §5.2).
+- **RSVP style:** both personal invite links and name-only sign-up through group links the host makes (§5.1, §5.2).
 - **E-mail:** an optional extra for guests (§5.3); the `mailer` workload is part of v1.
 - **Page languages:** Norwegian (bokmål) and English.
 - **Capacity:** no limit and no waitlist.
-- **Open RSVP party size:** up to 2 (the guest plus one).
-- **Root page `/`:** event info only; RSVP needs an invite link or the join link.
+- **Group sign-up party size:** set per group, 2 by default (the guest plus one).
+- **Guest list:** the whole event's, on every link; names as each guest chose (§5.6).
+- **Root page `/`:** event info only; RSVP needs an invite link or a group link.
 - **Retention:** all guest data is deleted 30 days after the event.
 - **Exposure:** directly through `gateway/external`.
 - **E-mail provider:** MailerSend (existing account).

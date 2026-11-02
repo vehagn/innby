@@ -44,8 +44,13 @@ pub async fn delete_old_mail(db: impl PgExecutor<'_>, cutoff: DateTime<Utc>) -> 
     Ok(result.rows_affected())
 }
 
-/// Deletes every RSVP, and through the cascade all their mail.
-pub async fn delete_all_rsvps(db: impl PgExecutor<'_>) -> sqlx::Result<u64> {
-    let result = sqlx::query!("delete from rsvp").execute(db).await?;
+/// Deletes every RSVP, and through the cascade all their mail, then the groups.
+pub async fn delete_all_rsvps(db: &PgPool) -> sqlx::Result<u64> {
+    let mut tx = db.begin().await?;
+    let result = sqlx::query!("delete from rsvp").execute(&mut *tx).await?;
+    sqlx::query!("delete from invite_group")
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
     Ok(result.rows_affected())
 }

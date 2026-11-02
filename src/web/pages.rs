@@ -6,10 +6,13 @@ use axum::{
     http::{StatusCode, header},
     response::{Html, IntoResponse, Response},
 };
+use sqlx::PgPool;
+use uuid::Uuid;
 
 use super::{AppState, PRIVACY_VERSION};
 use crate::{
     config::{Controller, Event},
+    db::rsvp::{self, NameDisplay, Response as Answer},
     i18n::{Lang, Messages},
     janitor::{KEEP_AFTER_EVENT, KEEP_SENT_MAIL},
 };
@@ -56,6 +59,83 @@ impl PartySize {
                 selected: value == selected,
             })
             .collect()
+    }
+}
+
+/// One choice for how a name shows in the guest list (`_name_display.html`).
+pub struct DisplayChoice {
+    pub value: &'static str,
+    pub label: String,
+    pub selected: bool,
+}
+
+impl DisplayChoice {
+    /// The choices, with `selected` preselected. Given the guest's name, each label shows
+    /// what others would see, e.g. "First name and initial (Kari N.)".
+    pub fn choices(t: &Messages, name: Option<&str>, selected: NameDisplay) -> Vec<Self> {
+        NameDisplay::ALL
+            .into_iter()
+            .map(|display| {
+                let label = t.name_display(display);
+                Self {
+                    value: display.code(),
+                    label: match name.and_then(|name| display.apply(name)) {
+                        Some(shown) => format!("{label} ({shown})"),
+                        None => label.to_owned(),
+                    },
+                    selected: display == selected,
+                }
+            })
+            .collect()
+    }
+}
+
+/// The guest list that every personal and group link shows (`_guest_list.html`), with
+/// each name as its guest chose to show it.
+#[derive(Default)]
+pub struct GuestList {
+    pub coming: Vec<ListedGuest>,
+    pub pending: Vec<ListedGuest>,
+    /// How many chose not to be listed.
+    pub coming_hidden: usize,
+    pub pending_hidden: usize,
+}
+
+pub struct ListedGuest {
+    pub name: String,
+    /// Whether this is the guest looking at the list.
+    pub you: bool,
+}
+
+impl GuestList {
+    /// The list as the guest `you` sees it, or as someone who hasn't signed up yet.
+    pub async fn load(db: &PgPool, you: Option<Uuid>) -> sqlx::Result<Self> {
+        let mut list = Self::default();
+        for guest in rsvp::guest_list(db).await? {
+            let (names, hidden) = match guest.response {
+                Answer::Attending => (&mut list.coming, &mut list.coming_hidden),
+                Answer::Pending | Answer::Declined => (&mut list.pending, &mut list.pending_hidden),
+            };
+            match NameDisplay::listed(guest.response, guest.name_display).apply(&guest.name) {
+                Some(name) => names.push(ListedGuest {
+                    name,
+                    you: Some(guest.id) == you,
+                }),
+                None => *hidden += 1,
+            }
+        }
+        for names in [&mut list.coming, &mut list.pending] {
+            names.sort_by_cached_key(|guest| guest.name.to_lowercase());
+        }
+        Ok(list)
+    }
+
+    pub fn has_coming(&self) -> bool {
+        !self.coming.is_empty() || self.coming_hidden > 0
+    }
+
+    pub fn has_pending(&self) -> bool {
+        !self.pending.is_empty() || self.pending_hidden > 0
     }
 }
 
@@ -128,7 +208,7 @@ impl MessagePage {
     }
 }
 
-/// The fallback for unknown paths, and for the open RSVP while it's closed.
+/// The fallback for unknown paths and links.
 pub async fn not_found(lang: Lang) -> Response {
     render_with(
         StatusCode::NOT_FOUND,

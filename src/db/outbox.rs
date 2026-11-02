@@ -230,6 +230,7 @@ mod tests {
             confirmed[1].id,
             Response::Declined,
             1,
+            None,
             Lang::Nb,
             PRIVACY_VERSION,
         )

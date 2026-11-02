@@ -164,7 +164,7 @@ mod tests {
 
     #[sqlx::test]
     async fn deletes_everything_30_days_after_the_event(db: PgPool) {
-        let guest = rsvp::create_invite(&db, "Kari", 1).await.unwrap();
+        let guest = rsvp::tests::sign_up(&db, "Kari", 1).await.unwrap();
         outbox::enqueue(&db, guest.id, Kind::RsvpLink)
             .await
             .unwrap();
@@ -178,6 +178,7 @@ mod tests {
         let due = event_start() + KEEP_AFTER_EVENT;
         assert_eq!(run(&db, event_start(), due).await.unwrap().rsvps_deleted, 1);
         assert!(rsvp::list(&db).await.unwrap().is_empty());
+        assert!(crate::db::group::list(&db).await.unwrap().is_empty());
         let mails: i64 = sqlx::query_scalar!(r#"select count(*) as "n!" from outbox"#)
             .fetch_one(&db)
             .await

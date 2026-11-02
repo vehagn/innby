@@ -7,7 +7,6 @@ mod rsvp;
 #[cfg(test)]
 pub(crate) mod testing;
 
-pub use join::OPEN_MAX_PARTY_SIZE;
 pub use pages::{render, render_with, server_error, stylesheet};
 pub use rate_limit::RateLimiter;
 
@@ -187,9 +186,10 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         mail_limiter_all: Arc::new(RateLimiter::new(100, DAY)),
     };
     let links = Router::new()
-        .route("/join/{code}", get(join::show).post(join::join))
+        .route("/join/{link}", get(join::show).post(join::join))
         .route("/r/{link}", get(rsvp::show).post(rsvp::answer))
         .route("/r/{link}/name", post(rsvp::rename))
+        .route("/r/{link}/display", post(rsvp::display))
         .route("/r/{link}/export", get(rsvp::export))
         .route("/r/{link}/delete", post(rsvp::delete))
         .route("/r/{link}/email", post(email::add))

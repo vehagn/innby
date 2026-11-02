@@ -1,3 +1,4 @@
+pub mod group;
 pub mod outbox;
 pub mod retention;
 pub mod rsvp;

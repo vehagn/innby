@@ -32,7 +32,7 @@ These manifests follow the `vehagn/homelab` conventions: one directory per app u
 
 ## Things to verify after the first deploy
 
-- **Client addresses.** The open RSVP and `/lost` are rate-limited per client address,
+- **Client addresses.** Group sign-up and `/lost` are rate-limited per client address,
   taken from the `X-Forwarded-For` entry the gateway appends. If the external gateway
   SNATs traffic so that every request seems to come from a node, the limit becomes
   shared by everyone. `whoami-dev.stonegarden.dev` shows what the gateway forwards.

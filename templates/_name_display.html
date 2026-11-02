@@ -1,0 +1,6 @@
+    <label for="name_display">{{ t.name_display_label }}</label>
+    <select id="name_display" name="name_display">
+      {% for choice in display_choices %}
+      <option value="{{ choice.value }}"{% if choice.selected %} selected{% endif %}>{{ choice.label }}</option>
+      {% endfor %}
+    </select>

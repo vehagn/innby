@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "update rsvp set response = $2, party_size = $3, lang = $4, privacy_version = $5, responded_at = now() where id = $1 returning id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at ",
+  "query": "select id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\" from rsvp order by id",
   "describe": {
     "columns": [
       {
@@ -198,37 +198,43 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 14,
+        "name": "group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "group_id"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "name_display: NameDisplay",
+        "type_info": {
+          "Custom": {
+            "name": "name_display",
+            "kind": {
+              "Enum": [
+                "full",
+                "partial",
+                "hidden"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "name_display"
+          }
+        }
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid",
-        {
-          "Custom": {
-            "name": "rsvp_response",
-            "kind": {
-              "Enum": [
-                "pending",
-                "attending",
-                "declined"
-              ]
-            }
-          }
-        },
-        "Int4",
-        {
-          "Custom": {
-            "name": "lang",
-            "kind": {
-              "Enum": [
-                "nb",
-                "en"
-              ]
-            }
-          }
-        },
-        "Text"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -244,8 +250,10 @@
       true,
       true,
       true,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "bc679e05ce46fc90d8a1f57df8582d57fb94155744af60cad049e9558d1734be"
+  "hash": "f350594b6002fd04b7bc87acdafdb81e1a401707b2488e6fcc06b586fb243aa6"
 }

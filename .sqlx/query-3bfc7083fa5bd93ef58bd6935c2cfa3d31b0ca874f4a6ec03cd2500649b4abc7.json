@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update rsvp set name_display = $2 where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "name_display",
+            "kind": {
+              "Enum": [
+                "full",
+                "partial",
+                "hidden"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3bfc7083fa5bd93ef58bd6935c2cfa3d31b0ca874f4a6ec03cd2500649b4abc7"
+}

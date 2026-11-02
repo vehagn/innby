@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into rsvp (source, name, response, party_size, max_party_size, lang, privacy_version, responded_at) values ('open', $1, 'attending', $2, $3, $4, $5, now()) returning id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at ",
+  "query": "update rsvp set response = $2, party_size = $3, name_display = coalesce($4, name_display), lang = $5, privacy_version = $6, responded_at = now() where id = $1 returning id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\" ",
   "describe": {
     "columns": [
       {
@@ -198,13 +198,69 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 14,
+        "name": "group_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "group_id"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "name_display: NameDisplay",
+        "type_info": {
+          "Custom": {
+            "name": "name_display",
+            "kind": {
+              "Enum": [
+                "full",
+                "partial",
+                "hidden"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "name_display"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "rsvp_response",
+            "kind": {
+              "Enum": [
+                "pending",
+                "attending",
+                "declined"
+              ]
+            }
+          }
+        },
         "Int4",
-        "Int4",
+        {
+          "Custom": {
+            "name": "name_display",
+            "kind": {
+              "Enum": [
+                "full",
+                "partial",
+                "hidden"
+              ]
+            }
+          }
+        },
         {
           "Custom": {
             "name": "lang",
@@ -233,8 +289,10 @@
       true,
       true,
       true,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "6aaba788bf9f031302b9e834170fbc9c7157ba33a0cc4c4b21d848910ca94545"
+  "hash": "96cf63f28dba08a207f480620f80860b1ed5c3453baa04c852589639f3800700"
 }
