@@ -40,7 +40,7 @@ You had no preference, and the devcontainer removes Go's main advantage (it was 
 | IDs and time | `uuid` (v7), `chrono` + `chrono-tz`: the tz database is compiled in, so the image needs no `/usr/share/zoneinfo` |
 | CLI | `clap` (derive) for the subcommands |
 | Logging | `tracing` + `tracing-subscriber` (JSON output) |
-| Rate limiting | `governor` (per IP, in memory) |
+| Rate limiting | A ~40-line fixed-window counter per IP (IPv6 per /64), in memory; no crate needed |
 | Admin | `argon2` (basic-auth hash), `csv`, `qrcode` (SVG output) |
 | TLS roots | `rustls` + `webpki-roots`: CA roots compiled in, so the image needs no `/etc/ssl` |
 
@@ -125,7 +125,7 @@ Every guest has one **RSVP link**. Possession of the link is the authorisation; 
 
 1. `/` shows only the event info. To RSVP, people need an invite link or the unlisted join link `/join/{code}`. The code comes from config and can be rotated if the link spreads too far.
 2. The guest enters a name and party size (1 or 2), then taps **I'm coming**.
-   - Abuse protection: a honeypot field and a per-IP in-memory rate limit. You can also delete entries in the admin UI or switch the whole feature off with `FEST_OPEN_RSVP=false`.
+   - Abuse protection: a honeypot field and a per-IP in-memory rate limit (10 sign-ups per hour, generous for a shared household connection). Behind the gateway, `FEST_TRUST_FORWARDED=true` takes the client address from the `X-Forwarded-For` entry the gateway appends. You can also delete entries in the admin UI, or switch the feature off by unsetting `FEST_OPEN_RSVP_CODE` (the join link then 404s).
 3. The guest is sent straight to their new `/r/{link}`, with a clear "**Bookmark or save this link** to change your answer later" box, plus copy and share buttons and an optional "add your e-mail" field. From there it's identical to 5.1.
 
 ### 5.3 Optional e-mail
@@ -307,7 +307,7 @@ just deploy              # kubectl apply -k deploy/ (or leave to Argo CD)
 2. ✅ **Schema:** migrations, the `db` module, `.sqlx/` offline data, `#[sqlx::test]` integration tests.
 3. ✅ **Links and the RSVP page:** HMAC signing, `/r/{link}` (respond, party size, rename, export, delete), link hygiene headers, CSRF middleware.
 4. ✅ **Admin:** invitations (create, link and QR, revoke, delete), headcount, CSV, basic auth, and `fest invite` on the CLI.
-5. **Open RSVP:** `/join/{code}`, honeypot, rate limit, a "save your link" page, and the on/off flag.
+5. ✅ **Open RSVP:** `/join/{code}`, honeypot, rate limit, a "save your link" page, and the on/off flag.
 6. **Optional e-mail:** add and confirm an address, the outbox and mailer (Mailpit locally, MailerSend in the cluster), `/lost`, reminders.
 7. **Janitor and privacy:** retention rules, `/privacy` (nb/en), `docs/ropa.md`.
 8. **Image:** buildah recipe, plus a CI workflow that pushes to GHCR.

@@ -35,6 +35,8 @@ struct RsvpPage<'a> {
     first_visit: bool,
     accepts_answers: bool,
     saved: bool,
+    /// The full link, shown right after an open RSVP so the guest can keep it.
+    new_link: Option<String>,
     error: Option<&'static str>,
 }
 
@@ -65,6 +67,7 @@ impl<'a> RsvpPage<'a> {
             first_visit: rsvp.privacy_version.is_none(),
             accepts_answers: state.config.event.accepts_answers(Utc::now()),
             saved: false,
+            new_link: None,
             error: None,
         }
     }
@@ -117,6 +120,7 @@ fn saved_redirect(link: &str, lang: Lang) -> Response {
 #[derive(Deserialize)]
 pub struct ShowQuery {
     saved: Option<String>,
+    new: Option<String>,
 }
 
 pub async fn show(
@@ -131,6 +135,9 @@ pub async fn show(
     };
     let mut page = RsvpPage::new(&state, lang, &link, &rsvp);
     page.saved = query.saved.is_some();
+    page.new_link = query
+        .new
+        .map(|_| format!("{}/r/{link}", state.config.base_url));
     render(page)
 }
 
@@ -279,73 +286,10 @@ pub async fn delete(
 
 #[cfg(test)]
 mod tests {
-    use axum::{body::Body, http::Request};
-    use http_body_util::BodyExt;
     use sqlx::PgPool;
-    use tower::ServiceExt;
 
     use super::*;
-    use crate::config::{Config, tests::parse};
-
-    struct Site {
-        db: PgPool,
-        config: Config,
-    }
-
-    impl Site {
-        fn new(db: PgPool) -> Self {
-            Self::with(db, &[])
-        }
-
-        fn with(db: PgPool, overrides: &[(&str, &str)]) -> Self {
-            Self {
-                db,
-                config: parse(overrides).unwrap(),
-            }
-        }
-
-        async fn invite(&self, name: &str, max_party_size: i32) -> (Rsvp, String) {
-            let rsvp = rsvp::create_invite(&self.db, name, max_party_size)
-                .await
-                .unwrap();
-            let link = self.config.link_key.rsvp_link(rsvp.id, rsvp.link_nonce);
-            (rsvp, link)
-        }
-
-        async fn send(&self, request: Request<Body>) -> Response {
-            super::super::router(self.config.clone(), self.db.clone())
-                .oneshot(request)
-                .await
-                .unwrap()
-        }
-
-        async fn get(&self, uri: &str) -> Response {
-            self.send(Request::get(uri).body(Body::empty()).unwrap())
-                .await
-        }
-
-        /// A same-origin form post, as a browser sends it.
-        async fn post(&self, uri: &str, form: &str) -> Response {
-            self.send(form_post(uri, form, "same-origin")).await
-        }
-
-        async fn find(&self, rsvp: &Rsvp) -> Option<Rsvp> {
-            rsvp::find(&self.db, rsvp.id).await.unwrap()
-        }
-    }
-
-    fn form_post(uri: &str, form: &str, fetch_site: &str) -> Request<Body> {
-        Request::post(uri)
-            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .header("sec-fetch-site", fetch_site)
-            .body(Body::from(form.to_owned()))
-            .unwrap()
-    }
-
-    async fn body(response: Response) -> String {
-        let bytes = response.into_body().collect().await.unwrap().to_bytes();
-        String::from_utf8(bytes.to_vec()).unwrap()
-    }
+    use crate::web::testing::{Site, body, form_post};
 
     #[sqlx::test]
     async fn guest_answers_through_their_link(db: PgPool) {

@@ -122,6 +122,15 @@ pub struct Messages {
     pub export: &'static str,
     pub delete_confirm: &'static str,
     pub delete: &'static str,
+    pub save_link_title: &'static str,
+    pub save_link_text: &'static str,
+
+    // Open RSVP
+    pub join_heading: &'static str,
+    /// What we store and why (GDPR Art. 13), shown where the data is collected.
+    pub join_notice: &'static str,
+    pub your_name: &'static str,
+    pub join_button: &'static str,
 
     // Errors and outcomes
     pub invalid_party_size: &'static str,
@@ -132,6 +141,9 @@ pub struct Messages {
     pub deleted_title: &'static str,
     pub deleted_text: &'static str,
     pub to_event: &'static str,
+    pub too_many_attempts: &'static str,
+    pub not_found_title: &'static str,
+    pub not_found_text: &'static str,
 }
 
 impl Messages {
@@ -174,6 +186,15 @@ static NB: Messages = Messages {
     export: "Last ned (JSON)",
     delete_confirm: "Ja, slett svaret mitt og alt som er lagret om meg",
     delete: "Slett",
+    save_link_title: "Ta vare på lenken din!",
+    save_link_text: "Dette er den eneste måten å endre eller slette svaret ditt på. Legg til \
+        et bokmerke eller kopier lenken et trygt sted.",
+
+    join_heading: "Si at du kommer",
+    join_notice: "Vi lagrer bare navnet ditt og hvor mange dere blir, for å planlegge \
+        festen. Alt slettes 30 dager etter festen, og du kan slette det selv når som helst.",
+    your_name: "Navnet ditt",
+    join_button: "Jeg kommer!",
 
     invalid_party_size: "Velg et gyldig antall.",
     invalid_name: "Navnet må være mellom 1 og 100 tegn.",
@@ -185,6 +206,9 @@ static NB: Messages = Messages {
     deleted_text: "Vi har slettet navnet ditt, svaret ditt og alt annet vi hadde lagret om \
         deg. Ombestemt deg? Spør verten om en ny invitasjon.",
     to_event: "Til forsiden",
+    too_many_attempts: "For mange påmeldinger herfra. Prøv igjen om en time.",
+    not_found_title: "Siden finnes ikke",
+    not_found_text: "Sjekk at lenken er riktig, eller spør verten.",
 };
 
 static EN: Messages = Messages {
@@ -221,6 +245,16 @@ static EN: Messages = Messages {
     export: "Download (JSON)",
     delete_confirm: "Yes, delete my RSVP and everything stored about me",
     delete: "Delete",
+    save_link_title: "Save your link!",
+    save_link_text: "It's the only way to change or delete your answer. Bookmark this page \
+        or copy the link somewhere safe.",
+
+    join_heading: "Let us know you're coming",
+    join_notice: "We only store your name and how many of you are coming, to plan the \
+        party. It's all deleted 30 days after the event, and you can delete it yourself at \
+        any time.",
+    your_name: "Your name",
+    join_button: "I'm coming!",
 
     invalid_party_size: "Choose a valid number.",
     invalid_name: "The name must be between 1 and 100 characters.",
@@ -232,6 +266,9 @@ static EN: Messages = Messages {
     deleted_text: "We've deleted your name, your answer and everything else we stored about \
         you. Changed your mind? Ask the host for a new invitation.",
     to_event: "Back to the event",
+    too_many_attempts: "Too many sign-ups from here. Try again in an hour.",
+    not_found_title: "Page not found",
+    not_found_text: "Check that the link is right, or ask the host.",
 };
 
 #[cfg(test)]

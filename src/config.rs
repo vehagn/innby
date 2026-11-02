@@ -13,6 +13,11 @@ pub struct Config {
     /// and mails hand out.
     pub base_url: String,
     pub link_key: LinkKey,
+    /// The secret part of the shared `/join/{code}` link. The open RSVP is off without it.
+    pub open_rsvp_code: Option<String>,
+    /// Take the client address from the last `X-Forwarded-For` entry, which the gateway
+    /// appends. Only safe when every request comes through that gateway.
+    pub trust_forwarded: bool,
     pub event: Event,
 }
 
@@ -94,6 +99,24 @@ impl Config {
         let link_key =
             LinkKey::from_base64(&env.required("FEST_LINK_KEY")?).context("FEST_LINK_KEY")?;
 
+        let open_rsvp_code = env.optional("FEST_OPEN_RSVP_CODE");
+        if let Some(code) = &open_rsvp_code {
+            ensure!(
+                code.len() >= 8
+                    && code
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'),
+                "FEST_OPEN_RSVP_CODE: use at least 8 letters, digits, '-' or '_'"
+            );
+        }
+        let trust_forwarded = match env.optional("FEST_TRUST_FORWARDED").as_deref() {
+            None | Some("false") => false,
+            Some("true") => true,
+            Some(other) => {
+                anyhow::bail!("FEST_TRUST_FORWARDED: expected true or false, got {other:?}")
+            }
+        };
+
         let tz_name = env
             .optional("FEST_EVENT_TIMEZONE")
             .unwrap_or_else(|| "Europe/Oslo".into());
@@ -117,6 +140,8 @@ impl Config {
             listen,
             base_url,
             link_key,
+            open_rsvp_code,
+            trust_forwarded,
             event: Event {
                 title: env.localized("FEST_EVENT_TITLE")?,
                 description: env.localized("FEST_EVENT_DESCRIPTION")?,
@@ -227,6 +252,20 @@ pub mod tests {
         assert!(AdminConfig::from_lookup(|_| None).is_err());
         let err = AdminConfig::from_lookup(|_| Some("hunter2".into())).unwrap_err();
         assert!(format!("{err:#}").starts_with("FEST_ADMIN_PASSWORD_HASH"));
+    }
+
+    #[test]
+    fn open_rsvp_is_off_unless_a_code_is_set() {
+        let config = parse(&[]).unwrap();
+        assert_eq!(config.open_rsvp_code, None);
+        assert!(!config.trust_forwarded);
+
+        let config = parse(&[("FEST_OPEN_RSVP_CODE", "jul-2026_ab")]).unwrap();
+        assert_eq!(config.open_rsvp_code.as_deref(), Some("jul-2026_ab"));
+        for bad in ["short", "has space x", "æøå-code-1"] {
+            assert!(parse(&[("FEST_OPEN_RSVP_CODE", bad)]).is_err(), "{bad}");
+        }
+        assert!(parse(&[("FEST_TRUST_FORWARDED", "yes")]).is_err());
     }
 
     #[test]

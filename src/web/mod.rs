@@ -1,10 +1,14 @@
 mod csrf;
+mod join;
 mod pages;
+mod rate_limit;
 mod rsvp;
+#[cfg(test)]
+mod testing;
 
 pub use pages::{render, render_with, server_error, stylesheet};
 
-use std::{convert::Infallible, net::SocketAddr, sync::Arc};
+use std::{convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use axum::{
@@ -46,6 +50,7 @@ const LINK_HEADERS: [(header::HeaderName, &str); 1] = [(header::CACHE_CONTROL, "
 struct AppState {
     config: Arc<Config>,
     db: PgPool,
+    join_limiter: Arc<rate_limit::RateLimiter>,
 }
 
 impl FromRef<AppState> for PgPool {
@@ -65,9 +70,12 @@ pub async fn listen(address: SocketAddr, app: Router) -> anyhow::Result<()> {
         .await
         .with_context(|| format!("binding {address}"))?;
     tracing::info!(address = %listener.local_addr()?, "listening");
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
     Ok(())
 }
 
@@ -92,8 +100,14 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
     let state = AppState {
         config: Arc::new(config),
         db,
+        // Generous enough for a household sharing one address.
+        join_limiter: Arc::new(rate_limit::RateLimiter::new(
+            10,
+            Duration::from_secs(60 * 60),
+        )),
     };
     let links = Router::new()
+        .route("/join/{code}", get(join::show).post(join::join))
         .route("/r/{link}", get(rsvp::show).post(rsvp::answer))
         .route("/r/{link}/name", post(rsvp::rename))
         .route("/r/{link}/export", get(rsvp::export))
@@ -104,6 +118,7 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(ready))
         .merge(no_store(links))
+        .fallback(pages::not_found)
         .with_state(state);
     harden(router)
 }

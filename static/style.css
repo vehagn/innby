@@ -257,3 +257,21 @@ th {
 input[readonly] {
   max-width: none;
 }
+
+/* Honeypot: invisible to people, tempting to bots. */
+.hp {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.save-link {
+  border-color: #2e7d32;
+  margin: 0 0 1.5rem;
+}
+
+.save-link input {
+  margin: 0;
+}

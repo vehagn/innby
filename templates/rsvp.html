@@ -6,6 +6,14 @@
 {% if saved %}<p class="notice success" role="status">{{ t.saved }}</p>{% endif %}
 {% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
 
+{% if let Some(new_link) = new_link %}
+<section class="notice save-link" aria-labelledby="save-link-heading">
+  <h2 id="save-link-heading">{{ t.save_link_title }}</h2>
+  <p>{{ t.save_link_text }}</p>
+  <input type="text" readonly value="{{ new_link }}" aria-labelledby="save-link-heading">
+</section>
+{% endif %}
+
 {% include "_event.html" %}
 
 <section class="card" aria-labelledby="answer-heading">

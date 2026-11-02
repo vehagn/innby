@@ -1,6 +1,3 @@
-// Open RSVP (milestone 5) calls `create_open`; until then only the tests do.
-#![allow(dead_code)]
-
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::PgExecutor;

@@ -87,6 +87,14 @@ impl MessagePage {
     }
 }
 
+/// The fallback for unknown paths, and for the open RSVP while it's closed.
+pub async fn not_found(lang: Lang) -> Response {
+    render_with(
+        StatusCode::NOT_FOUND,
+        MessagePage::new(lang, |t| (t.not_found_title, t.not_found_text)),
+    )
+}
+
 pub async fn stylesheet() -> impl IntoResponse {
     (
         [

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}{{ event.title }}{% endblock %}
+
+{% block content %}
+{% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
+
+{% include "_event.html" %}
+
+<section class="card" aria-labelledby="join-heading">
+  <h2 id="join-heading">{{ t.join_heading }}</h2>
+  {% if accepts_answers %}
+  <form method="post" action="/join/{{ code }}?lang={{ lang.code() }}">
+    <label for="name">{{ t.your_name }}</label>
+    <input id="name" name="name" value="{{ name }}" required maxlength="100" autocomplete="name">
+    <label for="party_size">{{ t.how_many }}</label>
+    <select id="party_size" name="party_size">
+      {% for (value, label, selected) in party_sizes %}
+      <option value="{{ value }}"{% if *selected %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <div class="hp" aria-hidden="true">
+      <label for="website">Website</label>
+      <input id="website" name="website" tabindex="-1" autocomplete="off">
+    </div>
+    <p class="muted small">{{ t.join_notice }} <a href="/privacy?lang={{ lang.code() }}">{{ t.privacy_link }}</a></p>
+    <div class="buttons">
+      <button>{{ t.join_button }}</button>
+    </div>
+  </form>
+  {% else %}
+  <p class="muted">{{ t.answers_closed }}</p>
+  {% endif %}
+</section>
+{% endblock %}
