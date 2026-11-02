@@ -575,7 +575,7 @@ mod tests {
         let html = body(response).await;
         let t = en();
         assert!(html.contains(&format!(
-            r#"<li>Kari Nordmann <span class="muted">({})</span></li>"#,
+            r#"<li>Kari Nordmann <span class="muted">{}</span></li>"#,
             t.you
         )));
         assert!(html.contains("<li>Anne L.</li>"));
@@ -583,8 +583,8 @@ mod tests {
         assert!(html.contains(&format!(r#"<li class="muted">{}</li>"#, t.more_guests(1))));
         assert!(!html.contains("Ola H") && !html.contains("Per B"));
         assert!(html.contains(&format!(
-            "{} <strong>Kari Nordmann</strong></p>",
-            t.listed_as
+            "{}</p>",
+            crate::i18n::bold(&t.listed_as, "name", "Kari Nordmann")
         )));
         assert!(html.contains(&format!(
             r#"href="/r/{kari}?lang=en">{}"#,
@@ -616,6 +616,20 @@ mod tests {
 
         let response = site.get("/r/garbage/guests").await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[sqlx::test]
+    async fn chinese_pages_and_names(db: PgPool) {
+        let site = Site::new(db);
+        let (_, link) = site.invite("王小明", 1).await;
+        let html = body(site.get(&format!("/r/{link}?lang=zh-hans")).await).await;
+        assert!(html.contains(r#"<html lang="zh-Hans">"#));
+        assert!(html.contains("王小明，你好！"));
+        assert!(html.contains("你的回复：<strong>尚未回复</strong>"));
+        // Before answering, other guests see only the family name.
+        assert!(html.contains(r#"<option value="partial">部分姓名（王**）</option>"#));
+        let html = body(site.get(&format!("/r/{link}/guests?lang=zh-hant")).await).await;
+        assert!(html.contains("其他賓客看到的你：<strong>王**</strong>"));
     }
 
     #[sqlx::test]

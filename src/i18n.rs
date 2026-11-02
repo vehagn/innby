@@ -23,11 +23,26 @@ pub enum Lang {
     #[serde(rename = "en-us")]
     #[sqlx(rename = "en-us")]
     EnUs,
+    /// Simplified Chinese.
+    #[serde(rename = "zh-hans")]
+    #[sqlx(rename = "zh-hans")]
+    ZhHans,
+    /// Traditional Chinese.
+    #[serde(rename = "zh-hant")]
+    #[sqlx(rename = "zh-hant")]
+    ZhHant,
 }
 
 impl Lang {
     pub const DEFAULT: Lang = Lang::Nb;
-    pub const ALL: [Lang; 4] = [Lang::Nb, Lang::Nn, Lang::EnGb, Lang::EnUs];
+    pub const ALL: [Lang; 6] = [
+        Lang::Nb,
+        Lang::Nn,
+        Lang::EnGb,
+        Lang::EnUs,
+        Lang::ZhHans,
+        Lang::ZhHant,
+    ];
 
     /// The `?lang=` value.
     pub fn code(self) -> &'static str {
@@ -36,6 +51,8 @@ impl Lang {
             Lang::Nn => "nn",
             Lang::EnGb => "en",
             Lang::EnUs => "en-us",
+            Lang::ZhHans => "zh-hans",
+            Lang::ZhHant => "zh-hant",
         }
     }
 
@@ -46,11 +63,14 @@ impl Lang {
             Lang::Nn => "nn",
             Lang::EnGb => "en-GB",
             Lang::EnUs => "en-US",
+            Lang::ZhHans => "zh-Hans",
+            Lang::ZhHant => "zh-Hant",
         }
     }
 
     /// Parses a `?lang=` value or a language tag such as "nn-NO". Plain "no" is Bokmål,
-    /// and English is British unless it's from the US.
+    /// English is British unless it's from the US, and Chinese is Simplified unless it's
+    /// Traditional or from Taiwan, Hong Kong or Macau.
     pub fn from_code(code: &str) -> Option<Self> {
         let code = code.trim().to_ascii_lowercase();
         let (language, region) = code.split_once(['-', '_']).unwrap_or((&code, ""));
@@ -59,6 +79,12 @@ impl Lang {
             ("nn", _) => Some(Lang::Nn),
             ("en", "us") => Some(Lang::EnUs),
             ("en", _) => Some(Lang::EnGb),
+            ("zh", region)
+                if region.starts_with("hant") || ["tw", "hk", "mo"].contains(&region) =>
+            {
+                Some(Lang::ZhHant)
+            }
+            ("zh", _) => Some(Lang::ZhHans),
             _ => None,
         }
     }
@@ -97,6 +123,8 @@ impl Lang {
             Lang::Nn => include_str!("../locales/nn.toml"),
             Lang::EnGb => include_str!("../locales/en.toml"),
             Lang::EnUs => include_str!("../locales/en-us.toml"),
+            Lang::ZhHans => include_str!("../locales/zh-hans.toml"),
+            Lang::ZhHant => include_str!("../locales/zh-hant.toml"),
         }
     }
 
@@ -106,6 +134,8 @@ impl Lang {
             Lang::Nn => Locale::nn_NO,
             Lang::EnGb => Locale::en_GB,
             Lang::EnUs => Locale::en_US,
+            Lang::ZhHans => Locale::zh_CN,
+            Lang::ZhHant => Locale::zh_TW,
         }
     }
 
@@ -126,6 +156,8 @@ pub struct Localized<T> {
     pub nn: T,
     pub en_gb: T,
     pub en_us: T,
+    pub zh_hans: T,
+    pub zh_hant: T,
 }
 
 impl<T> Localized<T> {
@@ -135,11 +167,13 @@ impl<T> Localized<T> {
             Lang::Nn => &self.nn,
             Lang::EnGb => &self.en_gb,
             Lang::EnUs => &self.en_us,
+            Lang::ZhHans => &self.zh_hans,
+            Lang::ZhHant => &self.zh_hant,
         }
     }
 }
 
-static MESSAGES: LazyLock<[Messages; 4]> = LazyLock::new(|| Lang::ALL.map(Messages::load));
+static MESSAGES: LazyLock<[Messages; 6]> = LazyLock::new(|| Lang::ALL.map(Messages::load));
 
 /// Reads every language's texts now, so a broken file stops the program at start rather
 /// than failing the first page that needs it.
@@ -235,6 +269,7 @@ pub struct Messages {
     pub guest_list_more: String,
     pub guest_list_empty: String,
     pub guest_list_note: String,
+    /// After your own name on the guest list: "(you)".
     pub you: String,
     pub listed_as: String,
     pub listed_hidden: String,
@@ -244,6 +279,8 @@ pub struct Messages {
     pub display_full: String,
     pub display_partial: String,
     pub display_hidden: String,
+    /// A choice with what others would see: "{label} ({name})".
+    pub display_choice: String,
 
     // Group sign-up
     pub join_group: String,
@@ -334,6 +371,32 @@ impl Messages {
     }
 }
 
+/// `text` with its one `{key}` filled in. For templates, which escape the result.
+pub fn filled(text: &str, key: &str, value: &str) -> String {
+    fill(text, &[(key, &value)])
+}
+
+/// `text` with its one `{key}` filled in as `<strong>value</strong>`, all of it escaped.
+/// For templates, with `|safe`.
+pub fn bold(text: &str, key: &str, value: &str) -> String {
+    let placeholder = format!("{{{key}}}");
+    let (before, after) = text.split_once(&placeholder).unwrap_or((text, ""));
+    format!(
+        "{}<strong>{}</strong>{}",
+        escape_html(before),
+        escape_html(value),
+        escape_html(after)
+    )
+}
+
+fn escape_html(text: &str) -> String {
+    text.replace('&', "&#38;")
+        .replace('<', "&#60;")
+        .replace('>', "&#62;")
+        .replace('"', "&#34;")
+        .replace('\'', "&#39;")
+}
+
 /// `text` with each `{key}` replaced by its value, in one pass, so a value that contains
 /// braces (a guest's name, say) is never filled in itself. Unknown keys stay as they are.
 pub fn fill(text: &str, values: &[(&str, &dyn Display)]) -> String {
@@ -381,6 +444,10 @@ mod tests {
         assert_eq!(Lang::negotiate("no, en;q=0.3"), Some(Lang::Nb));
         assert_eq!(Lang::negotiate("en-US,en;q=0.9"), Some(Lang::EnUs));
         assert_eq!(Lang::negotiate("en-AU"), Some(Lang::EnGb));
+        assert_eq!(Lang::negotiate("zh-CN,zh;q=0.9"), Some(Lang::ZhHans));
+        assert_eq!(Lang::negotiate("zh-TW"), Some(Lang::ZhHant));
+        assert_eq!(Lang::negotiate("zh-Hant-HK"), Some(Lang::ZhHant));
+        assert_eq!(Lang::negotiate("zh"), Some(Lang::ZhHans));
     }
 
     #[test]
@@ -413,6 +480,8 @@ mod tests {
                 "laurdag 12. desember 2026 kl. 19:00",
                 "Saturday 12 December 2026 at 7.00 pm",
                 "Sat, Dec 12, 2026, 7:00 PM",
+                "2026年12月12日（星期六）19:00",
+                "2026年12月12日（週六）19:00",
             ]
         );
     }
@@ -467,6 +536,15 @@ mod tests {
     }
 
     #[test]
+    fn bolds_a_value_and_escapes_everything() {
+        assert_eq!(
+            bold("Hi <{name}> & co", "name", "<b>Kari</b>"),
+            "Hi &#60;<strong>&#60;b&#62;Kari&#60;/b&#62;</strong>&#62; &#38; co"
+        );
+        assert_eq!(filled("{name}，你好！", "name", "王小明"), "王小明，你好！");
+    }
+
+    #[test]
     fn fills_in_each_placeholder_once() {
         let name = "{url}";
         let filled = fill(
@@ -479,11 +557,12 @@ mod tests {
 
     #[test]
     fn counts_people() {
-        let [nb, nn, en, us] = Lang::ALL.map(Lang::messages);
+        let [nb, nn, en, us, zh, _] = Lang::ALL.map(Lang::messages);
         assert_eq!(en.people_count(1), "1 guest");
         assert_eq!(nb.people_count(3), "3 personer");
         assert_eq!(nn.people_count(3), "3 personar");
         assert_eq!(us.people_count(2), "2 people");
+        assert_eq!(zh.answer(Response::Attending, 3), "参加 · 3 人");
         assert_eq!(en.answer(Response::Attending, 2), "Attending · 2 guests");
         assert_eq!(us.answer(Response::Attending, 2), "Going · 2 people");
         assert_eq!(nb.answer(Response::Declined, 2), "Kommer ikke");

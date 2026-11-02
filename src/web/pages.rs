@@ -13,7 +13,7 @@ use super::{AppState, PRIVACY_VERSION};
 use crate::{
     config::{Controller, Event},
     db::rsvp::{self, NameDisplay, Response as Answer, Rsvp},
-    i18n::{Lang, Messages},
+    i18n::{Lang, Messages, fill},
     janitor::{KEEP_AFTER_EVENT, KEEP_SENT_MAIL},
 };
 
@@ -80,7 +80,9 @@ impl DisplayChoice {
                 Self {
                     value: display.code(),
                     label: match name.and_then(|name| display.apply(name)) {
-                        Some(shown) => format!("{label} ({shown})"),
+                        Some(shown) => {
+                            fill(&t.display_choice, &[("label", &label), ("name", &shown)])
+                        }
                         None => label.to_owned(),
                     },
                     selected: display == selected,

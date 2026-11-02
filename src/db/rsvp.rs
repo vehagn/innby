@@ -76,8 +76,18 @@ impl NameDisplay {
     }
 }
 
-/// The first word and the initial of the last: "Kari Nordmann" becomes "Kari N.".
+/// The first word and the initial of the last: "Kari Nordmann" becomes "Kari N.". Chinese,
+/// Japanese and Korean names come family name first and without spaces, so they keep
+/// only the family name: "王小明" becomes "王**".
 fn partial_name(name: &str) -> String {
+    let chars: Vec<char> = name.chars().collect();
+    if let [family, given @ ..] = chars.as_slice()
+        && is_cjk(*family)
+        && !given.is_empty()
+        && !given.iter().any(|c| c.is_whitespace())
+    {
+        return format!("{family}{}", "*".repeat(given.len()));
+    }
     let mut words = name.split_whitespace();
     let first = words.next().unwrap_or_default();
     match words.next_back().and_then(|last| last.chars().next()) {
@@ -300,6 +310,19 @@ pub fn normalize_name(name: &str) -> Option<String> {
         && name.chars().any(char::is_alphanumeric)
         && !name.chars().any(|c| c.is_control() || is_bidi_control(c));
     valid.then_some(name)
+}
+
+/// Han, kana and Hangul characters.
+fn is_cjk(c: char) -> bool {
+    matches!(
+        c,
+        '\u{3040}'..='\u{30FF}'
+            | '\u{3400}'..='\u{4DBF}'
+            | '\u{4E00}'..='\u{9FFF}'
+            | '\u{AC00}'..='\u{D7AF}'
+            | '\u{F900}'..='\u{FAFF}'
+            | '\u{20000}'..='\u{2A6DF}'
+    )
 }
 
 /// Characters that take up no space, which a pasted name can carry along. The joiners
@@ -655,6 +678,9 @@ pub(crate) mod tests {
         assert_eq!(partial_name("Kari & Ola  Østby"), "Kari Ø.");
         assert_eq!(partial_name("Per"), "Per");
         assert_eq!(partial_name("anne van der berg"), "anne B.");
+        assert_eq!(partial_name("王小明"), "王**");
+        assert_eq!(partial_name("김민준"), "김**");
+        assert_eq!(partial_name("王"), "王");
     }
 
     #[test]

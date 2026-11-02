@@ -1,0 +1,175 @@
+# Simplified Chinese texts for the public site and the mails. Every language has the
+# same keys; a missing or unknown key fails the tests and stops fest at start.
+# `{name}` and the like are filled in; keep them as they are.
+
+# The language's own name, on the language switch.
+language_name = "简体中文"
+# What the language switch is, for screen readers.
+languages = "语言"
+privacy_link = "隐私"
+
+# Event
+# `chrono` format for dates and times.
+date_format = "%Y年%-m月%-d日（%A）%H:%M"
+when = "时间"
+place = "地点"
+rsvp_hint = "收到邀请了吗？请用随邀请收到的链接回复。"
+
+# RSVP page
+greeting = "{name}，你好！"
+# Shown until the guest has answered: what we store and why (GDPR Art. 13/14).
+first_visit_notice = """
+你被邀请啦！为了筹备聚会，我们只保存你的姓名、回复和同行人数，别无其他，所有内容会在聚会结束 30 天\
+后删除。在宾客名单上，其他宾客会看到你的部分姓名，你也可以选择他们看到什么。"""
+keep_link = "这是你的个人页面。请保存好链接，以便日后修改回复，不要分享给别人。"
+saved = "已保存！"
+your_answer = "你的回复：{answer}"
+answer_pending = "尚未回复"
+answer_attending = "参加"
+answer_declined = "不参加"
+how_many = "共有几人参加？"
+people_one = "{n} 人"
+people_other = "{n} 人"
+attend = "我会参加"
+decline = "我去不了"
+reply_by = "请在 {deadline} 前回复"
+answers_closed = "回复已截止。如有变动，请联系主人。"
+name_heading = "姓名"
+change_name = "修改姓名"
+data_heading = "你的数据"
+data_text = "你可以下载我们保存的关于你的所有信息，也可以立即删除。"
+export = "下载（JSON）"
+delete_confirm = "是的，删除我的回复以及关于我的所有信息"
+delete = "删除"
+save_link_title = "请保存好你的链接！"
+save_link_text = "这是修改或删除回复的唯一方式。请将本页加入书签，或把链接复制到安全的地方。"
+
+# Optional e-mail
+email_heading = "邮件提醒"
+email_intro = "想通过电子邮件收到提醒和你的链接吗？完全自愿。"
+email_label = "电子邮件地址"
+# The consent statement next to the unticked box (GDPR Art. 7).
+email_consent = "是的，请通过电子邮件给我发送提醒和我的链接。我可以随时删除我的地址。"
+email_add = "添加"
+email_pending = "我们已向 {email} 发送确认链接。"
+email_pending_hint = "链接 48 小时内有效。"
+email_confirmed = "提醒将发送至 {email}。"
+email_remove = "删除我的电子邮件地址"
+email_sent_notice = "请查收邮件以确认地址。"
+email_removed_notice = "你的电子邮件地址已删除。"
+email_confirmed_notice = "你的电子邮件地址已确认，我们会把链接发给你。"
+invalid_email = "请输入有效的电子邮件地址。"
+consent_required = "请勾选方框表示同意。"
+confirm_title = "确认你的电子邮件地址"
+confirm_text = "点击按钮，确认你希望通过电子邮件接收提醒和你的链接。"
+confirm_button = "确认"
+confirm_invalid_text = "确认链接已过期或已失效。请在你的回复页面重新添加地址。"
+lost_link = "链接丢了？"
+lost_title = "链接丢了？"
+lost_text = "如果你添加并确认过电子邮件地址，我们会重新发送你的链接。"
+lost_button = "发送我的链接"
+lost_sent_title = "请查收邮件"
+lost_sent_text = "如果该地址已登记并确认，我们已将链接发送给你。"
+
+# Guest list
+guest_list_heading = "宾客名单"
+# The button to the guest list, which is on a page of its own.
+see_guest_list = "看看谁会来"
+back_to_your_page = "返回你的页面"
+back_to_sign_up = "返回报名页面"
+guest_list_coming = "参加"
+guest_list_pending = "尚未回复"
+# "+ {n} more", for guests who'd rather not be listed.
+guest_list_more = "另有 {n} 人"
+guest_list_empty = "名单上还没有人。"
+guest_list_note = "不参加的宾客不会列在名单上。"
+# After your own name on the guest list.
+you = "（你）"
+listed_as = "其他宾客看到的你：{name}"
+listed_hidden = "你的名字不在名单上。"
+listed_declined = "你不参加，所以不在名单上。"
+show_instead = "改为显示："
+name_display_label = "你在宾客名单上的名字"
+display_full = "全名"
+display_partial = "部分姓名"
+display_hidden = "不显示我的名字"
+# A choice with what others would see.
+display_choice = "{label}（{name}）"
+
+# Group sign-up
+join_group = "邀请来自：{group}"
+join_heading = "告诉我们你会来"
+# What we store and why (GDPR Art. 13), shown where the data is collected.
+join_notice = """
+我们只保存你的姓名和同行人数，用于筹备聚会。其他宾客会按你在上面的选择看到你的名字。所有内容会在聚会结\
+束 30 天后删除，你也可以随时自行删除。"""
+your_name = "你的姓名"
+join_button = "我会参加！"
+
+# Errors and outcomes
+invalid_party_size = "请选择有效的人数。"
+invalid_name = "姓名须为 1 到 100 个字符。"
+confirm_delete = "请勾选方框以确认删除。"
+gone_title = "此链接无效"
+gone_text = "链接可能输错了、已被新链接取代，或者回复已被删除。请向主人索取新链接。"
+deleted_title = "你的回复已删除"
+deleted_text = "我们已删除你的姓名、回复以及保存的关于你的其他所有信息。改主意了？请向主人索取新的邀请。"
+to_event = "返回首页"
+too_many_attempts = "尝试次数过多，请一小时后再试。"
+not_found_title = "页面不存在"
+not_found_text = "请检查链接是否正确，或询问主人。"
+
+# Mails. Each is plain text; `{url}` is a link on the site and `{title}` the event.
+[mail]
+# Under every mail. `{base}` is the site's address.
+footer = "你收到这封邮件，是因为有人在 {base} 上添加了这个地址。你可以随时在回复页面上删除它。"
+
+# To an address a guest typed in, before it's confirmed. Anyone can type in
+# any address, so this mail must not include anything a guest wrote, such as `{name}`.
+[mail.confirm_email]
+subject = "确认你的电子邮件地址 – {title}"
+body = """
+你好！
+
+打开链接并点击“确认”，即可通过电子邮件接收 {title} 的提醒和你的链接：
+
+{url}
+
+链接 48 小时内有效。如果不是你本人操作，请忽略这封邮件，该地址会被自动删除。"""
+
+# To the confirmed owner when someone else adds their address.
+[mail.email_in_use]
+subject = "你的电子邮件地址已被登记 – {title}"
+body = """
+你好！
+
+有人（也许是你）试图把这个电子邮件地址添加到 {title} 的一份回复中，但该地址已在使用。如果你弄丢了链接，\
+可以在这里重新获取：
+
+{url}
+
+如果不是你本人操作，请忽略这封邮件。"""
+
+# The guest's own link, after confirming or from /lost.
+[mail.rsvp_link]
+subject = "你的链接 – {title}"
+body = """
+{name}，你好！
+
+这是你参加 {title} 的个人链接，可用来修改或删除你的回复：
+
+{url}
+
+请勿将链接分享给他人。"""
+
+# From the host's Send reminders. `{when}`, `{place}`, `{answer}`.
+[mail.reminder]
+subject = "提醒：{title}"
+body = """
+{name}，你好！
+
+提醒你 {title}：{when}，{place}。
+
+你的回复：{answer}。在这里修改：
+
+{url}"""

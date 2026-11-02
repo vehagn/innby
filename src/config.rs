@@ -86,8 +86,9 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
             .ok_or_else(|| anyhow!("{key} must be set"))
     }
 
-    /// `{key}_NB`, with optional `_NN`, `_EN` (British) and `_EN_US`. Nynorsk and British
-    /// English fall back to Bokmål, and American English to British.
+    /// `{key}_NB`, with optional `_NN`, `_EN` (British), `_EN_US`, `_ZH_HANS` and
+    /// `_ZH_HANT`. Nynorsk and British English fall back to Bokmål, American English and
+    /// Simplified Chinese to British, and Traditional Chinese to Simplified.
     fn localized(&self, key: &str) -> Result<Localized<String>> {
         let nb = self.required(&format!("{key}_NB"))?;
         let or = |suffix: &str, fallback: &String| {
@@ -95,9 +96,12 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
                 .unwrap_or_else(|| fallback.clone())
         };
         let en_gb = or("EN", &nb);
+        let zh_hans = or("ZH_HANS", &en_gb);
         Ok(Localized {
             nn: or("NN", &nb),
             en_us: or("EN_US", &en_gb),
+            zh_hant: or("ZH_HANT", &zh_hans),
+            zh_hans,
             en_gb,
             nb,
         })
@@ -328,6 +332,7 @@ pub mod tests {
         assert_eq!(event.description.en_gb, "Velkommen!");
         assert_eq!(event.title.nn, "Julebord");
         assert_eq!(event.title.en_us, "Christmas party");
+        assert_eq!(event.title.zh_hant, "Christmas party");
 
         let event = parse(&[
             ("FEST_EVENT_TITLE_NN", "Juleball"),

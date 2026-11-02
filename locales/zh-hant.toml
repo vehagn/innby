@@ -1,0 +1,175 @@
+# Traditional Chinese texts for the public site and the mails. Every language has the
+# same keys; a missing or unknown key fails the tests and stops fest at start.
+# `{name}` and the like are filled in; keep them as they are.
+
+# The language's own name, on the language switch.
+language_name = "繁體中文"
+# What the language switch is, for screen readers.
+languages = "語言"
+privacy_link = "隱私"
+
+# Event
+# `chrono` format for dates and times.
+date_format = "%Y年%-m月%-d日（%A）%H:%M"
+when = "時間"
+place = "地點"
+rsvp_hint = "收到邀請了嗎？請用隨邀請收到的連結回覆。"
+
+# RSVP page
+greeting = "{name}，你好！"
+# Shown until the guest has answered: what we store and why (GDPR Art. 13/14).
+first_visit_notice = """
+你被邀請囉！為了籌備聚會，我們只儲存你的姓名、回覆和同行人數，別無其他，所有內容會在聚會結束 30 天\
+後刪除。在賓客名單上，其他賓客會看到你的部分姓名，你也可以選擇他們看到什麼。"""
+keep_link = "這是你的個人頁面。請保存好連結，以便日後修改回覆，不要分享給別人。"
+saved = "已儲存！"
+your_answer = "你的回覆：{answer}"
+answer_pending = "尚未回覆"
+answer_attending = "參加"
+answer_declined = "不參加"
+how_many = "共有幾人參加？"
+people_one = "{n} 人"
+people_other = "{n} 人"
+attend = "我會參加"
+decline = "我去不了"
+reply_by = "請在 {deadline} 前回覆"
+answers_closed = "回覆已截止。如有變動，請聯絡主人。"
+name_heading = "姓名"
+change_name = "修改姓名"
+data_heading = "你的資料"
+data_text = "你可以下載我們儲存的所有關於你的資料，也可以立即刪除。"
+export = "下載（JSON）"
+delete_confirm = "是的，刪除我的回覆以及所有關於我的資料"
+delete = "刪除"
+save_link_title = "請保存好你的連結！"
+save_link_text = "這是修改或刪除回覆的唯一方式。請將本頁加入書籤，或把連結複製到安全的地方。"
+
+# Optional e-mail
+email_heading = "電子郵件提醒"
+email_intro = "想透過電子郵件收到提醒和你的連結嗎？完全自願。"
+email_label = "電子郵件地址"
+# The consent statement next to the unticked box (GDPR Art. 7).
+email_consent = "是的，請透過電子郵件寄給我提醒和我的連結。我可以隨時刪除我的地址。"
+email_add = "新增"
+email_pending = "我們已寄送確認連結至 {email}。"
+email_pending_hint = "連結 48 小時內有效。"
+email_confirmed = "提醒將寄送至 {email}。"
+email_remove = "刪除我的電子郵件地址"
+email_sent_notice = "請查看信箱以確認地址。"
+email_removed_notice = "你的電子郵件地址已刪除。"
+email_confirmed_notice = "你的電子郵件地址已確認，我們會把連結寄給你。"
+invalid_email = "請輸入有效的電子郵件地址。"
+consent_required = "請勾選方框表示同意。"
+confirm_title = "確認你的電子郵件地址"
+confirm_text = "點擊按鈕，確認你希望透過電子郵件接收提醒和你的連結。"
+confirm_button = "確認"
+confirm_invalid_text = "確認連結已過期或已失效。請在你的回覆頁面重新新增地址。"
+lost_link = "連結弄丟了？"
+lost_title = "連結弄丟了？"
+lost_text = "如果你新增並確認過電子郵件地址，我們會重新寄送你的連結。"
+lost_button = "寄送我的連結"
+lost_sent_title = "請查看信箱"
+lost_sent_text = "如果該地址已登記並確認，我們已將連結寄給你。"
+
+# Guest list
+guest_list_heading = "賓客名單"
+# The button to the guest list, which is on a page of its own.
+see_guest_list = "看看誰會來"
+back_to_your_page = "返回你的頁面"
+back_to_sign_up = "返回報名頁面"
+guest_list_coming = "參加"
+guest_list_pending = "尚未回覆"
+# "+ {n} more", for guests who'd rather not be listed.
+guest_list_more = "另有 {n} 人"
+guest_list_empty = "名單上還沒有人。"
+guest_list_note = "不參加的賓客不會列在名單上。"
+# After your own name on the guest list.
+you = "（你）"
+listed_as = "其他賓客看到的你：{name}"
+listed_hidden = "你的名字不在名單上。"
+listed_declined = "你不參加，所以不在名單上。"
+show_instead = "改為顯示："
+name_display_label = "你在賓客名單上的名字"
+display_full = "全名"
+display_partial = "部分姓名"
+display_hidden = "不顯示我的名字"
+# A choice with what others would see.
+display_choice = "{label}（{name}）"
+
+# Group sign-up
+join_group = "邀請來自：{group}"
+join_heading = "告訴我們你會來"
+# What we store and why (GDPR Art. 13), shown where the data is collected.
+join_notice = """
+我們只儲存你的姓名和同行人數，用於籌備聚會。其他賓客會依你在上方的選擇看到你的名字。所有內容會在聚會結\
+束 30 天後刪除，你也可以隨時自行刪除。"""
+your_name = "你的姓名"
+join_button = "我會參加！"
+
+# Errors and outcomes
+invalid_party_size = "請選擇有效的人數。"
+invalid_name = "姓名須為 1 到 100 個字元。"
+confirm_delete = "請勾選方框以確認刪除。"
+gone_title = "此連結無效"
+gone_text = "連結可能打錯了、已被新連結取代，或回覆已被刪除。請向主人索取新連結。"
+deleted_title = "你的回覆已刪除"
+deleted_text = "我們已刪除你的姓名、回覆以及儲存的所有其他關於你的資料。改變主意了？請向主人索取新的邀請。"
+to_event = "返回首頁"
+too_many_attempts = "嘗試次數過多，請一小時後再試。"
+not_found_title = "頁面不存在"
+not_found_text = "請檢查連結是否正確，或詢問主人。"
+
+# Mails. Each is plain text; `{url}` is a link on the site and `{title}` the event.
+[mail]
+# Under every mail. `{base}` is the site's address.
+footer = "你收到這封郵件，是因為有人在 {base} 上新增了這個地址。你可以隨時在回覆頁面上刪除它。"
+
+# To an address a guest typed in, before it's confirmed. Anyone can type in
+# any address, so this mail must not include anything a guest wrote, such as `{name}`.
+[mail.confirm_email]
+subject = "確認你的電子郵件地址 – {title}"
+body = """
+你好！
+
+開啟連結並點擊「確認」，即可透過電子郵件接收 {title} 的提醒和你的連結：
+
+{url}
+
+連結 48 小時內有效。如果不是你本人操作，請忽略這封郵件，該地址會被自動刪除。"""
+
+# To the confirmed owner when someone else adds their address.
+[mail.email_in_use]
+subject = "你的電子郵件地址已被登記 – {title}"
+body = """
+你好！
+
+有人（也許是你）試圖把這個電子郵件地址新增到 {title} 的一份回覆中，但該地址已在使用。如果你弄丟了連結，\
+可以在這裡重新取得：
+
+{url}
+
+如果不是你本人操作，請忽略這封郵件。"""
+
+# The guest's own link, after confirming or from /lost.
+[mail.rsvp_link]
+subject = "你的連結 – {title}"
+body = """
+{name}，你好！
+
+這是你參加 {title} 的個人連結，可用來修改或刪除你的回覆：
+
+{url}
+
+請勿將連結分享給他人。"""
+
+# From the host's Send reminders. `{when}`, `{place}`, `{answer}`.
+[mail.reminder]
+subject = "提醒：{title}"
+body = """
+{name}，你好！
+
+提醒你 {title}：{when}，{place}。
+
+你的回覆：{answer}。在這裡修改：
+
+{url}"""

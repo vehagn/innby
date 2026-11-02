@@ -112,7 +112,9 @@
                 "nb",
                 "nn",
                 "en",
-                "en-us"
+                "en-us",
+                "zh-hans",
+                "zh-hant"
               ]
             }
           }

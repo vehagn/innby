@@ -8,7 +8,7 @@
 {% include "_event.html" %}
 
 <section class="card" aria-labelledby="join-heading">
-  <p class="muted">{{ t.join_group }}: <strong>{{ group.name }}</strong></p>
+  <p class="muted">{{ crate::i18n::bold(t.join_group, "group", group.name)|safe }}</p>
   <h2 id="join-heading">{{ t.join_heading }}</h2>
   {% if accepts_answers %}
   <form method="post" action="{{ action }}">
