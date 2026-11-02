@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        update outbox\n        set attempts = attempts + 1,\n            last_error = $2,\n            next_try_at = now() + least(interval '1 minute' * power(2, attempts), interval '6 hours')\n        where id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f8210770598dbcb1f2edd84c1baee0d039217e092782dd0147c2a263f521a50c"
+}

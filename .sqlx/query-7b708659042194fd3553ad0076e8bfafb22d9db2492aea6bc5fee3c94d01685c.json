@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select rsvp_id, kind as \"kind: Kind\" from outbox where sent_at is null order by id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "rsvp_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "outbox",
+            "name": "rsvp_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "kind: Kind",
+        "type_info": {
+          "Custom": {
+            "name": "outbox_kind",
+            "kind": {
+              "Enum": [
+                "confirm_email",
+                "email_in_use",
+                "rsvp_link",
+                "reminder"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "outbox",
+            "name": "kind"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "7b708659042194fd3553ad0076e8bfafb22d9db2492aea6bc5fee3c94d01685c"
+}

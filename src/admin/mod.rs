@@ -23,7 +23,10 @@ use uuid::Uuid;
 
 use crate::{
     config::{AdminConfig, Config},
-    db::rsvp::{self, EmailStatus, Headcount, MAX_PARTY_SIZE, Rsvp, Source},
+    db::{
+        outbox,
+        rsvp::{self, EmailStatus, Headcount, MAX_PARTY_SIZE, Rsvp, Source},
+    },
     web::{self, render, render_with, server_error},
 };
 
@@ -57,6 +60,7 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
         .route("/rsvp/{id}/revoke", post(revoke))
         .route("/rsvp/{id}/delete", post(delete))
         .route("/rsvp.csv", get(export_csv))
+        .route("/reminders", post(queue_reminders))
         .route("/static/style.css", get(web::stylesheet))
         .layer(middleware::from_fn_with_state(
             credentials,
@@ -120,12 +124,19 @@ fn local(at: DateTime<Utc>, tz: Tz) -> String {
 struct IndexPage<'a> {
     title: &'a str,
     headcount: Headcount,
+    /// Guests with a confirmed address.
+    subscribers: usize,
+    notice: Option<String>,
     rows: Vec<Row>,
     max_party_size: i32,
     error: Option<&'static str>,
 }
 
-async fn index_page(state: &AdminState, error: Option<&'static str>) -> Response {
+async fn index_page(
+    state: &AdminState,
+    error: Option<&'static str>,
+    notice: Option<String>,
+) -> Response {
     let (rsvps, headcount) =
         match tokio::try_join!(rsvp::list(&state.db), rsvp::headcount(&state.db)) {
             Ok(result) => result,
@@ -135,6 +146,11 @@ async fn index_page(state: &AdminState, error: Option<&'static str>) -> Response
     let page = IndexPage {
         title: &state.config.event.title.nb,
         headcount,
+        subscribers: rsvps
+            .iter()
+            .filter(|rsvp| rsvp.email_status == EmailStatus::Confirmed)
+            .count(),
+        notice,
         rows: rsvps.iter().map(|rsvp| Row::new(rsvp, tz)).collect(),
         max_party_size: MAX_PARTY_SIZE,
         error,
@@ -145,8 +161,29 @@ async fn index_page(state: &AdminState, error: Option<&'static str>) -> Response
     }
 }
 
-async fn index(State(state): State<AdminState>) -> Response {
-    index_page(&state, None).await
+#[derive(Deserialize)]
+struct IndexQuery {
+    reminders: Option<u64>,
+}
+
+async fn index(State(state): State<AdminState>, Query(query): Query<IndexQuery>) -> Response {
+    let notice = query.reminders.map(|count| match count {
+        1 => "1 reminder queued.".to_owned(),
+        count => format!("{count} reminders queued."),
+    });
+    index_page(&state, None, notice).await
+}
+
+/// Queues a reminder for everyone with a confirmed address who hasn't declined. Each
+/// guest gets at most one.
+async fn queue_reminders(State(state): State<AdminState>) -> Response {
+    match outbox::queue_reminders(&state.db).await {
+        Ok(count) => {
+            tracing::info!(count, "reminders queued");
+            Redirect::to(&format!("/?reminders={count}")).into_response()
+        }
+        Err(err) => server_error(err),
+    }
 }
 
 #[derive(Deserialize)]
@@ -167,7 +204,7 @@ impl InviteForm {
 async fn create(State(state): State<AdminState>, Form(form): Form<InviteForm>) -> Response {
     let name = match form.validate() {
         Ok(name) => name,
-        Err(error) => return index_page(&state, Some(error)).await,
+        Err(error) => return index_page(&state, Some(error), None).await,
     };
     match rsvp::create_invite(&state.db, &name, form.max_party_size).await {
         Ok(invite) => {

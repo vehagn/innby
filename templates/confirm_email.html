@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.confirm_title }}{% endblock %}
+
+{% block content %}
+<h1>{{ t.confirm_title }}</h1>
+<p>{{ t.confirm_text }}</p>
+<form method="post" action="/e/{{ token }}?lang={{ lang.code() }}">
+  <button>{{ t.confirm_button }}</button>
+</form>
+{% endblock %}

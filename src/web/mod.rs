@@ -1,4 +1,5 @@
 mod csrf;
+mod email;
 mod join;
 mod pages;
 mod rate_limit;
@@ -51,6 +52,8 @@ struct AppState {
     config: Arc<Config>,
     db: PgPool,
     join_limiter: Arc<rate_limit::RateLimiter>,
+    /// Requests that send mail to an address someone typed in.
+    mail_limiter: Arc<rate_limit::RateLimiter>,
 }
 
 impl FromRef<AppState> for PgPool {
@@ -105,13 +108,21 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
             10,
             Duration::from_secs(60 * 60),
         )),
+        mail_limiter: Arc::new(rate_limit::RateLimiter::new(
+            5,
+            Duration::from_secs(60 * 60),
+        )),
     };
     let links = Router::new()
         .route("/join/{code}", get(join::show).post(join::join))
         .route("/r/{link}", get(rsvp::show).post(rsvp::answer))
         .route("/r/{link}/name", post(rsvp::rename))
         .route("/r/{link}/export", get(rsvp::export))
-        .route("/r/{link}/delete", post(rsvp::delete));
+        .route("/r/{link}/delete", post(rsvp::delete))
+        .route("/r/{link}/email", post(email::add))
+        .route("/r/{link}/email/remove", post(email::remove))
+        .route("/e/{token}", get(email::confirm_page).post(email::confirm))
+        .route("/lost", get(email::lost_page).post(email::lost));
     let router = Router::new()
         .route("/", get(pages::index))
         .route("/static/style.css", get(pages::stylesheet))
@@ -151,7 +162,7 @@ pub async fn ready(State(db): State<PgPool>) -> StatusCode {
     }
 }
 
-async fn shutdown_signal() {
+pub(crate) async fn shutdown_signal() {
     let mut terminate = signal(SignalKind::terminate()).expect("installing SIGTERM handler");
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {}

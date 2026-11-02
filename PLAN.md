@@ -132,9 +132,10 @@ Every guest has one **RSVP link**. Possession of the link is the authorisation; 
 
 1. On their RSVP page the guest adds an e-mail address and ticks an **unticked** consent box ("send me reminders and my link").
 2. The address is stored with `email_status='unconfirmed'` and an `outbox(kind='confirm_email')` row is added in the same transaction.
-   - If the address already belongs to another RSVP, an `email_in_use` mail goes to that address instead. **The page response is identical either way.**
-3. The mailer sends the signed confirmation link, `/e/{id}.{exp}.{sig}`. The guest presses a **Confirm** button: the GET shows a page and the POST confirms, so mail scanners can't confirm for them. `email_status` becomes `confirmed`.
-4. Once confirmed, the guest receives their RSVP link by mail. Optional reminders go out X days before the event, either automatically from the janitor or when you press a button in the admin UI.
+   - If the address already belongs to another RSVP, an `email_in_use` mail goes to that address instead (pointing to `/lost`, without a link). **The immediate response is identical either way.** The RSVP page afterwards shows whether the address was stored; anyone who can see that already holds this guest's link, so we accept it.
+   - Adding an address and `/lost` share a per-IP limit of 5 mails an hour, and a mail isn't queued twice while the first is still waiting.
+3. The mailer sends the signed confirmation link, `/e/{id}.{exp}.{sig}`, as plain text. The guest presses a **Confirm** button: the GET shows a page and the POST confirms, so mail scanners can't confirm for them. `email_status` becomes `confirmed`.
+4. Once confirmed, the guest is taken to their RSVP page and also receives their RSVP link by mail. Reminders go out when you press *Send reminders* in the admin UI: once per guest with a confirmed address who hasn't declined.
 5. On `/lost` a guest enters their e-mail and gets their link mailed if the address is confirmed. The page response is identical either way.
 6. A guest can remove their e-mail at any time, which withdraws consent. An address left unconfirmed for 48 hours is cleared automatically. **The RSVP itself is kept in both cases.**
 
@@ -195,7 +196,7 @@ Notes on the model:
 - **Mailer loop:**
   1. `SELECT … WHERE sent_at IS NULL AND next_try_at <= now() ORDER BY id LIMIT 10 FOR UPDATE SKIP LOCKED`
   2. Re-read the RSVP. Skip the mail if the address was removed or changed in the meantime.
-  3. Render the mail with a freshly signed link, send it, and mark the row sent. A failed send gets exponential backoff and is given up after about 10 attempts.
+  3. Render the mail with a freshly signed link, send it, and mark the row sent. A failed send gets exponential backoff (1 minute doubling to at most 6 hours) and is given up after 10 attempts. SMTP errors go to `outbox.last_error`, not the logs, since they often quote the address.
 - **Event config** (title and description in both languages, date, place, optional RSVP deadline, open-RSVP code, open maximum party size = 2) comes from environment variables or a ConfigMap. It doesn't live in the database.
 
 ## 8. Repository layout
@@ -308,7 +309,7 @@ just deploy              # kubectl apply -k deploy/ (or leave to Argo CD)
 3. ✅ **Links and the RSVP page:** HMAC signing, `/r/{link}` (respond, party size, rename, export, delete), link hygiene headers, CSRF middleware.
 4. ✅ **Admin:** invitations (create, link and QR, revoke, delete), headcount, CSV, basic auth, and `fest invite` on the CLI.
 5. ✅ **Open RSVP:** `/join/{code}`, honeypot, rate limit, a "save your link" page, and the on/off flag.
-6. **Optional e-mail:** add and confirm an address, the outbox and mailer (Mailpit locally, MailerSend in the cluster), `/lost`, reminders.
+6. ✅ **Optional e-mail:** add and confirm an address, the outbox and mailer (Mailpit locally, MailerSend in the cluster), `/lost`, reminders.
 7. **Janitor and privacy:** retention rules, `/privacy` (nb/en), `docs/ropa.md`.
 8. **Image:** buildah recipe, plus a CI workflow that pushes to GHCR.
 9. **Deploy:** CNPG cluster, workloads, HTTPRoutes, SealedSecrets, NetworkPolicies, Argo CD app.

@@ -8,6 +8,7 @@ use base64::{
     Engine,
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 };
+use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use uuid::Uuid;
@@ -71,6 +72,62 @@ impl LinkKey {
         self.rsvp_mac(link.id, nonce)
             .verify_truncated_left(&link.tag)
             .is_ok()
+    }
+}
+
+impl LinkKey {
+    fn email_mac(&self, id: Uuid, email: &str, expires: i64) -> Hmac<Sha256> {
+        self.mac(
+            "email",
+            &[id.as_bytes(), email.as_bytes(), &expires.to_be_bytes()],
+        )
+    }
+
+    /// The path segment of an e-mail confirmation link: `{id}.{expires}.{tag}`. It signs
+    /// the address too, so it stops working as soon as the guest changes it.
+    pub fn email_link(&self, id: Uuid, email: &str, expires: DateTime<Utc>) -> String {
+        let expires = expires.timestamp();
+        let tag = self.email_mac(id, email, expires).finalize().into_bytes();
+        format!(
+            "{}.{expires}.{}",
+            URL_SAFE_NO_PAD.encode(id.as_bytes()),
+            URL_SAFE_NO_PAD.encode(&tag[..TAG_LEN])
+        )
+    }
+
+    /// Checks the tag against the guest's current address. Expiry is the caller's check.
+    pub fn verify_email(&self, link: &EmailLink, email: &str) -> bool {
+        self.email_mac(link.id, email, link.expires.timestamp())
+            .verify_truncated_left(&link.tag)
+            .is_ok()
+    }
+}
+
+/// A parsed but not yet verified e-mail confirmation link.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmailLink {
+    pub id: Uuid,
+    pub expires: DateTime<Utc>,
+    tag: [u8; TAG_LEN],
+}
+
+impl FromStr for EmailLink {
+    type Err = ();
+
+    fn from_str(link: &str) -> Result<Self, ()> {
+        let mut parts = link.split('.');
+        let (Some(id), Some(expires), Some(tag), None) =
+            (parts.next(), parts.next(), parts.next(), parts.next())
+        else {
+            return Err(());
+        };
+        let id = URL_SAFE_NO_PAD.decode(id).map_err(drop)?;
+        let tag = URL_SAFE_NO_PAD.decode(tag).map_err(drop)?;
+        Ok(Self {
+            id: Uuid::from_slice(&id).map_err(drop)?,
+            expires: DateTime::from_timestamp(expires.parse().map_err(drop)?, 0).ok_or(())?,
+            tag: tag.try_into().map_err(drop)?,
+        })
     }
 }
 
@@ -154,6 +211,40 @@ pub mod tests {
             "!!.??",
         ] {
             assert!(bad.parse::<RsvpLink>().is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn email_link_is_bound_to_address_and_expiry() {
+        let expires = DateTime::from_timestamp(1_800_000_000, 0).unwrap();
+        let link = key().email_link(id(), "kari@example.com", expires);
+        let parsed: EmailLink = link.parse().unwrap();
+        assert_eq!((parsed.id, parsed.expires), (id(), expires));
+        assert!(key().verify_email(&parsed, "kari@example.com"));
+        assert!(!key().verify_email(&parsed, "ola@example.com"));
+
+        let later = link.replace("1800000000", "1900000000");
+        assert!(!key().verify_email(&later.parse().unwrap(), "kari@example.com"));
+        // An RSVP tag over the same id is no e-mail tag.
+        let rsvp_tag = key().rsvp_link(id(), 0);
+        let (_, rsvp_tag) = rsvp_tag.split_once('.').unwrap();
+        let (prefix, _) = link.rsplit_once('.').unwrap();
+        let forged: EmailLink = format!("{prefix}.{rsvp_tag}").parse().unwrap();
+        assert!(!key().verify_email(&forged, "kari@example.com"));
+    }
+
+    #[test]
+    fn malformed_email_links_do_not_parse() {
+        let expires = DateTime::from_timestamp(1_800_000_000, 0).unwrap();
+        let link = key().email_link(id(), "kari@example.com", expires);
+        for bad in [
+            "",
+            "a.b",
+            "a.b.c",
+            &format!("{link}.x"),
+            &link.replace("1800000000", "soon"),
+        ] {
+            assert!(bad.parse::<EmailLink>().is_err(), "{bad:?}");
         }
     }
 

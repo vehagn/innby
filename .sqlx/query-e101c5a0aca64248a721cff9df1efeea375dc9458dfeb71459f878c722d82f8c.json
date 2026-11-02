@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        update rsvp set email = null, email_status = 'none', email_consent_at = null\n        where id = $1 and email is not null\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e101c5a0aca64248a721cff9df1efeea375dc9458dfeb71459f878c722d82f8c"
+}

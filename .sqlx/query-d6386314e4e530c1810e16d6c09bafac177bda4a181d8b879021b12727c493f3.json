@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        update rsvp\n        set email = $2, email_status = 'unconfirmed', email_consent_at = now(), lang = $3,\n            privacy_version = $4\n        where id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        {
+          "Custom": {
+            "name": "lang",
+            "kind": {
+              "Enum": [
+                "nb",
+                "en"
+              ]
+            }
+          }
+        },
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d6386314e4e530c1810e16d6c09bafac177bda4a181d8b879021b12727c493f3"
+}

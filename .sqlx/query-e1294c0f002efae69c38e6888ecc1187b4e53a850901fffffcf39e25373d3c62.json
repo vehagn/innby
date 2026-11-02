@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into outbox (rsvp_id, kind)\n        select $1, $2\n        where not exists (\n            select from outbox\n            where rsvp_id = $1 and kind = $2 and sent_at is null and attempts < $3\n        )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "outbox_kind",
+            "kind": {
+              "Enum": [
+                "confirm_email",
+                "email_in_use",
+                "rsvp_link",
+                "reminder"
+              ]
+            }
+          }
+        },
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e1294c0f002efae69c38e6888ecc1187b4e53a850901fffffcf39e25373d3c62"
+}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.lost_title }}{% endblock %}
+
+{% block content %}
+{% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
+<h1>{{ t.lost_title }}</h1>
+<p>{{ t.lost_text }}</p>
+<form method="post" action="/lost?lang={{ lang.code() }}">
+  <label for="email">{{ t.email_label }}</label>
+  <input id="email" name="email" type="email" required maxlength="254" autocomplete="email">
+  <div class="buttons">
+    <button>{{ t.lost_button }}</button>
+  </div>
+</form>
+{% endblock %}

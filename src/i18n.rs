@@ -125,6 +125,33 @@ pub struct Messages {
     pub save_link_title: &'static str,
     pub save_link_text: &'static str,
 
+    // Optional e-mail
+    pub email_heading: &'static str,
+    pub email_intro: &'static str,
+    pub email_label: &'static str,
+    /// The consent statement next to the unticked box (GDPR Art. 7).
+    pub email_consent: &'static str,
+    pub email_add: &'static str,
+    pub email_pending: &'static str,
+    pub email_pending_hint: &'static str,
+    pub email_confirmed: &'static str,
+    pub email_remove: &'static str,
+    pub email_sent_notice: &'static str,
+    pub email_removed_notice: &'static str,
+    pub email_confirmed_notice: &'static str,
+    pub invalid_email: &'static str,
+    pub consent_required: &'static str,
+    pub confirm_title: &'static str,
+    pub confirm_text: &'static str,
+    pub confirm_button: &'static str,
+    pub confirm_invalid_text: &'static str,
+    pub lost_link: &'static str,
+    pub lost_title: &'static str,
+    pub lost_text: &'static str,
+    pub lost_button: &'static str,
+    pub lost_sent_title: &'static str,
+    pub lost_sent_text: &'static str,
+
     // Open RSVP
     pub join_heading: &'static str,
     /// What we store and why (GDPR Art. 13), shown where the data is collected.
@@ -190,6 +217,34 @@ static NB: Messages = Messages {
     save_link_text: "Dette er den eneste måten å endre eller slette svaret ditt på. Legg til \
         et bokmerke eller kopier lenken et trygt sted.",
 
+    email_heading: "Påminnelse på e-post",
+    email_intro: "Vil du få en påminnelse og lenken din på e-post? Det er helt valgfritt.",
+    email_label: "E-postadresse",
+    email_consent: "Ja, send meg påminnelser og lenken min på e-post. Jeg kan fjerne \
+        adressen når som helst.",
+    email_add: "Legg til",
+    email_pending: "Vi har sendt en bekreftelseslenke til",
+    email_pending_hint: "Lenken virker i 48 timer.",
+    email_confirmed: "Påminnelser sendes til",
+    email_remove: "Fjern e-postadressen",
+    email_sent_notice: "Sjekk innboksen din for å bekrefte adressen.",
+    email_removed_notice: "E-postadressen din er fjernet.",
+    email_confirmed_notice: "E-postadressen din er bekreftet. Vi sender deg lenken din.",
+    invalid_email: "Skriv inn en gyldig e-postadresse.",
+    consent_required: "Kryss av i boksen for å gi samtykke.",
+    confirm_title: "Bekreft e-postadressen",
+    confirm_text: "Trykk på knappen for å bekrefte at du vil få påminnelser og lenken din \
+        på e-post.",
+    confirm_button: "Bekreft",
+    confirm_invalid_text: "Bekreftelseslenken har gått ut eller er ikke lenger gyldig. Legg \
+        til adressen på nytt fra siden din.",
+    lost_link: "Mistet lenken din?",
+    lost_title: "Mistet lenken?",
+    lost_text: "Har du lagt til og bekreftet e-postadressen din, sender vi lenken på nytt.",
+    lost_button: "Send meg lenken",
+    lost_sent_title: "Sjekk innboksen din",
+    lost_sent_text: "Hvis adressen er registrert og bekreftet, har vi sendt deg lenken din.",
+
     join_heading: "Si at du kommer",
     join_notice: "Vi lagrer bare navnet ditt og hvor mange dere blir, for å planlegge \
         festen. Alt slettes 30 dager etter festen, og du kan slette det selv når som helst.",
@@ -248,6 +303,34 @@ static EN: Messages = Messages {
     save_link_title: "Save your link!",
     save_link_text: "It's the only way to change or delete your answer. Bookmark this page \
         or copy the link somewhere safe.",
+
+    email_heading: "Reminders by e-mail",
+    email_intro: "Want a reminder and your link by e-mail? It's entirely optional.",
+    email_label: "E-mail address",
+    email_consent: "Yes, e-mail me reminders and my link. I can remove my address at any \
+        time.",
+    email_add: "Add",
+    email_pending: "We've sent a confirmation link to",
+    email_pending_hint: "It works for 48 hours.",
+    email_confirmed: "Reminders go to",
+    email_remove: "Remove my e-mail address",
+    email_sent_notice: "Check your inbox to confirm the address.",
+    email_removed_notice: "Your e-mail address has been removed.",
+    email_confirmed_notice: "Your e-mail address is confirmed. We'll send you your link.",
+    invalid_email: "Enter a valid e-mail address.",
+    consent_required: "Tick the box to give your consent.",
+    confirm_title: "Confirm your e-mail address",
+    confirm_text: "Press the button to confirm that you want reminders and your link by \
+        e-mail.",
+    confirm_button: "Confirm",
+    confirm_invalid_text: "The confirmation link has expired or is no longer valid. Add your \
+        address again from your RSVP page.",
+    lost_link: "Lost your link?",
+    lost_title: "Lost your link?",
+    lost_text: "If you added and confirmed your e-mail address, we'll send your link again.",
+    lost_button: "Send me my link",
+    lost_sent_title: "Check your inbox",
+    lost_sent_text: "If the address is registered and confirmed, we've sent you your link.",
 
     join_heading: "Let us know you're coming",
     join_notice: "We only store your name and how many of you are coming, to plan the \

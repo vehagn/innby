@@ -7,6 +7,8 @@ ignore = [
 
 [licenses]
 allow = [
+  # quoted_printable (via lettre): public-domain equivalent.
+  "0BSD",
   "Apache-2.0",
   "BSD-3-Clause",
   # webpki-roots: the Mozilla CA list compiled into the binary.

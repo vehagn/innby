@@ -3,7 +3,7 @@
 {% block title %}{{ event.title }}{% endblock %}
 
 {% block content %}
-{% if saved %}<p class="notice success" role="status">{{ t.saved }}</p>{% endif %}
+{% if let Some(flash) = flash %}<p class="notice success" role="status">{{ flash }}</p>{% endif %}
 {% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
 
 {% if let Some(new_link) = new_link %}
@@ -56,6 +56,29 @@
     <input id="name" name="name" value="{{ rsvp.name }}" required maxlength="100" autocomplete="name">
     <button class="secondary">{{ t.change_name }}</button>
   </form>
+</details>
+
+<details{% if rsvp.email.is_some() %} open{% endif %}>
+  <summary>{{ t.email_heading }}</summary>
+  {% match rsvp.email %}
+  {% when Some(email) %}
+  {% if email_confirmed %}
+  <p>{{ t.email_confirmed }} <strong>{{ email }}</strong>.</p>
+  {% else %}
+  <p>{{ t.email_pending }} <strong>{{ email }}</strong>. {{ t.email_pending_hint }}</p>
+  {% endif %}
+  <form method="post" action="/r/{{ link }}/email/remove?lang={{ lang.code() }}">
+    <button class="secondary">{{ t.email_remove }}</button>
+  </form>
+  {% when None %}
+  <p>{{ t.email_intro }}</p>
+  <form method="post" action="/r/{{ link }}/email?lang={{ lang.code() }}">
+    <label for="email">{{ t.email_label }}</label>
+    <input id="email" name="email" type="email" required maxlength="254" autocomplete="email">
+    <label class="checkbox"><input type="checkbox" name="consent" value="yes" required> {{ t.email_consent }}</label>
+    <button class="secondary">{{ t.email_add }}</button>
+  </form>
+  {% endmatch %}
 </details>
 
 <details>
