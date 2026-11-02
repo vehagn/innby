@@ -80,6 +80,10 @@ lost_sent_text = "Hvis adressen er registrert og bekreftet, har vi sendt deg len
 
 # Guest list
 guest_list_heading = "Gjestelisten"
+# The button to the guest list, which is on a page of its own.
+see_guest_list = "Se hvem som kommer"
+back_to_your_page = "Tilbake til siden din"
+back_to_sign_up = "Tilbake til påmeldingen"
 guest_list_coming = "Kommer"
 guest_list_pending = "Har ikke svart ennå"
 # "+ {n} more", for guests who'd rather not be listed.

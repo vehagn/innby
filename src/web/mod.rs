@@ -62,8 +62,12 @@ const SECURITY_HEADERS: [(header::HeaderName, &str); 6] = [
         header::HeaderName::from_static("cross-origin-resource-policy"),
         "same-origin",
     ),
-    // An invitation-only event: nothing here belongs in a search engine.
-    (header::HeaderName::from_static("x-robots-tag"), "noindex"),
+    // An invitation-only event: nothing here belongs in a search engine, and crawlers that
+    // fetch a page anyway shouldn't follow its links.
+    (
+        header::HeaderName::from_static("x-robots-tag"),
+        "noindex, nofollow",
+    ),
 ];
 
 /// Sent when the site is served over HTTPS, so browsers never fall back to plain HTTP.
@@ -187,7 +191,9 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
     };
     let links = Router::new()
         .route(paths::JOIN, get(join::show).post(join::join))
+        .route(paths::JOIN_GUESTS, get(join::guests))
         .route(paths::RSVP, get(rsvp::show).post(rsvp::answer))
+        .route(paths::RSVP_GUESTS, get(rsvp::guests))
         .route(paths::RSVP_NAME, post(rsvp::rename))
         .route(paths::RSVP_LISTING, post(rsvp::listing))
         .route(paths::RSVP_EXPORT, get(rsvp::export))
@@ -203,6 +209,7 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         .route(paths::HOME, get(pages::index))
         .route(paths::PRIVACY, get(pages::privacy))
         .route(paths::STYLESHEET, get(pages::stylesheet))
+        .route(paths::ROBOTS, get(pages::robots))
         .route(paths::HEALTH, get(|| async { "ok" }))
         .route(paths::READY, get(ready))
         .merge(no_store(links))
@@ -364,6 +371,16 @@ mod tests {
         for (name, value) in SECURITY_HEADERS.into_iter().chain(HSTS) {
             assert_eq!(response.headers()[&name], value, "{name}");
         }
+    }
+
+    #[tokio::test]
+    async fn turns_crawlers_away() {
+        let response = get("/robots.txt", None).await;
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "text/plain; charset=utf-8"
+        );
+        assert_eq!(body(response).await, "User-agent: *\nDisallow: /\n");
     }
 
     #[tokio::test]

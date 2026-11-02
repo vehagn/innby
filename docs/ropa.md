@@ -44,8 +44,9 @@ guest expects to give.
   the event. Group links can be forwarded beyond the group, so they carry the same
   minimal defaults, and the host can replace a link that spreads too far.
 - *Safeguards.* Information on first visit and at sign-up (Art. 13/14), a choice of
-  how the name shows on the guest list, including not at all (Art. 21), a full notice at
-  `/privacy`, self-service access, export, rectification and deletion on
+  how the name shows on the guest list, including not at all (Art. 21), the guest list on
+  a page of its own so that link previews in chat apps never receive names, a
+  `robots.txt` and `noindex` that keep crawlers out, a full notice at `/privacy`, self-service access, export, rectification and deletion on
   every RSVP page, and objection handled as deletion.
 
 **Conclusion.** The host's interest is legitimate, the processing is necessary and

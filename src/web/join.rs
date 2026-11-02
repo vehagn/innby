@@ -13,7 +13,10 @@ use serde::Deserialize;
 
 use super::{
     AppState, PRIVACY_VERSION,
-    pages::{DisplayChoice, EventView, GuestList, PartySize, not_found, render_with, server_error},
+    pages::{
+        DisplayChoice, EventView, GuestList, GuestsPage, PartySize, not_found, render, render_with,
+        server_error,
+    },
     rate_limit::ClientIp,
 };
 use crate::{
@@ -37,7 +40,7 @@ struct JoinPage<'a> {
     name: &'a str,
     party_sizes: Vec<PartySize>,
     display_choices: Vec<DisplayChoice>,
-    guests: GuestList,
+    guests_link: String,
     accepts_answers: bool,
     error: Option<&'static str>,
 }
@@ -55,30 +58,19 @@ impl<'a> JoinPage<'a> {
             party_sizes: PartySize::choices(t, group.max_party_size, 1),
             // Signing up means coming, and coming shows the full name unless chosen otherwise.
             display_choices: DisplayChoice::choices(t, None, NameDisplay::Full),
-            guests: GuestList::default(),
+            guests_link: paths::localized(&paths::path(paths::JOIN_GUESTS, link), lang),
             accepts_answers: state.config.event.accepts_answers(Utc::now()),
             error: None,
         }
     }
 
-    async fn render(mut self, state: &AppState, status: StatusCode) -> Response {
-        match GuestList::load(&state.db, None).await {
-            Ok(guests) => {
-                self.guests = guests;
-                render_with(status, self)
-            }
-            Err(err) => server_error(err),
-        }
-    }
-
-    async fn render_error(
+    fn render_error(
         mut self,
-        state: &AppState,
         status: StatusCode,
         pick: impl Fn(&'static Messages) -> &'static str,
     ) -> Response {
         self.error = Some(pick(self.t));
-        self.render(state, status).await
+        render_with(status, self)
     }
 }
 
@@ -98,14 +90,38 @@ async fn find_group(state: &AppState, link: &str) -> sqlx::Result<Option<Group>>
 
 pub async fn show(State(state): State<AppState>, lang: Lang, Path(link): Path<String>) -> Response {
     match find_group(&state, &link).await {
-        Ok(Some(group)) => {
-            JoinPage::new(&state, lang, &group, &link)
-                .render(&state, StatusCode::OK)
-                .await
-        }
+        Ok(Some(group)) => render(JoinPage::new(&state, lang, &group, &link)),
         Ok(None) => not_found(lang).await,
         Err(err) => server_error(err),
     }
+}
+
+/// The guest list, for someone deciding whether to sign up.
+pub async fn guests(
+    State(state): State<AppState>,
+    lang: Lang,
+    Path(link): Path<String>,
+) -> Response {
+    match find_group(&state, &link).await {
+        Ok(Some(_)) => {}
+        Ok(None) => return not_found(lang).await,
+        Err(err) => return server_error(err),
+    }
+    let guests = match GuestList::load(&state.db, None).await {
+        Ok(guests) => guests,
+        Err(err) => return server_error(err),
+    };
+    let t = lang.messages();
+    render(GuestsPage {
+        lang,
+        t,
+        event: EventView::new(&state.config.event, lang),
+        guests,
+        you: None,
+        flash: None,
+        back: paths::localized(&paths::path(paths::JOIN, &link), lang),
+        back_label: &t.back_to_sign_up,
+    })
 }
 
 #[derive(Deserialize)]
@@ -139,30 +155,18 @@ pub async fn join(
     page.name = &form.name;
     page.display_choices = DisplayChoice::choices(page.t, None, name_display);
     if !page.accepts_answers {
-        return page.render(&state, StatusCode::FORBIDDEN).await;
+        return render_with(StatusCode::FORBIDDEN, page);
     }
     let Some(name) = rsvp::normalize_name(&form.name) else {
-        return page
-            .render_error(&state, StatusCode::UNPROCESSABLE_ENTITY, |t| {
-                &t.invalid_name
-            })
-            .await;
+        return page.render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name);
     };
     if !(1..=group.max_party_size).contains(&form.party_size) {
-        return page
-            .render_error(&state, StatusCode::UNPROCESSABLE_ENTITY, |t| {
-                &t.invalid_party_size
-            })
-            .await;
+        return page.render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size);
     }
     // Only valid submissions count, so a typo doesn't use up a household's allowance.
     if !state.join_limiter.check(client) {
         tracing::warn!("group sign-up rate limit hit");
-        return page
-            .render_error(&state, StatusCode::TOO_MANY_REQUESTS, |t| {
-                &t.too_many_attempts
-            })
-            .await;
+        return page.render_error(StatusCode::TOO_MANY_REQUESTS, |t| &t.too_many_attempts);
     }
 
     let sign_up = SignUp {
@@ -223,8 +227,10 @@ mod tests {
         }
 
         group::revoke_link(&site.db, group.id).await.unwrap();
-        let response = site.get(&format!("/join/{link}")).await;
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        for page in [format!("/join/{link}"), format!("/join/{link}/guests")] {
+            let response = site.get(&page).await;
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{page}");
+        }
         assert!(all(&site).await.is_empty());
     }
 
@@ -245,9 +251,18 @@ mod tests {
         assert!(html.contains("Invited with: <strong>Climbing club</strong>"));
         assert!(html.contains("Let us know you"));
         assert!(html.contains(r#"name="website""#));
-        // The guest list, with the invited guest who hasn't answered as "Kari N.".
-        assert!(html.contains("<li>Kari N.</li>"), "{html}");
         assert!(html.contains(r#"<option value="full" selected>Full name</option>"#));
+        // No names on the page the link opens, which link previews fetch: they're on the
+        // guest list, with the invited guest who hasn't answered as "Kari N.".
+        assert!(!html.contains("Kari"), "{html}");
+        let list = format!("/join/{link}/guests?lang=en");
+        assert!(html.contains(&format!(r#"href="{list}" rel="nofollow""#)));
+        let html = body(site.get(&list).await).await;
+        assert!(html.contains("<li>Kari N.</li>"), "{html}");
+        assert!(html.contains(&format!(
+            r#"href="/join/{link}?lang=en">Back to the sign-up"#
+        )));
+        assert!(!html.contains("Other guests see you as"));
 
         let response = site
             .post(
@@ -276,6 +291,7 @@ mod tests {
         let path = target.split('?').next().unwrap();
         assert!(html.contains(&format!(r#"value="https://fest.example.com{path}""#)));
         assert!(html.contains("Coming · 2 people"));
+        let html = body(site.get(&format!("{path}/guests?lang=en")).await).await;
         assert!(html.contains(r#"Per H. <span class="muted">(you)</span>"#));
     }
 

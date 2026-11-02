@@ -45,21 +45,7 @@
   <p class="muted small">{{ t.keep_link }}</p>
 </section>
 
-<details open>
-  <summary>{{ t.guest_list_heading }}</summary>
-  {% include "_guest_list.html" %}
-  <p>{% match listed_as %}{% when Some(name) %}{{ t.listed_as }} <strong>{{ name }}</strong>{% when None %}{% if declined %}{{ t.listed_declined }}{% else %}{{ t.listed_hidden }}{% endif %}{% endmatch %}</p>
-  {% if !declined %}
-  <form method="post" action="{{ links.listing }}">
-    <p class="muted small">{{ t.show_instead }}:</p>
-    <div class="buttons">
-      {% for choice in other_displays %}
-      <button name="name_display" value="{{ choice.value }}" class="secondary">{{ choice.label }}</button>
-      {% endfor %}
-    </div>
-  </form>
-  {% endif %}
-</details>
+<p><a class="button secondary" href="{{ links.guests }}" rel="nofollow">{{ t.see_guest_list }}</a></p>
 
 <details>
   <summary>{{ t.name_heading }}</summary>

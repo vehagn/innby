@@ -34,8 +34,5 @@
   {% endif %}
 </section>
 
-<details open>
-  <summary>{{ t.guest_list_heading }}</summary>
-  {% include "_guest_list.html" %}
-</details>
+<p><a class="button secondary" href="{{ guests_link }}" rel="nofollow">{{ t.see_guest_list }}</a></p>
 {% endblock %}

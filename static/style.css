@@ -157,7 +157,9 @@ textarea {
   margin: 0.5rem 0 0;
 }
 
-button {
+button,
+a.button {
+  display: inline-block;
   font: inherit;
   font-weight: 600;
   padding: 0.625rem 1.125rem;
@@ -165,10 +167,12 @@ button {
   border-radius: 0.5rem;
   background: var(--accent);
   color: var(--bg);
+  text-decoration: none;
   cursor: pointer;
 }
 
-button.secondary {
+button.secondary,
+a.button.secondary {
   background: transparent;
   color: var(--accent);
 }

@@ -109,7 +109,8 @@ Every guest has one **RSVP link**. Possession of the link is the authorisation; 
 - **E-mail confirmation links** use the same scheme, but sign the purpose, the expiry and the address itself: `"email" ‖ id ‖ email ‖ exp`. They expire after 48 hours and become invalid as soon as the address changes. There is no token table at all.
 - `LINK_KEY` is 32 random bytes in a SealedSecret. Rotating it invalidates **every** link, so it is kept stable for the event's lifetime.
 - **Hardening for links in URLs:**
-  - `Cache-Control: no-store` on `/r/*`; `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex` on every page.
+  - `Cache-Control: no-store` on `/r/*`; `Referrer-Policy: no-referrer` and `X-Robots-Tag: noindex, nofollow` on every page, and a `robots.txt` that disallows everything.
+  - Chat apps fetch a shared link to build a preview, whatever `robots.txt` says, so the page a link opens has no other guest's name on it. The guest list is a page of its own behind a button (§5.6).
   - No third-party resources on any page.
   - Access logs record the route pattern (`/r/{link}`), never the raw path.
 
@@ -163,7 +164,7 @@ Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pendin
 
 ### 5.6 Guest list
 
-Every personal and group link page shows two lists, **Coming** and **Not answered yet**, of everyone invited who hasn't declined. Each name shows as its guest chose:
+Every personal and group link page has a *See who's coming* button to the guest list, `/r/{link}/guests` or `/join/{link}/guests`. It's a page of its own so that link previews, which fetch only the shared link, never see a name. It has two lists, **Coming** and **Not answered yet**, of everyone invited who hasn't declined. Each name shows as its guest chose:
 
 | Choice | Shown as |
 |---|---|
@@ -171,7 +172,7 @@ Every personal and group link page shows two lists, **Coming** and **Not answere
 | First name and initial | "Kari N." |
 | Hidden | not listed; the list ends with "+ 1 more" |
 
-Until a guest chooses, their name shows as first name and initial before they answer and in full once they're coming. The answer form presets the full name, and the list has buttons to change the choice at any time. Declined guests are never listed.
+Until a guest chooses, their name shows as first name and initial before they answer and in full once they're coming. The answer form presets the full name, and the guest list page has buttons to change the choice at any time. Declined guests are never listed.
 
 ## 6. GDPR checklist
 

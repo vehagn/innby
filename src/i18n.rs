@@ -189,6 +189,10 @@ pub struct Messages {
 
     // Guest list
     pub guest_list_heading: String,
+    /// The button to the guest list, which is on a page of its own.
+    pub see_guest_list: String,
+    pub back_to_your_page: String,
+    pub back_to_sign_up: String,
     pub guest_list_coming: String,
     pub guest_list_pending: String,
     /// "+ {n} more", for guests who'd rather not be listed.
