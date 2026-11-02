@@ -1,12 +1,12 @@
-# Copy this directory to vehagn/homelab k8s/apps/<group>/fest, where the ApplicationSet
-# picks it up. Add the fest namespace to that group's AppProject destinations.
+# Copy this directory to vehagn/homelab k8s/apps/<group>/innby, where the ApplicationSet
+# picks it up. Add the innby namespace to that group's AppProject destinations.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: fest
+namespace: innby
 
 labels:
   - pairs:
-      app.kubernetes.io/part-of: fest
+      app.kubernetes.io/part-of: innby
 
 resources:
   - ns.yaml
@@ -20,10 +20,10 @@ resources:
   # - sealed-secrets.yaml
 
 configMapGenerator:
-  - name: fest-config
+  - name: innby-config
     envs: [config.env]
 
 images:
-  - name: ghcr.io/vehagn/fest
+  - name: ghcr.io/vehagn/innby
     # Pin to a sha-<commit> tag from CI for repeatable deploys.
     newTag: latest

@@ -605,38 +605,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
-name = "fest"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "argon2",
- "askama",
- "axum",
- "base64 0.22.1",
- "chrono",
- "chrono-tz",
- "clap",
- "hmac 0.12.1",
- "http-body-util",
- "hyper",
- "hyper-util",
- "lettre",
- "qrcode",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "sqlx",
- "subtle",
- "tokio",
- "toml",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
- "uuid",
-]
-
-[[package]]
 name = "find-msvc-tools"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1067,6 +1035,38 @@ checksum = "cc4e190f5d26ca7051642629da2c52fc03bde85a03197c99408dcd291734c855"
 dependencies = [
  "equivalent",
  "hashbrown 0.17.1",
+]
+
+[[package]]
+name = "innby"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "argon2",
+ "askama",
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "chrono-tz",
+ "clap",
+ "hmac 0.12.1",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "lettre",
+ "qrcode",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sqlx",
+ "subtle",
+ "tokio",
+ "toml",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

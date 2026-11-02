@@ -1,5 +1,5 @@
 //! Mail jobs. Whatever causes a mail writes its job in the same transaction, and
-//! `fest mailer` sends them.
+//! `innby mailer` sends them.
 
 use sqlx::{PgConnection, PgExecutor};
 use uuid::Uuid;

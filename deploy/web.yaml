@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: fest-web
+  name: innby-web
   labels:
-    app.kubernetes.io/name: fest
+    app.kubernetes.io/name: innby
     app.kubernetes.io/component: web
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app.kubernetes.io/name: fest
+      app.kubernetes.io/name: innby
       app.kubernetes.io/component: web
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: fest
+        app.kubernetes.io/name: innby
         app.kubernetes.io/component: web
     spec:
       automountServiceAccountToken: false
@@ -27,12 +27,12 @@ spec:
       initContainers:
         # Migrations take an advisory lock, so replicas starting together are fine.
         - name: migrate
-          image: ghcr.io/vehagn/fest
+          image: ghcr.io/vehagn/innby
           args: [ migrate ]
           env:
             - name: DATABASE_URL
               valueFrom:
-                secretKeyRef: { name: fest-postgres-app, key: uri }
+                secretKeyRef: { name: innby-postgres-app, key: uri }
           resources:
             requests: { cpu: 10m, memory: 16Mi }
             limits: { memory: 64Mi }
@@ -42,18 +42,18 @@ spec:
             capabilities:
               drop: [ ALL ]
       containers:
-        - name: fest
-          image: ghcr.io/vehagn/fest
+        - name: innby
+          image: ghcr.io/vehagn/innby
           args: [ serve ]
           envFrom:
-            - configMapRef: { name: fest-config }
+            - configMapRef: { name: innby-config }
           env:
             - name: DATABASE_URL
               valueFrom:
-                secretKeyRef: { name: fest-postgres-app, key: uri }
-            - name: FEST_LINK_KEY
+                secretKeyRef: { name: innby-postgres-app, key: uri }
+            - name: INNBY_LINK_KEY
               valueFrom:
-                secretKeyRef: { name: fest, key: FEST_LINK_KEY }
+                secretKeyRef: { name: innby, key: INNBY_LINK_KEY }
           ports:
             - name: http
               containerPort: 8080
@@ -75,10 +75,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: fest-web
+  name: innby-web
 spec:
   selector:
-    app.kubernetes.io/name: fest
+    app.kubernetes.io/name: innby
     app.kubernetes.io/component: web
   ports:
     - name: http
@@ -88,13 +88,13 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: fest-web
+  name: innby-web
 spec:
   parentRefs:
     - { name: external, namespace: gateway }
     - { name: internal, namespace: gateway }
   hostnames: [ "fest.stonegarden.dev" ]
   rules:
-    - backendRefs: [ { name: fest-web, port: 80 } ]
+    - backendRefs: [ { name: innby-web, port: 80 } ]
       matches:
         - path: { type: PathPrefix, value: / }

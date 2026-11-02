@@ -1,4 +1,4 @@
-//! Deleting what we no longer need. `fest janitor` runs these every hour.
+//! Deleting what we no longer need. `innby janitor` runs these every hour.
 
 use chrono::{DateTime, Utc};
 use sqlx::{PgExecutor, PgPool};

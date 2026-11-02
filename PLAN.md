@@ -1,4 +1,4 @@
-# fest — event RSVP page
+# Innby — event RSVP page
 
 Plan for a small, GDPR-compliant page where ~100 guests say whether they're coming to one event. **Guests need no account and no e-mail address.** They respond through a personal invite link, or through a group link where they only give a name. Everyone with a link sees a guest list, with each name shown as its guest chose. E-mail is an optional extra for reminders.
 
@@ -59,15 +59,15 @@ For 100 guests, one process is more than enough. Since this is for fun, here are
 | **B. One binary, several workloads** ✅ | One image. Subcommands run as separate Kubernetes workloads. They share no API with each other; Postgres links them, and an **outbox table** carries mail jobs. | Feels like microservices where it helps (each workload has its own permissions and network policy and fails on its own) and costs nothing in RPC, service auth or extra images. |
 | **C. Real microservices** | `frontend`, `rsvp-api`, `mailer`, `admin` and `janitor`, talking over HTTP/gRPC or NATS. | You'd still need an outbox for "save and send" to stay consistent, plus mTLS between services and N images and manifests. Each extra service that holds personal data is also another place erasure has to reach. Pure overhead at this size. |
 
-**Recommendation: B.** The binary `fest` has these subcommands:
+**Recommendation: B.** The binary `innby` has these subcommands:
 
 | Subcommand | Kubernetes workload | Responsibility | Needs |
 |---|---|---|---|
-| `fest serve` | Deployment (public) | Event page, `/join/{link}`, RSVP pages, e-mail confirm, privacy notice | DB, link key. Reachable from the **external** gateway. |
-| `fest admin` | Deployment (internal) | Invitations, headcount, CSV | DB, link key. Reachable from the **internal** gateway only. |
-| `fest mailer` | Deployment (1 replica) | Processes the outbox and sends e-mail through MailerSend | DB, link key, SMTP credentials, outbound SMTP. No ingress. |
-| `fest janitor` | CronJob (hourly) | Enforces retention and deletes expired data | DB and the event start (`FEST_EVENT_START`, `FEST_EVENT_TIMEZONE`) only. |
-| `fest migrate` | init container / Argo CD PreSync Job | Applies the embedded SQL migrations | DB as schema owner. |
+| `innby serve` | Deployment (public) | Event page, `/join/{link}`, RSVP pages, e-mail confirm, privacy notice | DB, link key. Reachable from the **external** gateway. |
+| `innby admin` | Deployment (internal) | Invitations, headcount, CSV | DB, link key. Reachable from the **internal** gateway only. |
+| `innby mailer` | Deployment (1 replica) | Processes the outbox and sends e-mail through MailerSend | DB, link key, SMTP credentials, outbound SMTP. No ingress. |
+| `innby janitor` | CronJob (hourly) | Enforces retention and deletes expired data | DB and the event start (`INNBY_EVENT_START`, `INNBY_EVENT_TIMEZONE`) only. |
+| `innby migrate` | init container / Argo CD PreSync Job | Applies the embedded SQL migrations | DB as schema owner. |
 
 Splitting this way buys real least privilege:
 
@@ -79,7 +79,7 @@ Splitting this way buys real least privilege:
             external gateway (Cilium)                      internal gateway
                      │                                            │
              ┌───────▼───────┐                            ┌───────▼───────┐
-             │  fest serve   │                            │  fest admin   │
+             │  innby serve  │                            │  innby admin  │
              └───────┬───────┘                            └───────┬───────┘
                      │  rsvp (+ outbox in same tx)                │ invitations, headcount
                      ▼                                            ▼
@@ -88,7 +88,7 @@ Splitting this way buys real least privilege:
              └───────▲──────────────────────────────▲─────────────────────┘
                      │ SELECT … FOR UPDATE SKIP LOCKED │ DELETE / scrub expired
              ┌───────┴───────┐               ┌───────┴───────┐
-             │  fest mailer  │─▶ MailerSend   │  fest janitor │ (CronJob)
+             │  innby mailer │─▶ MailerSend   │ innby janitor │ (CronJob)
              └───────────────┘               └───────────────┘
 ```
 
@@ -118,16 +118,16 @@ Every guest has one **RSVP link**. Possession of the link is the authorisation; 
 
 ### 5.1 Personal invitation
 
-1. In `fest admin` you create invitations, one label per line (e.g. "Kari & Ola, 2"), each with a maximum party size. The admin UI then lists the new links; each invitation's page shows its link and a QR code.
+1. In `innby admin` you create invitations, one label per line (e.g. "Kari & Ola, 2"), each with a maximum party size. The admin UI then lists the new links; each invitation's page shows its link and a QR code.
 2. You share it however you like.
 3. The guest opens `/r/{link}`. On the first visit, a short notice explains what is stored, with a link to `/privacy`. The page shows the event, a party-size picker (1…max), how to show their name on the guest list (preset to their full name), **Attending** / **Can't come** buttons, and the guest list.
 4. `POST /r/{link}` saves the response, party size, name choice and `responded_at`. The guest can come back and change it any time until the optional RSVP deadline.
 
 ### 5.2 Group links
 
-1. `/` shows only the event info. To RSVP, people need an invite link or a group link, `/join/{id}.{sig}`. You create groups in `fest admin`, one per line with a descriptive name and how many people each sign-up may cover (e.g. "Neighbours, 4"). A group's link is signed like an RSVP link, and *Make a new link* replaces it if it spreads too far.
+1. `/` shows only the event info. To RSVP, people need an invite link or a group link, `/join/{id}.{sig}`. You create groups in `innby admin`, one per line with a descriptive name and how many people each sign-up may cover (e.g. "Neighbours, 4"). A group's link is signed like an RSVP link, and *Make a new link* replaces it if it spreads too far.
 2. The guest sees the group's name, the guest list, and a form for their name, party size and how to show their name (preset to full), then taps **I'm coming**.
-   - Abuse protection: a honeypot field and a per-IP in-memory rate limit (10 sign-ups per hour, generous for a shared household connection). Behind the gateway, `FEST_TRUST_FORWARDED=true` takes the client address from the `X-Forwarded-For` entry the gateway appends. You can also delete entries in the admin UI. A group can only be deleted while nobody has signed up through it.
+   - Abuse protection: a honeypot field and a per-IP in-memory rate limit (10 sign-ups per hour, generous for a shared household connection). Behind the gateway, `INNBY_TRUST_FORWARDED=true` takes the client address from the `X-Forwarded-For` entry the gateway appends. You can also delete entries in the admin UI. A group can only be deleted while nobody has signed up through it.
 3. The guest is sent straight to their new `/r/{link}`, with a clear "**Bookmark or save this link** to change your answer later" box, plus copy and share buttons and an optional "add your e-mail" field. From there it's identical to 5.1.
 
 ### 5.3 Optional e-mail
@@ -155,7 +155,7 @@ Mails are sent in the language the guest was using when they added their e-mail 
 
 Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pending outbox rows.
 
-### 5.5 Host (`fest admin`)
+### 5.5 Host (`innby admin`)
 
 - **Invitations:** create them in a batch, one per line, and get a page of their links; edit them (label, maximum party size), show the link and QR code, revoke the link (bumps the nonce), delete.
 - **Groups:** create them in a batch, one per line; each has a page with its link, QR code and sign-ups, and can be renamed, given a new link, or deleted while nobody has signed up.
@@ -187,7 +187,7 @@ Until a guest chooses, their name shows as first name and initial before they an
 | Retention | Unconfirmed e-mail addresses: cleared after 48h. Sent outbox rows: deleted after 7 days. **All RSVP data: deleted 30 days after the event.** The janitor enforces this. |
 | Backups | The CNPG backup retention must be ≤ 30 days after the event, or the backup policy must be documented. Otherwise "deleted" data lives on in backups. |
 | Processors | **MailerSend** (MailerSend UAB, Lithuania; your existing account) for e-mail. Before go-live, accept its DPA, check its sub-processor list for transfers outside the EU, and verify the sender domain (SPF, DKIM, DMARC). Nothing sits in front of the site: it is exposed directly through `gateway/external`. |
-| Privacy notice | `/privacy` (nb/en) lists the controller (`FEST_CONTROLLER_NAME`, `FEST_CONTROLLER_EMAIL`), purposes, data, legal bases, retention, recipients and processors, the guest's rights (including the right to object), the right to complain to Datatilsynet, and a contact address. It is versioned by `PRIVACY_VERSION`, which is stored with each answer. |
+| Privacy notice | `/privacy` (nb/en) lists the controller (`INNBY_CONTROLLER_NAME`, `INNBY_CONTROLLER_EMAIL`), purposes, data, legal bases, retention, recipients and processors, the guest's rights (including the right to object), the right to complain to Datatilsynet, and a contact address. It is versioned by `PRIVACY_VERSION`, which is stored with each answer. |
 | Security (Art. 32) | TLS at the gateway (cert-manager). HMAC-signed links with nothing secret in the database. Link hygiene as in §4. Non-root, read-only containers. Least-privilege NetworkPolicies. |
 | Logging | `tracing` JSON output, with no names, e-mail addresses or links in the logs (log the RSVP UUID instead). |
 | Records of processing | `docs/ropa.md`: the Art. 30 record and the legitimate-interest assessment. |
@@ -219,7 +219,7 @@ Notes on the model:
 ## 8. Repository layout
 
 ```
-fest/
+innby/
 ├── .devcontainer/
 │   ├── devcontainer.json      # VS Code / RustRover / devcontainer CLI entry point
 │   ├── compose.yaml           # dev + db (postgres:18) + mail (mailpit)
@@ -277,30 +277,30 @@ The devcontainer is a Compose project with three services:
 
   ```
   ctr=$(buildah from --arch amd64 --os linux scratch)   # explicit: dev machines may be arm64
-  buildah copy  $ctr "$CARGO_TARGET_DIR"/x86_64-unknown-linux-musl/release/fest /fest
-  buildah config --entrypoint '["/fest"]' --cmd serve --user 65532:65532 \
+  buildah copy  $ctr "$CARGO_TARGET_DIR"/x86_64-unknown-linux-musl/release/innby /innby
+  buildah config --entrypoint '["/innby"]' --cmd serve --user 65532:65532 \
                  --port 8080 --label org.opencontainers.image.source=… $ctr
-  buildah commit --rm $ctr ghcr.io/vehagn/fest:<tag>
+  buildah commit --rm $ctr ghcr.io/vehagn/innby:<tag>
   ```
 
 - The image contains no shell, no CA bundle and no tzdata: the CA roots and zoneinfo are compiled into the binary. It runs as a numeric non-root UID, so it needs no `/etc/passwd`. Expect about 10–20 MB.
-- **Images are built in CI, not in the devcontainer.** Rootless buildah there needs user namespaces, which means loosening the dev container's seccomp and AppArmor profiles. We tried that, and it builds a correct image, but chose to keep the dev container locked down. `.github/workflows/ci.yaml` runs `just test` and `just lint` against a Postgres 18 service on every push and pull request; on pushes it then runs `just image` on `ubuntu-24.04` (which ships buildah) and pushes `sha-<commit>`, plus `latest` from `main` and the tag name for `v*` tags, to `ghcr.io/vehagn/fest`. Tool versions match the devcontainer. `just image` and `just push` also run anywhere buildah works natively.
+- **Images are built in CI, not in the devcontainer.** Rootless buildah there needs user namespaces, which means loosening the dev container's seccomp and AppArmor profiles. We tried that, and it builds a correct image, but chose to keep the dev container locked down. `.github/workflows/ci.yaml` runs `just test` and `just lint` against a Postgres 18 service on every push and pull request; on pushes it then runs `just image` on `ubuntu-24.04` (which ships buildah) and pushes `sha-<commit>`, plus `latest` from `main` and the tag name for `v*` tags, to `ghcr.io/vehagn/innby`. Tool versions match the devcontainer. `just image` and `just push` also run anywhere buildah works natively.
 - Probes use `httpGet` on `/healthz` and `/readyz`, since there is no shell for `exec` probes.
 
 ## 11. Kubernetes (fits the existing homelab conventions)
 
 | Resource | Notes |
 |---|---|
-| Namespace | `fest` |
-| Postgres | A **CNPG `Cluster`** `fest-postgres`: 1 instance, image `postgresql:18.6-minimal-trixie` (same as dev), 1 Gi on `proxmox-csi`, created with `bootstrap.initdb` (database `fest`, owner `fest`). The CNPG-generated `fest-postgres-app` secret provides `uri`. No backups, on purpose. |
-| Deployments | `fest-web` (`serve`, 2 replicas), `fest-admin` (`admin`, 1 replica), `fest-mailer` (`mailer`, 1 replica, `Recreate`). `fest migrate` runs as an **init container** on `fest-web`. |
-| CronJob | `fest-janitor`: hourly, with `concurrencyPolicy: Forbid`. |
+| Namespace | `innby` |
+| Postgres | A **CNPG `Cluster`** `innby-postgres`: 1 instance, image `postgresql:18.6-minimal-trixie` (same as dev), 1 Gi on `proxmox-csi`, created with `bootstrap.initdb` (database `innby`, owner `innby`). The CNPG-generated `innby-postgres-app` secret provides `uri`. No backups, on purpose. |
+| Deployments | `innby-web` (`serve`, 2 replicas), `innby-admin` (`admin`, 1 replica), `innby-mailer` (`mailer`, 1 replica, `Recreate`). `innby migrate` runs as an **init container** on `innby-web`. |
+| CronJob | `innby-janitor`: hourly, with `concurrencyPolicy: Forbid`. |
 | HTTPRoutes | Public routes on `gateway/external`. The admin hostname on `gateway/internal`. TLS comes from the existing cert-manager setup. |
-| Secrets (SealedSecrets) | One `fest` secret, sealed by `just seal` from the gitignored `deploy/secrets.env`: the link key, the open-RSVP code, the admin hash, and the MailerSend SMTP credentials. Each workload references only the keys it needs. |
-| NetworkPolicies (Cilium) | `web` and `admin` accept traffic from the gateways (`fromEntities: ingress`); which gateway reaches which is decided by the HTTPRoutes. `mailer` has no ingress and egress to `smtp.mailersend.net:587` only. `janitor` has egress to the DB only. Postgres accepts ingress from the fest pods and the CNPG operator. |
+| Secrets (SealedSecrets) | One `innby` secret, sealed by `just seal` from the gitignored `deploy/secrets.env`: the link key, the open-RSVP code, the admin hash, and the MailerSend SMTP credentials. Each workload references only the keys it needs. |
+| NetworkPolicies (Cilium) | `web` and `admin` accept traffic from the gateways (`fromEntities: ingress`); which gateway reaches which is decided by the HTTPRoutes. `mailer` has no ingress and egress to `smtp.mailersend.net:587` only. `janitor` has egress to the DB only. Postgres accepts ingress from the Innby pods and the CNPG operator. |
 | Pod security | `runAsNonRoot`, `readOnlyRootFilesystem`, `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault`, and the namespace labelled `pod-security.kubernetes.io/enforce: restricted`. |
 | Observability | JSON logs. `/metrics` (responses, headcount, rate-limit hits, outbox lag, mail failures) is left for hardening. |
-| Delivery | Kustomize in `deploy/` (see `deploy/README.md`), copied to `vehagn/homelab` → `k8s/apps/<group>/fest`, where the group's ApplicationSet picks it up. |
+| Delivery | Kustomize in `deploy/` (see `deploy/README.md`), copied to `vehagn/homelab` → `k8s/apps/<group>/innby`, where the group's ApplicationSet picks it up. |
 
 ## 12. Justfile (draft)
 
@@ -311,12 +311,12 @@ just migrate             # apply migrations to $DATABASE_URL
 just prepare             # cargo sqlx prepare → .sqlx/ (commit it)
 just psql                # shell into dev db
 just invite "Kari & Ola" 2   # create an invitation from the CLI, print link
-just hash-password       # argon2 hash for FEST_ADMIN_PASSWORD_HASH
+just hash-password       # argon2 hash for INNBY_ADMIN_PASSWORD_HASH
 just test                # cargo test (incl. #[sqlx::test] against db)
 just lint                # cargo fmt --check, clippy -D warnings, sqlx prepare --check, cargo deny check
 just build               # static x86_64 musl binary via cargo zigbuild (SQLX_OFFLINE)
 just image [tag]         # buildah: scratch + binary
-just push [tag]          # buildah push → ghcr.io/vehagn/fest
+just push [tag]          # buildah push → ghcr.io/vehagn/innby
 just seal                # deploy/secrets.env → deploy/sealed-secrets.yaml
 just manifests           # render deploy/ with kustomize (Argo CD does the deploying)
 ```
@@ -324,10 +324,10 @@ just manifests           # render deploy/ with kustomize (Argo CD does the deplo
 ## 13. Milestones
 
 0. ✅ **Devcontainer:** Containerfile, compose and `devcontainer.json`, verified by building it and running every tool once.
-1. ✅ **Skeleton:** `cargo init`, `rust-toolchain.toml`, `Justfile`, config, `fest serve` with `/healthz`, an askama layout with embedded CSS, nb/en `Messages`.
+1. ✅ **Skeleton:** `cargo init`, `rust-toolchain.toml`, `Justfile`, config, `innby serve` with `/healthz`, an askama layout with embedded CSS, nb/en `Messages`.
 2. ✅ **Schema:** migrations, the `db` module, `.sqlx/` offline data, `#[sqlx::test]` integration tests.
 3. ✅ **Links and the RSVP page:** HMAC signing, `/r/{link}` (respond, party size, rename, export, delete), link hygiene headers, CSRF middleware.
-4. ✅ **Admin:** invitations (create, link and QR, revoke, delete), headcount, CSV, basic auth, and `fest invite` on the CLI.
+4. ✅ **Admin:** invitations (create, link and QR, revoke, delete), headcount, CSV, basic auth, and `innby invite` on the CLI.
 5. ✅ **Open RSVP:** `/join/{code}`, honeypot, rate limit, a "save your link" page, and the on/off flag. Replaced by group links in 12.
 6. ✅ **Optional e-mail:** add and confirm an address, the outbox and mailer (Mailpit locally, MailerSend in the cluster), `/lost`, reminders.
 7. ✅ **Janitor and privacy:** retention rules, `/privacy` (nb/en), `docs/ropa.md`.
@@ -339,6 +339,7 @@ just manifests           # render deploy/ with kustomize (Argo CD does the deplo
 13. ✅ **Paths and texts:** every route pattern and link in `src/paths.rs`, admin guest pages at `/guests/{id}`, and the texts and mails in `locales/{nb,en}.toml`.
 14. ✅ **More languages:** Nynorsk, and English split into British ("traditional") and American ("simplified"), each with its own texts, mails, privacy notice and date format.
 15. ✅ **Chinese:** Simplified and Traditional, with punctuation moved from the templates into the texts, and partial names that keep only the family name for names in Chinese, Japanese or Korean script ("王**").
+16. ✅ **Renamed to Innby** (from fest): the crate, binary and commands, the `INNBY_*` settings, the image, the Kubernetes names and the databases. The hostnames stay as they are.
 
 ## 14. Decisions
 

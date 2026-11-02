@@ -1,4 +1,4 @@
-//! `fest mailer`: sends the mail jobs in the outbox. The only workload with SMTP
+//! `innby mailer`: sends the mail jobs in the outbox. The only workload with SMTP
 //! credentials and a way out to the internet.
 
 pub mod compose;
@@ -42,7 +42,7 @@ struct Smtp(AsyncSmtpTransport<Tokio1Executor>);
 impl Smtp {
     fn new(mail: &MailConfig) -> Result<Self> {
         let mut builder = AsyncSmtpTransport::<Tokio1Executor>::from_url(&mail.smtp_url)
-            .context("FEST_SMTP_URL")?
+            .context("INNBY_SMTP_URL")?
             .timeout(Some(Duration::from_secs(30)));
         if let (Some(user), Some(password)) = (&mail.smtp_user, &mail.smtp_password) {
             builder = builder.credentials(Credentials::new(user.clone(), password.clone()));

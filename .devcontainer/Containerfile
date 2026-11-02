@@ -1,4 +1,4 @@
-# Development container for fest: the Rust toolchain, cross-compilation to a
+# Development container for Innby: the Rust toolchain, cross-compilation to a
 # static x86_64 musl binary, and clients for Postgres and Kubernetes. Container
 # images are built outside this container. Bump the pinned versions below and
 # rebuild to upgrade.
@@ -89,4 +89,4 @@ RUN curl -fsSL "https://github.com/cargo-bins/cargo-binstall/releases/download/v
 ENV CARGO_TARGET_DIR=/home/${USERNAME}/.cache/target \
     KUBECACHEDIR=/home/${USERNAME}/.cache/kube
 
-WORKDIR /workspaces/fest
+WORKDIR /workspaces/innby

@@ -2,7 +2,7 @@ set dotenv-load
 
 musl_target := "x86_64-unknown-linux-musl"
 target_dir := env("CARGO_TARGET_DIR", justfile_directory() / "target")
-image := env("FEST_IMAGE", "ghcr.io/vehagn/fest")
+image := env("INNBY_IMAGE", "ghcr.io/vehagn/innby")
 revision := `git rev-parse HEAD 2>/dev/null || echo unknown`
 
 # List available recipes
@@ -27,7 +27,7 @@ invite name max_party_size="1": migrate
 janitor: migrate
     cargo run --quiet -- janitor
 
-# Hash an admin password for FEST_ADMIN_PASSWORD_HASH (prompts without echo)
+# Hash an admin password for INNBY_ADMIN_PASSWORD_HASH (prompts without echo)
 hash-password:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -61,16 +61,16 @@ fmt:
 # Build the static x86_64 musl release binary (from .sqlx/, no database needed)
 build:
     SQLX_OFFLINE=true cargo zigbuild --locked --release --target {{ musl_target }}
-    @echo "{{ target_dir }}/{{ musl_target }}/release/fest"
+    @echo "{{ target_dir }}/{{ musl_target }}/release/innby"
 
 # Build a scratch image that contains only the binary (needs buildah; not in the devcontainer)
 image tag="dev": build
     #!/usr/bin/env bash
     set -euo pipefail
     ctr=$(buildah from --arch amd64 --os linux scratch)
-    buildah copy --chmod 0555 "$ctr" "{{ target_dir }}/{{ musl_target }}/release/fest" /fest
+    buildah copy --chmod 0555 "$ctr" "{{ target_dir }}/{{ musl_target }}/release/innby" /innby
     buildah config \
-      --entrypoint '["/fest"]' \
+      --entrypoint '["/innby"]' \
       --cmd serve \
       --user 65532:65532 \
       --port 8080 \
@@ -87,7 +87,7 @@ push tag="dev":
 
 # Seal deploy/secrets.env with the cluster's key into deploy/sealed-secrets.yaml
 seal:
-    kubectl create secret generic fest --namespace fest \
+    kubectl create secret generic innby --namespace innby \
       --from-env-file=deploy/secrets.env --dry-run=client --output=yaml \
       | kubeseal --controller-namespace sealed-secrets \
           --controller-name sealed-secrets-controller --format yaml \

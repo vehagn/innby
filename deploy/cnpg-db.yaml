@@ -1,7 +1,7 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: fest-postgres
+  name: innby-postgres
 spec:
   instances: 1
   # Same Postgres as the devcontainer. "minimal": no backup tooling, since nothing here
@@ -12,8 +12,8 @@ spec:
       timezone: Europe/Oslo
   bootstrap:
     initdb:
-      database: fest
-      owner: fest
+      database: innby
+      owner: innby
   enableSuperuserAccess: false
   managed:
     services:

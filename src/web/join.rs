@@ -343,7 +343,7 @@ mod tests {
 
     #[sqlx::test]
     async fn closes_at_the_deadline(db: PgPool) {
-        let site = Site::with(db, &[("FEST_RSVP_DEADLINE", "2020-01-01T12:00")]);
+        let site = Site::with(db, &[("INNBY_RSVP_DEADLINE", "2020-01-01T12:00")]);
         let (_, link) = climbing_club(&site).await;
         let join = format!("/join/{link}");
         assert!(
