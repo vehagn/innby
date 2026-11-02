@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="{{ lang.code() }}">
+<html lang="{{ lang.tag() }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,7 +8,11 @@
 </head>
 <body>
   <header>
-    <a class="lang-switch" href="?lang={{ lang.other().code() }}" hreflang="{{ lang.other().code() }}" lang="{{ lang.other().code() }}">{{ t.other_language }}</a>
+    <nav class="lang-switch" aria-label="{{ t.languages }}">
+      {% for other in lang.others() %}
+      <a href="?lang={{ other.code() }}" hreflang="{{ other.tag() }}" lang="{{ other.tag() }}">{{ other.messages().language_name }}</a>
+      {% endfor %}
+    </nav>
   </header>
   <main>
     {% block content %}{% endblock %}

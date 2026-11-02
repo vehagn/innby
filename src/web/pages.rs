@@ -201,7 +201,6 @@ pub async fn index(State(state): State<AppState>, lang: Lang) -> Response {
 struct PrivacyPage<'a> {
     lang: Lang,
     t: &'static Messages,
-    nb: bool,
     version: &'static str,
     event_title: &'a str,
     controller: &'a Controller,
@@ -214,7 +213,6 @@ pub async fn privacy(State(state): State<AppState>, lang: Lang) -> Response {
     render(PrivacyPage {
         lang,
         t: lang.messages(),
-        nb: lang == Lang::Nb,
         version: PRIVACY_VERSION,
         event_title: state.config.event.title.get(lang),
         controller: &state.config.controller,

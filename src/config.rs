@@ -86,12 +86,21 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
             .ok_or_else(|| anyhow!("{key} must be set"))
     }
 
+    /// `{key}_NB`, with optional `_NN`, `_EN` (British) and `_EN_US`. Nynorsk and British
+    /// English fall back to Bokmål, and American English to British.
     fn localized(&self, key: &str) -> Result<Localized<String>> {
         let nb = self.required(&format!("{key}_NB"))?;
-        let en = self
-            .optional(&format!("{key}_EN"))
-            .unwrap_or_else(|| nb.clone());
-        Ok(Localized { nb, en })
+        let or = |suffix: &str, fallback: &String| {
+            self.optional(&format!("{key}_{suffix}"))
+                .unwrap_or_else(|| fallback.clone())
+        };
+        let en_gb = or("EN", &nb);
+        Ok(Localized {
+            nn: or("NN", &nb),
+            en_us: or("EN_US", &en_gb),
+            en_gb,
+            nb,
+        })
     }
 
     fn time_zone(&self) -> Result<Tz> {
@@ -306,7 +315,7 @@ pub mod tests {
     fn parses_valid_config_with_defaults() {
         let config = parse(&[]).unwrap();
         assert_eq!(config.listen, "0.0.0.0:8080".parse().unwrap());
-        assert_eq!(config.event.title.en, "Christmas party");
+        assert_eq!(config.event.title.en_gb, "Christmas party");
         assert_eq!(
             config.event.starts_at.to_rfc3339(),
             "2026-12-12T19:00:00+01:00"
@@ -314,9 +323,22 @@ pub mod tests {
     }
 
     #[test]
-    fn english_falls_back_to_norwegian() {
-        let config = parse(&[]).unwrap();
-        assert_eq!(config.event.description.en, "Velkommen!");
+    fn languages_fall_back_on_each_other() {
+        let event = parse(&[]).unwrap().event;
+        assert_eq!(event.description.en_gb, "Velkommen!");
+        assert_eq!(event.title.nn, "Julebord");
+        assert_eq!(event.title.en_us, "Christmas party");
+
+        let event = parse(&[
+            ("FEST_EVENT_TITLE_NN", "Juleball"),
+            ("FEST_EVENT_TITLE_EN_US", "Holiday party"),
+        ])
+        .unwrap()
+        .event;
+        assert_eq!(
+            (event.title.nn.as_str(), event.title.en_us.as_str()),
+            ("Juleball", "Holiday party")
+        );
     }
 
     #[test]

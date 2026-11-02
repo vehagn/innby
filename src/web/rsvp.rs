@@ -370,7 +370,7 @@ mod tests {
     use sqlx::PgPool;
 
     use super::*;
-    use crate::web::testing::{Site, body, form_post, location};
+    use crate::web::testing::{Site, body, en, escape, form_post, location};
 
     #[sqlx::test]
     async fn guest_answers_through_their_link(db: PgPool) {
@@ -401,12 +401,12 @@ mod tests {
 
         let answered = site.find(&invite).await.unwrap();
         assert_eq!(answered.response, rsvp::Response::Attending);
-        assert_eq!((answered.party_size, answered.lang), (2, Lang::En));
+        assert_eq!((answered.party_size, answered.lang), (2, Lang::EnGb));
         assert_eq!(answered.privacy_version.as_deref(), Some(PRIVACY_VERSION));
 
         let html = body(site.get(&format!("/r/{link}?lang=en&notice=saved")).await).await;
-        assert!(html.contains("Saved!"));
-        assert!(html.contains("Coming · 2 people"));
+        assert!(html.contains(&escape(&en().saved)));
+        assert!(html.contains(&en().answer(rsvp::Response::Attending, 2)));
         assert!(!html.contains("You're invited!"));
 
         site.post(&format!("/r/{link}"), "party_size=1&response=declined")
@@ -547,9 +547,10 @@ mod tests {
 
         // Coming defaults to the full name.
         let html = body(site.get(&format!("/r/{kari}?lang=en")).await).await;
-        assert!(
-            html.contains(r#"<option value="full" selected>Full name (Kari Nordmann)</option>"#)
-        );
+        assert!(html.contains(&format!(
+            r#"<option value="full" selected>{} (Kari Nordmann)</option>"#,
+            en().display_full
+        )));
         // The page a link opens has no other guest's name: link previews fetch it.
         assert!(!html.contains("Ola") && !html.contains("Anne"), "{html}");
         assert!(html.contains(&format!(
@@ -572,13 +573,23 @@ mod tests {
         let response = site.get(&guests(&kari)).await;
         assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
         let html = body(response).await;
-        assert!(html.contains(r#"<li>Kari Nordmann <span class="muted">(you)</span></li>"#));
+        let t = en();
+        assert!(html.contains(&format!(
+            r#"<li>Kari Nordmann <span class="muted">({})</span></li>"#,
+            t.you
+        )));
         assert!(html.contains("<li>Anne L.</li>"));
         // Ola is coming but hidden, and Per declined.
-        assert!(html.contains(r#"<li class="muted">+ 1 more</li>"#));
+        assert!(html.contains(&format!(r#"<li class="muted">{}</li>"#, t.more_guests(1))));
         assert!(!html.contains("Ola H") && !html.contains("Per B"));
-        assert!(html.contains("Other guests see you as <strong>Kari Nordmann</strong></p>"));
-        assert!(html.contains(&format!(r#"href="/r/{kari}?lang=en">Back to your page"#)));
+        assert!(html.contains(&format!(
+            "{} <strong>Kari Nordmann</strong></p>",
+            t.listed_as
+        )));
+        assert!(html.contains(&format!(
+            r#"href="/r/{kari}?lang=en">{}"#,
+            t.back_to_your_page
+        )));
 
         let response = site
             .post(
@@ -588,16 +599,20 @@ mod tests {
             .await;
         let back = location(&response).to_owned();
         assert_eq!(back, format!("/r/{kari}/guests?lang=en&notice=saved"));
-        assert!(body(site.get(&back).await).await.contains("Saved!"));
+        assert!(
+            body(site.get(&back).await)
+                .await
+                .contains(&escape(&t.saved))
+        );
         let html = body(site.get(&guests(&ola)).await).await;
         assert!(html.contains("<li>Kari N.</li>"));
-        assert!(html.contains("Your name isn&#39;t on the list."));
+        assert!(html.contains(&escape(&t.listed_hidden)));
         // Answering again keeps the choice the form shows.
         let html = body(site.get(&format!("/r/{ola}?lang=en")).await).await;
         assert!(html.contains(r#"<option value="hidden" selected>"#));
         let html = body(site.get(&guests(&per)).await).await;
-        assert!(html.contains("You&#39;re not on the list, since you can&#39;t come."));
-        assert!(!html.contains("Show instead"));
+        assert!(html.contains(&escape(&t.listed_declined)));
+        assert!(!html.contains(&t.show_instead));
 
         let response = site.get("/r/garbage/guests").await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -616,7 +631,7 @@ mod tests {
             .post(&format!("/r/{link}/delete?lang=en"), "confirm=yes")
             .await;
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(body(response).await.contains("Your RSVP has been deleted"));
+        assert!(body(response).await.contains(&escape(&en().deleted_title)));
         assert!(site.find(&invite).await.is_none());
         assert_eq!(
             site.get(&format!("/r/{link}")).await.status(),

@@ -200,7 +200,7 @@ mod tests {
     #[sqlx::test]
     async fn sends_confirmation_with_a_working_link(db: PgPool) {
         let config = config();
-        let guest = guest_with_email(&db, "kari@example.com", Lang::En).await;
+        let guest = guest_with_email(&db, "kari@example.com", Lang::EnGb).await;
         outbox::enqueue(&db, guest.id, Kind::ConfirmEmail)
             .await
             .unwrap();
@@ -214,7 +214,11 @@ mod tests {
 
         let [(to, subject, body)] = sender.mails().try_into().unwrap();
         assert_eq!(to, "kari@example.com");
-        assert_eq!(subject, "Confirm your e-mail address – Christmas party");
+        let expected = crate::i18n::fill(
+            &Lang::EnGb.messages().mail.confirm_email.subject,
+            &[("title", &"Christmas party")],
+        );
+        assert_eq!(subject, expected);
         assert!(!body.contains("Kari"), "the guest's name: {body}");
         let url = body
             .split_whitespace()

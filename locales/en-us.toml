@@ -1,0 +1,180 @@
+# American English, the "simplified" variant: short and plain. Every language has the
+# same keys; a missing or unknown key fails the tests and stops fest at start.
+# `{name}` and the like are filled in; keep them as they are.
+
+# The language's own name, on the language switch.
+language_name = "English (Simplified)"
+# What the language switch is, for screen readers.
+languages = "Languages"
+privacy_link = "Privacy"
+
+# Event
+# `chrono` format for dates and times: "Sat, Dec 12, 2026, 7:00 PM".
+date_format = "%a, %b %-d, %Y, %-I:%M %p"
+when = "When"
+place = "Where"
+rsvp_hint = "Got an invite? Use your link to RSVP."
+
+# RSVP page
+greeting = "Hi"
+# Shown until the guest has answered: what we store and why (GDPR Art. 13/14).
+first_visit_notice = """
+You're invited! We save your name, your answer, and how many are coming. That's it. It's \
+all deleted 30 days after the party. Other guests see your first name and initial on the \
+guest list. You can change that."""
+keep_link = "This is your page. Keep the link to change your answer. Don't share it."
+saved = "Saved!"
+your_answer = "Your answer"
+answer_pending = "No answer yet"
+answer_attending = "Going"
+answer_declined = "Not going"
+how_many = "How many?"
+people_one = "{n} person"
+people_other = "{n} people"
+attend = "I'm going"
+decline = "Can't go"
+reply_by = "RSVP by"
+answers_closed = "RSVPs are closed. Ask the host if something changed."
+name_heading = "Name"
+change_name = "Change name"
+data_heading = "Your data"
+data_text = "Download or delete everything we have on you."
+export = "Download (JSON)"
+delete_confirm = "Yes, delete my RSVP and all my data"
+delete = "Delete"
+save_link_title = "Save your link!"
+save_link_text = """
+It's the only way to change or delete your RSVP. Bookmark it or copy it somewhere safe."""
+
+# Optional e-mail
+email_heading = "Email reminders"
+email_intro = "Want a reminder and your link by email? Totally optional."
+email_label = "Email"
+# The consent statement next to the unticked box (GDPR Art. 7).
+email_consent = "Yes, email me reminders and my link. I can remove my email anytime."
+email_add = "Add"
+email_pending = "We sent a link to"
+email_pending_hint = "It works for 48 hours."
+email_confirmed = "Reminders go to"
+email_remove = "Remove my email"
+email_sent_notice = "Check your inbox to confirm."
+email_removed_notice = "Email removed."
+email_confirmed_notice = "Email confirmed. We'll send you your link."
+invalid_email = "Enter a valid email."
+consent_required = "Check the box to say yes."
+confirm_title = "Confirm your email"
+confirm_text = "Press the button to get reminders and your link by email."
+confirm_button = "Confirm"
+confirm_invalid_text = """
+This link expired or doesn't work anymore. Add your email again on your RSVP page."""
+lost_link = "Lost your link?"
+lost_title = "Lost your link?"
+lost_text = "If you added and confirmed your email, we'll send it again."
+lost_button = "Send my link"
+lost_sent_title = "Check your inbox"
+lost_sent_text = "If that email is confirmed, your link is on the way."
+
+# Guest list
+guest_list_heading = "Guest list"
+# The button to the guest list, which is on a page of its own.
+see_guest_list = "Who's going?"
+back_to_your_page = "Back"
+back_to_sign_up = "Back"
+guest_list_coming = "Going"
+guest_list_pending = "No answer yet"
+# "+ {n} more", for guests who'd rather not be listed.
+guest_list_more = "+ {n} more"
+guest_list_empty = "Nobody yet."
+guest_list_note = "People who can't go aren't listed."
+you = "you"
+listed_as = "Others see you as"
+listed_hidden = "You're hidden."
+listed_declined = "You're not listed, since you can't go."
+show_instead = "Switch to"
+name_display_label = "Show my name as"
+display_full = "Full name"
+display_partial = "First name + initial"
+display_hidden = "Hide my name"
+
+# Group sign-up
+join_group = "Invited with"
+join_heading = "RSVP"
+# What we store and why (GDPR Art. 13), shown where the data is collected.
+join_notice = """
+We only save your name and how many are coming. Others see your name the way you pick \
+above. It's deleted 30 days after the party, or anytime you want."""
+your_name = "Your name"
+join_button = "I'm going!"
+
+# Errors and outcomes
+invalid_party_size = "Pick a number."
+invalid_name = "Enter a name (100 characters max)."
+confirm_delete = "Check the box to delete."
+gone_title = "This link doesn't work"
+gone_text = """
+It may be mistyped or replaced, or the RSVP was deleted. Ask the host for a new one."""
+deleted_title = "RSVP deleted"
+deleted_text = """
+Your name, your answer, and everything else are gone. Changed your mind? Ask the host \
+for a new invite."""
+to_event = "Back to the party"
+too_many_attempts = "Too many tries. Try again in an hour."
+not_found_title = "Page not found"
+not_found_text = "Check the link or ask the host."
+
+# Mails. Each is plain text; `{url}` is a link on the site and `{title}` the event.
+[mail]
+# Under every mail. `{base}` is the site's address.
+footer = """
+You got this email because this address was added on {base}. Remove it from your RSVP \
+page anytime."""
+
+# To an address a guest typed in, before it's confirmed. Anyone can type in
+# any address, so this mail must not include anything a guest wrote, such as `{name}`.
+[mail.confirm_email]
+subject = "Confirm your email – {title}"
+body = """
+Hi!
+
+Open the link and press "Confirm" to get reminders and your link for {title}:
+
+{url}
+
+It works for 48 hours. Not you? Ignore this email and we'll delete the address."""
+
+# To the confirmed owner when someone else adds their address.
+[mail.email_in_use]
+subject = "Your email is already signed up – {title}"
+body = """
+Hi!
+
+Someone (maybe you) tried to add this email to an RSVP for {title}, but it's already in \
+use. Lost your link? Get it here:
+
+{url}
+
+Not you? Ignore this email."""
+
+# The guest's own link, after confirming or from /lost.
+[mail.rsvp_link]
+subject = "Your link – {title}"
+body = """
+Hi, {name}!
+
+Here's your link for {title}. Use it to change or delete your RSVP:
+
+{url}
+
+Don't share it."""
+
+# From the host's Send reminders. `{when}`, `{place}`, `{answer}`.
+[mail.reminder]
+subject = "Reminder: {title}"
+body = """
+Hi, {name}!
+
+{title} is {when} at {place}.
+
+Your answer: {answer}. Change it here:
+
+{url}"""

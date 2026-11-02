@@ -13,7 +13,9 @@
             "kind": {
               "Enum": [
                 "nb",
-                "en"
+                "nn",
+                "en",
+                "en-us"
               ]
             }
           }

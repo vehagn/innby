@@ -12,7 +12,7 @@ Plan for a small, GDPR-compliant page where ~100 guests say whether they're comi
   3. **Optional e-mail.** From their RSVP page a guest can add an e-mail address (with double opt-in) to get reminders and their link by mail.
 - Guests can change their answer, party size and name at any time, and can export or delete their data.
 - A guest list on every personal and group link page (§5.6), showing who's coming and who hasn't answered. Each guest chooses whether others see their full name, their first name and initial, or nothing.
-- Pages in **Norwegian (bokmål) and English**, chosen from the browser's `Accept-Language`, with a manual switch through `?lang=` (no cookie).
+- Pages in **Bokmål, Nynorsk, British English ("traditional", a touch posh) and American English ("simplified", short and plain)**, chosen from the browser's `Accept-Language`, with a switch through `?lang=nb|nn|en|en-us` (no cookie). English is British unless the browser asks for `en-US`.
 - An admin UI for you: create invitations and group links in batches, revoke them, see the headcount, export CSV.
 - Built for GDPR from the start: minimal data, clear retention, automatic deletion, no cookies or third-party assets.
 - A tiny OCI image that holds nothing but the binary, built with buildah and driven by `just`.
@@ -46,7 +46,7 @@ You had no preference, and the devcontainer removes Go's main advantage (it was 
 | TLS roots | `rustls` + `webpki-roots`: CA roots compiled in, so the image needs no `/etc/ssl` |
 
 - **CSRF:** axum has no built-in equivalent of Go's `CrossOriginProtection`, so we add a ~20-line middleware that does the same thing. For unsafe methods it requires `Sec-Fetch-Site` to be `same-origin` or `none`, or (for older browsers) the `Origin` host to match the `Host` header. This needs no cookies, and works unchanged for both the public and the admin hostname.
-- **i18n:** two languages don't need Fluent. Each language's texts, mails included, live in `locales/{lang}.toml`, compiled into the binary and read into one `Messages` struct that the templates use. A missing or unknown key, or a placeholder like `{name}` that one language has and the other lacks, fails the tests and stops the program at start. The privacy notice is a template per language, since it's a document rather than strings.
+- **i18n:** four languages still don't need Fluent. Each language's texts, mails included, live in `locales/{lang}.toml`, compiled into the binary and read into one `Messages` struct that the templates use. A missing or unknown key, or a placeholder like `{name}` that one language has and another lacks, fails the tests and stops the program at start. The privacy notice is a template per language, since it's a document rather than strings.
 - **Cross-compiling:** the devcontainer runs arm64 on your Mac and the cluster is amd64. `cargo zigbuild --target x86_64-unknown-linux-musl` (with Zig as the linker) handles that, including the C code inside `ring`.
 
 ## 3. Architecture: should we split it into microservices?
@@ -179,7 +179,7 @@ Until a guest chooses, their name shows as first name and initial before they an
 | Area | Decision |
 |---|---|
 | Lawful basis | **RSVP data** (name, response, party size) and **the guest list**: **legitimate interest** (Art. 6(1)(f)) in organising an event the guest was invited to or chose to join, and in guests knowing who else is coming. Guests can hide their name from the list. The balancing test is documented in `docs/ropa.md`. Consent would be awkward, because you create invitations before the guest has agreed to anything. **Optional e-mail:** **consent** (Art. 6(1)(a)), with double opt-in and `email_consent_at` and `privacy_version` recorded. (A private party might fall under the household exemption in Art. 2(2)(c), but we don't rely on it.) |
-| Transparency | Invitation data is entered by you, not the guest, so Art. 14 information appears on their first visit to the link. Group sign-up and e-mail show the Art. 13 notice at the point where the data is collected. The notice is available in Norwegian and English. |
+| Transparency | Invitation data is entered by you, not the guest, so Art. 14 information appears on their first visit to the link. Group sign-up and e-mail show the Art. 13 notice at the point where the data is collected. The notice is available in Bokmål, Nynorsk and both Englishes. |
 | Data minimisation | Required: a name or label, the response and the party size. E-mail is optional. No free-text notes field, and **no dietary or allergy info**: it can count as health data (Art. 9) and would need explicit consent. Invitation labels should be first names or household names. |
 | IP addresses | Never stored. Rate limiting works per IP in memory only, and logs drop or truncate IPs. |
 | Cookies | **None.** CSRF is handled by the `Sec-Fetch-Site`/`Origin` middleware (§2), authorisation by the signed link, and the language choice by `?lang=`, so no cookie banner is needed. |
@@ -237,7 +237,7 @@ fest/
 │   ├── admin/                 # invitations, headcount, CSV, QR
 │   ├── mailer.rs              # outbox worker + mail rendering
 │   └── janitor.rs             # retention rules, reminders
-├── locales/*.toml             # nb/en texts and mails, compiled in
+├── locales/*.toml             # nb/nn/en/en-us texts and mails, compiled in
 ├── templates/*.html           # askama, compiled in
 ├── static/                    # CSS (+ self-hosted font if any), compiled in
 ├── migrations/*.sql           # sqlx::migrate!(), compiled in
@@ -337,13 +337,14 @@ just manifests           # render deploy/ with kustomize (Argo CD does the deplo
 11. ✅ **Pentest fixes:** a bounded admin login check with lockout, a confirmation mail without guest text, a site-wide mail cap, unconfirmed addresses that can be shared, the example secrets from `.env.example` refused on an https site, a header timeout, names without invisible or reordering characters, and `/lost` lookups after the response.
 12. ✅ **Groups and guest list:** batch-created invitations and group links (replacing `FEST_OPEN_RSVP_CODE`), and a guest list on every link with a full, partial or hidden name per guest.
 13. ✅ **Paths and texts:** every route pattern and link in `src/paths.rs`, admin guest pages at `/guests/{id}`, and the texts and mails in `locales/{nb,en}.toml`.
+14. ✅ **More languages:** Nynorsk, and English split into British ("traditional") and American ("simplified"), each with its own texts, mails, privacy notice and date format.
 
 ## 14. Decisions
 
 - **Language:** Rust (no preference given; the devcontainer makes the toolchain a non-issue).
 - **RSVP style:** both personal invite links and name-only sign-up through group links the host makes (§5.1, §5.2).
 - **E-mail:** an optional extra for guests (§5.3); the `mailer` workload is part of v1.
-- **Page languages:** Norwegian (bokmål) and English.
+- **Page languages:** Bokmål, Nynorsk, British English and American English.
 - **Capacity:** no limit and no waitlist.
 - **Group sign-up party size:** set per group, 2 by default (the guest plus one).
 - **Guest list:** the whole event's, on every link; names as each guest chose (§5.6).

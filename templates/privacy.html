@@ -4,7 +4,12 @@
 
 {% block content %}
 <article class="prose">
-{% if nb %}{% include "privacy/nb.html" %}{% else %}{% include "privacy/en.html" %}{% endif %}
+{% match lang %}
+{% when Lang::Nb %}{% include "privacy/nb.html" %}
+{% when Lang::Nn %}{% include "privacy/nn.html" %}
+{% when Lang::EnGb %}{% include "privacy/en.html" %}
+{% when Lang::EnUs %}{% include "privacy/en-us.html" %}
+{% endmatch %}
 </article>
 <p><a href="{{ lang.home() }}">{{ t.to_event }}</a></p>
 {% endblock %}

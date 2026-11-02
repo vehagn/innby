@@ -1,0 +1,189 @@
+# Norwegian (nynorsk) texts for the public site and the mails. Every language has the
+# same keys; a missing or unknown key fails the tests and stops fest at start.
+# `{name}` and the like are filled in; keep them as they are.
+
+# The language's own name, on the language switch.
+language_name = "Nynorsk"
+# What the language switch is, for screen readers.
+languages = "Språk"
+privacy_link = "Personvern"
+
+# Event
+# `chrono` format for dates and times.
+date_format = "%A %-d. %B %Y kl. %H:%M"
+when = "Når"
+place = "Kvar"
+rsvp_hint = "Har du fått ein invitasjon? Bruk lenkja du fekk for å svare."
+
+# RSVP page
+greeting = "Hei"
+# Shown until the guest has answered: what we store and why (GDPR Art. 13/14).
+first_visit_notice = """
+Du er invitert! For å planleggje festen lagrar vi namnet ditt, svaret ditt og kor mange \
+de blir. Ikkje noko meir, og alt blir sletta 30 dagar etter festen. På gjestelista ser \
+andre gjester førenamnet og initialen din, og du kan velje kva dei ser."""
+keep_link = """
+Dette er den personlege sida di. Ta vare på lenkja for å endre svaret seinare, og ikkje \
+del ho med andre."""
+saved = "Lagra!"
+your_answer = "Svaret ditt"
+answer_pending = "Ikkje svart enno"
+answer_attending = "Kjem"
+answer_declined = "Kjem ikkje"
+how_many = "Kor mange kjem?"
+people_one = "{n} person"
+people_other = "{n} personar"
+attend = "Eg kjem"
+decline = "Eg kan ikkje"
+reply_by = "Svarfrist"
+answers_closed = "Svarfristen har gått ut. Ta kontakt med verten om noko har endra seg."
+name_heading = "Namn"
+change_name = "Endre namn"
+data_heading = "Opplysningane dine"
+data_text = "Du kan laste ned alt vi har lagra om deg, eller slette det no."
+export = "Last ned (JSON)"
+delete_confirm = "Ja, slett svaret mitt og alt som er lagra om meg"
+delete = "Slett"
+save_link_title = "Ta vare på lenkja di!"
+save_link_text = """
+Dette er den einaste måten å endre eller slette svaret ditt på. Legg til eit bokmerke \
+eller kopier lenkja til ein trygg stad."""
+
+# Optional e-mail
+email_heading = "Påminning på e-post"
+email_intro = "Vil du få ei påminning og lenkja di på e-post? Det er heilt valfritt."
+email_label = "E-postadresse"
+# The consent statement next to the unticked box (GDPR Art. 7).
+email_consent = """
+Ja, send meg påminningar og lenkja mi på e-post. Eg kan fjerne adressa når som helst."""
+email_add = "Legg til"
+email_pending = "Vi har sendt ei stadfestingslenkje til"
+email_pending_hint = "Lenkja verkar i 48 timar."
+email_confirmed = "Påminningar blir sende til"
+email_remove = "Fjern e-postadressa"
+email_sent_notice = "Sjekk innboksen din for å stadfeste adressa."
+email_removed_notice = "E-postadressa di er fjerna."
+email_confirmed_notice = "E-postadressa di er stadfesta. Vi sender deg lenkja di."
+invalid_email = "Skriv inn ei gyldig e-postadresse."
+consent_required = "Kryss av i boksen for å gje samtykke."
+confirm_title = "Stadfest e-postadressa"
+confirm_text = """
+Trykk på knappen for å stadfeste at du vil få påminningar og lenkja di på e-post."""
+confirm_button = "Stadfest"
+confirm_invalid_text = """
+Stadfestingslenkja har gått ut eller er ikkje lenger gyldig. Legg til adressa på nytt \
+frå sida di."""
+lost_link = "Har du mista lenkja di?"
+lost_title = "Mista lenkja?"
+lost_text = "Har du lagt til og stadfesta e-postadressa di, sender vi lenkja på nytt."
+lost_button = "Send meg lenkja"
+lost_sent_title = "Sjekk innboksen din"
+lost_sent_text = "Om adressa er registrert og stadfesta, har vi sendt deg lenkja di."
+
+# Guest list
+guest_list_heading = "Gjestelista"
+# The button to the guest list, which is on a page of its own.
+see_guest_list = "Sjå kven som kjem"
+back_to_your_page = "Tilbake til sida di"
+back_to_sign_up = "Tilbake til påmeldinga"
+guest_list_coming = "Kjem"
+guest_list_pending = "Har ikkje svart enno"
+# "+ {n} more", for guests who'd rather not be listed.
+guest_list_more = "+ {n} til"
+guest_list_empty = "Ingen på lista enno."
+guest_list_note = "Gjester som ikkje kjem, står ikkje på lista."
+you = "deg"
+listed_as = "Andre gjester ser deg som"
+listed_hidden = "Namnet ditt står ikkje på lista."
+listed_declined = "Du står ikkje på lista, sidan du ikkje kjem."
+show_instead = "Vis i staden"
+name_display_label = "Namnet ditt på gjestelista"
+display_full = "Fullt namn"
+display_partial = "Førenamn og initial"
+display_hidden = "Ikkje vis namnet mitt"
+
+# Group sign-up
+join_group = "Invitert via"
+join_heading = "Sei at du kjem"
+# What we store and why (GDPR Art. 13), shown where the data is collected.
+join_notice = """
+Vi lagrar berre namnet ditt og kor mange de blir, for å planleggje festen. Andre gjester \
+ser namnet ditt på gjestelista slik du vel over. Alt blir sletta 30 dagar etter festen, \
+og du kan slette det sjølv når som helst."""
+your_name = "Namnet ditt"
+join_button = "Eg kjem!"
+
+# Errors and outcomes
+invalid_party_size = "Vel eit gyldig tal."
+invalid_name = "Namnet må vere mellom 1 og 100 teikn."
+confirm_delete = "Kryss av i boksen for å stadfeste slettinga."
+gone_title = "Denne lenkja verkar ikkje"
+gone_text = """
+Ho kan vere skriven feil, bytt ut med ei ny lenkje, eller så er svaret sletta. Spør \
+verten om ei ny lenkje."""
+deleted_title = "Svaret ditt er sletta"
+deleted_text = """
+Vi har sletta namnet ditt, svaret ditt og alt anna vi hadde lagra om deg. Ombestemt deg? \
+Spør verten om ein ny invitasjon."""
+to_event = "Til framsida"
+too_many_attempts = "For mange forsøk herifrå. Prøv igjen om ein time."
+not_found_title = "Sida finst ikkje"
+not_found_text = "Sjekk at lenkja er rett, eller spør verten."
+
+# Mails. Each is plain text; `{url}` is a link on the site and `{title}` the event.
+[mail]
+# Under every mail. `{base}` is the site's address.
+footer = """
+Du får denne e-posten fordi adressa vart lagd til på {base}. Du kan fjerne ho frå sida \
+di når som helst."""
+
+# To an address a guest typed in, before it's confirmed. Anyone can type in
+# any address, so this mail must not include anything a guest wrote, such as `{name}`.
+[mail.confirm_email]
+subject = "Stadfest e-postadressa di – {title}"
+body = """
+Hei!
+
+Opne lenkja og trykk «Stadfest» for å få påminningar og lenkja di til {title} på e-post:
+
+{url}
+
+Lenkja verkar i 48 timar. Var det ikkje deg, kan du sjå bort frå denne e-posten. Då blir \
+adressa sletta automatisk."""
+
+# To the confirmed owner when someone else adds their address.
+[mail.email_in_use]
+subject = "E-postadressa di er allereie registrert – {title}"
+body = """
+Hei!
+
+Nokon, kanskje deg, prøvde å leggje til denne e-postadressa på eit svar til {title}, men \
+ho er allereie i bruk. Har du mista lenkja di, kan du få ho tilsend her:
+
+{url}
+
+Var det ikkje deg, kan du sjå bort frå denne e-posten."""
+
+# The guest's own link, after confirming or from /lost.
+[mail.rsvp_link]
+subject = "Lenkja di – {title}"
+body = """
+Hei, {name}!
+
+Her er den personlege lenkja di til {title}. Bruk ho for å endre eller slette svaret ditt:
+
+{url}
+
+Ikkje del lenkja med andre."""
+
+# From the host's Send reminders. `{when}`, `{place}`, `{answer}`.
+[mail.reminder]
+subject = "Påminning: {title}"
+body = """
+Hei, {name}!
+
+Ei påminning om {title}: {when}, {place}.
+
+Svaret ditt: {answer}. Endre det her:
+
+{url}"""

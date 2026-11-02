@@ -110,7 +110,9 @@
             "kind": {
               "Enum": [
                 "nb",
-                "en"
+                "nn",
+                "en",
+                "en-us"
               ]
             }
           }
@@ -257,7 +259,9 @@
             "kind": {
               "Enum": [
                 "nb",
-                "en"
+                "nn",
+                "en",
+                "en-us"
               ]
             }
           }

@@ -472,7 +472,7 @@ pub(crate) mod tests {
             name,
             party_size,
             name_display: NameDisplay::Full,
-            lang: Lang::En,
+            lang: Lang::EnGb,
         };
         create_open(pool, &sign_up, PRIVACY_VERSION).await
     }
@@ -504,7 +504,7 @@ pub(crate) mod tests {
         assert!(rsvp.group_id.is_some());
         assert_eq!(rsvp.name_display, Some(NameDisplay::Full));
         assert_eq!(rsvp.response, Response::Attending);
-        assert_eq!((rsvp.party_size, rsvp.lang), (2, Lang::En));
+        assert_eq!((rsvp.party_size, rsvp.lang), (2, Lang::EnGb));
         assert_eq!(rsvp.privacy_version.as_deref(), Some(PRIVACY_VERSION));
         assert!(rsvp.responded_at.is_some());
         Ok(())
@@ -519,13 +519,13 @@ pub(crate) mod tests {
             Response::Attending,
             2,
             None,
-            Lang::En,
+            Lang::EnGb,
             PRIVACY_VERSION,
         )
         .await?
         .expect("rsvp exists");
         assert_eq!(answered.response, Response::Attending);
-        assert_eq!((answered.party_size, answered.lang), (2, Lang::En));
+        assert_eq!((answered.party_size, answered.lang), (2, Lang::EnGb));
         assert!(answered.responded_at.is_some());
 
         let reread = find(&pool, invite.id).await?.expect("rsvp exists");
@@ -705,7 +705,7 @@ pub(crate) mod tests {
                 &pool,
                 rsvp.id,
                 "kari@example.com",
-                Lang::En,
+                Lang::EnGb,
                 PRIVACY_VERSION
             )
             .await?
@@ -713,7 +713,7 @@ pub(crate) mod tests {
         let stored = find(&pool, rsvp.id).await?.unwrap();
         assert_eq!(stored.email.as_deref(), Some("kari@example.com"));
         assert_eq!(stored.email_status, EmailStatus::Unconfirmed);
-        assert_eq!(stored.lang, Lang::En);
+        assert_eq!(stored.lang, Lang::EnGb);
         assert!(stored.email_consent_at.is_some());
         assert!(
             find_by_confirmed_email(&pool, "kari@example.com")
