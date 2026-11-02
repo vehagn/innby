@@ -46,7 +46,7 @@ You had no preference, and the devcontainer removes Go's main advantage (it was 
 | TLS roots | `rustls` + `webpki-roots`: CA roots compiled in, so the image needs no `/etc/ssl` |
 
 - **CSRF:** axum has no built-in equivalent of Go's `CrossOriginProtection`, so we add a ~20-line middleware that does the same thing. For unsafe methods it requires `Sec-Fetch-Site` to be `same-origin` or `none`, or (for older browsers) the `Origin` host to match the `Host` header. This needs no cookies, and works unchanged for both the public and the admin hostname.
-- **i18n:** two languages don't need Fluent. Each language gets a `Messages` struct, the templates read strings from it, and the compiler catches a missing translation.
+- **i18n:** two languages don't need Fluent. Each language's texts, mails included, live in `locales/{lang}.toml`, compiled into the binary and read into one `Messages` struct that the templates use. A missing or unknown key, or a placeholder like `{name}` that one language has and the other lacks, fails the tests and stops the program at start. The privacy notice is a template per language, since it's a document rather than strings.
 - **Cross-compiling:** the devcontainer runs arm64 on your Mac and the cluster is amd64. `cargo zigbuild --target x86_64-unknown-linux-musl` (with Zig as the linker) handles that, including the C code inside `ring`.
 
 ## 3. Architecture: should we split it into microservices?
@@ -229,12 +229,14 @@ fest/
 │   ├── main.rs                # clap: serve | admin | mailer | janitor | migrate
 │   ├── config.rs              # env parsing + validation
 │   ├── db/                    # sqlx pool, migrator, queries
-│   ├── link.rs                # HMAC sign/verify for rsvp + email links
-│   ├── i18n.rs                # nb/en Messages
+│   ├── link.rs                # HMAC sign/verify for rsvp, group + email links
+│   ├── paths.rs               # every route pattern, and links built from them
+│   ├── i18n.rs                # Messages, loaded from locales/
 │   ├── web/                   # public pages, RSVP page, CSRF middleware, rate limit
 │   ├── admin/                 # invitations, headcount, CSV, QR
 │   ├── mailer.rs              # outbox worker + mail rendering
 │   └── janitor.rs             # retention rules, reminders
+├── locales/*.toml             # nb/en texts and mails, compiled in
 ├── templates/*.html           # askama, compiled in
 ├── static/                    # CSS (+ self-hosted font if any), compiled in
 ├── migrations/*.sql           # sqlx::migrate!(), compiled in
@@ -333,6 +335,7 @@ just manifests           # render deploy/ with kustomize (Argo CD does the deplo
 10. ✅ **Hardening and polish:** strict CSP (no inline styles or scripts anywhere), HSTS, `Cross-Origin-Opener-Policy` and `-Resource-Policy`, a 15-second request timeout and a 10-second header timeout, `cargo deny` in CI, and a load sanity check (5000 RSVP-page requests at concurrency 50: p50 0.5 ms, p99 4.5 ms). Still optional: `LISTEN/NOTIFY` for the mailer (it polls every 5 seconds), Authelia OIDC for the admin UI, and `/metrics`.
 11. ✅ **Pentest fixes:** a bounded admin login check with lockout, a confirmation mail without guest text, a site-wide mail cap, unconfirmed addresses that can be shared, the example secrets from `.env.example` refused on an https site, a header timeout, names without invisible or reordering characters, and `/lost` lookups after the response.
 12. ✅ **Groups and guest list:** batch-created invitations and group links (replacing `FEST_OPEN_RSVP_CODE`), and a guest list on every link with a full, partial or hidden name per guest.
+13. ✅ **Paths and texts:** every route pattern and link in `src/paths.rs`, admin guest pages at `/guests/{id}`, and the texts and mails in `locales/{nb,en}.toml`.
 
 ## 14. Decisions
 

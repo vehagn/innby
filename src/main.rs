@@ -55,6 +55,7 @@ async fn main() -> anyhow::Result<()> {
         .with_writer(std::io::stderr)
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
+    i18n::load();
 
     match Cli::parse().command {
         Command::Serve => web::serve(Config::from_env()?, db::pool()?).await,

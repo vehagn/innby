@@ -62,7 +62,7 @@ impl FromRequestParts<AppState> for Guest {
 fn gone(lang: Lang) -> Response {
     render_with(
         StatusCode::NOT_FOUND,
-        MessagePage::new(lang, |t| (t.gone_title, t.gone_text)),
+        MessagePage::new(lang, |t| (&t.gone_title, &t.gone_text)),
     )
 }
 
@@ -142,7 +142,7 @@ impl<'a> RsvpPage<'a> {
     pub(super) async fn render_error(
         mut self,
         status: StatusCode,
-        pick: impl Fn(&Messages) -> &'static str,
+        pick: impl Fn(&'static Messages) -> &'static str,
     ) -> Response {
         self.error = Some(pick(self.t));
         self.render(status).await
@@ -179,12 +179,12 @@ impl Notice {
         Self::ALL.into_iter().find(|notice| notice.code() == code)
     }
 
-    fn text(self, t: &Messages) -> &'static str {
+    fn text(self, t: &'static Messages) -> &'static str {
         match self {
-            Self::Saved => t.saved,
-            Self::EmailSent => t.email_sent_notice,
-            Self::EmailRemoved => t.email_removed_notice,
-            Self::EmailConfirmed => t.email_confirmed_notice,
+            Self::Saved => &t.saved,
+            Self::EmailSent => &t.email_sent_notice,
+            Self::EmailRemoved => &t.email_removed_notice,
+            Self::EmailConfirmed => &t.email_confirmed_notice,
         }
     }
 }
@@ -243,12 +243,12 @@ pub async fn answer(
     let page = || RsvpPage::new(&state, lang, &guest);
     if !state.config.event.accepts_answers(Utc::now()) {
         return page()
-            .render_error(StatusCode::FORBIDDEN, |t| t.answers_closed)
+            .render_error(StatusCode::FORBIDDEN, |t| &t.answers_closed)
             .await;
     }
     if !(1..=guest.rsvp.max_party_size).contains(&form.party_size) {
         return page()
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_party_size)
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size)
             .await;
     }
 
@@ -291,7 +291,7 @@ pub async fn rename(
 ) -> Response {
     let Some(name) = rsvp::normalize_name(&form.name) else {
         return RsvpPage::new(&state, lang, &guest)
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_name)
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name)
             .await;
     };
     match rsvp::rename(&state.db, guest.rsvp.id, &name).await {
@@ -349,14 +349,14 @@ pub async fn delete(
 ) -> Response {
     if form.confirm.is_none() {
         return RsvpPage::new(&state, lang, &guest)
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.confirm_delete)
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.confirm_delete)
             .await;
     }
     match rsvp::delete(&state.db, guest.rsvp.id).await {
         Ok(_) => {
             tracing::info!(rsvp = %guest.rsvp.id, "rsvp deleted by guest");
             render(MessagePage::new(lang, |t| {
-                (t.deleted_title, t.deleted_text)
+                (&t.deleted_title, &t.deleted_text)
             }))
         }
         Err(err) => server_error(err),
@@ -563,7 +563,7 @@ mod tests {
         // Ola is coming but hidden, and Per declined.
         assert!(html.contains(r#"<li class="muted">+ 1 more</li>"#));
         assert!(!html.contains("Ola H") && !html.contains("Per B"));
-        assert!(html.contains("Other guests see you as <strong>Kari Nordmann</strong>."));
+        assert!(html.contains("Other guests see you as <strong>Kari Nordmann</strong></p>"));
 
         let response = site
             .post(

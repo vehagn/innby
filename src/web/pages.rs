@@ -212,7 +212,7 @@ impl MessagePage {
 pub async fn not_found(lang: Lang) -> Response {
     render_with(
         StatusCode::NOT_FOUND,
-        MessagePage::new(lang, |t| (t.not_found_title, t.not_found_text)),
+        MessagePage::new(lang, |t| (&t.not_found_title, &t.not_found_text)),
     )
 }
 
