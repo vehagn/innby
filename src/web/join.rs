@@ -249,7 +249,7 @@ mod tests {
         );
         let html = body(response).await;
         let t = en();
-        assert!(html.contains(&format!("{}: <strong>Climbing club</strong>", t.join_group)));
+        assert!(html.contains(&crate::i18n::bold(&t.join_group, "group", "Climbing club")));
         assert!(html.contains(&escape(&t.join_heading)));
         assert!(html.contains(r#"name="website""#));
         assert!(html.contains(&format!(
@@ -297,7 +297,7 @@ mod tests {
         assert!(html.contains(&format!(r#"value="https://fest.example.com{path}""#)));
         assert!(html.contains(&t.answer(rsvp::Response::Attending, 2)));
         let html = body(site.get(&format!("{path}/guests?lang=en")).await).await;
-        assert!(html.contains(&format!(r#"Per H. <span class="muted">({})</span>"#, t.you)));
+        assert!(html.contains(&format!(r#"Per H. <span class="muted">{}</span>"#, t.you)));
     }
 
     #[sqlx::test]

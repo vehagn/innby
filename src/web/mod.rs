@@ -361,7 +361,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn offers_nynorsk_and_both_englishes() {
+    async fn offers_every_language() {
         let html = body(get("/", Some("nn-NO,nb;q=0.9")).await).await;
         assert!(html.contains(r#"<html lang="nn">"#));
         assert!(html.contains("laurdag 12. desember 2026 kl. 19:00"));
@@ -370,6 +370,8 @@ mod tests {
             ("nb", "nb", "Bokmål"),
             ("en", "en-GB", "English (Traditional)"),
             ("en-us", "en-US", "English (Simplified)"),
+            ("zh-hans", "zh-Hans", "简体中文"),
+            ("zh-hant", "zh-Hant", "繁體中文"),
         ] {
             let link =
                 format!(r#"<a href="?lang={code}" hreflang="{tag}" lang="{tag}">{name}</a>"#);
@@ -380,6 +382,10 @@ mod tests {
         let html = body(get("/", Some("en-US,en;q=0.9")).await).await;
         assert!(html.contains(r#"<html lang="en-US">"#));
         assert!(html.contains("Sat, Dec 12, 2026, 7:00 PM"));
+
+        let html = body(get("/", Some("zh-TW,zh;q=0.9")).await).await;
+        assert!(html.contains(r#"<html lang="zh-Hant">"#));
+        assert!(html.contains("2026年12月12日（週六）19:00"));
     }
 
     #[tokio::test]
@@ -431,6 +437,12 @@ mod tests {
         let html = body(get("/privacy?lang=en-us", None).await).await;
         assert!(html.contains("<h1>Privacy</h1>"));
         assert!(html.contains("deleted after 7 days"));
+
+        let html = body(get("/privacy?lang=zh-hans", None).await).await;
+        assert!(html.contains("<h1>隐私声明</h1>"));
+        assert!(html.contains("已发送邮件的记录会在 7 天后删除"));
+        let html = body(get("/privacy?lang=zh-hant", None).await).await;
+        assert!(html.contains("<h1>隱私聲明</h1>"));
 
         let html = body(get("/privacy?lang=en", None).await).await;
         assert!(html.contains("<h1>Privacy notice</h1>"));
