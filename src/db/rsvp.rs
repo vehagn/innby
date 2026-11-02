@@ -130,8 +130,12 @@ pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Rsvp
         .await
 }
 
-pub async fn find_by_email(db: impl PgExecutor<'_>, email: &str) -> sqlx::Result<Option<Rsvp>> {
-    query_rsvp!(select "from rsvp where email = $1", email)
+/// The RSVP that has confirmed this address. Others may hold it unconfirmed.
+pub async fn find_by_confirmed_email(
+    db: impl PgExecutor<'_>,
+    email: &str,
+) -> sqlx::Result<Option<Rsvp>> {
+    query_rsvp!(select "from rsvp where email = $1 and email_status = 'confirmed'", email)
         .fetch_optional(db)
         .await
 }
@@ -168,12 +172,35 @@ pub async fn respond(
     .await
 }
 
-/// Collapses whitespace and checks the length the database allows. Control characters
-/// are refused rather than stripped, since no keyboard produces them.
+/// Collapses whitespace, drops invisible characters and checks the length the database
+/// allows. A name needs a letter or digit, so one can't be blank to the eye. Control and
+/// bidirectional characters, which could make a name show as someone else's, are refused
+/// rather than stripped, since no keyboard produces them.
 pub fn normalize_name(name: &str) -> Option<String> {
+    let name: String = name.chars().filter(|&c| !is_invisible(c)).collect();
     let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
     let length = name.chars().count();
-    ((1..=100).contains(&length) && !name.chars().any(char::is_control)).then_some(name)
+    let valid = (1..=100).contains(&length)
+        && name.chars().any(char::is_alphanumeric)
+        && !name.chars().any(|c| c.is_control() || is_bidi_control(c));
+    valid.then_some(name)
+}
+
+/// Characters that take up no space, which a pasted name can carry along. The joiners
+/// stay, since emoji and some scripts need them.
+fn is_invisible(c: char) -> bool {
+    matches!(
+        c,
+        '\u{AD}' | '\u{180E}' | '\u{200B}' | '\u{2060}'..='\u{2064}' | '\u{FEFF}'
+    )
+}
+
+/// Characters that reorder the text around them.
+fn is_bidi_control(c: char) -> bool {
+    matches!(
+        c,
+        '\u{61C}' | '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
+    )
 }
 
 pub const MAX_PARTY_SIZE: i32 = 20;
@@ -203,8 +230,7 @@ pub async fn rename(db: impl PgExecutor<'_>, id: Uuid, name: &str) -> sqlx::Resu
     Ok(result.rows_affected() == 1)
 }
 
-/// Stores a new, unconfirmed address with the guest's consent. Fails with a unique
-/// violation if another RSVP has the address.
+/// Stores a new, unconfirmed address with the guest's consent.
 pub async fn set_email(
     db: impl PgExecutor<'_>,
     id: Uuid,
@@ -229,12 +255,14 @@ pub async fn set_email(
     Ok(result.rows_affected() == 1)
 }
 
-/// Confirms the address, as long as it's still the one the confirmation was sent to.
+/// Confirms the address, as long as it's still the one the confirmation was sent to and
+/// no other RSVP has confirmed it first.
 pub async fn confirm_email(db: impl PgExecutor<'_>, id: Uuid, email: &str) -> sqlx::Result<bool> {
     let result = sqlx::query!(
         r#"
         update rsvp set email_status = 'confirmed'
         where id = $1 and email = $2 and email_status = 'unconfirmed'
+            and not exists (select from rsvp where email = $2 and email_status = 'confirmed')
         "#,
         id,
         email,
@@ -429,6 +457,18 @@ mod tests {
         assert!(normalize_name("   ").is_none());
         assert!(normalize_name(&"a".repeat(101)).is_none());
         assert!(normalize_name("Kari\u{0}").is_none());
+
+        assert_eq!(normalize_name("\u{feff}Ka\u{200b}ri").unwrap(), "Kari");
+        assert_eq!(
+            normalize_name("Kari 👨\u{200d}👩").unwrap(),
+            "Kari 👨\u{200d}👩"
+        );
+        for blank in ["\u{200b}", "\u{200d}\u{200d}", "- . -"] {
+            assert!(normalize_name(blank).is_none(), "{blank:?}");
+        }
+        for reordering in ["Bob\u{202e}gnp.exe", "\u{2067}Kari"] {
+            assert!(normalize_name(reordering).is_none(), "{reordering:?}");
+        }
     }
 
     #[test]
@@ -471,30 +511,44 @@ mod tests {
             )
             .await?
         );
-        let stored = find_by_email(&pool, "kari@example.com").await?.unwrap();
-        assert_eq!(
-            (stored.id, stored.email_status),
-            (rsvp.id, EmailStatus::Unconfirmed)
-        );
+        let stored = find(&pool, rsvp.id).await?.unwrap();
+        assert_eq!(stored.email.as_deref(), Some("kari@example.com"));
+        assert_eq!(stored.email_status, EmailStatus::Unconfirmed);
         assert_eq!(stored.lang, Lang::En);
         assert!(stored.email_consent_at.is_some());
+        assert!(
+            find_by_confirmed_email(&pool, "kari@example.com")
+                .await?
+                .is_none()
+        );
+
+        // Until it's confirmed, another RSVP may hold the address too.
+        let other = create_invite(&pool, "Ola", 1).await?;
+        assert!(
+            set_email(
+                &pool,
+                other.id,
+                "kari@example.com",
+                Lang::Nb,
+                PRIVACY_VERSION
+            )
+            .await?
+        );
 
         assert!(!confirm_email(&pool, rsvp.id, "other@example.com").await?);
         assert!(confirm_email(&pool, rsvp.id, "kari@example.com").await?);
         assert!(!confirm_email(&pool, rsvp.id, "kari@example.com").await?);
-        let confirmed = find(&pool, rsvp.id).await?.unwrap();
-        assert_eq!(confirmed.email_status, EmailStatus::Confirmed);
-
-        let other = create_invite(&pool, "Ola", 1).await?;
-        let err = set_email(
-            &pool,
-            other.id,
-            "kari@example.com",
-            Lang::Nb,
-            PRIVACY_VERSION,
-        )
-        .await
-        .unwrap_err();
+        let confirmed = find_by_confirmed_email(&pool, "kari@example.com")
+            .await?
+            .unwrap();
+        assert_eq!(confirmed.id, rsvp.id);
+        // The first to confirm keeps it, and the database refuses a second.
+        assert!(!confirm_email(&pool, other.id, "kari@example.com").await?);
+        let err = sqlx::query("update rsvp set email_status = 'confirmed' where id = $1")
+            .bind(other.id)
+            .execute(&pool)
+            .await
+            .unwrap_err();
         assert!(
             err.as_database_error()
                 .is_some_and(|err| err.is_unique_violation())

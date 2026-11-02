@@ -58,7 +58,9 @@ async fn main() -> anyhow::Result<()> {
     match Cli::parse().command {
         Command::Serve => web::serve(Config::from_env()?, db::pool()?).await,
         Command::Admin => {
-            admin::serve(Config::from_env()?, AdminConfig::from_env()?, db::pool()?).await
+            let config = Config::from_env()?;
+            let admin = AdminConfig::from_env(&config)?;
+            admin::serve(config, admin, db::pool()?).await
         }
         Command::Mailer => {
             mailer::run(Config::from_env()?, MailConfig::from_env()?, db::pool()?).await

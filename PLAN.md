@@ -123,7 +123,7 @@ Every guest has one **RSVP link**. Possession of the link is the authorisation; 
 
 ### 5.2 Open RSVP
 
-1. `/` shows only the event info. To RSVP, people need an invite link or the unlisted join link `/join/{code}`. The code comes from config and can be rotated if the link spreads too far.
+1. `/` shows only the event info. To RSVP, people need an invite link or the unlisted join link `/join/{code}`. The code comes from config (at least 16 characters, so it can't be guessed) and can be rotated if the link spreads too far.
 2. The guest enters a name and party size (1 or 2), then taps **I'm coming**.
    - Abuse protection: a honeypot field and a per-IP in-memory rate limit (10 sign-ups per hour, generous for a shared household connection). Behind the gateway, `FEST_TRUST_FORWARDED=true` takes the client address from the `X-Forwarded-For` entry the gateway appends. You can also delete entries in the admin UI, or switch the feature off by unsetting `FEST_OPEN_RSVP_CODE` (the join link then 404s).
 3. The guest is sent straight to their new `/r/{link}`, with a clear "**Bookmark or save this link** to change your answer later" box, plus copy and share buttons and an optional "add your e-mail" field. From there it's identical to 5.1.
@@ -132,11 +132,12 @@ Every guest has one **RSVP link**. Possession of the link is the authorisation; 
 
 1. On their RSVP page the guest adds an e-mail address and ticks an **unticked** consent box ("send me reminders and my link").
 2. The address is stored with `email_status='unconfirmed'` and an `outbox(kind='confirm_email')` row is added in the same transaction.
-   - If the address already belongs to another RSVP, an `email_in_use` mail goes to that address instead (pointing to `/lost`, without a link). **The immediate response is identical either way.** The RSVP page afterwards shows whether the address was stored; anyone who can see that already holds this guest's link, so we accept it.
-   - Adding an address and `/lost` share a per-IP limit of 5 mails an hour, and a mail isn't queued twice while the first is still waiting.
+   - If another RSVP has already confirmed the address, an `email_in_use` mail goes to it instead (pointing to `/lost`, without a link). The address is stored unconfirmed either way, and only confirmed addresses must be unique, so **neither the response nor the RSVP page shows whether someone else has the address.** If two RSVPs hold it unconfirmed, the first to confirm keeps it.
+   - The confirmation mail contains nothing a guest typed, not even their name, so it can't carry someone else's message to an address they don't own.
+   - Adding an address and `/lost` share a per-IP limit of 5 mails an hour and a site-wide limit of 100 a day, and a mail isn't queued twice while the first is still waiting.
 3. The mailer sends the signed confirmation link, `/e/{id}.{exp}.{sig}`, as plain text. The guest presses a **Confirm** button: the GET shows a page and the POST confirms, so mail scanners can't confirm for them. `email_status` becomes `confirmed`.
 4. Once confirmed, the guest is taken to their RSVP page and also receives their RSVP link by mail. Reminders go out when you press *Send reminders* in the admin UI: once per guest with a confirmed address who hasn't declined.
-5. On `/lost` a guest enters their e-mail and gets their link mailed if the address is confirmed. The page response is identical either way.
+5. On `/lost` a guest enters their e-mail and gets their link mailed if the address is confirmed. The page response is identical either way, and the lookup runs after the response, so its timing doesn't tell either.
 6. A guest can remove their e-mail at any time, which withdraws consent. An address left unconfirmed for 48 hours is cleared automatically. **The RSVP itself is kept in both cases.**
 
 Mails are sent in the language the guest was using when they added their e-mail address. That language is stored as `rsvp.lang`.
@@ -156,7 +157,7 @@ Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pendin
 
 - **Invitations:** create and edit them (label, maximum party size), show the link and QR code, revoke the link (bumps the nonce), delete. Optionally import invitations from a CSV.
 - **Overview:** attending, declined and no-answer counts, a total headcount, and a CSV export.
-- **Authentication:** reachable only through the internal gateway (LAN or VPN), plus basic auth with an argon2 hash from a SealedSecret, since the admin can change data. Later, for fun: OIDC login against Authelia.
+- **Authentication:** reachable only through the internal gateway (LAN or VPN), plus basic auth with an argon2 hash from a SealedSecret, since the admin can change data. Each argon2 check needs 19 MiB, so checks run one at a time, a login that checked out is remembered for an hour, and after 10 checks in 15 minutes new logins get 429 (remembered ones keep working). Later, for fun: OIDC login against Authelia.
 
 ## 6. GDPR checklist
 
@@ -184,7 +185,7 @@ The schema lives in [`migrations/0001_rsvp_and_outbox.sql`](migrations/0001_rsvp
 
 | Table | Columns | Constraints |
 |---|---|---|
-| `rsvp` | `id` (uuidv7), `source`, `name`, `response`, `party_size`, `max_party_size`, `link_nonce`, `lang`, `email`, `email_status`, `email_consent_at`, `privacy_version`, `responded_at`, `created_at` | name 1–100 chars; `party_size` within `1..=max_party_size` (max 20); e-mail present ⇔ status ≠ `none` ⇔ consent recorded; e-mail unique |
+| `rsvp` | `id` (uuidv7), `source`, `name`, `response`, `party_size`, `max_party_size`, `link_nonce`, `lang`, `email`, `email_status`, `email_consent_at`, `privacy_version`, `responded_at`, `created_at` | name 1–100 chars; `party_size` within `1..=max_party_size` (max 20); e-mail present ⇔ status ≠ `none` ⇔ consent recorded; a confirmed e-mail is unique |
 | `outbox` | `id`, `rsvp_id` (cascade delete), `kind`, `attempts`, `next_try_at`, `sent_at`, `last_error` | partial index on unsent rows |
 
 - **Enums are Postgres enum types** (`rsvp_source`, `rsvp_response`, `email_status`, `lang`, `outbox_kind`) rather than `text` + `CHECK`. sqlx maps them straight to Rust enums with `#[derive(sqlx::Type)]`.
@@ -314,7 +315,8 @@ just manifests           # render deploy/ with kustomize (Argo CD does the deplo
 7. ✅ **Janitor and privacy:** retention rules, `/privacy` (nb/en), `docs/ropa.md`.
 8. ✅ **Image:** buildah recipe, plus a CI workflow that pushes to GHCR.
 9. ✅ **Deploy:** CNPG cluster, workloads, HTTPRoutes, SealedSecrets, NetworkPolicies, Argo CD app.
-10. ✅ **Hardening and polish:** strict CSP (no inline styles or scripts anywhere), HSTS, `Cross-Origin-Opener-Policy` and `-Resource-Policy`, a 15-second request timeout, `cargo deny` in CI, and a load sanity check (5000 RSVP-page requests at concurrency 50: p50 0.5 ms, p99 4.5 ms). Still optional: `LISTEN/NOTIFY` for the mailer (it polls every 5 seconds), Authelia OIDC for the admin UI, and `/metrics`.
+10. ✅ **Hardening and polish:** strict CSP (no inline styles or scripts anywhere), HSTS, `Cross-Origin-Opener-Policy` and `-Resource-Policy`, a 15-second request timeout and a 10-second header timeout, `cargo deny` in CI, and a load sanity check (5000 RSVP-page requests at concurrency 50: p50 0.5 ms, p99 4.5 ms). Still optional: `LISTEN/NOTIFY` for the mailer (it polls every 5 seconds), Authelia OIDC for the admin UI, and `/metrics`.
+11. ✅ **Pentest fixes:** a bounded admin login check with lockout, a confirmation mail without guest text, a site-wide mail cap, unconfirmed addresses that can be shared, the example secrets from `.env.example` refused on an https site, a header timeout, names without invisible or reordering characters, and `/lost` lookups after the response.
 
 ## 14. Decisions
 

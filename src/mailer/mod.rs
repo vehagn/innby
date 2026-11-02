@@ -215,6 +215,7 @@ mod tests {
         let [(to, subject, body)] = sender.mails().try_into().unwrap();
         assert_eq!(to, "kari@example.com");
         assert_eq!(subject, "Confirm your e-mail address – Christmas party");
+        assert!(!body.contains("Kari"), "the guest's name: {body}");
         let url = body
             .split_whitespace()
             .find(|word| word.starts_with("https://fest.example.com/e/"))

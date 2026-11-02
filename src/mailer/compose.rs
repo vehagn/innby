@@ -27,12 +27,10 @@ pub struct Mail {
 pub fn compose(config: &Config, kind: Kind, rsvp: &Rsvp) -> Result<Mail, &'static str> {
     let to = rsvp.email.clone().ok_or("address removed")?;
     let needed = match kind {
-        Kind::ConfirmEmail => Some(EmailStatus::Unconfirmed),
-        Kind::RsvpLink | Kind::Reminder => Some(EmailStatus::Confirmed),
-        // Goes to whoever holds the address, confirmed or not.
-        Kind::EmailInUse => None,
+        Kind::ConfirmEmail => EmailStatus::Unconfirmed,
+        Kind::EmailInUse | Kind::RsvpLink | Kind::Reminder => EmailStatus::Confirmed,
     };
-    if needed.is_some_and(|status| status != rsvp.email_status) {
+    if rsvp.email_status != needed {
         return Err("address no longer in the right state");
     }
 
@@ -51,6 +49,8 @@ pub fn compose(config: &Config, kind: Kind, rsvp: &Rsvp) -> Result<Mail, &'stati
     let nb = lang == Lang::Nb;
 
     let (subject, text) = match kind {
+        // Anyone can type in any address, so this mail carries nothing a guest wrote,
+        // not even their name: it can't be used to send someone else a message.
         Kind::ConfirmEmail => {
             let link = config
                 .link_key
@@ -60,18 +60,20 @@ pub fn compose(config: &Config, kind: Kind, rsvp: &Rsvp) -> Result<Mail, &'stati
                 (
                     format!("Bekreft e-postadressen din – {title}"),
                     format!(
-                        "Hei, {name}!\n\nÅpne lenken og trykk «Bekreft» for å få påminnelser og \
-                         lenken din på e-post:\n\n{url}\n\nLenken virker i 48 timer. Var det ikke \
-                         deg, kan du se bort fra denne e-posten. Da slettes adressen automatisk."
+                        "Hei!\n\nÅpne lenken og trykk «Bekreft» for å få påminnelser og lenken \
+                         din til {title} på e-post:\n\n{url}\n\nLenken virker i 48 timer. Var det \
+                         ikke deg, kan du se bort fra denne e-posten. Da slettes adressen \
+                         automatisk."
                     ),
                 )
             } else {
                 (
                     format!("Confirm your e-mail address – {title}"),
                     format!(
-                        "Hi, {name}!\n\nOpen the link and press \"Confirm\" to get reminders and \
-                         your link by e-mail:\n\n{url}\n\nThe link works for 48 hours. If this \
-                         wasn't you, ignore this e-mail and the address is deleted automatically."
+                        "Hi!\n\nOpen the link and press \"Confirm\" to get reminders and your \
+                         link for {title} by e-mail:\n\n{url}\n\nThe link works for 48 hours. If \
+                         this wasn't you, ignore this e-mail and the address is deleted \
+                         automatically."
                     ),
                 )
             }
