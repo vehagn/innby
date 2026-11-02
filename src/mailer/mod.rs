@@ -184,7 +184,7 @@ mod tests {
 
     async fn guest_with_email(db: &PgPool, email: &str, lang: Lang) -> Rsvp {
         let guest = create_invite(db, "Kari", 1).await.unwrap();
-        rsvp::set_email(db, guest.id, email, lang, "2026-11-01")
+        rsvp::set_email(db, guest.id, email, lang, crate::web::PRIVACY_VERSION)
             .await
             .unwrap();
         rsvp::find(db, guest.id).await.unwrap().unwrap()

@@ -7,7 +7,7 @@ use crate::{
     config::Config,
     db::{
         outbox::Kind,
-        rsvp::{EmailStatus, Response, Rsvp},
+        rsvp::{EmailStatus, Rsvp},
     },
     i18n::Lang,
 };
@@ -39,9 +39,13 @@ pub fn compose(config: &Config, kind: Kind, rsvp: &Rsvp) -> Result<Mail, &'stati
     let lang = rsvp.lang;
     let title = config.event.title.get(lang);
     let base = &config.base_url;
+    // A page on the site, in the guest's language.
+    let url = |path: &str| format!("{base}{path}?lang={}", lang.code());
     let rsvp_url = || {
-        let link = config.link_key.rsvp_link(rsvp.id, rsvp.link_nonce);
-        format!("{base}/r/{link}?lang={}", lang.code())
+        url(&format!(
+            "/r/{}",
+            config.link_key.rsvp_link(rsvp.id, rsvp.link_nonce)
+        ))
     };
     let name = &rsvp.name;
     let nb = lang == Lang::Nb;
@@ -51,7 +55,7 @@ pub fn compose(config: &Config, kind: Kind, rsvp: &Rsvp) -> Result<Mail, &'stati
             let link = config
                 .link_key
                 .email_link(rsvp.id, &to, Utc::now() + CONFIRM_WITHIN);
-            let url = format!("{base}/e/{link}?lang={}", lang.code());
+            let url = url(&format!("/e/{link}"));
             if nb {
                 (
                     format!("Bekreft e-postadressen din – {title}"),
@@ -73,7 +77,7 @@ pub fn compose(config: &Config, kind: Kind, rsvp: &Rsvp) -> Result<Mail, &'stati
             }
         }
         Kind::EmailInUse => {
-            let url = format!("{base}/lost?lang={}", lang.code());
+            let url = url("/lost");
             if nb {
                 (
                     format!("E-postadressen din er allerede registrert – {title}"),
@@ -118,21 +122,8 @@ pub fn compose(config: &Config, kind: Kind, rsvp: &Rsvp) -> Result<Mail, &'stati
         }
         Kind::Reminder => {
             let event = &config.event;
-            let t = lang.messages();
-            let when = event
-                .starts_at
-                .format_localized(t.date_format, lang.locale());
-            let answer = match rsvp.response {
-                Response::Attending => {
-                    format!(
-                        "{} · {}",
-                        t.answer_attending,
-                        t.people_count(rsvp.party_size)
-                    )
-                }
-                Response::Declined => t.answer_declined.to_owned(),
-                Response::Pending => t.answer_pending.to_owned(),
-            };
+            let when = lang.format_date(event.starts_at);
+            let answer = lang.messages().answer(rsvp.response, rsvp.party_size);
             let (place, url) = (&event.location, rsvp_url());
             if nb {
                 (

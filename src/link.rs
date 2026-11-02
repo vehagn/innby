@@ -57,14 +57,16 @@ impl LinkKey {
         self.mac("rsvp", &[id.as_bytes(), &nonce.to_be_bytes()])
     }
 
+    fn email_mac(&self, id: Uuid, email: &str, expires: i64) -> Hmac<Sha256> {
+        self.mac(
+            "email",
+            &[id.as_bytes(), email.as_bytes(), &expires.to_be_bytes()],
+        )
+    }
+
     /// The path segment of a guest's RSVP link: `{id}.{tag}`.
     pub fn rsvp_link(&self, id: Uuid, nonce: i32) -> String {
-        let tag = self.rsvp_mac(id, nonce).finalize().into_bytes();
-        format!(
-            "{}.{}",
-            URL_SAFE_NO_PAD.encode(id.as_bytes()),
-            URL_SAFE_NO_PAD.encode(&tag[..TAG_LEN])
-        )
+        format!("{}.{}", encode_id(id), encode_tag(self.rsvp_mac(id, nonce)))
     }
 
     /// Checks the link's tag in constant time against the row's current nonce.
@@ -73,25 +75,15 @@ impl LinkKey {
             .verify_truncated_left(&link.tag)
             .is_ok()
     }
-}
-
-impl LinkKey {
-    fn email_mac(&self, id: Uuid, email: &str, expires: i64) -> Hmac<Sha256> {
-        self.mac(
-            "email",
-            &[id.as_bytes(), email.as_bytes(), &expires.to_be_bytes()],
-        )
-    }
 
     /// The path segment of an e-mail confirmation link: `{id}.{expires}.{tag}`. It signs
     /// the address too, so it stops working as soon as the guest changes it.
     pub fn email_link(&self, id: Uuid, email: &str, expires: DateTime<Utc>) -> String {
         let expires = expires.timestamp();
-        let tag = self.email_mac(id, email, expires).finalize().into_bytes();
         format!(
             "{}.{expires}.{}",
-            URL_SAFE_NO_PAD.encode(id.as_bytes()),
-            URL_SAFE_NO_PAD.encode(&tag[..TAG_LEN])
+            encode_id(id),
+            encode_tag(self.email_mac(id, email, expires))
         )
     }
 
@@ -100,6 +92,43 @@ impl LinkKey {
         self.email_mac(link.id, email, link.expires.timestamp())
             .verify_truncated_left(&link.tag)
             .is_ok()
+    }
+}
+
+fn encode_id(id: Uuid) -> String {
+    URL_SAFE_NO_PAD.encode(id.as_bytes())
+}
+
+fn encode_tag(mac: Hmac<Sha256>) -> String {
+    URL_SAFE_NO_PAD.encode(&mac.finalize().into_bytes()[..TAG_LEN])
+}
+
+fn decode_id(encoded: &str) -> Result<Uuid, ()> {
+    let bytes = URL_SAFE_NO_PAD.decode(encoded).map_err(drop)?;
+    Uuid::from_slice(&bytes).map_err(drop)
+}
+
+fn decode_tag(encoded: &str) -> Result<[u8; TAG_LEN], ()> {
+    let bytes = URL_SAFE_NO_PAD.decode(encoded).map_err(drop)?;
+    bytes.try_into().map_err(drop)
+}
+
+/// A parsed but not yet verified RSVP link.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RsvpLink {
+    pub id: Uuid,
+    tag: [u8; TAG_LEN],
+}
+
+impl FromStr for RsvpLink {
+    type Err = ();
+
+    fn from_str(link: &str) -> Result<Self, ()> {
+        let (id, tag) = link.split_once('.').ok_or(())?;
+        Ok(Self {
+            id: decode_id(id)?,
+            tag: decode_tag(tag)?,
+        })
     }
 }
 
@@ -121,33 +150,10 @@ impl FromStr for EmailLink {
         else {
             return Err(());
         };
-        let id = URL_SAFE_NO_PAD.decode(id).map_err(drop)?;
-        let tag = URL_SAFE_NO_PAD.decode(tag).map_err(drop)?;
         Ok(Self {
-            id: Uuid::from_slice(&id).map_err(drop)?,
+            id: decode_id(id)?,
             expires: DateTime::from_timestamp(expires.parse().map_err(drop)?, 0).ok_or(())?,
-            tag: tag.try_into().map_err(drop)?,
-        })
-    }
-}
-
-/// A parsed but not yet verified RSVP link.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RsvpLink {
-    pub id: Uuid,
-    tag: [u8; TAG_LEN],
-}
-
-impl FromStr for RsvpLink {
-    type Err = ();
-
-    fn from_str(link: &str) -> Result<Self, ()> {
-        let (id, tag) = link.split_once('.').ok_or(())?;
-        let id = URL_SAFE_NO_PAD.decode(id).map_err(drop)?;
-        let tag = URL_SAFE_NO_PAD.decode(tag).map_err(drop)?;
-        Ok(Self {
-            id: Uuid::from_slice(&id).map_err(drop)?,
-            tag: tag.try_into().map_err(drop)?,
+            tag: decode_tag(tag)?,
         })
     }
 }

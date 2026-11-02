@@ -1,5 +1,8 @@
-use chrono::Locale;
+use chrono::{DateTime, Locale};
+use chrono_tz::Tz;
 use serde::Serialize;
+
+use crate::db::rsvp::Response;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
@@ -61,11 +64,17 @@ impl Lang {
         }
     }
 
-    pub fn locale(self) -> Locale {
+    fn locale(self) -> Locale {
         match self {
             Lang::Nb => Locale::nb_NO,
             Lang::En => Locale::en_GB,
         }
+    }
+
+    /// A date and time as people write it, e.g. "lørdag 12. desember 2026 kl. 19:00".
+    pub fn format_date(self, date: DateTime<Tz>) -> String {
+        date.format_localized(self.messages().date_format, self.locale())
+            .to_string()
     }
 }
 
@@ -178,6 +187,21 @@ impl Messages {
     pub fn people_count(&self, n: i32) -> String {
         format!("{n} {}", if n == 1 { self.person } else { self.people })
     }
+
+    /// A guest's answer, e.g. "Coming · 2 people".
+    pub fn answer(&self, response: Response, party_size: i32) -> String {
+        match response {
+            Response::Pending => self.answer_pending.to_owned(),
+            Response::Attending => {
+                format!(
+                    "{} · {}",
+                    self.answer_attending,
+                    self.people_count(party_size)
+                )
+            }
+            Response::Declined => self.answer_declined.to_owned(),
+        }
+    }
 }
 
 static NB: Messages = Messages {
@@ -261,7 +285,7 @@ static NB: Messages = Messages {
     deleted_text: "Vi har slettet navnet ditt, svaret ditt og alt annet vi hadde lagret om \
         deg. Ombestemt deg? Spør verten om en ny invitasjon.",
     to_event: "Til forsiden",
-    too_many_attempts: "For mange påmeldinger herfra. Prøv igjen om en time.",
+    too_many_attempts: "For mange forsøk herfra. Prøv igjen om en time.",
     not_found_title: "Siden finnes ikke",
     not_found_text: "Sjekk at lenken er riktig, eller spør verten.",
 };
@@ -349,7 +373,7 @@ static EN: Messages = Messages {
     deleted_text: "We've deleted your name, your answer and everything else we stored about \
         you. Changed your mind? Ask the host for a new invitation.",
     to_event: "Back to the event",
-    too_many_attempts: "Too many sign-ups from here. Try again in an hour.",
+    too_many_attempts: "Too many attempts from here. Try again in an hour.",
     not_found_title: "Page not found",
     not_found_text: "Check that the link is right, or ask the host.",
 };
@@ -377,5 +401,7 @@ mod tests {
     fn counts_people() {
         assert_eq!(EN.people_count(1), "1 person");
         assert_eq!(NB.people_count(3), "3 personer");
+        assert_eq!(EN.answer(Response::Attending, 2), "Coming · 2 people");
+        assert_eq!(NB.answer(Response::Declined, 2), "Kommer ikke");
     }
 }

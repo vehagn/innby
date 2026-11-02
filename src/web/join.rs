@@ -1,8 +1,6 @@
 //! The open RSVP at `/join/{code}`: anyone with the shared link can say they're coming
 //! with just a name, and gets their own RSVP link back.
 
-use std::net::{IpAddr, Ipv4Addr};
-
 use askama::Template;
 use axum::{
     Form,
@@ -15,7 +13,7 @@ use serde::Deserialize;
 
 use super::{
     AppState, PRIVACY_VERSION,
-    pages::{EventView, render, render_with, server_error},
+    pages::{EventView, PartySize, not_found, render, render_with, server_error},
     rate_limit::ClientIp,
 };
 use crate::{
@@ -34,7 +32,7 @@ struct JoinPage<'a> {
     event: EventView<'a>,
     code: &'a str,
     name: &'a str,
-    party_sizes: Vec<(i32, String, bool)>,
+    party_sizes: Vec<PartySize>,
     accepts_answers: bool,
     error: Option<&'static str>,
 }
@@ -48,12 +46,19 @@ impl<'a> JoinPage<'a> {
             event: EventView::new(&state.config.event, lang),
             code,
             name: "",
-            party_sizes: (1..=OPEN_MAX_PARTY_SIZE)
-                .map(|n| (n, t.people_count(n), n == 1))
-                .collect(),
+            party_sizes: PartySize::choices(t, OPEN_MAX_PARTY_SIZE, 1),
             accepts_answers: state.config.event.accepts_answers(Utc::now()),
             error: None,
         }
+    }
+
+    fn render_error(
+        mut self,
+        status: StatusCode,
+        pick: impl Fn(&Messages) -> &'static str,
+    ) -> Response {
+        self.error = Some(pick(self.t));
+        render_with(status, self)
     }
 }
 
@@ -68,7 +73,7 @@ fn is_open(state: &AppState, code: &str) -> bool {
 
 pub async fn show(State(state): State<AppState>, lang: Lang, Path(code): Path<String>) -> Response {
     if !is_open(&state, &code) {
-        return super::pages::not_found(lang).await;
+        return not_found(lang).await;
     }
     render(JoinPage::new(&state, lang, &code))
 }
@@ -85,12 +90,12 @@ pub struct JoinForm {
 pub async fn join(
     State(state): State<AppState>,
     lang: Lang,
-    ClientIp(client): ClientIp,
+    client: ClientIp,
     Path(code): Path<String>,
     Form(form): Form<JoinForm>,
 ) -> Response {
     if !is_open(&state, &code) {
-        return super::pages::not_found(lang).await;
+        return not_found(lang).await;
     }
     if !form.website.is_empty() {
         tracing::info!("open rsvp honeypot triggered");
@@ -102,21 +107,15 @@ pub async fn join(
         return render_with(StatusCode::FORBIDDEN, page);
     }
     let Some(name) = rsvp::normalize_name(&form.name) else {
-        page.error = Some(page.t.invalid_name);
-        return render_with(StatusCode::UNPROCESSABLE_ENTITY, page);
+        return page.render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_name);
     };
     if !(1..=OPEN_MAX_PARTY_SIZE).contains(&form.party_size) {
-        page.error = Some(page.t.invalid_party_size);
-        return render_with(StatusCode::UNPROCESSABLE_ENTITY, page);
+        return page.render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_party_size);
     }
     // Only valid submissions count, so a typo doesn't use up a household's allowance.
-    if !state
-        .join_limiter
-        .check(client.unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)))
-    {
+    if !state.join_limiter.check(client) {
         tracing::warn!("open rsvp rate limit hit");
-        page.error = Some(page.t.too_many_attempts);
-        return render_with(StatusCode::TOO_MANY_REQUESTS, page);
+        return page.render_error(StatusCode::TOO_MANY_REQUESTS, |t| t.too_many_attempts);
     }
 
     let created = rsvp::create_open(
@@ -240,7 +239,7 @@ mod tests {
         }
         let response = site.post(&join, "name=One+more&party_size=1").await;
         assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
-        assert!(body(response).await.contains("For mange påmeldinger"));
+        assert!(body(response).await.contains("For mange forsøk"));
         assert_eq!(all(&site).await.len(), 10);
     }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select id, source as \"source: Source\", name, response as \"response: Response\",\n            party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n            email_status as \"email_status: EmailStatus\", email_consent_at, privacy_version,\n            responded_at, created_at\n        from rsvp\n        order by id\n        ",
+  "query": "select id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at from rsvp where id = $1",
   "describe": {
     "columns": [
       {
@@ -201,7 +201,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -220,5 +222,5 @@
       false
     ]
   },
-  "hash": "6b244767003abd8c6f44b73590340402dd670871e8b7784f864f1e9087d6a496"
+  "hash": "5e167f713d13731f0ddcd263e6ccbf242e23dc9077b90a5e9a21e26822bc3276"
 }

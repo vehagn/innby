@@ -50,9 +50,8 @@ mod tests {
             rsvp::{self, EmailStatus},
         },
         i18n::Lang,
+        web::PRIVACY_VERSION,
     };
-
-    const PRIVACY: &str = "2026-11-01";
 
     fn event_start() -> DateTime<Utc> {
         "2026-12-12T18:00:00Z".parse().unwrap()
@@ -72,7 +71,7 @@ mod tests {
     #[sqlx::test]
     async fn clears_addresses_left_unconfirmed(db: PgPool) {
         let stale = rsvp::create_invite(&db, "Kari", 1).await.unwrap();
-        rsvp::set_email(&db, stale.id, "kari@example.com", Lang::Nb, PRIVACY)
+        rsvp::set_email(&db, stale.id, "kari@example.com", Lang::Nb, PRIVACY_VERSION)
             .await
             .unwrap();
         outbox::enqueue(&db, stale.id, Kind::ConfirmEmail)
@@ -81,13 +80,19 @@ mod tests {
         backdate_consent(&db, 49).await;
 
         let fresh = rsvp::create_invite(&db, "Ola", 1).await.unwrap();
-        rsvp::set_email(&db, fresh.id, "ola@example.com", Lang::Nb, PRIVACY)
+        rsvp::set_email(&db, fresh.id, "ola@example.com", Lang::Nb, PRIVACY_VERSION)
             .await
             .unwrap();
         let confirmed = rsvp::create_invite(&db, "Per", 1).await.unwrap();
-        rsvp::set_email(&db, confirmed.id, "per@example.com", Lang::Nb, PRIVACY)
-            .await
-            .unwrap();
+        rsvp::set_email(
+            &db,
+            confirmed.id,
+            "per@example.com",
+            Lang::Nb,
+            PRIVACY_VERSION,
+        )
+        .await
+        .unwrap();
         rsvp::confirm_email(&db, confirmed.id, "per@example.com")
             .await
             .unwrap();

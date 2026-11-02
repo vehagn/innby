@@ -150,9 +150,8 @@ mod tests {
     use crate::{
         db::rsvp::{self, Response},
         i18n::Lang,
+        web::PRIVACY_VERSION,
     };
-
-    const PRIVACY: &str = "2026-11-01";
 
     async fn kinds(pool: &PgPool) -> Vec<(Kind, bool)> {
         sqlx::query!(
@@ -222,7 +221,7 @@ mod tests {
         let mut confirmed = Vec::new();
         for (name, email) in [("Kari", "kari@example.com"), ("Ola", "ola@example.com")] {
             let guest = rsvp::create_invite(&pool, name, 1).await?;
-            rsvp::set_email(&pool, guest.id, email, Lang::Nb, PRIVACY).await?;
+            rsvp::set_email(&pool, guest.id, email, Lang::Nb, PRIVACY_VERSION).await?;
             rsvp::confirm_email(&pool, guest.id, email).await?;
             confirmed.push(guest);
         }
@@ -232,11 +231,18 @@ mod tests {
             Response::Declined,
             1,
             Lang::Nb,
-            PRIVACY,
+            PRIVACY_VERSION,
         )
         .await?;
         let unconfirmed = rsvp::create_invite(&pool, "Per", 1).await?;
-        rsvp::set_email(&pool, unconfirmed.id, "per@example.com", Lang::Nb, PRIVACY).await?;
+        rsvp::set_email(
+            &pool,
+            unconfirmed.id,
+            "per@example.com",
+            Lang::Nb,
+            PRIVACY_VERSION,
+        )
+        .await?;
 
         assert_eq!(queue_reminders(&pool).await?, 1);
         assert_eq!(queue_reminders(&pool).await?, 0);

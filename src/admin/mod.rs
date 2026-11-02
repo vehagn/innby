@@ -49,7 +49,7 @@ pub async fn serve(config: Config, admin: AdminConfig, db: PgPool) -> anyhow::Re
 
 fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
     // The admin hostname is served the same way as the public one.
-    let https = config.base_url.starts_with("https://");
+    let https = config.is_https();
     let state = AdminState {
         config: Arc::new(config),
         db,
@@ -266,6 +266,17 @@ impl RsvpPage {
             error: None,
         }
     }
+
+    /// The guest's page again with an error, for an invalid form.
+    async fn render_error(
+        state: &AdminState,
+        id: Uuid,
+        error: &'static str,
+    ) -> Result<Response, GuestError> {
+        let mut page = Self::new(&state.config, find(state, id).await?);
+        page.error = Some(error);
+        Ok(render_with(StatusCode::UNPROCESSABLE_ENTITY, page))
+    }
 }
 
 fn guest_url(config: &Config, rsvp: &Rsvp) -> String {
@@ -284,30 +295,29 @@ fn qr_svg(url: &str) -> String {
         .map_or(svg.clone(), |start| svg[start..].to_owned())
 }
 
-fn no_such_guest() -> Response {
-    (StatusCode::NOT_FOUND, "no such guest").into_response()
-}
-
-/// Why a guest couldn't be shown.
-enum FindError {
+/// Why a request about one guest failed.
+enum GuestError {
     Missing,
     Database(sqlx::Error),
 }
 
-impl IntoResponse for FindError {
+impl From<sqlx::Error> for GuestError {
+    fn from(err: sqlx::Error) -> Self {
+        Self::Database(err)
+    }
+}
+
+impl IntoResponse for GuestError {
     fn into_response(self) -> Response {
         match self {
-            FindError::Missing => no_such_guest(),
-            FindError::Database(err) => server_error(err),
+            Self::Missing => (StatusCode::NOT_FOUND, "no such guest").into_response(),
+            Self::Database(err) => server_error(err),
         }
     }
 }
 
-async fn find(state: &AdminState, id: Uuid) -> Result<Rsvp, FindError> {
-    rsvp::find(&state.db, id)
-        .await
-        .map_err(FindError::Database)?
-        .ok_or(FindError::Missing)
+async fn find(state: &AdminState, id: Uuid) -> Result<Rsvp, GuestError> {
+    rsvp::find(&state.db, id).await?.ok_or(GuestError::Missing)
 }
 
 #[derive(Deserialize)]
@@ -319,14 +329,10 @@ async fn show(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
     Query(query): Query<ShowQuery>,
-) -> Response {
-    let rsvp = match find(&state, id).await {
-        Ok(rsvp) => rsvp,
-        Err(err) => return err.into_response(),
-    };
-    let mut page = RsvpPage::new(&state.config, rsvp);
+) -> Result<Response, GuestError> {
+    let mut page = RsvpPage::new(&state.config, find(&state, id).await?);
     page.saved = query.saved.is_some();
-    render(page)
+    Ok(render(page))
 }
 
 fn saved_redirect(id: Uuid) -> Response {
@@ -337,36 +343,26 @@ async fn edit(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
     Form(form): Form<InviteForm>,
-) -> Response {
+) -> Result<Response, GuestError> {
     let name = match form.validate() {
         Ok(name) => name,
-        Err(error) => {
-            return match find(&state, id).await {
-                Ok(rsvp) => {
-                    let mut page = RsvpPage::new(&state.config, rsvp);
-                    page.error = Some(error);
-                    render_with(StatusCode::UNPROCESSABLE_ENTITY, page)
-                }
-                Err(err) => err.into_response(),
-            };
-        }
+        Err(error) => return RsvpPage::render_error(&state, id, error).await,
     };
-    match rsvp::update_invite(&state.db, id, &name, form.max_party_size).await {
-        Ok(true) => saved_redirect(id),
-        Ok(false) => no_such_guest(),
-        Err(err) => server_error(err),
+    if !rsvp::update_invite(&state.db, id, &name, form.max_party_size).await? {
+        return Err(GuestError::Missing);
     }
+    Ok(saved_redirect(id))
 }
 
-async fn revoke(State(state): State<AdminState>, Path(id): Path<Uuid>) -> Response {
-    match rsvp::revoke_link(&state.db, id).await {
-        Ok(Some(_)) => {
-            tracing::info!(rsvp = %id, "link revoked");
-            saved_redirect(id)
-        }
-        Ok(None) => no_such_guest(),
-        Err(err) => server_error(err),
-    }
+async fn revoke(
+    State(state): State<AdminState>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, GuestError> {
+    rsvp::revoke_link(&state.db, id)
+        .await?
+        .ok_or(GuestError::Missing)?;
+    tracing::info!(rsvp = %id, "link revoked");
+    Ok(saved_redirect(id))
 }
 
 #[derive(Deserialize)]
@@ -378,24 +374,13 @@ async fn delete(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
     Form(form): Form<DeleteForm>,
-) -> Response {
+) -> Result<Response, GuestError> {
     if form.confirm.is_none() {
-        return match find(&state, id).await {
-            Ok(rsvp) => {
-                let mut page = RsvpPage::new(&state.config, rsvp);
-                page.error = Some("Tick the box to confirm the deletion.");
-                render_with(StatusCode::UNPROCESSABLE_ENTITY, page)
-            }
-            Err(err) => err.into_response(),
-        };
+        return RsvpPage::render_error(&state, id, "Tick the box to confirm the deletion.").await;
     }
-    match rsvp::delete(&state.db, id).await {
-        Ok(_) => {
-            tracing::info!(rsvp = %id, "rsvp deleted by host");
-            Redirect::to("/").into_response()
-        }
-        Err(err) => server_error(err),
-    }
+    rsvp::delete(&state.db, id).await?;
+    tracing::info!(rsvp = %id, "rsvp deleted by host");
+    Ok(Redirect::to("/").into_response())
 }
 
 /// The guest list as CSV, with each guest's link for a mail merge.
@@ -487,11 +472,14 @@ pub async fn invite(
 mod tests {
     use axum::{body::Body, http::Request};
     use base64::{Engine, engine::general_purpose::STANDARD};
-    use http_body_util::BodyExt;
     use tower::ServiceExt;
 
     use super::*;
-    use crate::{config::tests::config, link::RsvpLink};
+    use crate::{
+        config::tests::{config, parse},
+        link::RsvpLink,
+        web::testing::{body, location},
+    };
 
     struct Admin {
         db: PgPool,
@@ -543,15 +531,6 @@ mod tests {
             self.send(Self::login(Request::post(uri), "admin:secret"), form)
                 .await
         }
-    }
-
-    async fn body(response: Response) -> String {
-        let bytes = response.into_body().collect().await.unwrap().to_bytes();
-        String::from_utf8(bytes.to_vec()).unwrap()
-    }
-
-    fn location(response: &Response) -> &str {
-        response.headers()[header::LOCATION].to_str().unwrap()
     }
 
     #[sqlx::test]
@@ -676,15 +655,14 @@ mod tests {
         assert!(html.contains("Off. Set <code>FEST_OPEN_RSVP_CODE</code>"));
         assert!(!html.contains("<svg"));
 
-        admin.config =
-            crate::config::tests::parse(&[("FEST_OPEN_RSVP_CODE", "jul-2026-hemmelig")]).unwrap();
+        admin.config = parse(&[("FEST_OPEN_RSVP_CODE", "jul-2026-hemmelig")]).unwrap();
         let html = body(admin.get("/").await).await;
         assert!(html.contains(r#"value="https://fest.example.com/join/jul-2026-hemmelig""#));
         assert!(html.contains("<svg"));
         assert!(html.contains("up to 2 people each"));
         assert!(!html.contains("Closed: the answer deadline has passed."));
 
-        admin.config = crate::config::tests::parse(&[
+        admin.config = parse(&[
             ("FEST_OPEN_RSVP_CODE", "jul-2026-hemmelig"),
             ("FEST_RSVP_DEADLINE", "2020-01-01T12:00"),
         ])

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        insert into rsvp (source, name, response, party_size, max_party_size, lang,\n            privacy_version, responded_at)\n        values ('open', $1, 'attending', $2, $3, $4, $5, now())\n        returning id, source as \"source: Source\", name, response as \"response: Response\",\n            party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n            email_status as \"email_status: EmailStatus\", email_consent_at, privacy_version,\n            responded_at, created_at\n        ",
+  "query": "insert into rsvp (source, name, response, party_size, max_party_size, lang, privacy_version, responded_at) values ('open', $1, 'attending', $2, $3, $4, $5, now()) returning id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at ",
   "describe": {
     "columns": [
       {
@@ -236,5 +236,5 @@
       false
     ]
   },
-  "hash": "9dcf8c3360220bfae51f25379ab78963f4c252066f43907050336513303240f3"
+  "hash": "6aaba788bf9f031302b9e834170fbc9c7157ba33a0cc4c4b21d848910ca94545"
 }
