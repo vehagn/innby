@@ -48,7 +48,7 @@
 <details open>
   <summary>{{ t.guest_list_heading }}</summary>
   {% include "_guest_list.html" %}
-  <p>{% match listed_as %}{% when Some(name) %}{{ t.listed_as }} <strong>{{ name }}</strong>.{% when None %}{% if declined %}{{ t.listed_declined }}{% else %}{{ t.listed_hidden }}{% endif %}{% endmatch %}</p>
+  <p>{% match listed_as %}{% when Some(name) %}{{ t.listed_as }} <strong>{{ name }}</strong>{% when None %}{% if declined %}{{ t.listed_declined }}{% else %}{{ t.listed_hidden }}{% endif %}{% endmatch %}</p>
   {% if !declined %}
   <form method="post" action="{{ links.listing }}">
     <p class="muted small">{{ t.show_instead }}:</p>

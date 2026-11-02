@@ -75,7 +75,7 @@ impl<'a> JoinPage<'a> {
         mut self,
         state: &AppState,
         status: StatusCode,
-        pick: impl Fn(&Messages) -> &'static str,
+        pick: impl Fn(&'static Messages) -> &'static str,
     ) -> Response {
         self.error = Some(pick(self.t));
         self.render(state, status).await
@@ -143,13 +143,15 @@ pub async fn join(
     }
     let Some(name) = rsvp::normalize_name(&form.name) else {
         return page
-            .render_error(&state, StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_name)
+            .render_error(&state, StatusCode::UNPROCESSABLE_ENTITY, |t| {
+                &t.invalid_name
+            })
             .await;
     };
     if !(1..=group.max_party_size).contains(&form.party_size) {
         return page
             .render_error(&state, StatusCode::UNPROCESSABLE_ENTITY, |t| {
-                t.invalid_party_size
+                &t.invalid_party_size
             })
             .await;
     }
@@ -158,7 +160,7 @@ pub async fn join(
         tracing::warn!("group sign-up rate limit hit");
         return page
             .render_error(&state, StatusCode::TOO_MANY_REQUESTS, |t| {
-                t.too_many_attempts
+                &t.too_many_attempts
             })
             .await;
     }

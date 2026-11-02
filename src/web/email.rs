@@ -47,19 +47,19 @@ pub async fn add(
     let page = || RsvpPage::new(&state, lang, &guest);
     if form.consent.is_none() {
         return page()
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.consent_required)
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.consent_required)
             .await;
     }
     let Some(email) = rsvp::normalize_email(&form.email) else {
         return page()
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_email)
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_email)
             .await;
     };
     // Each attempt can mail an address the guest typed in, so it's limited like /lost.
     if !state.may_send_mail(client) {
         tracing::warn!("add e-mail rate limit hit");
         return page()
-            .render_error(StatusCode::TOO_MANY_REQUESTS, |t| t.too_many_attempts)
+            .render_error(StatusCode::TOO_MANY_REQUESTS, |t| &t.too_many_attempts)
             .await;
     }
 
@@ -121,7 +121,7 @@ struct ConfirmPage {
 fn invalid_confirmation(lang: Lang) -> Response {
     render_with(
         StatusCode::NOT_FOUND,
-        MessagePage::new(lang, |t| (t.gone_title, t.confirm_invalid_text)),
+        MessagePage::new(lang, |t| (&t.gone_title, &t.confirm_invalid_text)),
     )
 }
 
@@ -234,17 +234,17 @@ pub async fn lost(
     client: ClientIp,
     Form(form): Form<LostForm>,
 ) -> Response {
-    let fail = |status, pick: fn(&Messages) -> &'static str| {
+    let fail = |status, pick: fn(&'static Messages) -> &'static str| {
         let mut page = LostPage::new(lang);
         page.error = Some(pick(page.t));
         render_with(status, page)
     };
     let Some(email) = rsvp::normalize_email(&form.email) else {
-        return fail(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_email);
+        return fail(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_email);
     };
     if !state.may_send_mail(client) {
         tracing::warn!("lost link rate limit hit");
-        return fail(StatusCode::TOO_MANY_REQUESTS, |t| t.too_many_attempts);
+        return fail(StatusCode::TOO_MANY_REQUESTS, |t| &t.too_many_attempts);
     }
     let db = state.db.clone();
     tokio::spawn(async move {
@@ -253,7 +253,7 @@ pub async fn lost(
         }
     });
     render(MessagePage::new(lang, |t| {
-        (t.lost_sent_title, t.lost_sent_text)
+        (&t.lost_sent_title, &t.lost_sent_text)
     }))
 }
 

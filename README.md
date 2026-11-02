@@ -35,6 +35,14 @@ The site is on port 8080, the admin UI on 8081 (user `admin`, password `fest`), 
 Mailpit's inbox on 8025. `just` lists the other recipes; `just test` and `just lint` are
 what CI runs.
 
+## Translate
+
+Every text on the public site and in the mails is in [`locales/nb.toml`](locales/nb.toml)
+and [`locales/en.toml`](locales/en.toml). Both files have the same keys; keep placeholders
+like `{name}` as they are. `just test` checks that the files agree. The privacy notice is
+an HTML template per language, in [`templates/privacy/`](templates/privacy/). The admin
+UI is English only.
+
 ## Deploy
 
 CI builds a `FROM scratch` image holding only the static binary and pushes it to

@@ -1,6 +1,8 @@
+use std::{fmt::Display, sync::LazyLock};
+
 use chrono::{DateTime, Locale};
 use chrono_tz::Tz;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::db::rsvp::{NameDisplay, Response};
 
@@ -14,6 +16,7 @@ pub enum Lang {
 
 impl Lang {
     pub const DEFAULT: Lang = Lang::Nb;
+    pub const ALL: [Lang; 2] = [Lang::Nb, Lang::En];
 
     pub fn code(self) -> &'static str {
         match self {
@@ -64,6 +67,13 @@ impl Lang {
         }
     }
 
+    fn file(self) -> &'static str {
+        match self {
+            Lang::Nb => include_str!("../locales/nb.toml"),
+            Lang::En => include_str!("../locales/en.toml"),
+        }
+    }
+
     fn locale(self) -> Locale {
         match self {
             Lang::Nb => Locale::nb_NO,
@@ -73,7 +83,7 @@ impl Lang {
 
     /// A date and time as people write it, e.g. "lørdag 12. desember 2026 kl. 19:00".
     pub fn format_date(self, date: DateTime<Tz>) -> String {
-        date.format_localized(self.messages().date_format, self.locale())
+        date.format_localized(&self.messages().date_format, self.locale())
             .to_string()
     }
 }
@@ -94,137 +104,184 @@ impl<T> Localized<T> {
     }
 }
 
-/// Every user-facing string. A missing translation is a compile error.
+static NB: LazyLock<Messages> = LazyLock::new(|| Messages::load(Lang::Nb));
+static EN: LazyLock<Messages> = LazyLock::new(|| Messages::load(Lang::En));
+
+/// Reads every language's texts now, so a broken file stops the program at start rather
+/// than failing the first page that needs it.
+pub fn load() {
+    for lang in Lang::ALL {
+        lang.messages();
+    }
+}
+
+/// Every user-facing string, from `locales/{lang}.toml`. Each file must have exactly
+/// these keys. `{name}` and the like in a text are filled in with `fill`.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct Messages {
     /// Name of the other language, shown on the language switch.
-    pub other_language: &'static str,
-    pub privacy_link: &'static str,
+    pub other_language: String,
+    pub privacy_link: String,
 
     // Event
     /// `chrono` format for dates and times.
-    pub date_format: &'static str,
-    pub when: &'static str,
-    pub place: &'static str,
-    pub rsvp_hint: &'static str,
+    pub date_format: String,
+    pub when: String,
+    pub place: String,
+    pub rsvp_hint: String,
 
     // RSVP page
-    pub greeting: &'static str,
+    pub greeting: String,
     /// Shown until the guest has answered: what we store and why (GDPR Art. 13/14).
-    pub first_visit_notice: &'static str,
-    pub keep_link: &'static str,
-    pub saved: &'static str,
-    pub your_answer: &'static str,
-    pub answer_pending: &'static str,
-    pub answer_attending: &'static str,
-    pub answer_declined: &'static str,
-    pub how_many: &'static str,
-    pub person: &'static str,
-    pub people: &'static str,
-    pub attend: &'static str,
-    pub decline: &'static str,
-    pub reply_by: &'static str,
-    pub answers_closed: &'static str,
-    pub name_heading: &'static str,
-    pub change_name: &'static str,
-    pub data_heading: &'static str,
-    pub data_text: &'static str,
-    pub export: &'static str,
-    pub delete_confirm: &'static str,
-    pub delete: &'static str,
-    pub save_link_title: &'static str,
-    pub save_link_text: &'static str,
+    pub first_visit_notice: String,
+    pub keep_link: String,
+    pub saved: String,
+    pub your_answer: String,
+    pub answer_pending: String,
+    pub answer_attending: String,
+    pub answer_declined: String,
+    pub how_many: String,
+    /// "{n} person".
+    pub people_one: String,
+    /// "{n} people".
+    pub people_other: String,
+    pub attend: String,
+    pub decline: String,
+    pub reply_by: String,
+    pub answers_closed: String,
+    pub name_heading: String,
+    pub change_name: String,
+    pub data_heading: String,
+    pub data_text: String,
+    pub export: String,
+    pub delete_confirm: String,
+    pub delete: String,
+    pub save_link_title: String,
+    pub save_link_text: String,
 
     // Optional e-mail
-    pub email_heading: &'static str,
-    pub email_intro: &'static str,
-    pub email_label: &'static str,
+    pub email_heading: String,
+    pub email_intro: String,
+    pub email_label: String,
     /// The consent statement next to the unticked box (GDPR Art. 7).
-    pub email_consent: &'static str,
-    pub email_add: &'static str,
-    pub email_pending: &'static str,
-    pub email_pending_hint: &'static str,
-    pub email_confirmed: &'static str,
-    pub email_remove: &'static str,
-    pub email_sent_notice: &'static str,
-    pub email_removed_notice: &'static str,
-    pub email_confirmed_notice: &'static str,
-    pub invalid_email: &'static str,
-    pub consent_required: &'static str,
-    pub confirm_title: &'static str,
-    pub confirm_text: &'static str,
-    pub confirm_button: &'static str,
-    pub confirm_invalid_text: &'static str,
-    pub lost_link: &'static str,
-    pub lost_title: &'static str,
-    pub lost_text: &'static str,
-    pub lost_button: &'static str,
-    pub lost_sent_title: &'static str,
-    pub lost_sent_text: &'static str,
+    pub email_consent: String,
+    pub email_add: String,
+    pub email_pending: String,
+    pub email_pending_hint: String,
+    pub email_confirmed: String,
+    pub email_remove: String,
+    pub email_sent_notice: String,
+    pub email_removed_notice: String,
+    pub email_confirmed_notice: String,
+    pub invalid_email: String,
+    pub consent_required: String,
+    pub confirm_title: String,
+    pub confirm_text: String,
+    pub confirm_button: String,
+    pub confirm_invalid_text: String,
+    pub lost_link: String,
+    pub lost_title: String,
+    pub lost_text: String,
+    pub lost_button: String,
+    pub lost_sent_title: String,
+    pub lost_sent_text: String,
 
     // Guest list
-    pub guest_list_heading: &'static str,
-    pub guest_list_coming: &'static str,
-    pub guest_list_pending: &'static str,
+    pub guest_list_heading: String,
+    pub guest_list_coming: String,
+    pub guest_list_pending: String,
     /// "+ {n} more", for guests who'd rather not be listed.
-    pub guest_list_more: &'static str,
-    pub guest_list_empty: &'static str,
-    pub guest_list_note: &'static str,
-    pub you: &'static str,
-    pub listed_as: &'static str,
-    pub listed_hidden: &'static str,
-    pub listed_declined: &'static str,
-    pub show_instead: &'static str,
-    pub name_display_label: &'static str,
-    pub display_full: &'static str,
-    pub display_partial: &'static str,
-    pub display_hidden: &'static str,
+    pub guest_list_more: String,
+    pub guest_list_empty: String,
+    pub guest_list_note: String,
+    pub you: String,
+    pub listed_as: String,
+    pub listed_hidden: String,
+    pub listed_declined: String,
+    pub show_instead: String,
+    pub name_display_label: String,
+    pub display_full: String,
+    pub display_partial: String,
+    pub display_hidden: String,
 
     // Group sign-up
-    pub join_group: &'static str,
-    pub join_heading: &'static str,
+    pub join_group: String,
+    pub join_heading: String,
     /// What we store and why (GDPR Art. 13), shown where the data is collected.
-    pub join_notice: &'static str,
-    pub your_name: &'static str,
-    pub join_button: &'static str,
+    pub join_notice: String,
+    pub your_name: String,
+    pub join_button: String,
 
     // Errors and outcomes
-    pub invalid_party_size: &'static str,
-    pub invalid_name: &'static str,
-    pub confirm_delete: &'static str,
-    pub gone_title: &'static str,
-    pub gone_text: &'static str,
-    pub deleted_title: &'static str,
-    pub deleted_text: &'static str,
-    pub to_event: &'static str,
-    pub too_many_attempts: &'static str,
-    pub not_found_title: &'static str,
-    pub not_found_text: &'static str,
+    pub invalid_party_size: String,
+    pub invalid_name: String,
+    pub confirm_delete: String,
+    pub gone_title: String,
+    pub gone_text: String,
+    pub deleted_title: String,
+    pub deleted_text: String,
+    pub to_event: String,
+    pub too_many_attempts: String,
+    pub not_found_title: String,
+    pub not_found_text: String,
+
+    pub mail: Mails,
+}
+
+/// The mails, in plain text.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Mails {
+    /// Under every mail.
+    pub footer: String,
+    pub confirm_email: MailText,
+    pub email_in_use: MailText,
+    pub rsvp_link: MailText,
+    pub reminder: MailText,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MailText {
+    pub subject: String,
+    pub body: String,
 }
 
 impl Messages {
+    fn load(lang: Lang) -> Self {
+        toml::from_str(lang.file())
+            .unwrap_or_else(|err| panic!("locales/{}.toml: {err}", lang.code()))
+    }
+
     /// "1 person", "3 people".
     pub fn people_count(&self, n: i32) -> String {
-        format!("{n} {}", if n == 1 { self.person } else { self.people })
+        let text = if n == 1 {
+            &self.people_one
+        } else {
+            &self.people_other
+        };
+        fill(text, &[("n", &n)])
     }
 
     /// "+ 3 more".
-    pub fn more_guests(&self, n: impl std::fmt::Display) -> String {
-        self.guest_list_more.replace("{n}", &n.to_string())
+    pub fn more_guests(&self, n: impl Display) -> String {
+        fill(&self.guest_list_more, &[("n", &n)])
     }
 
     /// The label for a guest list choice.
-    pub fn name_display(&self, display: NameDisplay) -> &'static str {
+    pub fn name_display(&self, display: NameDisplay) -> &str {
         match display {
-            NameDisplay::Full => self.display_full,
-            NameDisplay::Partial => self.display_partial,
-            NameDisplay::Hidden => self.display_hidden,
+            NameDisplay::Full => &self.display_full,
+            NameDisplay::Partial => &self.display_partial,
+            NameDisplay::Hidden => &self.display_hidden,
         }
     }
 
     /// A guest's answer, e.g. "Coming · 2 people".
     pub fn answer(&self, response: Response, party_size: i32) -> String {
         match response {
-            Response::Pending => self.answer_pending.to_owned(),
+            Response::Pending => self.answer_pending.clone(),
             Response::Attending => {
                 format!(
                     "{} · {}",
@@ -232,225 +289,44 @@ impl Messages {
                     self.people_count(party_size)
                 )
             }
-            Response::Declined => self.answer_declined.to_owned(),
+            Response::Declined => self.answer_declined.clone(),
         }
     }
 }
 
-static NB: Messages = Messages {
-    other_language: "English",
-    privacy_link: "Personvern",
-
-    date_format: "%A %-d. %B %Y kl. %H:%M",
-    when: "Når",
-    place: "Hvor",
-    rsvp_hint: "Har du fått en invitasjon? Bruk lenken du fikk for å svare.",
-
-    greeting: "Hei",
-    first_visit_notice: "Du er invitert! For å planlegge festen lagrer vi navnet ditt, svaret \
-        ditt og hvor mange dere blir. Ikke noe mer, og alt slettes 30 dager etter festen. På \
-        gjestelisten ser andre gjester fornavnet og initialen din, og du kan velge hva de ser.",
-    keep_link: "Dette er din personlige side. Ta vare på lenken for å endre svaret senere, \
-        og ikke del den med andre.",
-    saved: "Lagret!",
-    your_answer: "Ditt svar",
-    answer_pending: "Ikke svart ennå",
-    answer_attending: "Kommer",
-    answer_declined: "Kommer ikke",
-    how_many: "Hvor mange kommer?",
-    person: "person",
-    people: "personer",
-    attend: "Jeg kommer",
-    decline: "Jeg kan ikke",
-    reply_by: "Svarfrist",
-    answers_closed: "Svarfristen har gått ut. Ta kontakt med verten hvis noe har endret seg.",
-    name_heading: "Navn",
-    change_name: "Endre navn",
-    data_heading: "Dine data",
-    data_text: "Du kan laste ned alt vi har lagret om deg, eller slette det nå.",
-    export: "Last ned (JSON)",
-    delete_confirm: "Ja, slett svaret mitt og alt som er lagret om meg",
-    delete: "Slett",
-    save_link_title: "Ta vare på lenken din!",
-    save_link_text: "Dette er den eneste måten å endre eller slette svaret ditt på. Legg til \
-        et bokmerke eller kopier lenken et trygt sted.",
-
-    email_heading: "Påminnelse på e-post",
-    email_intro: "Vil du få en påminnelse og lenken din på e-post? Det er helt valgfritt.",
-    email_label: "E-postadresse",
-    email_consent: "Ja, send meg påminnelser og lenken min på e-post. Jeg kan fjerne \
-        adressen når som helst.",
-    email_add: "Legg til",
-    email_pending: "Vi har sendt en bekreftelseslenke til",
-    email_pending_hint: "Lenken virker i 48 timer.",
-    email_confirmed: "Påminnelser sendes til",
-    email_remove: "Fjern e-postadressen",
-    email_sent_notice: "Sjekk innboksen din for å bekrefte adressen.",
-    email_removed_notice: "E-postadressen din er fjernet.",
-    email_confirmed_notice: "E-postadressen din er bekreftet. Vi sender deg lenken din.",
-    invalid_email: "Skriv inn en gyldig e-postadresse.",
-    consent_required: "Kryss av i boksen for å gi samtykke.",
-    confirm_title: "Bekreft e-postadressen",
-    confirm_text: "Trykk på knappen for å bekrefte at du vil få påminnelser og lenken din \
-        på e-post.",
-    confirm_button: "Bekreft",
-    confirm_invalid_text: "Bekreftelseslenken har gått ut eller er ikke lenger gyldig. Legg \
-        til adressen på nytt fra siden din.",
-    lost_link: "Mistet lenken din?",
-    lost_title: "Mistet lenken?",
-    lost_text: "Har du lagt til og bekreftet e-postadressen din, sender vi lenken på nytt.",
-    lost_button: "Send meg lenken",
-    lost_sent_title: "Sjekk innboksen din",
-    lost_sent_text: "Hvis adressen er registrert og bekreftet, har vi sendt deg lenken din.",
-
-    guest_list_heading: "Gjestelisten",
-    guest_list_coming: "Kommer",
-    guest_list_pending: "Har ikke svart ennå",
-    guest_list_more: "+ {n} til",
-    guest_list_empty: "Ingen på listen ennå.",
-    guest_list_note: "Gjester som ikke kommer, står ikke på listen.",
-    you: "deg",
-    listed_as: "Andre gjester ser deg som",
-    listed_hidden: "Navnet ditt står ikke på listen.",
-    listed_declined: "Du står ikke på listen, siden du ikke kommer.",
-    show_instead: "Vis i stedet",
-    name_display_label: "Navnet ditt på gjestelisten",
-    display_full: "Fullt navn",
-    display_partial: "Fornavn og initial",
-    display_hidden: "Ikke vis navnet mitt",
-
-    join_group: "Invitert via",
-    join_heading: "Si at du kommer",
-    join_notice: "Vi lagrer bare navnet ditt og hvor mange dere blir, for å planlegge \
-        festen. Andre gjester ser navnet ditt på gjestelisten slik du velger over. Alt \
-        slettes 30 dager etter festen, og du kan slette det selv når som helst.",
-    your_name: "Navnet ditt",
-    join_button: "Jeg kommer!",
-
-    invalid_party_size: "Velg et gyldig antall.",
-    invalid_name: "Navnet må være mellom 1 og 100 tegn.",
-    confirm_delete: "Kryss av i boksen for å bekrefte slettingen.",
-    gone_title: "Denne lenken virker ikke",
-    gone_text: "Den kan være skrevet feil, erstattet av en ny lenke, eller så er svaret \
-        slettet. Spør verten om en ny lenke.",
-    deleted_title: "Svaret ditt er slettet",
-    deleted_text: "Vi har slettet navnet ditt, svaret ditt og alt annet vi hadde lagret om \
-        deg. Ombestemt deg? Spør verten om en ny invitasjon.",
-    to_event: "Til forsiden",
-    too_many_attempts: "For mange forsøk herfra. Prøv igjen om en time.",
-    not_found_title: "Siden finnes ikke",
-    not_found_text: "Sjekk at lenken er riktig, eller spør verten.",
-};
-
-static EN: Messages = Messages {
-    other_language: "Norsk",
-    privacy_link: "Privacy",
-
-    date_format: "%A %-d %B %Y, %H:%M",
-    when: "When",
-    place: "Where",
-    rsvp_hint: "Got an invitation? Use the link you received to respond.",
-
-    greeting: "Hi",
-    first_visit_notice: "You're invited! To plan the party we store your name, your answer \
-        and how many of you are coming. Nothing else, and it's all deleted 30 days after \
-        the event. On the guest list, other guests see your first name and initial, and you \
-        can choose what they see.",
-    keep_link: "This is your personal page. Keep the link to change your answer later, and \
-        don't share it.",
-    saved: "Saved!",
-    your_answer: "Your answer",
-    answer_pending: "Not answered yet",
-    answer_attending: "Coming",
-    answer_declined: "Not coming",
-    how_many: "How many are coming?",
-    person: "person",
-    people: "people",
-    attend: "I'm coming",
-    decline: "I can't make it",
-    reply_by: "Reply by",
-    answers_closed: "The reply deadline has passed. Contact the host if something has changed.",
-    name_heading: "Name",
-    change_name: "Change name",
-    data_heading: "Your data",
-    data_text: "You can download everything we store about you, or delete it now.",
-    export: "Download (JSON)",
-    delete_confirm: "Yes, delete my RSVP and everything stored about me",
-    delete: "Delete",
-    save_link_title: "Save your link!",
-    save_link_text: "It's the only way to change or delete your answer. Bookmark this page \
-        or copy the link somewhere safe.",
-
-    email_heading: "Reminders by e-mail",
-    email_intro: "Want a reminder and your link by e-mail? It's entirely optional.",
-    email_label: "E-mail address",
-    email_consent: "Yes, e-mail me reminders and my link. I can remove my address at any \
-        time.",
-    email_add: "Add",
-    email_pending: "We've sent a confirmation link to",
-    email_pending_hint: "It works for 48 hours.",
-    email_confirmed: "Reminders go to",
-    email_remove: "Remove my e-mail address",
-    email_sent_notice: "Check your inbox to confirm the address.",
-    email_removed_notice: "Your e-mail address has been removed.",
-    email_confirmed_notice: "Your e-mail address is confirmed. We'll send you your link.",
-    invalid_email: "Enter a valid e-mail address.",
-    consent_required: "Tick the box to give your consent.",
-    confirm_title: "Confirm your e-mail address",
-    confirm_text: "Press the button to confirm that you want reminders and your link by \
-        e-mail.",
-    confirm_button: "Confirm",
-    confirm_invalid_text: "The confirmation link has expired or is no longer valid. Add your \
-        address again from your RSVP page.",
-    lost_link: "Lost your link?",
-    lost_title: "Lost your link?",
-    lost_text: "If you added and confirmed your e-mail address, we'll send your link again.",
-    lost_button: "Send me my link",
-    lost_sent_title: "Check your inbox",
-    lost_sent_text: "If the address is registered and confirmed, we've sent you your link.",
-
-    guest_list_heading: "Guest list",
-    guest_list_coming: "Coming",
-    guest_list_pending: "Not answered yet",
-    guest_list_more: "+ {n} more",
-    guest_list_empty: "Nobody on the list yet.",
-    guest_list_note: "Guests who can't come aren't listed.",
-    you: "you",
-    listed_as: "Other guests see you as",
-    listed_hidden: "Your name isn't on the list.",
-    listed_declined: "You're not on the list, since you can't come.",
-    show_instead: "Show instead",
-    name_display_label: "Your name on the guest list",
-    display_full: "Full name",
-    display_partial: "First name and initial",
-    display_hidden: "Don't show my name",
-
-    join_group: "Invited with",
-    join_heading: "Let us know you're coming",
-    join_notice: "We only store your name and how many of you are coming, to plan the \
-        party. Other guests see your name on the guest list as you choose above. It's all \
-        deleted 30 days after the event, and you can delete it yourself at \
-        any time.",
-    your_name: "Your name",
-    join_button: "I'm coming!",
-
-    invalid_party_size: "Choose a valid number.",
-    invalid_name: "The name must be between 1 and 100 characters.",
-    confirm_delete: "Tick the box to confirm the deletion.",
-    gone_title: "This link doesn't work",
-    gone_text: "It may be mistyped, replaced by a new link, or the RSVP has been deleted. \
-        Ask the host for a new link.",
-    deleted_title: "Your RSVP has been deleted",
-    deleted_text: "We've deleted your name, your answer and everything else we stored about \
-        you. Changed your mind? Ask the host for a new invitation.",
-    to_event: "Back to the event",
-    too_many_attempts: "Too many attempts from here. Try again in an hour.",
-    not_found_title: "Page not found",
-    not_found_text: "Check that the link is right, or ask the host.",
-};
+/// `text` with each `{key}` replaced by its value, in one pass, so a value that contains
+/// braces (a guest's name, say) is never filled in itself. Unknown keys stay as they are.
+pub fn fill(text: &str, values: &[(&str, &dyn Display)]) -> String {
+    let mut filled = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(open) = rest.find('{') {
+        filled.push_str(&rest[..open]);
+        let after = &rest[open + 1..];
+        let known = after.split_once('}').and_then(|(key, tail)| {
+            let (_, value) = values.iter().find(|(name, _)| *name == key)?;
+            Some((value, tail))
+        });
+        match known {
+            Some((value, tail)) => {
+                filled.push_str(&value.to_string());
+                rest = tail;
+            }
+            None => {
+                filled.push('{');
+                rest = after;
+            }
+        }
+    }
+    filled.push_str(rest);
+    filled
+}
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
+    use serde_json::Value;
+
     use super::*;
 
     #[test]
@@ -468,10 +344,68 @@ mod tests {
         assert_eq!(Lang::negotiate(""), None);
     }
 
+    /// The `{…}` placeholders in a text.
+    fn placeholders(text: &str) -> BTreeSet<&str> {
+        text.split('{')
+            .skip(1)
+            .filter_map(|part| part.split_once('}').map(|(key, _)| key))
+            .collect()
+    }
+
+    /// Every text as `(key, nb, en)`, for comparing the languages.
+    fn texts() -> Vec<(String, String, String)> {
+        fn walk(path: String, nb: &Value, en: &Value, out: &mut Vec<(String, String, String)>) {
+            match (nb, en) {
+                (Value::Object(nb), Value::Object(en)) => {
+                    for (key, nb) in nb {
+                        walk(format!("{path}{key}."), nb, &en[key], out);
+                    }
+                }
+                (Value::String(nb), Value::String(en)) => {
+                    out.push((path, nb.clone(), en.clone()));
+                }
+                other => panic!("{path}: {other:?}"),
+            }
+        }
+        let mut out = Vec::new();
+        let [nb, en] = Lang::ALL.map(|lang| serde_json::to_value(lang.messages()).unwrap());
+        walk(String::new(), &nb, &en, &mut out);
+        out
+    }
+
+    #[test]
+    fn languages_use_the_same_placeholders() {
+        let texts = texts();
+        assert!(texts.len() > 90, "{}", texts.len());
+        for (key, nb, en) in texts {
+            assert_eq!(placeholders(&nb), placeholders(&en), "{key}");
+        }
+    }
+
+    #[test]
+    fn unknown_or_missing_keys_are_refused() {
+        let nb = include_str!("../locales/nb.toml");
+        assert!(toml::from_str::<Messages>(&format!("typo = \"x\"\n{nb}")).is_err());
+        let without_greeting = nb.replace("greeting = ", "# greeting = ");
+        assert!(toml::from_str::<Messages>(&without_greeting).is_err());
+    }
+
+    #[test]
+    fn fills_in_each_placeholder_once() {
+        let name = "{url}";
+        let filled = fill(
+            "Hi, {name}! {url} {unknown}",
+            &[("name", &name), ("url", &"x")],
+        );
+        assert_eq!(filled, "Hi, {url}! x {unknown}");
+        assert_eq!(fill("{", &[]), "{");
+    }
+
     #[test]
     fn counts_people() {
         assert_eq!(EN.people_count(1), "1 person");
         assert_eq!(NB.people_count(3), "3 personer");
+        assert_eq!(EN.people_count(2), "2 people");
         assert_eq!(EN.answer(Response::Attending, 2), "Coming · 2 people");
         assert_eq!(NB.answer(Response::Declined, 2), "Kommer ikke");
         assert_eq!(EN.more_guests(3), "+ 3 more");
