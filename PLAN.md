@@ -65,7 +65,7 @@ For 100 guests, one process is more than enough. Since this is for fun, here are
 | `fest serve` | Deployment (public) | Event page, `/join/{code}`, RSVP pages, e-mail confirm, privacy notice | DB, link key. Reachable from the **external** gateway. |
 | `fest admin` | Deployment (internal) | Invitations, headcount, CSV | DB, link key. Reachable from the **internal** gateway only. |
 | `fest mailer` | Deployment (1 replica) | Processes the outbox and sends e-mail through MailerSend | DB, link key, SMTP credentials, outbound SMTP. No ingress. |
-| `fest janitor` | CronJob (hourly) | Enforces retention and deletes expired data | DB only. |
+| `fest janitor` | CronJob (hourly) | Enforces retention and deletes expired data | DB and the event start (`FEST_EVENT_START`, `FEST_EVENT_TIMEZONE`) only. |
 | `fest migrate` | init container / Argo CD PreSync Job | Applies the embedded SQL migrations | DB as schema owner. |
 
 Splitting this way buys real least privilege:
@@ -171,7 +171,7 @@ Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pendin
 | Retention | Unconfirmed e-mail addresses: cleared after 48h. Sent outbox rows: deleted after 7 days. **All RSVP data: deleted 30 days after the event.** The janitor enforces this. |
 | Backups | The CNPG backup retention must be ≤ 30 days after the event, or the backup policy must be documented. Otherwise "deleted" data lives on in backups. |
 | Processors | **MailerSend** (MailerSend UAB, Lithuania; your existing account) for e-mail. Before go-live, accept its DPA, check its sub-processor list for transfers outside the EU, and verify the sender domain (SPF, DKIM, DMARC). Nothing sits in front of the site: it is exposed directly through `gateway/external`. |
-| Privacy notice | `/privacy` lists the controller, purposes, data, legal bases, retention, recipients and processors, the guest's rights (including the right to object), the right to complain to Datatilsynet, and a contact address. It is versioned. |
+| Privacy notice | `/privacy` (nb/en) lists the controller (`FEST_CONTROLLER_NAME`, `FEST_CONTROLLER_EMAIL`), purposes, data, legal bases, retention, recipients and processors, the guest's rights (including the right to object), the right to complain to Datatilsynet, and a contact address. It is versioned by `PRIVACY_VERSION`, which is stored with each answer. |
 | Security (Art. 32) | TLS at the gateway (cert-manager). HMAC-signed links with nothing secret in the database. Link hygiene as in §4. Non-root, read-only containers. Least-privilege NetworkPolicies. |
 | Logging | `tracing` JSON output, with no names, e-mail addresses or links in the logs (log the RSVP UUID instead). |
 | Records of processing | `docs/ropa.md`: the Art. 30 record and the legitimate-interest assessment. |
@@ -310,7 +310,7 @@ just deploy              # kubectl apply -k deploy/ (or leave to Argo CD)
 4. ✅ **Admin:** invitations (create, link and QR, revoke, delete), headcount, CSV, basic auth, and `fest invite` on the CLI.
 5. ✅ **Open RSVP:** `/join/{code}`, honeypot, rate limit, a "save your link" page, and the on/off flag.
 6. ✅ **Optional e-mail:** add and confirm an address, the outbox and mailer (Mailpit locally, MailerSend in the cluster), `/lost`, reminders.
-7. **Janitor and privacy:** retention rules, `/privacy` (nb/en), `docs/ropa.md`.
+7. ✅ **Janitor and privacy:** retention rules, `/privacy` (nb/en), `docs/ropa.md`.
 8. **Image:** buildah recipe, plus a CI workflow that pushes to GHCR.
 9. **Deploy:** CNPG cluster, workloads, HTTPRoutes, SealedSecrets, NetworkPolicies, Argo CD app.
 10. **Hardening and polish:** strict CSP, `cargo deny`, a load sanity check, optional `LISTEN/NOTIFY`, optional Authelia OIDC.

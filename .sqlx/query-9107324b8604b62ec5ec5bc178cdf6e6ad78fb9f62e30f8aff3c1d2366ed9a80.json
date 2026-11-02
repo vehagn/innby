@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from rsvp",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "9107324b8604b62ec5ec5bc178cdf6e6ad78fb9f62e30f8aff3c1d2366ed9a80"
+}

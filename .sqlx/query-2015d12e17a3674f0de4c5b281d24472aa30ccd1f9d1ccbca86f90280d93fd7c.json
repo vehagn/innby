@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        delete from outbox\n        where sent_at < $1 or (sent_at is null and attempts >= $2 and created_at < $1)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2015d12e17a3674f0de4c5b281d24472aa30ccd1f9d1ccbca86f90280d93fd7c"
+}

@@ -275,3 +275,11 @@ input[readonly] {
 .save-link input {
   margin: 0;
 }
+
+.prose h2 {
+  margin-top: 2rem;
+}
+
+.prose li {
+  margin: 0.25rem 0;
+}

@@ -22,6 +22,10 @@ run: migrate
 invite name max_party_size="1": migrate
     cargo run --quiet -- invite "{{ name }}" {{ max_party_size }}
 
+# Apply the retention rules once, as the hourly CronJob does
+janitor: migrate
+    cargo run --quiet -- janitor
+
 # Hash an admin password for FEST_ADMIN_PASSWORD_HASH (prompts without echo)
 hash-password:
     #!/usr/bin/env bash

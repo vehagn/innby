@@ -1,4 +1,5 @@
 pub mod outbox;
+pub mod retention;
 pub mod rsvp;
 
 use std::time::Duration;

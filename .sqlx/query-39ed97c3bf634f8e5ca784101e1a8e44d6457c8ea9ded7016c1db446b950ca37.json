@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update rsvp set email_consent_at = now() where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "39ed97c3bf634f8e5ca784101e1a8e44d6457c8ea9ded7016c1db446b950ca37"
+}
