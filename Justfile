@@ -3,6 +3,7 @@ set dotenv-load
 musl_target := "x86_64-unknown-linux-musl"
 target_dir := env("CARGO_TARGET_DIR", justfile_directory() / "target")
 image := env("FEST_IMAGE", "ghcr.io/vehagn/fest")
+revision := `git rev-parse HEAD 2>/dev/null || echo unknown`
 
 # List available recipes
 default:
@@ -75,6 +76,7 @@ image tag="dev": build
       --port 8080 \
       --label org.opencontainers.image.source=https://github.com/vehagn/fest \
       --label org.opencontainers.image.version={{ tag }} \
+      --label org.opencontainers.image.revision={{ revision }} \
       "$ctr"
     buildah commit --quiet --rm "$ctr" "{{ image }}:{{ tag }}" >/dev/null
     echo "{{ image }}:{{ tag }}"

@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  # Same versions as .devcontainer/Containerfile.
+  JUST_VERSION: 1.59.0
+  CARGO_DENY_VERSION: 0.20.2
+  CARGO_ZIGBUILD_VERSION: 0.24.0
+  SQLX_CLI_VERSION: 0.9.0
+  ZIG_VERSION: 0.16.0
+  ZIG_SHA256: 70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: docker.io/library/postgres:18.6-trixie
+        env:
+          POSTGRES_USER: fest
+          POSTGRES_PASSWORD: fest
+          POSTGRES_DB: fest
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U fest"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      DATABASE_URL: postgres://fest:fest@localhost:5432/fest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install the Rust toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just@${{ env.JUST_VERSION }},cargo-deny@${{ env.CARGO_DENY_VERSION }}
+      - name: Install sqlx-cli
+        run: |
+          cargo install sqlx-cli@"$SQLX_CLI_VERSION" --locked \
+            --no-default-features --features rustls,postgres
+      # `test` applies the migrations that `lint` checks the offline query data against.
+      - run: just test
+      - run: just lint
+
+  image:
+    needs: check
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install the Rust toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just@${{ env.JUST_VERSION }},cargo-zigbuild@${{ env.CARGO_ZIGBUILD_VERSION }}
+      - name: Install zig
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/zig.tar.xz" \
+            "https://ziglang.org/download/${ZIG_VERSION}/zig-x86_64-linux-${ZIG_VERSION}.tar.xz"
+          echo "${ZIG_SHA256}  $RUNNER_TEMP/zig.tar.xz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/zig"
+          tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP/zig" --strip-components=1
+          echo "$RUNNER_TEMP/zig" >> "$GITHUB_PATH"
+      - name: Build the image
+        id: build
+        run: |
+          tag="sha-${GITHUB_SHA::12}"
+          just image "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Smoke-test the binary
+        run: |
+          binary=target/x86_64-unknown-linux-musl/release/fest
+          file "$binary" | grep -q "statically linked"
+          "$binary" --version
+      - name: Push to GHCR
+        env:
+          TAG: ${{ steps.build.outputs.tag }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "$GITHUB_TOKEN" | buildah login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          tags=("$TAG")
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then tags+=(latest); fi
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then tags+=("$GITHUB_REF_NAME"); fi
+          for tag in "${tags[@]}"; do
+            [[ "$tag" == "$TAG" ]] || buildah tag "$image:$TAG" "$image:$tag"
+            FEST_IMAGE="$image" just push "$tag"
+          done

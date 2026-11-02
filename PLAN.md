@@ -265,7 +265,7 @@ The devcontainer is a Compose project with three services:
   ```
 
 - The image contains no shell, no CA bundle and no tzdata: the CA roots and zoneinfo are compiled into the binary. It runs as a numeric non-root UID, so it needs no `/etc/passwd`. Expect about 10–20 MB.
-- **Where images are built: not decided yet, but not in the devcontainer.** Rootless buildah there needs user namespaces, which means loosening the dev container's seccomp and AppArmor profiles. We tried that, and it builds a correct image (amd64, one layer with only `/fest`, 3.6 MB), but we chose to keep the dev container locked down. The likely home is CI: GitHub Actions `ubuntu-latest` ships with buildah. `just image` and `just push` already contain the recipe and run anywhere buildah works natively.
+- **Images are built in CI, not in the devcontainer.** Rootless buildah there needs user namespaces, which means loosening the dev container's seccomp and AppArmor profiles. We tried that, and it builds a correct image, but chose to keep the dev container locked down. `.github/workflows/ci.yaml` runs `just test` and `just lint` against a Postgres 18 service on every push and pull request; on pushes it then runs `just image` on `ubuntu-24.04` (which ships buildah) and pushes `sha-<commit>`, plus `latest` from `main` and the tag name for `v*` tags, to `ghcr.io/vehagn/fest`. Tool versions match the devcontainer. `just image` and `just push` also run anywhere buildah works natively.
 - Probes use `httpGet` on `/healthz` and `/readyz`, since there is no shell for `exec` probes.
 
 ## 11. Kubernetes (fits the existing homelab conventions)
@@ -311,7 +311,7 @@ just deploy              # kubectl apply -k deploy/ (or leave to Argo CD)
 5. ✅ **Open RSVP:** `/join/{code}`, honeypot, rate limit, a "save your link" page, and the on/off flag.
 6. ✅ **Optional e-mail:** add and confirm an address, the outbox and mailer (Mailpit locally, MailerSend in the cluster), `/lost`, reminders.
 7. ✅ **Janitor and privacy:** retention rules, `/privacy` (nb/en), `docs/ropa.md`.
-8. **Image:** buildah recipe, plus a CI workflow that pushes to GHCR.
+8. ✅ **Image:** buildah recipe, plus a CI workflow that pushes to GHCR.
 9. **Deploy:** CNPG cluster, workloads, HTTPRoutes, SealedSecrets, NetworkPolicies, Argo CD app.
 10. **Hardening and polish:** strict CSP, `cargo deny`, a load sanity check, optional `LISTEN/NOTIFY`, optional Authelia OIDC.
 
