@@ -3,3 +3,5 @@
 
 # Real secrets for `just seal`
 /deploy/secrets.env
+
+.idea
