@@ -8,7 +8,7 @@
 <dl class="facts">
   <dt>Answer</dt><dd>{{ row.answer }}</dd>
   <dt>People</dt><dd>{{ row.party }}</dd>
-  <dt>Source</dt><dd>{% if let Some(group_id) = row.group_id %}<a href="/groups/{{ group_id }}">{{ row.source }}</a>{% else %}{{ row.source }}{% endif %}</dd>
+  <dt>Source</dt><dd>{% if let Some(group_path) = row.group_path %}<a href="{{ group_path }}">{{ row.source }}</a>{% else %}{{ row.source }}{% endif %}</dd>
   <dt>Guest list</dt><dd>{{ row.listed }}</dd>
   {% if !row.email.is_empty() %}<dt>E-mail</dt><dd>{{ row.email }}</dd>{% endif %}
   <dt>Created</dt><dd>{{ row.created }}</dd>
@@ -21,7 +21,7 @@
   <label for="url">Guest's link</label>
   <input id="url" type="text" readonly value="{{ url }}">
   <div class="qr">{{ qr|safe }}</div>
-  <form method="post" action="/rsvp/{{ rsvp.id }}/revoke">
+  <form method="post" action="{{ links.revoke }}">
     <button class="secondary">Make a new link</button>
     <span class="muted small">The current link stops working.</span>
   </form>
@@ -29,7 +29,7 @@
 
 <details>
   <summary>Edit</summary>
-  <form method="post" action="/rsvp/{{ rsvp.id }}">
+  <form method="post" action="{{ links.page }}">
     <label for="name">Name or household</label>
     <input id="name" name="name" required maxlength="100" value="{{ rsvp.name }}">
     <label for="max_party_size">Max people</label>
@@ -40,7 +40,7 @@
 
 <details>
   <summary>Delete</summary>
-  <form method="post" action="/rsvp/{{ rsvp.id }}/delete">
+  <form method="post" action="{{ links.delete }}">
     <label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> Delete {{ row.name }} and everything stored about them</label>
     <button class="danger">Delete</button>
   </form>

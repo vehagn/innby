@@ -21,7 +21,8 @@ use super::{
 use crate::{
     db::rsvp::{self, NameDisplay, Rsvp},
     i18n::{Lang, Messages},
-    link::IdLink,
+    link::{IdLink, Purpose},
+    paths::{self, GuestLinks},
 };
 
 /// The guest behind the `{link}` in the path. Malformed, forged, revoked and deleted
@@ -43,7 +44,12 @@ impl FromRequestParts<AppState> for Guest {
             return Err(gone(lang));
         };
         match rsvp::find(&state.db, parsed.id).await {
-            Ok(Some(rsvp)) if state.config.link_key.verify_rsvp(&parsed, rsvp.link_nonce) => {
+            Ok(Some(rsvp))
+                if state
+                    .config
+                    .link_key
+                    .verify(Purpose::Rsvp, &parsed, rsvp.link_nonce) =>
+            {
                 Ok(Self { link, rsvp })
             }
             Ok(_) => Err(gone(lang)),
@@ -66,7 +72,7 @@ pub(super) struct RsvpPage<'a> {
     lang: Lang,
     t: &'static Messages,
     event: EventView<'a>,
-    link: &'a str,
+    links: GuestLinks,
     rsvp: &'a Rsvp,
     /// The guest's current answer, e.g. "Coming · 2 people".
     status: String,
@@ -100,7 +106,7 @@ impl<'a> RsvpPage<'a> {
             lang,
             t,
             event: EventView::new(&state.config.event, lang),
-            link: &guest.link,
+            links: GuestLinks::new(&guest.link, lang),
             rsvp,
             status: t.answer(rsvp.response, rsvp.party_size),
             party_sizes: PartySize::choices(t, rsvp.max_party_size, rsvp.party_size),
@@ -185,12 +191,8 @@ impl Notice {
 
 /// Back to the RSVP page after a change (post/redirect/get).
 pub(super) fn redirect(link: &str, lang: Lang, notice: Notice) -> Response {
-    Redirect::to(&format!(
-        "/r/{link}?lang={}&notice={}",
-        lang.code(),
-        notice.code()
-    ))
-    .into_response()
+    let page = paths::localized(&paths::path(paths::RSVP, link), lang);
+    Redirect::to(&format!("{page}&notice={}", notice.code())).into_response()
 }
 
 #[derive(Deserialize)]
@@ -214,7 +216,7 @@ pub async fn show(
         .map(|notice| notice.text(page.t));
     page.new_link = query
         .new
-        .map(|_| format!("{}/r/{}", state.config.base_url, guest.link));
+        .map(|_| state.config.url(&paths::path(paths::RSVP, &guest.link)));
     page.render(StatusCode::OK).await
 }
 
@@ -303,16 +305,16 @@ pub async fn rename(
 }
 
 #[derive(Deserialize)]
-pub struct DisplayForm {
+pub struct ListingForm {
     name_display: NameDisplay,
 }
 
 /// Changes how the guest's name shows in the guest list.
-pub async fn display(
+pub async fn listing(
     State(state): State<AppState>,
     lang: Lang,
     guest: Guest,
-    Form(form): Form<DisplayForm>,
+    Form(form): Form<ListingForm>,
 ) -> Response {
     match rsvp::set_name_display(&state.db, guest.rsvp.id, form.name_display).await {
         Ok(true) => redirect(&guest.link, lang, Notice::Saved),
@@ -433,7 +435,7 @@ mod tests {
             rsvp::Response::Pending
         );
 
-        let fresh = site.config.link_key.rsvp_link(invite.id, 1);
+        let fresh = site.config.link_key.link(Purpose::Rsvp, invite.id, 1);
         assert_eq!(
             site.get(&format!("/r/{fresh}")).await.status(),
             StatusCode::OK
@@ -565,7 +567,7 @@ mod tests {
 
         let response = site
             .post(
-                &format!("/r/{kari}/display?lang=en"),
+                &format!("/r/{kari}/listing?lang=en"),
                 "name_display=partial",
             )
             .await;

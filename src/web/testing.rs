@@ -13,6 +13,7 @@ use tower::ServiceExt;
 use crate::{
     config::{Config, tests::parse},
     db::rsvp::{self, Rsvp},
+    link::Purpose,
 };
 
 /// The public site on a throwaway database. One router per site, so state such as the
@@ -41,7 +42,10 @@ impl Site {
         let rsvp = rsvp::create_invite(&self.db, name, max_party_size)
             .await
             .unwrap();
-        let link = self.config.link_key.rsvp_link(rsvp.id, rsvp.link_nonce);
+        let link = self
+            .config
+            .link_key
+            .link(Purpose::Rsvp, rsvp.id, rsvp.link_nonce);
         (rsvp, link)
     }
 

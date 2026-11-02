@@ -22,7 +22,8 @@ use crate::{
         rsvp::{self, NameDisplay, SignUp},
     },
     i18n::{Lang, Messages},
-    link::IdLink,
+    link::{IdLink, Purpose},
+    paths,
 };
 
 #[derive(Template)]
@@ -32,7 +33,7 @@ struct JoinPage<'a> {
     t: &'static Messages,
     event: EventView<'a>,
     group: &'a Group,
-    link: &'a str,
+    action: String,
     name: &'a str,
     party_sizes: Vec<PartySize>,
     display_choices: Vec<DisplayChoice>,
@@ -49,7 +50,7 @@ impl<'a> JoinPage<'a> {
             t,
             event: EventView::new(&state.config.event, lang),
             group,
-            link,
+            action: paths::localized(&paths::path(paths::JOIN, link), lang),
             name: "",
             party_sizes: PartySize::choices(t, group.max_party_size, 1),
             // Signing up means coming, and coming shows the full name unless chosen otherwise.
@@ -91,7 +92,7 @@ async fn find_group(state: &AppState, link: &str) -> sqlx::Result<Option<Group>>
         state
             .config
             .link_key
-            .verify_group(&parsed, group.link_nonce)
+            .verify(Purpose::Group, &parsed, group.link_nonce)
     }))
 }
 
@@ -172,8 +173,12 @@ pub async fn join(
     match rsvp::create_open(&state.db, &sign_up, PRIVACY_VERSION).await {
         Ok(rsvp) => {
             tracing::info!(rsvp = %rsvp.id, group = %group.id, "signed up through a group");
-            let link = state.config.link_key.rsvp_link(rsvp.id, rsvp.link_nonce);
-            Redirect::to(&format!("/r/{link}?lang={}&new", lang.code())).into_response()
+            let link = state
+                .config
+                .link_key
+                .link(Purpose::Rsvp, rsvp.id, rsvp.link_nonce);
+            let page = paths::localized(&paths::path(paths::RSVP, link), lang);
+            Redirect::to(&format!("{page}&new")).into_response()
         }
         Err(err) => server_error(err),
     }
@@ -193,7 +198,10 @@ mod tests {
     /// A group for up to two people per sign-up, and its link.
     async fn climbing_club(site: &Site) -> (Group, String) {
         let group = group::create(&site.db, "Climbing club", 2).await.unwrap();
-        let link = site.config.link_key.group_link(group.id, group.link_nonce);
+        let link = site
+            .config
+            .link_key
+            .link(Purpose::Group, group.id, group.link_nonce);
         (group, link)
     }
 
@@ -201,7 +209,7 @@ mod tests {
     async fn only_a_groups_current_link_works(db: PgPool) {
         let site = Site::new(db);
         let (group, link) = climbing_club(&site).await;
-        let rsvp_link = site.config.link_key.rsvp_link(group.id, 0);
+        let rsvp_link = site.config.link_key.link(Purpose::Rsvp, group.id, 0);
         for bad in ["wrong-code", rsvp_link.as_str()] {
             let response = site.get(&format!("/join/{bad}")).await;
             assert_eq!(response.status(), StatusCode::NOT_FOUND, "{bad}");

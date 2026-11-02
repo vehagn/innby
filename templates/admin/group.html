@@ -20,7 +20,7 @@
   <label for="url">Group's link</label>
   <input id="url" type="text" readonly value="{{ url }}">
   <div class="qr">{{ qr|safe }}</div>
-  <form method="post" action="/groups/{{ group.id }}/revoke">
+  <form method="post" action="{{ links.revoke }}">
     <button class="secondary">Make a new link</button>
     <span class="muted small">The current link stops working. Those who signed up keep their own links.</span>
   </form>
@@ -38,7 +38,7 @@
   <tbody>
     {% for row in members %}
     <tr>
-      <td><a href="/rsvp/{{ row.id }}">{{ row.name }}</a></td>
+      <td><a href="{{ row.path }}">{{ row.name }}</a></td>
       <td>{{ row.answer }}</td>
       <td>{{ row.party }}</td>
       <td>{{ row.listed }}</td>
@@ -52,7 +52,7 @@
 
 <details>
   <summary>Edit</summary>
-  <form method="post" action="/groups/{{ group.id }}">
+  <form method="post" action="{{ links.page }}">
     <label for="name">Group name</label>
     <input id="name" name="name" required maxlength="100" value="{{ group.name }}">
     <label for="max_party_size">Max people per sign-up, for new sign-ups</label>
@@ -64,7 +64,7 @@
 <details>
   <summary>Delete</summary>
   {% if members.is_empty() %}
-  <form method="post" action="/groups/{{ group.id }}/delete">
+  <form method="post" action="{{ links.delete }}">
     <label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> Delete the group {{ group.name }} and its link</label>
     <button class="danger">Delete</button>
   </form>

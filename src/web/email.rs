@@ -24,7 +24,8 @@ use crate::{
         rsvp::{self, EmailStatus, Rsvp},
     },
     i18n::{Lang, Messages},
-    link::EmailLink,
+    link::{EmailLink, Purpose},
+    paths,
 };
 
 #[derive(Deserialize)]
@@ -114,7 +115,7 @@ pub async fn remove(State(state): State<AppState>, lang: Lang, guest: Guest) -> 
 struct ConfirmPage {
     lang: Lang,
     t: &'static Messages,
-    token: String,
+    action: String,
 }
 
 fn invalid_confirmation(lang: Lang) -> Response {
@@ -154,7 +155,7 @@ pub async fn confirm_page(
         Ok(Some(_)) => render(ConfirmPage {
             lang,
             t: lang.messages(),
-            token,
+            action: paths::localized(&paths::path(paths::CONFIRM_EMAIL, token), lang),
         }),
         Ok(None) => invalid_confirmation(lang),
         Err(err) => server_error(err),
@@ -186,7 +187,10 @@ pub async fn confirm(
             tracing::info!(rsvp = %guest.id, "e-mail address confirmed");
             // Holding the confirmation link proves the address, which belongs to this
             // RSVP, so the guest may go straight to their page.
-            let link = state.config.link_key.rsvp_link(guest.id, guest.link_nonce);
+            let link = state
+                .config
+                .link_key
+                .link(Purpose::Rsvp, guest.id, guest.link_nonce);
             redirect(&link, lang, Notice::EmailConfirmed)
         }
         Ok(false) => invalid_confirmation(lang),

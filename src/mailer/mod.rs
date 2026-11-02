@@ -270,7 +270,9 @@ mod tests {
         process_batch(&config, &from(), &db, &sender).await.unwrap();
         let mails = sender.mails();
         assert_eq!(mails.len(), 2);
-        let link = config.link_key.rsvp_link(guest.id, guest.link_nonce);
+        let link = config
+            .link_key
+            .link(crate::link::Purpose::Rsvp, guest.id, guest.link_nonce);
         assert_eq!(mails[0].1, "Lenken din – Julebord");
         assert_eq!(mails[1].1, "Påminnelse: Julebord");
         assert!(

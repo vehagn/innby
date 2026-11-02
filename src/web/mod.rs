@@ -39,7 +39,7 @@ use tower_http::{
 };
 use tracing::Level;
 
-use crate::{config::Config, db, i18n::Lang};
+use crate::{config::Config, db, i18n::Lang, paths};
 
 /// Version of the privacy notice, recorded with each answer.
 /// Bump it whenever the notice in `templates/privacy/` changes in substance.
@@ -186,22 +186,25 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         mail_limiter_all: Arc::new(RateLimiter::new(100, DAY)),
     };
     let links = Router::new()
-        .route("/join/{link}", get(join::show).post(join::join))
-        .route("/r/{link}", get(rsvp::show).post(rsvp::answer))
-        .route("/r/{link}/name", post(rsvp::rename))
-        .route("/r/{link}/display", post(rsvp::display))
-        .route("/r/{link}/export", get(rsvp::export))
-        .route("/r/{link}/delete", post(rsvp::delete))
-        .route("/r/{link}/email", post(email::add))
-        .route("/r/{link}/email/remove", post(email::remove))
-        .route("/e/{token}", get(email::confirm_page).post(email::confirm))
-        .route("/lost", get(email::lost_page).post(email::lost));
+        .route(paths::JOIN, get(join::show).post(join::join))
+        .route(paths::RSVP, get(rsvp::show).post(rsvp::answer))
+        .route(paths::RSVP_NAME, post(rsvp::rename))
+        .route(paths::RSVP_LISTING, post(rsvp::listing))
+        .route(paths::RSVP_EXPORT, get(rsvp::export))
+        .route(paths::RSVP_DELETE, post(rsvp::delete))
+        .route(paths::RSVP_EMAIL, post(email::add))
+        .route(paths::RSVP_EMAIL_REMOVE, post(email::remove))
+        .route(
+            paths::CONFIRM_EMAIL,
+            get(email::confirm_page).post(email::confirm),
+        )
+        .route(paths::LOST, get(email::lost_page).post(email::lost));
     let router = Router::new()
-        .route("/", get(pages::index))
-        .route("/privacy", get(pages::privacy))
-        .route("/static/style.css", get(pages::stylesheet))
-        .route("/healthz", get(|| async { "ok" }))
-        .route("/readyz", get(ready))
+        .route(paths::HOME, get(pages::index))
+        .route(paths::PRIVACY, get(pages::privacy))
+        .route(paths::STYLESHEET, get(pages::stylesheet))
+        .route(paths::HEALTH, get(|| async { "ok" }))
+        .route(paths::READY, get(ready))
         .merge(no_store(links))
         .fallback(pages::not_found)
         .with_state(state);

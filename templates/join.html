@@ -11,7 +11,7 @@
   <p class="muted">{{ t.join_group }}: <strong>{{ group.name }}</strong></p>
   <h2 id="join-heading">{{ t.join_heading }}</h2>
   {% if accepts_answers %}
-  <form method="post" action="/join/{{ link }}?lang={{ lang.code() }}">
+  <form method="post" action="{{ action }}">
     <label for="name">{{ t.your_name }}</label>
     <input id="name" name="name" value="{{ name }}" required maxlength="100" autocomplete="name">
     {% if party_sizes.len() > 1 %}
@@ -24,7 +24,7 @@
       <label for="website">Website</label>
       <input id="website" name="website" tabindex="-1" autocomplete="off">
     </div>
-    <p class="muted small">{{ t.join_notice }} <a href="/privacy?lang={{ lang.code() }}">{{ t.privacy_link }}</a></p>
+    <p class="muted small">{{ t.join_notice }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
     <div class="buttons">
       <button>{{ t.join_button }}</button>
     </div>

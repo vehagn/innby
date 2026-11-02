@@ -6,5 +6,5 @@
 <article class="prose">
 {% if nb %}{% include "privacy/nb.html" %}{% else %}{% include "privacy/en.html" %}{% endif %}
 </article>
-<p><a href="/?lang={{ lang.code() }}">{{ t.to_event }}</a></p>
+<p><a href="{{ lang.home() }}">{{ t.to_event }}</a></p>
 {% endblock %}

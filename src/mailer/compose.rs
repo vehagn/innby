@@ -10,6 +10,8 @@ use crate::{
         rsvp::{EmailStatus, Rsvp},
     },
     i18n::Lang,
+    link::Purpose,
+    paths,
 };
 
 /// How long a confirmation link works; unconfirmed addresses are cleared after as long.
@@ -38,12 +40,12 @@ pub fn compose(config: &Config, kind: Kind, rsvp: &Rsvp) -> Result<Mail, &'stati
     let title = config.event.title.get(lang);
     let base = &config.base_url;
     // A page on the site, in the guest's language.
-    let url = |path: &str| format!("{base}{path}?lang={}", lang.code());
+    let url = |path: &str| config.url(&paths::localized(path, lang));
     let rsvp_url = || {
-        url(&format!(
-            "/r/{}",
-            config.link_key.rsvp_link(rsvp.id, rsvp.link_nonce)
-        ))
+        let link = config
+            .link_key
+            .link(Purpose::Rsvp, rsvp.id, rsvp.link_nonce);
+        url(&paths::path(paths::RSVP, link))
     };
     let name = &rsvp.name;
     let nb = lang == Lang::Nb;
@@ -55,7 +57,7 @@ pub fn compose(config: &Config, kind: Kind, rsvp: &Rsvp) -> Result<Mail, &'stati
             let link = config
                 .link_key
                 .email_link(rsvp.id, &to, Utc::now() + CONFIRM_WITHIN);
-            let url = url(&format!("/e/{link}"));
+            let url = url(&paths::path(paths::CONFIRM_EMAIL, link));
             if nb {
                 (
                     format!("Bekreft e-postadressen din – {title}"),
@@ -79,7 +81,7 @@ pub fn compose(config: &Config, kind: Kind, rsvp: &Rsvp) -> Result<Mail, &'stati
             }
         }
         Kind::EmailInUse => {
-            let url = url("/lost");
+            let url = url(paths::LOST);
             if nb {
                 (
                     format!("E-postadressen din er allerede registrert – {title}"),

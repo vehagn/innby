@@ -5,6 +5,7 @@ mod i18n;
 mod janitor;
 mod link;
 mod mailer;
+mod paths;
 mod web;
 
 use std::io::Read;

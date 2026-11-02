@@ -6,7 +6,7 @@
 {% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
 <h1>{{ t.lost_title }}</h1>
 <p>{{ t.lost_text }}</p>
-<form method="post" action="/lost?lang={{ lang.code() }}">
+<form method="post" action="{{ lang.lost() }}">
   <label for="email">{{ t.email_label }}</label>
   <input id="email" name="email" type="email" required maxlength="254" autocomplete="email">
   <div class="buttons">

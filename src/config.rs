@@ -31,6 +31,11 @@ impl Config {
     pub fn is_https(&self) -> bool {
         self.base_url.starts_with("https://")
     }
+
+    /// The full URL of a path on the public site, for mails and the admin UI.
+    pub fn url(&self, path: &str) -> String {
+        format!("{}{path}", self.base_url)
+    }
 }
 
 #[derive(Debug, Clone)]
