@@ -101,6 +101,35 @@ push tag="dev" *also:
       buildah manifest push --all --format oci "{{ image }}:{{ tag }}" "docker://{{ image }}:$tag"
     done
 
+# Release a version: bump Cargo.toml if needed, tag v<version> (signed), push to build the image
+release version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version="{{ trim_start_match(version, "v") }}"
+    tag="v$version"
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
+      || { echo "not a version: $version (want e.g. 0.2.0)" >&2; exit 1; }
+    [[ "$(git branch --show-current)" == main ]] || { echo "check out main first" >&2; exit 1; }
+    [[ -z "$(git status --porcelain)" ]] || { echo "commit or stash your changes first" >&2; exit 1; }
+    git fetch --quiet --tags origin main
+    git merge-base --is-ancestor origin/main HEAD || { echo "main is behind origin/main" >&2; exit 1; }
+    ! git rev-parse --quiet --verify "refs/tags/$tag" >/dev/null || { echo "$tag already exists" >&2; exit 1; }
+    current=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)
+    if [[ "$current" != "$version" ]]; then
+      perl -pi -e 's/^version = "[^"]*"/version = "'"$version"'"/ if /^version = / && !$done++' Cargo.toml
+      perl -0pi -e 's/(name = "innby"\nversion = )"[^"]*"/$1"'"$version"'"/' Cargo.lock
+      git commit --quiet --message "Release $tag" -- Cargo.toml Cargo.lock
+      echo "Bumped $current → $version"
+    fi
+    git tag --sign --message "Innby $version" "$tag"
+    git --no-pager log --oneline --decorate -1
+    read -rp "Push main and $tag to origin? [y/N] " answer
+    if [[ "$answer" == [yY] ]]; then
+      git push --atomic origin main "$tag"
+    else
+      echo "Not pushed. Later: git push --atomic origin main $tag"
+    fi
+
 # Run a local copy of the published image (see compose.yaml): site :8080, admin :8081, mail :8025
 up tag="latest":
     INNBY_TAG={{ tag }} {{ compose }} up --detach --pull missing

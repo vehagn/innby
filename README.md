@@ -65,7 +65,9 @@ e.g. `COMPOSE="podman compose"`.
 ## Deploy
 
 CI builds `FROM scratch` images holding only the static binary, for amd64 and arm64, and
-pushes them to `ghcr.io/vehagn/innby` as one OCI image index. [`deploy/`](deploy/README.md) has the Kubernetes manifests.
+pushes them to `ghcr.io/vehagn/innby` as one OCI image index. Every push to `main` is
+`latest`; `just release 0.2.0` bumps `Cargo.toml`, tags `v0.2.0` and pushes, which publishes
+`:v0.2.0`. [`deploy/`](deploy/README.md) has the Kubernetes manifests.
 
 [PLAN.md](PLAN.md) explains the design, and [docs/ropa.md](docs/ropa.md) is the GDPR
 record of processing.
