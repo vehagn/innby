@@ -80,28 +80,31 @@ jobs:
           mkdir -p "$RUNNER_TEMP/zig"
           tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP/zig" --strip-components=1
           echo "$RUNNER_TEMP/zig" >> "$GITHUB_PATH"
-      - name: Build the image
+      - name: Build the images for amd64 and arm64
         id: build
         run: |
           tag="sha-${GITHUB_SHA::12}"
-          just image "$tag"
+          INNBY_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}" just image "$tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      - name: Smoke-test the binary
+      - name: Smoke-test the binaries
         run: |
-          binary=target/x86_64-unknown-linux-musl/release/innby
-          file "$binary" | grep -q "statically linked"
-          "$binary" --version
-      - name: Push to GHCR
+          for target in x86_64 aarch64; do
+            file "target/$target-unknown-linux-musl/release/innby" | tee /dev/stderr \
+              | grep -q "statically linked"
+          done
+          file target/aarch64-unknown-linux-musl/release/innby | grep -q "ARM aarch64"
+          target/x86_64-unknown-linux-musl/release/innby --version
+      - name: Push the OCI index to GHCR
         env:
           TAG: ${{ steps.build.outputs.tag }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          image="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "$GITHUB_TOKEN" | buildah login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
-          tags=("$TAG")
-          if [[ "$GITHUB_REF" == refs/heads/main ]]; then tags+=(latest); fi
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then tags+=("$GITHUB_REF_NAME"); fi
-          for tag in "${tags[@]}"; do
-            [[ "$tag" == "$TAG" ]] || buildah tag "$image:$TAG" "$image:$tag"
-            INNBY_IMAGE="$image" just push "$tag"
-          done
+          also=()
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then also+=(latest); fi
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then also+=("$GITHUB_REF_NAME"); fi
+          INNBY_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}" just push "$TAG" "${also[@]}"
+          skopeo inspect --raw "docker://ghcr.io/${GITHUB_REPOSITORY,,}:$TAG" \
+            | jq -e '.mediaType == "application/vnd.oci.image.index.v1+json"
+                     and ([.manifests[].platform.architecture] | sort) == ["amd64", "arm64"]'
+

@@ -1,0 +1,79 @@
+# A local copy of Innby from the published image. `just up` starts it; then the site is on
+# http://localhost:8080, the admin UI on :8081 (admin/innby) and the mail it sends, caught
+# by Mailpit, on :8025. Settings come from .env.example, overridden by .env if there is one.
+name: innby
+
+x-innby: &innby
+  image: ${INNBY_IMAGE:-ghcr.io/vehagn/innby}:${INNBY_TAG:-latest}
+  env_file:
+    - path: .env.example
+    - path: .env
+      required: false
+  environment:
+    DATABASE_URL: postgres://innby:innby@db:5432/innby
+    INNBY_SMTP_URL: smtp://mail:1025
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+  restart: unless-stopped
+
+services:
+  db:
+    image: docker.io/library/postgres:18.6-trixie
+    environment:
+      POSTGRES_USER: innby
+      POSTGRES_PASSWORD: innby
+      POSTGRES_DB: innby
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U innby -d innby"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+
+  mail:
+    image: docker.io/axllent/mailpit:v1.33.0
+    ports:
+      - 127.0.0.1:8025:8025
+    restart: unless-stopped
+
+  migrate:
+    <<: *innby
+    command: migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    <<: *innby
+    command: serve
+    ports:
+      - 127.0.0.1:8080:8080
+
+  admin:
+    <<: *innby
+    command: admin
+    ports:
+      - 127.0.0.1:8081:8081
+
+  mailer:
+    <<: *innby
+    command: mailer
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mail:
+        condition: service_started
+
+  # The cluster runs this hourly; here it's `just up-janitor`.
+  janitor:
+    <<: *innby
+    command: janitor
+    profiles: [tools]
+    restart: "no"
+
+volumes:
+  postgres:

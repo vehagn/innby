@@ -47,7 +47,7 @@ You had no preference, and the devcontainer removes Go's main advantage (it was 
 
 - **CSRF:** axum has no built-in equivalent of Go's `CrossOriginProtection`, so we add a ~20-line middleware that does the same thing. For unsafe methods it requires `Sec-Fetch-Site` to be `same-origin` or `none`, or (for older browsers) the `Origin` host to match the `Host` header. This needs no cookies, and works unchanged for both the public and the admin hostname.
 - **i18n:** four languages still don't need Fluent. Each language's texts, mails included, live in `locales/{lang}.toml`, compiled into the binary and read into one `Messages` struct that the templates use. A missing or unknown key, or a placeholder like `{name}` that one language has and another lacks, fails the tests and stops the program at start. The privacy notice is a template per language, since it's a document rather than strings.
-- **Cross-compiling:** the devcontainer runs arm64 on your Mac and the cluster is amd64. `cargo zigbuild --target x86_64-unknown-linux-musl` (with Zig as the linker) handles that, including the C code inside `ring`.
+- **Cross-compiling:** the devcontainer runs arm64 on your Mac, the cluster is amd64, and the image is published for both. `cargo zigbuild --target x86_64-unknown-linux-musl --target aarch64-unknown-linux-musl` (with Zig as the linker) handles that, including the C code inside `ring`.
 
 ## 3. Architecture: should we split it into microservices?
 
@@ -270,18 +270,21 @@ The devcontainer is a Compose project with three services:
 
 ## 10. Container image (buildah, binary only)
 
-- Build: `cargo zigbuild --release --locked --target x86_64-unknown-linux-musl`, with `SQLX_OFFLINE=true` so no database is needed.
+- Build: `just build` runs `cargo zigbuild --release --locked` for `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`, with `SQLX_OFFLINE=true` so no database is needed.
   - Release profile: `lto = "fat"`, `codegen-units = 1`, `strip = true`.
-  - All nodes are **amd64**, so a single-architecture image is enough.
-- Image steps:
+  - The cluster is amd64; arm64 is for running a copy on an arm64 machine, such as a Mac.
+- Image steps (`just image`), once per architecture, into one image index:
 
   ```
-  ctr=$(buildah from --arch amd64 --os linux scratch)   # explicit: dev machines may be arm64
-  buildah copy  $ctr "$CARGO_TARGET_DIR"/x86_64-unknown-linux-musl/release/innby /innby
-  buildah config --entrypoint '["/innby"]' --cmd serve --user 65532:65532 \
-                 --port 8080 --label org.opencontainers.image.source=… $ctr
-  buildah commit --rm $ctr ghcr.io/vehagn/innby:<tag>
+  buildah manifest create ghcr.io/vehagn/innby:<tag>
+  ctr=$(buildah from scratch)
+  buildah copy  $ctr "$CARGO_TARGET_DIR"/<target>/release/innby /innby
+  buildah config --os linux --arch <arch> --entrypoint '["/innby"]' --cmd serve \
+                 --user 65532:65532 --port 8080 --label org.opencontainers.image.source=… $ctr
+  buildah commit --rm --format oci --manifest ghcr.io/vehagn/innby:<tag> $ctr
   ```
+
+- `just push` sends the index and both images as OCI (`buildah manifest push --all --format oci`); CI checks that the registry serves an OCI image index for amd64 and arm64.
 
 - The image contains no shell, no CA bundle and no tzdata: the CA roots and zoneinfo are compiled into the binary. It runs as a numeric non-root UID, so it needs no `/etc/passwd`. Expect about 10–20 MB.
 - **Images are built in CI, not in the devcontainer.** Rootless buildah there needs user namespaces, which means loosening the dev container's seccomp and AppArmor profiles. We tried that, and it builds a correct image, but chose to keep the dev container locked down. `.github/workflows/ci.yaml` runs `just test` and `just lint` against a Postgres 18 service on every push and pull request; on pushes it then runs `just image` on `ubuntu-24.04` (which ships buildah) and pushes `sha-<commit>`, plus `latest` from `main` and the tag name for `v*` tags, to `ghcr.io/vehagn/innby`. Tool versions match the devcontainer. `just image` and `just push` also run anywhere buildah works natively.
@@ -340,6 +343,7 @@ just manifests           # render deploy/ with kustomize (Argo CD does the deplo
 14. ✅ **More languages:** Nynorsk, and English split into British ("traditional") and American ("simplified"), each with its own texts, mails, privacy notice and date format.
 15. ✅ **Chinese:** Simplified and Traditional, with punctuation moved from the templates into the texts, and partial names that keep only the family name for names in Chinese, Japanese or Korean script ("王**").
 16. ✅ **Renamed to Innby** (from fest): the crate, binary and commands, the `INNBY_*` settings, the image, the Kubernetes names and the databases. The hostnames stay as they are.
+17. ✅ **Multi-arch and a local copy:** CI builds amd64 and arm64 binaries and pushes their scratch images as one OCI image index; `compose.yaml` and `just up` run a local copy of the published image.
 
 ## 14. Decisions
 

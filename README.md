@@ -48,10 +48,24 @@ texts, with placeholders such as `{name}` where a value goes. All files have the
 an HTML template per language, in [`templates/privacy/`](templates/privacy/). The admin
 UI is English only.
 
+## Run a local copy
+
+```bash
+just up
+```
+
+That runs the published image with [`compose.yaml`](compose.yaml): Postgres, Mailpit, and
+the site, admin UI and mailer. The site is on http://localhost:8080, the admin UI on
+http://localhost:8081 (user `admin`, password `innby`), and the mail it sends on
+http://localhost:8025. Settings come from `.env.example`, overridden by `.env` if there is
+one. `just up v1.0.0` runs a given tag, `just up-janitor` applies the retention rules,
+and `just down` stops it all. It uses `docker compose` unless `COMPOSE` says otherwise,
+e.g. `COMPOSE="podman compose"`.
+
 ## Deploy
 
-CI builds a `FROM scratch` image holding only the static binary and pushes it to
-`ghcr.io/vehagn/innby`. [`deploy/`](deploy/README.md) has the Kubernetes manifests.
+CI builds `FROM scratch` images holding only the static binary, for amd64 and arm64, and
+pushes them to `ghcr.io/vehagn/innby` as one OCI image index. [`deploy/`](deploy/README.md) has the Kubernetes manifests.
 
 [PLAN.md](PLAN.md) explains the design, and [docs/ropa.md](docs/ropa.md) is the GDPR
 record of processing.
