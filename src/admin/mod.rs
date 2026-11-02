@@ -29,6 +29,8 @@ use crate::{
         outbox,
         rsvp::{self, EmailStatus, Headcount, MAX_PARTY_SIZE, NameDisplay, Rsvp, Source},
     },
+    link::Purpose,
+    paths::{self, AdminLinks},
     web::{self, render, render_with, server_error},
 };
 
@@ -58,34 +60,39 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
     };
     let login = Arc::new(auth::Login::new(admin));
     let pages = Router::new()
-        .route("/", get(index))
-        .route("/invitations", get(invitations).post(create_invitations))
-        .route("/groups", post(groups::create))
-        .route("/groups/{id}", get(groups::show).post(groups::edit))
-        .route("/groups/{id}/revoke", post(groups::revoke))
-        .route("/groups/{id}/delete", post(groups::delete))
-        .route("/rsvp/{id}", get(show).post(edit))
-        .route("/rsvp/{id}/revoke", post(revoke))
-        .route("/rsvp/{id}/delete", post(delete))
-        .route("/rsvp.csv", get(export_csv))
-        .route("/reminders", post(queue_reminders))
-        .route("/static/style.css", get(web::stylesheet))
+        .route(paths::HOME, get(index))
+        .route(
+            paths::INVITATIONS,
+            get(invitations).post(create_invitations),
+        )
+        .route(paths::GROUPS, post(groups::create))
+        .route(paths::GROUP, get(groups::show).post(groups::edit))
+        .route(paths::GROUP_REVOKE, post(groups::revoke))
+        .route(paths::GROUP_DELETE, post(groups::delete))
+        .route(paths::GUEST, get(show).post(edit))
+        .route(paths::GUEST_REVOKE, post(revoke))
+        .route(paths::GUEST_DELETE, post(delete))
+        .route(paths::GUESTS_CSV, get(export_csv))
+        .route(paths::REMINDERS, post(queue_reminders))
+        .route(paths::STYLESHEET, get(web::stylesheet))
         .layer(middleware::from_fn_with_state(login, auth::require_login));
     let router = web::no_store(pages)
         // Probes don't log in.
-        .route("/healthz", get(|| async { "ok" }))
-        .route("/readyz", get(web::ready))
+        .route(paths::HEALTH, get(|| async { "ok" }))
+        .route(paths::READY, get(web::ready))
         .with_state(state);
     web::harden(router, https)
 }
 
 /// One guest as the admin tables show it.
 struct Row {
-    id: Uuid,
+    /// The guest's admin page.
+    path: String,
     name: String,
     /// An invitation, or which group link the guest signed up through.
     source: String,
-    group_id: Option<Uuid>,
+    /// The admin page of that group.
+    group_path: Option<String>,
     answer: &'static str,
     party: String,
     email: &'static str,
@@ -99,14 +106,14 @@ impl Row {
     fn new(rsvp: &Rsvp, tz: Tz, groups: &[Group]) -> Self {
         let group = groups.iter().find(|group| Some(group.id) == rsvp.group_id);
         Self {
-            id: rsvp.id,
+            path: paths::path(paths::GUEST, rsvp.id),
             name: rsvp.name.clone(),
             source: match (rsvp.source, group) {
                 (Source::Invite, _) => "invitation".to_owned(),
                 (Source::Open, Some(group)) => format!("sign-up: {}", group.name),
                 (Source::Open, None) => "sign-up".to_owned(),
             },
-            group_id: rsvp.group_id,
+            group_path: rsvp.group_id.map(|id| paths::path(paths::GROUP, id)),
             answer: match rsvp.response {
                 rsvp::Response::Pending => "no answer",
                 rsvp::Response::Attending => "coming",
@@ -232,7 +239,7 @@ async fn queue_reminders(State(state): State<AdminState>) -> Response {
     match outbox::queue_reminders(&state.db).await {
         Ok(count) => {
             tracing::info!(count, "reminders queued");
-            Redirect::to(&format!("/?reminders={count}")).into_response()
+            Redirect::to(&format!("{}?reminders={count}", paths::HOME)).into_response()
         }
         Err(err) => server_error(err),
     }
@@ -322,7 +329,7 @@ async fn create_invitations(
         Ok(ids) => {
             tracing::info!(count = ids.len(), "invitations created");
             // The ids are UUIDv7, so the new ones are those from the first on.
-            Redirect::to(&format!("/invitations?from={}", ids[0])).into_response()
+            Redirect::to(&format!("{}?from={}", paths::INVITATIONS, ids[0])).into_response()
         }
         Err(err) => server_error(err),
     }
@@ -374,10 +381,11 @@ async fn invitations(
 }
 
 #[derive(Template)]
-#[template(path = "admin/rsvp.html")]
-struct RsvpPage {
+#[template(path = "admin/guest.html")]
+struct GuestPage {
     rsvp: Rsvp,
     row: Row,
+    links: AdminLinks,
     url: String,
     qr: String,
     max_party_size: i32,
@@ -385,11 +393,12 @@ struct RsvpPage {
     error: Option<&'static str>,
 }
 
-impl RsvpPage {
+impl GuestPage {
     fn new(config: &Config, rsvp: Rsvp, groups: &[Group]) -> Self {
         let url = guest_url(config, &rsvp);
         Self {
             row: Row::new(&rsvp, config.event.starts_at.timezone(), groups),
+            links: AdminLinks::guest(rsvp.id),
             qr: qr_svg(&url),
             url,
             rsvp,
@@ -421,8 +430,10 @@ impl RsvpPage {
 }
 
 fn guest_url(config: &Config, rsvp: &Rsvp) -> String {
-    let link = config.link_key.rsvp_link(rsvp.id, rsvp.link_nonce);
-    format!("{}/r/{link}", config.base_url)
+    let link = config
+        .link_key
+        .link(Purpose::Rsvp, rsvp.id, rsvp.link_nonce);
+    config.url(&paths::path(paths::RSVP, link))
 }
 
 /// The link as an inline SVG QR code, for printing on paper invitations or posters.
@@ -467,13 +478,13 @@ async fn show(
     Path(id): Path<Uuid>,
     Query(query): Query<ShowQuery>,
 ) -> Result<Response, PageError> {
-    let mut page = RsvpPage::load(&state, id).await?;
+    let mut page = GuestPage::load(&state, id).await?;
     page.saved = query.saved.is_some();
     Ok(render(page))
 }
 
 fn saved_redirect(id: Uuid) -> Response {
-    Redirect::to(&format!("/rsvp/{id}?saved")).into_response()
+    Redirect::to(&format!("{}?saved", paths::path(paths::GUEST, id))).into_response()
 }
 
 async fn edit(
@@ -483,7 +494,7 @@ async fn edit(
 ) -> Result<Response, PageError> {
     let name = match form.validate() {
         Ok(name) => name,
-        Err(error) => return RsvpPage::render_error(&state, id, error).await,
+        Err(error) => return GuestPage::render_error(&state, id, error).await,
     };
     if !rsvp::update_invite(&state.db, id, &name, form.max_party_size).await? {
         return Err(PageError::Missing);
@@ -513,11 +524,11 @@ async fn delete(
     Form(form): Form<DeleteForm>,
 ) -> Result<Response, PageError> {
     if form.confirm.is_none() {
-        return RsvpPage::render_error(&state, id, "Tick the box to confirm the deletion.").await;
+        return GuestPage::render_error(&state, id, "Tick the box to confirm the deletion.").await;
     }
     rsvp::delete(&state.db, id).await?;
     tracing::info!(rsvp = %id, "rsvp deleted by host");
-    Ok(Redirect::to("/").into_response())
+    Ok(Redirect::to(paths::HOME).into_response())
 }
 
 /// The guest list as CSV, with each guest's link for a mail merge.
@@ -735,7 +746,7 @@ mod tests {
             admin
                 .config
                 .link_key
-                .verify_rsvp(&link, invites[0].link_nonce)
+                .verify(Purpose::Rsvp, &link, invites[0].link_nonce)
         );
 
         // Later batches list only their own invitations; the full list has them all.
@@ -790,7 +801,7 @@ mod tests {
     async fn edits_revokes_and_deletes(db: PgPool) {
         let admin = Admin::new(db);
         let invite = rsvp::create_invite(&admin.db, "Kari", 1).await.unwrap();
-        let path = format!("/rsvp/{}", invite.id);
+        let path = format!("/guests/{}", invite.id);
 
         let response = admin
             .post(&path, "name=Kari+Nordmann&max_party_size=3")
@@ -824,7 +835,7 @@ mod tests {
             .await
             .unwrap();
 
-        let response = admin.get("/rsvp.csv").await;
+        let response = admin.get("/guests.csv").await;
         assert_eq!(
             response.headers()[header::CONTENT_TYPE],
             "text/csv; charset=utf-8"
@@ -857,7 +868,7 @@ mod tests {
         );
         let url = format!(
             "https://fest.example.com/join/{}",
-            admin.config.link_key.group_link(climbing.id, 0)
+            admin.config.link_key.link(Purpose::Group, climbing.id, 0)
         );
         assert!(links(&html).contains(&url.as_str()));
 
@@ -924,7 +935,11 @@ mod tests {
             .unwrap();
         let invite = rsvp::find(&db, link.id).await.unwrap().unwrap();
         assert_eq!(invite.name, "Per");
-        assert!(config.link_key.verify_rsvp(&link, invite.link_nonce));
+        assert!(
+            config
+                .link_key
+                .verify(Purpose::Rsvp, &link, invite.link_nonce)
+        );
 
         assert!(super::invite(&config, &db, "Per", 0).await.is_err());
     }

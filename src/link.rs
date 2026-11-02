@@ -53,12 +53,12 @@ impl LinkKey {
         mac
     }
 
-    fn rsvp_mac(&self, id: Uuid, nonce: i32) -> Hmac<Sha256> {
-        self.mac("rsvp", &[id.as_bytes(), &nonce.to_be_bytes()])
-    }
-
-    fn group_mac(&self, id: Uuid, nonce: i32) -> Hmac<Sha256> {
-        self.mac("group", &[id.as_bytes(), &nonce.to_be_bytes()])
+    fn id_mac(&self, purpose: Purpose, id: Uuid, nonce: i32) -> Hmac<Sha256> {
+        let purpose = match purpose {
+            Purpose::Rsvp => "rsvp",
+            Purpose::Group => "group",
+        };
+        self.mac(purpose, &[id.as_bytes(), &nonce.to_be_bytes()])
     }
 
     fn email_mac(&self, id: Uuid, email: &str, expires: i64) -> Hmac<Sha256> {
@@ -68,30 +68,15 @@ impl LinkKey {
         )
     }
 
-    /// The path segment of a guest's RSVP link: `{id}.{tag}`.
-    pub fn rsvp_link(&self, id: Uuid, nonce: i32) -> String {
-        format!("{}.{}", encode_id(id), encode_tag(self.rsvp_mac(id, nonce)))
+    /// The path segment of a guest's RSVP link or a group's sign-up link: `{id}.{tag}`.
+    pub fn link(&self, purpose: Purpose, id: Uuid, nonce: i32) -> String {
+        let mac = self.id_mac(purpose, id, nonce);
+        format!("{}.{}", encode_id(id), encode_tag(mac))
     }
 
     /// Checks the link's tag in constant time against the row's current nonce.
-    pub fn verify_rsvp(&self, link: &IdLink, nonce: i32) -> bool {
-        self.rsvp_mac(link.id, nonce)
-            .verify_truncated_left(&link.tag)
-            .is_ok()
-    }
-
-    /// The path segment of a group's sign-up link: `{id}.{tag}`.
-    pub fn group_link(&self, id: Uuid, nonce: i32) -> String {
-        format!(
-            "{}.{}",
-            encode_id(id),
-            encode_tag(self.group_mac(id, nonce))
-        )
-    }
-
-    /// Like `verify_rsvp`, for a group's link.
-    pub fn verify_group(&self, link: &IdLink, nonce: i32) -> bool {
-        self.group_mac(link.id, nonce)
+    pub fn verify(&self, purpose: Purpose, link: &IdLink, nonce: i32) -> bool {
+        self.id_mac(purpose, link.id, nonce)
             .verify_truncated_left(&link.tag)
             .is_ok()
     }
@@ -131,6 +116,16 @@ fn decode_id(encoded: &str) -> Result<Uuid, ()> {
 fn decode_tag(encoded: &str) -> Result<[u8; TAG_LEN], ()> {
     let bytes = URL_SAFE_NO_PAD.decode(encoded).map_err(drop)?;
     bytes.try_into().map_err(drop)
+}
+
+/// What an `{id}.{tag}` link opens. Each signs a different purpose, so neither kind of
+/// link works as the other.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Purpose {
+    /// A guest's RSVP page, `/r/{link}`.
+    Rsvp,
+    /// A group's sign-up page, `/join/{link}`.
+    Group,
 }
 
 /// A parsed but not yet verified `{id}.{tag}` link: a guest's RSVP link or a group's
@@ -196,49 +191,49 @@ pub mod tests {
 
     #[test]
     fn link_round_trips() {
-        let link = key().rsvp_link(id(), 0);
+        let link = key().link(Purpose::Rsvp, id(), 0);
         assert_eq!(link.len(), 22 + 1 + 22);
         let parsed: IdLink = link.parse().unwrap();
         assert_eq!(parsed.id, id());
-        assert!(key().verify_rsvp(&parsed, 0));
+        assert!(key().verify(Purpose::Rsvp, &parsed, 0));
     }
 
     #[test]
     fn group_and_rsvp_links_are_not_interchangeable() {
-        let group: IdLink = key().group_link(id(), 0).parse().unwrap();
-        assert!(key().verify_group(&group, 0));
-        assert!(!key().verify_group(&group, 1));
-        assert!(!key().verify_rsvp(&group, 0));
-        let rsvp: IdLink = key().rsvp_link(id(), 0).parse().unwrap();
-        assert!(!key().verify_group(&rsvp, 0));
+        let group: IdLink = key().link(Purpose::Group, id(), 0).parse().unwrap();
+        assert!(key().verify(Purpose::Group, &group, 0));
+        assert!(!key().verify(Purpose::Group, &group, 1));
+        assert!(!key().verify(Purpose::Rsvp, &group, 0));
+        let rsvp: IdLink = key().link(Purpose::Rsvp, id(), 0).parse().unwrap();
+        assert!(!key().verify(Purpose::Group, &rsvp, 0));
     }
 
     #[test]
     fn bumped_nonce_invalidates_link() {
-        let parsed: IdLink = key().rsvp_link(id(), 0).parse().unwrap();
-        assert!(!key().verify_rsvp(&parsed, 1));
+        let parsed: IdLink = key().link(Purpose::Rsvp, id(), 0).parse().unwrap();
+        assert!(!key().verify(Purpose::Rsvp, &parsed, 1));
     }
 
     #[test]
     fn other_key_rejects_link() {
         let other = LinkKey::from_base64(&STANDARD.encode([7u8; 32])).unwrap();
-        let parsed: IdLink = key().rsvp_link(id(), 0).parse().unwrap();
-        assert!(!other.verify_rsvp(&parsed, 0));
+        let parsed: IdLink = key().link(Purpose::Rsvp, id(), 0).parse().unwrap();
+        assert!(!other.verify(Purpose::Rsvp, &parsed, 0));
     }
 
     #[test]
     fn tampered_tag_is_rejected() {
-        let link = key().rsvp_link(id(), 0);
+        let link = key().link(Purpose::Rsvp, id(), 0);
         let (id_part, tag) = link.split_once('.').unwrap();
         let flipped = if tag.starts_with('A') { 'B' } else { 'A' };
         let tampered = format!("{id_part}.{flipped}{}", &tag[1..]);
         let parsed: IdLink = tampered.parse().unwrap();
-        assert!(!key().verify_rsvp(&parsed, 0));
+        assert!(!key().verify(Purpose::Rsvp, &parsed, 0));
     }
 
     #[test]
     fn malformed_links_do_not_parse() {
-        let link = key().rsvp_link(id(), 0);
+        let link = key().link(Purpose::Rsvp, id(), 0);
         for bad in [
             "",
             "nodot",
@@ -263,7 +258,7 @@ pub mod tests {
         let later = link.replace("1800000000", "1900000000");
         assert!(!key().verify_email(&later.parse().unwrap(), "kari@example.com"));
         // An RSVP tag over the same id is no e-mail tag.
-        let rsvp_tag = key().rsvp_link(id(), 0);
+        let rsvp_tag = key().link(Purpose::Rsvp, id(), 0);
         let (_, rsvp_tag) = rsvp_tag.split_once('.').unwrap();
         let (prefix, _) = link.rsplit_once('.').unwrap();
         let forged: EmailLink = format!("{prefix}.{rsvp_tag}").parse().unwrap();

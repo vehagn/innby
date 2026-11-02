@@ -20,12 +20,15 @@ use crate::{
         group::{self, Group},
         rsvp::{self, MAX_PARTY_SIZE, Rsvp},
     },
+    link::Purpose,
+    paths::{self, AdminLinks},
     web::{render, render_with, server_error},
 };
 
 /// One group as the index page lists it.
 pub(super) struct GroupRow {
-    pub id: Uuid,
+    /// The group's admin page.
+    pub path: String,
     pub name: String,
     pub max_party_size: i32,
     pub sign_ups: usize,
@@ -35,7 +38,7 @@ pub(super) struct GroupRow {
 impl GroupRow {
     pub(super) fn new(config: &Config, group: &Group, rsvps: &[Rsvp]) -> Self {
         Self {
-            id: group.id,
+            path: paths::path(paths::GROUP, group.id),
             name: group.name.clone(),
             max_party_size: group.max_party_size,
             sign_ups: rsvps
@@ -48,8 +51,10 @@ impl GroupRow {
 }
 
 fn group_url(config: &Config, group: &Group) -> String {
-    let link = config.link_key.group_link(group.id, group.link_nonce);
-    format!("{}/join/{link}", config.base_url)
+    let link = config
+        .link_key
+        .link(Purpose::Group, group.id, group.link_nonce);
+    config.url(&paths::path(paths::JOIN, link))
 }
 
 /// Creates a group per line, all or none.
@@ -78,7 +83,8 @@ pub(super) async fn create(
     match created {
         Ok(()) => {
             tracing::info!(count = entries.len(), "groups created");
-            Redirect::to(&format!("/?groups={}#groups", entries.len())).into_response()
+            let index = format!("{}?groups={}#groups", paths::HOME, entries.len());
+            Redirect::to(&index).into_response()
         }
         Err(err) => server_error(err),
     }
@@ -88,6 +94,7 @@ pub(super) async fn create(
 #[template(path = "admin/group.html")]
 struct GroupPage {
     group: Group,
+    links: AdminLinks,
     created: String,
     url: String,
     qr: String,
@@ -113,6 +120,7 @@ impl GroupPage {
                 .collect(),
             qr: qr_svg(&url),
             url,
+            links: AdminLinks::group(group.id),
             created: local(group.created_at, tz),
             group,
             max_party_size: MAX_PARTY_SIZE,
@@ -134,7 +142,7 @@ impl GroupPage {
 }
 
 fn saved_redirect(id: Uuid) -> Response {
-    Redirect::to(&format!("/groups/{id}?saved")).into_response()
+    Redirect::to(&format!("{}?saved", paths::path(paths::GROUP, id))).into_response()
 }
 
 pub(super) async fn show(
@@ -199,5 +207,5 @@ pub(super) async fn delete(
         };
     }
     tracing::info!(group = %id, "group deleted");
-    Ok(Redirect::to("/#groups").into_response())
+    Ok(Redirect::to(&format!("{}#groups", paths::HOME)).into_response())
 }

@@ -15,14 +15,14 @@
   <h2>New invitations</h2>
   <p class="muted small">One guest or household per line, and each gets their own link. To give
     a line its own maximum, end it with a comma and a number.</p>
-  <form method="post" action="/invitations">
+  <form method="post" action="{{ crate::paths::INVITATIONS }}">
     <label for="names">Names</label>
     <textarea id="names" name="names" rows="5" required placeholder="Kari &amp; Ola Nordmann, 2&#10;Per Hansen">{{ feedback.invitations }}</textarea>
     <label for="max_party_size">Max people per invitation</label>
     <input id="max_party_size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="2" required>
     <button>Create invitations</button>
   </form>
-  <p><a href="/invitations">All invitation links</a></p>
+  <p><a href="{{ crate::paths::INVITATIONS }}">All invitation links</a></p>
 </section>
 
 <section class="card" id="groups">
@@ -41,7 +41,7 @@
     <tbody>
       {% for group in groups %}
       <tr>
-        <td><a href="/groups/{{ group.id }}">{{ group.name }}</a></td>
+        <td><a href="{{ group.path }}">{{ group.name }}</a></td>
         <td>{{ group.sign_ups }}</td>
         <td>{{ group.max_party_size }}</td>
         <td><input type="text" readonly value="{{ group.url }}" aria-label="Link for {{ group.name }}"></td>
@@ -51,7 +51,7 @@
   </table>
   </div>
   {% endif %}
-  <form method="post" action="/groups">
+  <form method="post" action="{{ crate::paths::GROUPS }}">
     <label for="group-names">New groups, one per line</label>
     <textarea id="group-names" name="names" rows="3" required placeholder="Climbing club&#10;Neighbours, 4">{{ feedback.groups }}</textarea>
     <label for="group-size">Max people per sign-up</label>
@@ -71,7 +71,7 @@
   <tbody>
     {% for row in rows %}
     <tr>
-      <td><a href="/rsvp/{{ row.id }}">{{ row.name }}</a></td>
+      <td><a href="{{ row.path }}">{{ row.name }}</a></td>
       <td>{{ row.answer }}</td>
       <td>{{ row.party }}</td>
       <td>{{ row.source }}</td>
@@ -84,12 +84,12 @@
 </table>
 </div>
 {% endif %}
-<p><a href="/rsvp.csv" download>Download CSV</a></p>
+<p><a href="{{ crate::paths::GUESTS_CSV }}" download>Download CSV</a></p>
 
 <section class="card">
   <h2>Reminders</h2>
   <p>{{ subscribers }} {% if subscribers == 1 %}guest has{% else %}guests have{% endif %} a confirmed e-mail address. A reminder goes to those who haven't declined, once per guest.</p>
-  <form method="post" action="/reminders">
+  <form method="post" action="{{ crate::paths::REMINDERS }}">
     <button class="secondary">Send reminders</button>
   </form>
 </section>

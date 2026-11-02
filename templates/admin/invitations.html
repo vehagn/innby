@@ -10,7 +10,7 @@
 <h1>Invitation links</h1>
 {% endif %}
 <p class="muted small">Send each guest their own link and no one else's: anyone with a link
-  can answer for that guest. The <a href="/rsvp.csv" download>CSV</a> has the same links, for a
+  can answer for that guest. The <a href="{{ crate::paths::GUESTS_CSV }}" download>CSV</a> has the same links, for a
   mail merge.</p>
 
 {% if invitations.is_empty() %}
@@ -24,7 +24,7 @@
   <tbody>
     {% for invitation in invitations %}
     <tr>
-      <td><a href="/rsvp/{{ invitation.row.id }}">{{ invitation.row.name }}</a></td>
+      <td><a href="{{ invitation.row.path }}">{{ invitation.row.name }}</a></td>
       <td>{{ invitation.row.answer }}</td>
       <td>{{ invitation.row.party }}</td>
       <td><input type="text" readonly value="{{ invitation.url }}" aria-label="Link for {{ invitation.row.name }}"></td>

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{% endblock %}</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="{{ crate::paths::STYLESHEET }}">
 </head>
 <body>
   <header>
@@ -14,7 +14,7 @@
     {% block content %}{% endblock %}
   </main>
   <footer>
-    <a href="/privacy?lang={{ lang.code() }}">{{ t.privacy_link }}</a>
+    <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a>
   </footer>
 </body>
 </html>

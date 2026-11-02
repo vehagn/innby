@@ -19,7 +19,7 @@
 <section class="card" aria-labelledby="answer-heading">
   <h2 id="answer-heading">{{ t.greeting }}, {{ rsvp.name }}!</h2>
   {% if first_visit %}
-  <p class="notice">{{ t.first_visit_notice }} <a href="/privacy?lang={{ lang.code() }}">{{ t.privacy_link }}</a></p>
+  <p class="notice">{{ t.first_visit_notice }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
   {% endif %}
   <p><strong>{{ t.your_answer }}:</strong> {{ status }}</p>
   {% if let Some(deadline) = event.rsvp_deadline %}
@@ -27,7 +27,7 @@
   {% endif %}
 
   {% if accepts_answers %}
-  <form method="post" action="/r/{{ link }}?lang={{ lang.code() }}">
+  <form method="post" action="{{ links.page }}">
     {% if party_sizes.len() > 1 %}
     {% include "_party_size.html" %}
     {% else %}
@@ -50,7 +50,7 @@
   {% include "_guest_list.html" %}
   <p>{% match listed_as %}{% when Some(name) %}{{ t.listed_as }} <strong>{{ name }}</strong>.{% when None %}{% if declined %}{{ t.listed_declined }}{% else %}{{ t.listed_hidden }}{% endif %}{% endmatch %}</p>
   {% if !declined %}
-  <form method="post" action="/r/{{ link }}/display?lang={{ lang.code() }}">
+  <form method="post" action="{{ links.listing }}">
     <p class="muted small">{{ t.show_instead }}:</p>
     <div class="buttons">
       {% for choice in other_displays %}
@@ -63,7 +63,7 @@
 
 <details>
   <summary>{{ t.name_heading }}</summary>
-  <form method="post" action="/r/{{ link }}/name?lang={{ lang.code() }}">
+  <form method="post" action="{{ links.name }}">
     <label for="name">{{ t.name_heading }}</label>
     <input id="name" name="name" value="{{ rsvp.name }}" required maxlength="100" autocomplete="name">
     <button class="secondary">{{ t.change_name }}</button>
@@ -79,12 +79,12 @@
   {% else %}
   <p>{{ t.email_pending }} <strong>{{ email }}</strong>. {{ t.email_pending_hint }}</p>
   {% endif %}
-  <form method="post" action="/r/{{ link }}/email/remove?lang={{ lang.code() }}">
+  <form method="post" action="{{ links.email_remove }}">
     <button class="secondary">{{ t.email_remove }}</button>
   </form>
   {% when None %}
   <p>{{ t.email_intro }}</p>
-  <form method="post" action="/r/{{ link }}/email?lang={{ lang.code() }}">
+  <form method="post" action="{{ links.email }}">
     <label for="email">{{ t.email_label }}</label>
     <input id="email" name="email" type="email" required maxlength="254" autocomplete="email">
     <label class="checkbox"><input type="checkbox" name="consent" value="yes" required> {{ t.email_consent }}</label>
@@ -96,8 +96,8 @@
 <details>
   <summary>{{ t.data_heading }}</summary>
   <p>{{ t.data_text }}</p>
-  <p><a href="/r/{{ link }}/export" download>{{ t.export }}</a></p>
-  <form method="post" action="/r/{{ link }}/delete?lang={{ lang.code() }}">
+  <p><a href="{{ links.export }}" download>{{ t.export }}</a></p>
+  <form method="post" action="{{ links.delete }}">
     <label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> {{ t.delete_confirm }}</label>
     <button class="danger">{{ t.delete }}</button>
   </form>
