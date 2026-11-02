@@ -9,19 +9,30 @@ pub(crate) mod testing;
 
 pub use join::OPEN_MAX_PARTY_SIZE;
 pub use pages::{render, render_with, server_error, stylesheet};
+pub use rate_limit::RateLimiter;
 
-use std::{convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
+use std::{convert::Infallible, net::SocketAddr, pin::pin, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use axum::{
     Router,
-    extract::{FromRef, FromRequestParts, MatchedPath, State},
+    extract::{ConnectInfo, FromRef, FromRequestParts, MatchedPath, State},
     http::{HeaderValue, Request, StatusCode, header, request::Parts},
     middleware,
     routing::{get, post},
 };
+use hyper::{body::Incoming, server::conn::http1};
+use hyper_util::{
+    rt::{TokioIo, TokioTimer},
+    server::graceful::GracefulShutdown,
+    service::TowerToHyperService,
+};
 use sqlx::PgPool;
-use tokio::signal::unix::{SignalKind, signal};
+use tokio::{
+    net::TcpListener,
+    signal::unix::{SignalKind, signal},
+};
+use tower::ServiceExt;
 use tower_http::{
     set_header::SetResponseHeaderLayer,
     timeout::TimeoutLayer,
@@ -62,19 +73,33 @@ const HSTS: [(header::HeaderName, &str); 1] =
 
 /// Requests that take longer are cut off, so slow clients can't hold connections open.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+/// The same for a request's headers, which come before `REQUEST_TIMEOUT` starts.
+const HEADER_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Pages addressed by a secret link must not be stored by browsers or proxies.
 const LINK_HEADERS: [(header::HeaderName, &str); 1] = [(header::CACHE_CONTROL, "no-store")];
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
+const DAY: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Clone)]
 struct AppState {
     config: Arc<Config>,
     db: PgPool,
-    join_limiter: Arc<rate_limit::RateLimiter>,
-    /// Requests that send mail to an address someone typed in.
-    mail_limiter: Arc<rate_limit::RateLimiter>,
+    join_limiter: Arc<RateLimiter>,
+    /// Requests that send mail to an address someone typed in, per client and for all
+    /// clients together.
+    mail_limiter: Arc<RateLimiter>,
+    mail_limiter_all: Arc<RateLimiter>,
+}
+
+impl AppState {
+    /// Counts a request that mails an address someone typed in, and says whether it's
+    /// within the limits. The shared one is for attackers with many client addresses:
+    /// it caps how much mail the site sends for them.
+    fn may_send_mail(&self, client: rate_limit::ClientIp) -> bool {
+        self.mail_limiter.check(client) && self.mail_limiter_all.check_all()
+    }
 }
 
 impl FromRef<AppState> for PgPool {
@@ -89,17 +114,47 @@ pub async fn serve(config: Config, db: PgPool) -> anyhow::Result<()> {
 }
 
 /// Serves the app until SIGTERM or Ctrl-C, finishing requests in flight.
+///
+/// Not `axum::serve`: it gives hyper no timer, and without one hyper doesn't enforce
+/// `HEADER_TIMEOUT`.
 pub async fn listen(address: SocketAddr, app: Router) -> anyhow::Result<()> {
-    let listener = tokio::net::TcpListener::bind(address)
+    let listener = TcpListener::bind(address)
         .await
         .with_context(|| format!("binding {address}"))?;
     tracing::info!(address = %listener.local_addr()?, "listening");
-    axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await?;
+    let mut http = http1::Builder::new();
+    http.timer(TokioTimer::new())
+        .header_read_timeout(HEADER_TIMEOUT);
+    let connections = GracefulShutdown::new();
+    let mut shutdown = pin!(shutdown_signal());
+    loop {
+        let (stream, peer) = tokio::select! {
+            accepted = listener.accept() => match accepted {
+                Ok(accepted) => accepted,
+                Err(err) => {
+                    // Usually out of file descriptors: give connections time to close.
+                    tracing::warn!(error = %err, "accepting a connection failed");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+            },
+            () = &mut shutdown => break,
+        };
+        let app = app
+            .clone()
+            .map_request(move |mut request: Request<Incoming>| {
+                request.extensions_mut().insert(ConnectInfo(peer));
+                request
+            });
+        let connection = connections
+            .watch(http.serve_connection(TokioIo::new(stream), TowerToHyperService::new(app)));
+        tokio::spawn(async move {
+            if let Err(err) = connection.await {
+                tracing::debug!(error = %err, "connection closed");
+            }
+        });
+    }
+    connections.shutdown().await;
     Ok(())
 }
 
@@ -126,8 +181,10 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         config: Arc::new(config),
         db,
         // Generous enough for a household sharing one address.
-        join_limiter: Arc::new(rate_limit::RateLimiter::new(10, HOUR)),
-        mail_limiter: Arc::new(rate_limit::RateLimiter::new(5, HOUR)),
+        join_limiter: Arc::new(RateLimiter::new(10, HOUR)),
+        mail_limiter: Arc::new(RateLimiter::new(5, HOUR)),
+        // About one per guest, so a day's worth of everyone adding an address.
+        mail_limiter_all: Arc::new(RateLimiter::new(100, DAY)),
     };
     let links = Router::new()
         .route("/join/{code}", get(join::show).post(join::join))
@@ -224,11 +281,8 @@ impl<S: Send + Sync> FromRequestParts<S> for Lang {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
-    use axum::{body::Body, http::Request, response::Response};
+    use axum::{body::Body, response::Response};
     use sqlx::postgres::PgPoolOptions;
-    use tower::ServiceExt;
 
     use super::{testing::body, *};
 

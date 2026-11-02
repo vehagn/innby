@@ -54,7 +54,7 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
         config: Arc::new(config),
         db,
     };
-    let credentials = Arc::new(auth::Credentials::from(admin));
+    let login = Arc::new(auth::Login::new(admin));
     let pages = Router::new()
         .route("/", get(index))
         .route("/invitations", post(create))
@@ -64,10 +64,7 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
         .route("/rsvp.csv", get(export_csv))
         .route("/reminders", post(queue_reminders))
         .route("/static/style.css", get(web::stylesheet))
-        .layer(middleware::from_fn_with_state(
-            credentials,
-            auth::require_login,
-        ));
+        .layer(middleware::from_fn_with_state(login, auth::require_login));
     let router = web::no_store(pages)
         // Probes don't log in.
         .route("/healthz", get(|| async { "ok" }))

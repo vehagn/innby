@@ -33,9 +33,9 @@ pub struct AddForm {
     consent: Option<String>,
 }
 
-/// Stores the address unconfirmed and queues the confirmation mail. If another RSVP
-/// already has the address, its owner gets a heads-up instead; the guest sees the same
-/// response either way.
+/// Stores the address unconfirmed and queues the confirmation mail, or a heads-up for
+/// whoever has already confirmed the address. The guest's page shows the address waiting
+/// for confirmation either way, so it never tells whether someone else has it.
 pub async fn add(
     State(state): State<AppState>,
     lang: Lang,
@@ -51,7 +51,7 @@ pub async fn add(
         return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_email);
     };
     // Each attempt can mail an address the guest typed in, so it's limited like /lost.
-    if !state.mail_limiter.check(client) {
+    if !state.may_send_mail(client) {
         tracing::warn!("add e-mail rate limit hit");
         return page().render_error(StatusCode::TOO_MANY_REQUESTS, |t| t.too_many_attempts);
     }
@@ -63,37 +63,26 @@ pub async fn add(
 }
 
 async fn add_email(db: &PgPool, guest: &Rsvp, email: &str, lang: Lang) -> sqlx::Result<()> {
-    if guest.email.as_deref() == Some(email) {
-        // Already there: at most resend the confirmation.
-        if guest.email_status == EmailStatus::Unconfirmed {
-            outbox::enqueue_once(db, guest.id, Kind::ConfirmEmail).await?;
-        }
+    let mut tx = db.begin().await?;
+    if guest.email.as_deref() != Some(email) {
+        rsvp::set_email(&mut *tx, guest.id, email, lang, PRIVACY_VERSION).await?;
+        // Mail queued for the previous address must not go out.
+        outbox::cancel_unsent(&mut *tx, guest.id).await?;
+    } else if guest.email_status == EmailStatus::Confirmed {
         return Ok(());
     }
-    let mut tx = db.begin().await?;
-    if let Some(owner) = rsvp::find_by_email(&mut *tx, email).await? {
-        outbox::enqueue_once(&mut *tx, owner.id, Kind::EmailInUse).await?;
-        tracing::info!(rsvp = %guest.id, "e-mail address already in use");
-        return tx.commit().await;
-    }
-    match rsvp::set_email(&mut *tx, guest.id, email, lang, PRIVACY_VERSION).await {
-        Ok(_) => {}
-        // Someone else took the address a moment ago; nothing to tell this guest.
-        Err(err)
-            if err
-                .as_database_error()
-                .is_some_and(|err| err.is_unique_violation()) =>
-        {
-            return Ok(());
+    // Asking again only queues mail that isn't already waiting.
+    match rsvp::find_by_confirmed_email(&mut *tx, email).await? {
+        Some(owner) => {
+            outbox::enqueue_once(&mut *tx, owner.id, Kind::EmailInUse).await?;
+            tracing::info!(rsvp = %guest.id, "e-mail address already in use");
         }
-        Err(err) => return Err(err),
+        None => {
+            outbox::enqueue_once(&mut *tx, guest.id, Kind::ConfirmEmail).await?;
+            tracing::info!(rsvp = %guest.id, "e-mail address added");
+        }
     }
-    // Mail queued for the previous address must not go out.
-    outbox::cancel_unsent(&mut *tx, guest.id).await?;
-    outbox::enqueue(&mut *tx, guest.id, Kind::ConfirmEmail).await?;
-    tx.commit().await?;
-    tracing::info!(rsvp = %guest.id, "e-mail address added");
-    Ok(())
+    tx.commit().await
 }
 
 /// Withdraws consent: the address and any mail waiting for it are deleted.
@@ -227,7 +216,8 @@ pub struct LostForm {
 }
 
 /// Mails the guest's link to a confirmed address. The answer never says whether the
-/// address is registered.
+/// address is registered, and neither does how long it takes: the lookup runs after the
+/// response.
 pub async fn lost(
     State(state): State<AppState>,
     lang: Lang,
@@ -242,26 +232,27 @@ pub async fn lost(
     let Some(email) = rsvp::normalize_email(&form.email) else {
         return fail(StatusCode::UNPROCESSABLE_ENTITY, |t| t.invalid_email);
     };
-    if !state.mail_limiter.check(client) {
+    if !state.may_send_mail(client) {
         tracing::warn!("lost link rate limit hit");
         return fail(StatusCode::TOO_MANY_REQUESTS, |t| t.too_many_attempts);
     }
-    match mail_link(&state.db, &email).await {
-        Ok(()) => render(MessagePage::new(lang, |t| {
-            (t.lost_sent_title, t.lost_sent_text)
-        })),
-        Err(err) => server_error(err),
-    }
+    let db = state.db.clone();
+    tokio::spawn(async move {
+        if let Err(err) = mail_link(&db, &email).await {
+            tracing::error!(error = %err, "queueing a lost link failed");
+        }
+    });
+    render(MessagePage::new(lang, |t| {
+        (t.lost_sent_title, t.lost_sent_text)
+    }))
 }
 
 /// Queues the link for the guest with this address, if it's confirmed.
 async fn mail_link(db: &PgPool, email: &str) -> sqlx::Result<()> {
-    let Some(guest) = rsvp::find_by_email(db, email).await? else {
+    let Some(guest) = rsvp::find_by_confirmed_email(db, email).await? else {
         return Ok(());
     };
-    if guest.email_status == EmailStatus::Confirmed
-        && outbox::enqueue_once(db, guest.id, Kind::RsvpLink).await?
-    {
+    if outbox::enqueue_once(db, guest.id, Kind::RsvpLink).await? {
         tracing::info!(rsvp = %guest.id, "lost link mailed");
     }
     Ok(())
@@ -285,6 +276,18 @@ mod tests {
         .into_iter()
         .map(|row| (row.rsvp_id, row.kind))
         .collect()
+    }
+
+    /// Mail that `/lost` queues after it has responded, once it's there.
+    async fn queued_soon(site: &Site) -> Vec<(uuid::Uuid, Kind)> {
+        for _ in 0..100 {
+            let queued = queued(site).await;
+            if !queued.is_empty() {
+                return queued;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        panic!("nothing was queued");
     }
 
     fn confirm_token(site: &Site, guest: &Rsvp, email: &str) -> String {
@@ -386,17 +389,57 @@ mod tests {
         let (other, other_link) = site.invite("Ola", 1).await;
         let form = "email=kari%40example.com&consent=yes";
         site.post(&format!("/r/{owner_link}/email"), form).await;
+        rsvp::confirm_email(&site.db, owner.id, "kari@example.com")
+            .await
+            .unwrap();
+        sqlx::query!("delete from outbox")
+            .execute(&site.db)
+            .await
+            .unwrap();
 
         let response = site.post(&format!("/r/{other_link}/email"), form).await;
-        assert_eq!(
-            location(&response),
-            format!("/r/{other_link}?lang=nb&notice=email_sent")
+        let page = location(&response).to_owned();
+        assert_eq!(page, format!("/r/{other_link}?lang=nb&notice=email_sent"));
+        // The page shows the address waiting for confirmation, as for a new address.
+        assert!(
+            body(site.get(&page).await)
+                .await
+                .contains("<strong>kari@example.com</strong>")
         );
-        assert_eq!(site.find(&other).await.unwrap().email, None);
+        let stored = site.find(&other).await.unwrap();
+        assert_eq!(
+            (stored.email.as_deref(), stored.email_status),
+            (Some("kari@example.com"), EmailStatus::Unconfirmed)
+        );
+        assert_eq!(queued(&site).await, [(owner.id, Kind::EmailInUse)]);
+        // Only the owner's confirmation counts.
+        let token = confirm_token(&site, &stored, "kari@example.com");
+        let response = site.post(&format!("/e/{token}"), "").await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[sqlx::test]
+    async fn unconfirmed_address_can_be_added_twice(db: PgPool) {
+        let site = Site::new(db);
+        let (first, first_link) = site.invite("Kari", 1).await;
+        let (second, second_link) = site.invite("Ola", 1).await;
+        let form = "email=kari%40example.com&consent=yes";
+        site.post(&format!("/r/{first_link}/email"), form).await;
+        site.post(&format!("/r/{second_link}/email"), form).await;
         assert_eq!(
             queued(&site).await,
-            [(owner.id, Kind::ConfirmEmail), (owner.id, Kind::EmailInUse)]
+            [
+                (first.id, Kind::ConfirmEmail),
+                (second.id, Kind::ConfirmEmail)
+            ]
         );
+
+        let first_token = confirm_token(&site, &first, "kari@example.com");
+        let second_token = confirm_token(&site, &second, "kari@example.com");
+        let response = site.post(&format!("/e/{second_token}"), "").await;
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let response = site.post(&format!("/e/{first_token}"), "").await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[sqlx::test]
@@ -476,10 +519,10 @@ mod tests {
         let [unknown, known] = answers;
         assert_eq!(unknown.status(), known.status());
         assert_eq!(body(unknown).await, body(known).await);
-        assert_eq!(queued(&site).await, [(guest.id, Kind::RsvpLink)]);
+        assert_eq!(queued_soon(&site).await, [(guest.id, Kind::RsvpLink)]);
 
         // Asking again while the mail waits doesn't queue another.
-        site.post("/lost", "email=kari%40example.com").await;
+        mail_link(&site.db, "kari@example.com").await.unwrap();
         assert_eq!(queued(&site).await.len(), 1);
     }
 

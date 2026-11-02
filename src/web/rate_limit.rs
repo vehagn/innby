@@ -1,6 +1,6 @@
-//! A per-client, in-memory rate limit for the forms anyone can post: the open RSVP and
-//! the ones that send mail. Addresses are only held in memory for the length of a window
-//! and never logged or stored.
+//! An in-memory rate limit, per client or for all clients together, for the forms anyone
+//! can post (the open RSVP and the ones that send mail) and for admin logins. Addresses
+//! are only held in memory for the length of a window and never logged or stored.
 
 use std::{
     collections::HashMap,
@@ -14,7 +14,7 @@ use axum::{
     http::request::Parts,
 };
 
-/// A fixed-window counter per client.
+/// A fixed-window counter per client, or for everyone with `check_all`.
 pub struct RateLimiter {
     limit: u32,
     window: Duration,
@@ -33,6 +33,12 @@ impl RateLimiter {
     /// Counts a request and says whether it's within the limit.
     pub fn check(&self, ClientIp(client): ClientIp) -> bool {
         self.check_at(client, Instant::now())
+    }
+
+    /// Counts a request against a limit all clients share, for when one attacker can
+    /// have many addresses.
+    pub fn check_all(&self) -> bool {
+        self.check_at(IpAddr::V4(Ipv4Addr::UNSPECIFIED), Instant::now())
     }
 
     fn check_at(&self, client: IpAddr, now: Instant) -> bool {
@@ -123,6 +129,14 @@ mod tests {
         assert!(!limiter.check_at(ip("192.0.2.1"), start));
         assert!(limiter.check_at(ip("192.0.2.2"), start));
         assert!(limiter.check_at(ip("192.0.2.1"), start + Duration::from_secs(60)));
+    }
+
+    #[test]
+    fn check_all_counts_every_client_together() {
+        let limiter = RateLimiter::new(2, Duration::from_secs(60));
+        assert!(limiter.check_all());
+        assert!(limiter.check_all());
+        assert!(!limiter.check_all());
     }
 
     #[test]

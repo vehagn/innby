@@ -6,6 +6,16 @@ use chrono_tz::Tz;
 
 use crate::{i18n::Localized, link::LinkKey};
 
+/// Secrets that `.env.example` publishes. Anyone could sign guest links, join or log in
+/// with them, so a public site, one with an https base URL, refuses them.
+const EXAMPLE_LINK_KEY: &str = "ZGV2LW9ubHktbGluay1rZXktZG8tbm90LXVzZS1pbi1wcm9k";
+const EXAMPLE_OPEN_RSVP_CODE: &str = "dev-only-join-code";
+const EXAMPLE_ADMIN_PASSWORD: &str = "fest";
+
+/// The shortest open RSVP code: 16 random letters and digits can't be guessed, but a
+/// word or two could be.
+const MIN_OPEN_RSVP_CODE_LEN: usize = 16;
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub listen: SocketAddr,
@@ -78,6 +88,16 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
             .ok_or_else(|| anyhow!("{key} must be set"))
     }
 
+    /// Refuses the value `.env.example` publishes for `key` on a public site.
+    fn ensure_not_example(&self, key: &str, example: &str, public: bool) -> Result<()> {
+        let value = self.optional(key);
+        ensure!(
+            !public || value.as_deref().map(str::trim) != Some(example),
+            "{key}: that's the example from .env.example, which anyone can read"
+        );
+        Ok(())
+    }
+
     fn localized(&self, key: &str) -> Result<Localized<String>> {
         let nb = self.required(&format!("{key}_NB"))?;
         let en = self
@@ -140,19 +160,24 @@ impl Config {
             "FEST_BASE_URL: expected an origin like https://fest.example.com, got {base_url:?}"
         );
 
+        let public = base_url.starts_with("https://");
+
         let link_key =
             LinkKey::from_base64(&env.required("FEST_LINK_KEY")?).context("FEST_LINK_KEY")?;
+        env.ensure_not_example("FEST_LINK_KEY", EXAMPLE_LINK_KEY, public)?;
 
         let open_rsvp_code = env.optional("FEST_OPEN_RSVP_CODE");
         if let Some(code) = &open_rsvp_code {
             ensure!(
-                code.len() >= 8
+                code.len() >= MIN_OPEN_RSVP_CODE_LEN
                     && code
                         .bytes()
                         .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'),
-                "FEST_OPEN_RSVP_CODE: use at least 8 letters, digits, '-' or '_'"
+                "FEST_OPEN_RSVP_CODE: use at least {MIN_OPEN_RSVP_CODE_LEN} letters, digits, '-' \
+                 or '_', e.g. from `openssl rand -hex 10`"
             );
         }
+        env.ensure_not_example("FEST_OPEN_RSVP_CODE", EXAMPLE_OPEN_RSVP_CODE, public)?;
         let trust_forwarded = match env.optional("FEST_TRUST_FORWARDED").as_deref() {
             None | Some("false") => false,
             Some("true") => true,
@@ -204,14 +229,20 @@ pub struct AdminConfig {
 }
 
 impl AdminConfig {
-    pub fn from_env() -> Result<Self> {
-        Self::from_lookup(process_env)
+    pub fn from_env(config: &Config) -> Result<Self> {
+        Self::from_lookup(process_env, config)
     }
 
-    fn from_lookup(get: impl Fn(&str) -> Option<String>) -> Result<Self> {
+    fn from_lookup(get: impl Fn(&str) -> Option<String>, config: &Config) -> Result<Self> {
         let env = Env(get);
         let password_hash = env.required("FEST_ADMIN_PASSWORD_HASH")?;
         crate::admin::auth::check_hash(&password_hash).context("FEST_ADMIN_PASSWORD_HASH")?;
+        ensure!(
+            !config.is_https()
+                || !crate::admin::auth::verify(&password_hash, EXAMPLE_ADMIN_PASSWORD),
+            "FEST_ADMIN_PASSWORD_HASH: that's a hash of the example password from \
+             .env.example; make one for a real password with `just hash-password`"
+        );
         Ok(Self {
             listen: env.socket_address("FEST_ADMIN_LISTEN", "0.0.0.0:8081")?,
             user: env
@@ -327,19 +358,56 @@ pub mod tests {
         assert!(parse(&[("FEST_EVENT_START", "2026-03-29T02:30")]).is_err());
     }
 
+    fn admin_with_hash(hash: &str, config: &Config) -> Result<AdminConfig> {
+        AdminConfig::from_lookup(
+            |key| (key == "FEST_ADMIN_PASSWORD_HASH").then(|| hash.to_owned()),
+            config,
+        )
+    }
+
     #[test]
     fn admin_config_needs_a_valid_hash() {
+        let config = config();
         let hash = crate::admin::auth::tests::cheap_hash("secret");
-        let admin = AdminConfig::from_lookup(|key| {
-            (key == "FEST_ADMIN_PASSWORD_HASH").then(|| hash.clone())
-        })
-        .unwrap();
+        let admin = admin_with_hash(&hash, &config).unwrap();
         assert_eq!(admin.user, "admin");
         assert_eq!(admin.listen, "0.0.0.0:8081".parse().unwrap());
 
-        assert!(AdminConfig::from_lookup(|_| None).is_err());
-        let err = AdminConfig::from_lookup(|_| Some("hunter2".into())).unwrap_err();
+        assert!(AdminConfig::from_lookup(|_| None, &config).is_err());
+        let err = admin_with_hash("hunter2", &config).unwrap_err();
         assert!(format!("{err:#}").starts_with("FEST_ADMIN_PASSWORD_HASH"));
+    }
+
+    #[test]
+    fn public_site_refuses_the_example_secrets() {
+        let local = [("FEST_BASE_URL", "http://localhost:8080")];
+        for example in [
+            ("FEST_LINK_KEY", EXAMPLE_LINK_KEY),
+            ("FEST_OPEN_RSVP_CODE", EXAMPLE_OPEN_RSVP_CODE),
+        ] {
+            let err = parse(&[example]).unwrap_err();
+            assert!(err.to_string().contains(".env.example"), "{err}");
+            parse(&[local[0], example]).unwrap();
+        }
+
+        let hash = crate::admin::auth::tests::cheap_hash(EXAMPLE_ADMIN_PASSWORD);
+        assert!(admin_with_hash(&hash, &config()).is_err());
+        admin_with_hash(&hash, &parse(&local).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn example_secrets_are_the_ones_in_env_example() {
+        let example = include_str!("../.env.example");
+        let value = |key: &str| {
+            example
+                .lines()
+                .find_map(|line| line.strip_prefix(key)?.strip_prefix('='))
+                .unwrap_or_else(|| panic!("{key} in .env.example"))
+        };
+        assert_eq!(value("FEST_LINK_KEY"), EXAMPLE_LINK_KEY);
+        assert_eq!(value("FEST_OPEN_RSVP_CODE"), EXAMPLE_OPEN_RSVP_CODE);
+        let hash = value("FEST_ADMIN_PASSWORD_HASH").trim_matches('\'');
+        assert!(crate::admin::auth::verify(hash, EXAMPLE_ADMIN_PASSWORD));
     }
 
     #[test]
@@ -348,9 +416,9 @@ pub mod tests {
         assert_eq!(config.open_rsvp_code, None);
         assert!(!config.trust_forwarded);
 
-        let config = parse(&[("FEST_OPEN_RSVP_CODE", "jul-2026_ab")]).unwrap();
-        assert_eq!(config.open_rsvp_code.as_deref(), Some("jul-2026_ab"));
-        for bad in ["short", "has space x", "æøå-code-1"] {
+        let config = parse(&[("FEST_OPEN_RSVP_CODE", "jul-2026_ab12cd34")]).unwrap();
+        assert_eq!(config.open_rsvp_code.as_deref(), Some("jul-2026_ab12cd34"));
+        for bad in ["julebord", "has space in the code", "æøå-code-1234567"] {
             assert!(parse(&[("FEST_OPEN_RSVP_CODE", bad)]).is_err(), "{bad}");
         }
         assert!(parse(&[("FEST_TRUST_FORWARDED", "yes")]).is_err());
