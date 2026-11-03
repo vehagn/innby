@@ -6,6 +6,7 @@ mod janitor;
 mod link;
 mod mailer;
 mod paths;
+mod theme;
 mod web;
 
 use std::io::Read;

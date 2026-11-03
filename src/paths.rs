@@ -1,11 +1,11 @@
 //! Every path the two sites serve. The routers register these patterns and links are
 //! built from the same ones, so a path changes in one place.
 
-use std::fmt::Display;
+use std::{borrow::Borrow, fmt::Display};
 
 use uuid::Uuid;
 
-use crate::i18n::Lang;
+use crate::{i18n::Lang, theme::Theme};
 
 // The public site. A `{link}` is a signed link from `crate::link`.
 pub const HOME: &str = "/";
@@ -48,9 +48,17 @@ pub fn path(pattern: &str, value: impl Display) -> String {
     format!("{head}{value}{tail}")
 }
 
-/// The path in a language. Links carry it, since the site sets no cookies.
+/// The path in a language, and in the colour scheme the guest picked. Links carry both,
+/// since the site sets no cookies.
 pub fn localized(path: &str, lang: Lang) -> String {
-    format!("{path}?lang={}", lang.code())
+    format!("{path}{}", themed(lang, Theme::current()))
+}
+
+/// The query for this page in a language and colour scheme, for the switches. Takes
+/// references too, as templates pass them.
+pub fn themed(lang: impl Borrow<Lang>, theme: impl Borrow<Theme>) -> String {
+    let (lang, theme) = (lang.borrow(), theme.borrow());
+    format!("?lang={}{}", lang.code(), theme.param())
 }
 
 /// The pages every public page can link to, in this language.

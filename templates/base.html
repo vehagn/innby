@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="{{ lang.tag() }}">
+{% let theme = crate::theme::Theme::current() %}
+<html lang="{{ lang.tag() }}" data-theme="{{ theme.code() }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,6 +9,11 @@
 </head>
 <body>
   <header>
+    <nav class="theme-switch" aria-label="{{ t.theme }}">
+      {% for option in crate::theme::Theme::ALL %}
+      <a href="{{ crate::paths::themed(lang, option) }}" title="{{ option.label(t) }}"{% if option == theme %} aria-current="true"{% endif %}>{{ option.icon()|safe }}<span class="visually-hidden">{{ option.label(t) }}</span></a>
+      {% endfor %}
+    </nav>
     <nav class="lang-menu" aria-label="{{ t.languages }}">
       <details>
         <summary title="{{ t.languages }}">
@@ -17,7 +23,7 @@
         </summary>
         <ul>
           {% for other in lang.others() %}
-          <li><a href="?lang={{ other.code() }}" hreflang="{{ other.tag() }}" lang="{{ other.tag() }}"><span class="badge" aria-hidden="true">{{ other.badge() }}</span>{{ other.messages().language_name }}</a></li>
+          <li><a href="{{ crate::paths::themed(other, theme) }}" hreflang="{{ other.tag() }}" lang="{{ other.tag() }}"><span class="badge" aria-hidden="true">{{ other.badge() }}</span>{{ other.messages().language_name }}</a></li>
           {% endfor %}
         </ul>
       </details>

@@ -6,6 +6,11 @@
 language_name = "繁體中文"
 # What the language switch is, for screen readers.
 languages = "語言"
+# The colour scheme switch, and its three choices.
+theme = "配色"
+theme_auto = "跟隨裝置"
+theme_light = "淺色"
+theme_dark = "深色"
 privacy_link = "隱私"
 
 # Event

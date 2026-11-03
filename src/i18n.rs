@@ -204,6 +204,10 @@ pub struct Messages {
     pub language_name: String,
     /// What the language switch is, for screen readers.
     pub languages: String,
+    pub theme: String,
+    pub theme_auto: String,
+    pub theme_light: String,
+    pub theme_dark: String,
     pub privacy_link: String,
 
     // Event

@@ -18,8 +18,9 @@
   color-scheme: dark light;
 }
 
+/* Light: the device's choice, unless the guest picked dark with the switch. */
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
     --bg: #fafafa;
     --raised: #ffffff;
     --fg: #212121;
@@ -30,6 +31,23 @@
     --success: #2e7d32;
     --amber: #ffb300;
   }
+}
+
+:root[data-theme="light"] {
+  --bg: #fafafa;
+  --raised: #ffffff;
+  --fg: #212121;
+  --muted: #616161;
+  --line: #e0e0e0;
+  --link: #00695c;
+  --danger: #c62828;
+  --success: #2e7d32;
+  --amber: #ffb300;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 * {
@@ -73,6 +91,57 @@ a {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+header {
+  gap: 0.75rem;
+  align-items: center;
+}
+
+/* Colour scheme switch: three small icons in a pill. */
+
+.theme-switch {
+  display: flex;
+  padding: 0.125rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.theme-switch a {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  color: var(--muted);
+  transition: color 0.2s, background-color 0.2s;
+}
+
+.theme-switch a:hover {
+  color: var(--fg);
+}
+
+.theme-switch a[aria-current] {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--teal-bright) 30%, transparent);
+}
+
+.theme-switch svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+}
+
+.theme-switch a:hover svg {
+  animation: wiggle-once 0.5s ease-in-out;
+}
+
+@keyframes wiggle-once {
+  33% { transform: rotate(-20deg); }
+  66% { transform: rotate(15deg); }
 }
 
 /* Language menu: a small globe that opens a list. */

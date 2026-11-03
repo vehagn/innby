@@ -6,6 +6,11 @@
 language_name = "English (Traditional)"
 # What the language switch is, for screen readers.
 languages = "Languages"
+# The colour scheme switch, and its three choices.
+theme = "Colour scheme"
+theme_auto = "As one's device prefers"
+theme_light = "Daylight"
+theme_dark = "Evening dress"
 privacy_link = "Privacy"
 
 # Event

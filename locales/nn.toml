@@ -6,6 +6,11 @@
 language_name = "Nynorsk"
 # What the language switch is, for screen readers.
 languages = "Språk"
+# The colour scheme switch, and its three choices.
+theme = "Fargetema"
+theme_auto = "Som eininga"
+theme_light = "Lyst"
+theme_dark = "Mørkt"
 privacy_link = "Personvern"
 
 # Event

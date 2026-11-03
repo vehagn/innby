@@ -214,6 +214,7 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         .route(paths::READY, get(ready))
         .merge(no_store(links))
         .fallback(pages::not_found)
+        .layer(middleware::from_fn(crate::theme::scope))
         .with_state(state);
     harden(router, https)
 }
@@ -343,7 +344,7 @@ mod tests {
     #[tokio::test]
     async fn index_defaults_to_norwegian() {
         let html = body(get("/", None).await).await;
-        assert!(html.contains(r#"<html lang="nb">"#));
+        assert!(html.contains(r#"<html lang="nb" "#));
         assert!(html.contains(r#"<span class="title-text">Julebord<"#));
         assert!(html.contains("lørdag 12. desember 2026 kl. 19:00"));
         assert!(html.contains(r#"href="?lang=en""#));
@@ -352,7 +353,7 @@ mod tests {
     #[tokio::test]
     async fn index_follows_accept_language() {
         let html = body(get("/", Some("en-GB,en;q=0.9")).await).await;
-        assert!(html.contains(r#"<html lang="en-GB">"#));
+        assert!(html.contains(r#"<html lang="en-GB" "#));
         assert!(html.contains(r#"<span class="title-text">Christmas party<"#));
         let starts_at = crate::config::tests::config().event.starts_at;
         assert!(html.contains(&Lang::EnGb.format_date(starts_at)));
@@ -363,7 +364,7 @@ mod tests {
     #[tokio::test]
     async fn offers_every_language() {
         let html = body(get("/", Some("nn-NO,nb;q=0.9")).await).await;
-        assert!(html.contains(r#"<html lang="nn">"#));
+        assert!(html.contains(r#"<html lang="nn" "#));
         assert!(html.contains("laurdag 12. desember 2026 kl. 19:00"));
         // The menu offers the others, each in its own language.
         for (code, tag, badge, name) in [
@@ -381,18 +382,36 @@ mod tests {
         assert!(!html.contains(">Nynorsk</a>"));
 
         let html = body(get("/", Some("en-US,en;q=0.9")).await).await;
-        assert!(html.contains(r#"<html lang="en-US">"#));
+        assert!(html.contains(r#"<html lang="en-US" "#));
         assert!(html.contains("Sat, Dec 12, 2026, 7:00 PM"));
 
         let html = body(get("/", Some("zh-TW,zh;q=0.9")).await).await;
-        assert!(html.contains(r#"<html lang="zh-Hant">"#));
+        assert!(html.contains(r#"<html lang="zh-Hant" "#));
         assert!(html.contains("2026年12月12日（週六）19:00"));
     }
 
     #[tokio::test]
     async fn query_parameter_overrides_accept_language() {
         let html = body(get("/?lang=nb", Some("en")).await).await;
-        assert!(html.contains(r#"<html lang="nb">"#));
+        assert!(html.contains(r#"<html lang="nb" "#));
+    }
+
+    #[tokio::test]
+    async fn links_carry_the_colour_scheme() {
+        let html = body(get("/", None).await).await;
+        assert!(html.contains(r#"data-theme="auto""#));
+        assert!(html.contains(r#"href="/privacy?lang=nb""#));
+        assert!(html.contains(r#"href="?lang=nb" title="Som enheten" aria-current="true""#));
+        assert!(html.contains(r#"href="?lang=nb&#38;theme=dark" title="Mørkt""#));
+
+        let html = body(get("/?lang=en&theme=dark", None).await).await;
+        assert!(html.contains(r#"data-theme="dark""#));
+        assert!(html.contains(r#"href="/privacy?lang=en&#38;theme=dark""#));
+        assert!(html.contains(r#"href="?lang=nb&#38;theme=dark" hreflang="nb""#));
+        assert!(html.contains(r#"href="?lang=en" title="As one&#39;s device prefers">"#));
+
+        let html = body(get("/?theme=purple", None).await).await;
+        assert!(html.contains(r#"data-theme="auto""#));
     }
 
     #[tokio::test]

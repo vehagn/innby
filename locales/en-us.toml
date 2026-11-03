@@ -6,6 +6,11 @@
 language_name = "English (Simplified)"
 # What the language switch is, for screen readers.
 languages = "Languages"
+# The colour scheme switch, and its three choices.
+theme = "Colors"
+theme_auto = "Auto"
+theme_light = "Light"
+theme_dark = "Dark"
 privacy_link = "Privacy"
 
 # Event

@@ -629,7 +629,7 @@ mod tests {
         let site = Site::new(db);
         let (_, link) = site.invite("王小明", 1).await;
         let html = body(site.get(&format!("/r/{link}?lang=zh-hans")).await).await;
-        assert!(html.contains(r#"<html lang="zh-Hans">"#));
+        assert!(html.contains(r#"<html lang="zh-Hans" "#));
         assert!(html.contains("王小明，你好！"));
         assert!(html.contains("你的回复：<strong>尚未回复</strong>"));
         // Before answering, other guests see only the family name.
