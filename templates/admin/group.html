@@ -25,29 +25,31 @@
   </form>
 </section>
 
-<h2>{{ a.col_signed_up }}</h2>
-{% if members.is_empty() %}
-<p class="muted">{{ a.no_sign_ups }}</p>
-{% else %}
-<div class="table-wrap">
-<table>
-  <thead>
-    <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th><th>{{ a.col_guest_list }}</th><th>{{ a.col_signed_up }}</th></tr>
-  </thead>
-  <tbody>
-    {% for row in members %}
-    <tr>
-      <td><a href="{{ row.path }}">{{ row.name }}</a></td>
-      <td>{{ row.answer }}</td>
-      <td>{{ row.party }}</td>
-      <td>{{ row.listed }}</td>
-      <td>{{ row.created }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
-{% endif %}
+<section class="card">
+  <h2>{{ a.col_signed_up }}</h2>
+  {% if members.is_empty() %}
+  <p class="muted">{{ a.no_sign_ups }}</p>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th><th>{{ a.col_guest_list }}</th><th>{{ a.col_signed_up }}</th></tr>
+    </thead>
+    <tbody>
+      {% for row in members %}
+      <tr>
+        <td><a href="{{ row.path }}">{{ row.name }}</a></td>
+        <td>{{ row.answer }}</td>
+        <td>{{ row.party }}</td>
+        <td>{{ row.listed }}</td>
+        <td>{{ row.created }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
 
 <details>
   <summary>{{ a.edit }}</summary>

@@ -89,32 +89,34 @@
   </div>
 </section>
 
-<h2>{{ a.guests }}</h2>
-{% if rows.is_empty() %}
-<p class="muted">{{ a.no_guests }}</p>
-{% else %}
-<div class="table-wrap">
-<table>
-  <thead>
-    <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th><th>{{ a.col_source }}</th><th>{{ a.col_guest_list }}</th><th>{{ a.col_email }}</th><th>{{ a.col_answered }}</th></tr>
-  </thead>
-  <tbody>
-    {% for row in rows %}
-    <tr>
-      <td><a href="{{ row.path }}">{{ row.name }}</a></td>
-      <td>{{ row.answer }}</td>
-      <td>{{ row.party }}</td>
-      <td>{{ row.source }}</td>
-      <td>{{ row.listed }}</td>
-      <td>{{ row.email }}</td>
-      <td>{{ row.responded }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
-{% endif %}
-<p><a href="{{ crate::paths::admin(crate::paths::GUESTS_CSV) }}" download>{{ a.download_csv }}</a></p>
+<section class="card" id="guests">
+  <h2>{{ a.guests }}</h2>
+  {% if rows.is_empty() %}
+  <p class="muted">{{ a.no_guests }}</p>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th><th>{{ a.col_source }}</th><th>{{ a.col_guest_list }}</th><th>{{ a.col_email }}</th><th>{{ a.col_answered }}</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td><a href="{{ row.path }}">{{ row.name }}</a></td>
+        <td>{{ row.answer }}</td>
+        <td>{{ row.party }}</td>
+        <td>{{ row.source }}</td>
+        <td>{{ row.listed }}</td>
+        <td>{{ row.email }}</td>
+        <td>{{ row.responded }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+  <p><a href="{{ crate::paths::admin(crate::paths::GUESTS_CSV) }}" download>{{ a.download_csv }}</a></p>
+</section>
 
 <section class="card">
   <h2>{{ a.reminders }}</h2>

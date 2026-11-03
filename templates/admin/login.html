@@ -14,6 +14,6 @@
   <input id="user" name="user" required autocomplete="username" autocapitalize="none" value="{{ user }}"{% if user.is_empty() %} autofocus{% endif %}>
   <label for="password">{{ a.password }}</label>
   <input id="password" name="password" type="password" required autocomplete="current-password"{% if !user.is_empty() %} autofocus{% endif %}>
-  <div class="buttons"><button>{{ a.log_in }}</button></div>
+  <button>{{ a.log_in }}</button>
 </form>
 {% endblock %}

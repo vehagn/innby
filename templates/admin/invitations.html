@@ -13,25 +13,27 @@
 <p class="muted small">{{ a.invitation_links_hint }}
   <a href="{{ crate::paths::admin(crate::paths::GUESTS_CSV) }}" download>{{ a.download_csv }}</a></p>
 
-{% if invitations.is_empty() %}
-<p class="muted">{{ a.no_invitations }}</p>
-{% else %}
-<div class="table-wrap">
-<table>
-  <thead>
-    <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th><th>{{ a.col_link }}</th></tr>
-  </thead>
-  <tbody>
-    {% for invitation in invitations %}
-    <tr>
-      <td><a href="{{ invitation.row.path }}">{{ invitation.row.name }}</a></td>
-      <td>{{ invitation.row.answer }}</td>
-      <td>{{ invitation.row.party }}</td>
-      <td><input type="text" readonly value="{{ invitation.url }}" aria-label="{{ crate::i18n::filled(a.link_for, "name", invitation.row.name) }}"></td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-</div>
-{% endif %}
+<section class="card">
+  {% if invitations.is_empty() %}
+  <p class="muted">{{ a.no_invitations }}</p>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th><th>{{ a.col_link }}</th></tr>
+    </thead>
+    <tbody>
+      {% for invitation in invitations %}
+      <tr>
+        <td><a href="{{ invitation.row.path }}">{{ invitation.row.name }}</a></td>
+        <td>{{ invitation.row.answer }}</td>
+        <td>{{ invitation.row.party }}</td>
+        <td><input type="text" readonly value="{{ invitation.url }}" aria-label="{{ crate::i18n::filled(a.link_for, "name", invitation.row.name) }}"></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
 {% endblock %}

@@ -26,9 +26,7 @@
       <input id="website" name="website" tabindex="-1" autocomplete="off">
     </div>
     <p class="muted small">{{ t.join_notice }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
-    <div class="buttons">
-      <button>{{ t.join_button }}</button>
-    </div>
+    <button>{{ t.join_button }}</button>
   </form>
   {% else %}
   <p class="muted">{{ t.answers_closed }}</p>
