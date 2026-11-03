@@ -130,6 +130,145 @@ too_many_attempts = "Too many tries. Try again in an hour."
 not_found_title = "Page not found"
 not_found_text = "Check the link or ask the host."
 
+# The host's admin pages. Pairs ending in _one and _other are for one of something
+# and for any other number.
+[admin]
+# After "Innby" in the header and the page titles.
+admin = "admin"
+log_out = "Log out"
+log_in = "Log in"
+log_in_text = "Enter the admin username and password to see the guest list."
+logged_out = "Logged out"
+logged_out_text = "Your browser will ask for the username and password next time."
+too_many_logins = "Too many login tries. Try again in 15 minutes."
+not_found = "Guest or group not found."
+saved = "Saved!"
+
+# The headcount
+coming_one = "{n} person going"
+coming_other = "{n} people going"
+parties_one = "({n} RSVP)"
+parties_other = "({n} RSVPs)"
+not_coming = "{n} not going"
+no_answer = "{n} no answer yet"
+
+# Invitations
+new_invitations = "New invites"
+new_invitations_hint = """
+One guest or household per line. Each gets their own link. To set a line's max, end \
+it with a comma and a number."""
+names = "Names"
+# Example lines in the empty box, one per line. Keep the comma before a number.
+names_placeholder = "Kari & Ola Nordmann, 2\nPer Hansen"
+max_per_invitation = "Max people per invite"
+create_invitations = "Create invites"
+all_invitation_links = "All invite links"
+invitation_links = "Invite links"
+invitation_links_hint = """
+Send each guest only their own link. Anyone with a link can answer for that guest. \
+The CSV has the same links for a mail merge."""
+no_invitations = "No invites yet."
+invitations_created_one = "{n} invite created."
+invitations_created_other = "{n} invites created."
+
+# Group links
+group_links = "Group links"
+group_links_hint = """
+One sign-up link for a whole group, for a group chat or a poster. Anyone with it can \
+sign up and gets their own link."""
+closed = "Closed: the RSVP deadline has passed."
+no_groups = "No groups yet."
+# The label of a group's link field, for screen readers.
+link_for = "Link for {name}"
+new_groups = "New groups, one per line"
+# Example lines in the empty box, one per line. Keep the comma before a number.
+groups_placeholder = "Climbing club\nNeighbors, 4"
+max_per_sign_up = "Max people per sign-up"
+create_groups = "Create groups"
+groups_created_one = "{n} group created."
+groups_created_other = "{n} groups created."
+sign_up_link = "Sign-up link"
+group_link_hint_one = """
+Share this where the group will see it, like its group chat. Anyone with the link \
+can sign up for up to {n} person and gets their own link. People it's forwarded to \
+can sign up too."""
+group_link_hint_other = """
+Share this where the group will see it, like its group chat. Anyone with the link \
+can sign up for up to {n} people and gets their own link. People it's forwarded to \
+can sign up too."""
+group_link = "Group link"
+group_new_link_hint = "The old link stops working. People who signed up keep their own links."
+no_sign_ups = "No one has signed up with this link yet."
+group_name = "Group name"
+max_for_new_sign_ups = "Max people per sign-up (new sign-ups only)"
+delete_group = "Delete the group {name} and its link"
+group_in_use_hint = """
+People signed up with this group, so it can't be deleted. To stop new sign-ups, make \
+a new link and don't share it."""
+
+# Guests
+guests = "Guests"
+no_guests = "No guests yet."
+download_csv = "Download CSV"
+link = "Link"
+guest_link = "Guest link"
+guest_link_hint = "Anyone with this link can answer for this guest. Only send it to them."
+new_link = "New link"
+new_link_hint = "The old link stops working."
+edit = "Edit"
+name_or_household = "Name or household"
+max_people = "Max people"
+save = "Save"
+delete = "Delete"
+delete_guest = "Delete {name} and all their data"
+
+# Reminders
+reminders = "Reminders"
+subscribers_one = "{n} guest has a confirmed email."
+subscribers_other = "{n} guests have a confirmed email."
+reminders_hint = "Everyone who hasn't said no gets one reminder."
+send_reminders = "Send reminders"
+reminders_queued_one = "{n} reminder queued."
+reminders_queued_other = "{n} reminders queued."
+
+# Table columns and facts, also the CSV's header
+col_name = "Name"
+col_answer = "Answer"
+col_people = "People"
+col_max_people = "Max people"
+col_source = "Source"
+col_guest_list = "Guest list"
+col_email = "Email"
+col_answered = "Answered"
+col_created = "Created"
+col_group = "Group"
+col_signed_up = "Signed up"
+col_people_each = "People each"
+col_link = "Link"
+
+# A guest's row
+answer_pending = "no answer"
+answer_attending = "going"
+answer_declined = "not going"
+source_invitation = "invite"
+source_sign_up = "sign-up"
+# A sign-up through a group's link.
+source_group = "sign-up: {group}"
+email_unconfirmed = "unconfirmed"
+email_confirmed = "confirmed"
+listed_full = "full name"
+listed_partial = "first name + initial"
+listed_hidden = "hidden"
+
+# Errors
+error_party_size = "Party size must be 1 to {max}."
+error_name = "Enter a name (100 characters max)."
+# A line of a batch that needs fixing.
+error_line = "Line {n}: {error}"
+error_no_names = "Enter at least one name."
+error_confirm_delete = "Check the box to delete."
+error_group_in_use = "People signed up with this group, so it can't be deleted."
+
 # Mails. Each is plain text; `{url}` is a link on the site and `{title}` the event.
 [mail]
 # Under every mail. `{base}` is the site's address.

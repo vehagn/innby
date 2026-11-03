@@ -240,7 +240,7 @@ pub async fn require_login(
             .into_response(),
         Outcome::TooManyAttempts => (
             StatusCode::TOO_MANY_REQUESTS,
-            "too many login attempts, try again in 15 minutes",
+            super::lang::text().too_many_logins.as_str(),
         )
             .into_response(),
     }

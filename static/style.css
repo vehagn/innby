@@ -205,6 +205,18 @@ button.pill svg {
   margin: 0;
 }
 
+/* On a phone, the admin header has room for the logout icon only. */
+@media (max-width: 30rem) {
+  button.pill .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 .lang-menu summary::-webkit-details-marker {
   display: none;
 }
