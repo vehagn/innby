@@ -1,7 +1,6 @@
-# Development container for Innby: the Rust toolchain, cross-compilation to a
-# static x86_64 musl binary, and clients for Postgres and Kubernetes. Container
-# images are built outside this container. Bump the pinned versions below and
-# rebuild to upgrade.
+# Development container for Innby: the Rust toolchain, cross-compilation to static
+# amd64 and arm64 musl binaries, clients for Postgres and Kubernetes, and a zsh with
+# oh-my-zsh. Bump the pinned versions below and rebuild to upgrade.
 FROM docker.io/library/rust:1.99.1-trixie
 
 ARG USERNAME=dev
@@ -16,6 +15,9 @@ ARG JUST_VERSION=1.59.0
 ARG CARGO_ZIGBUILD_VERSION=0.24.0
 ARG CARGO_DENY_VERSION=0.20.2
 ARG SQLX_CLI_VERSION=0.9.0
+# oh-my-zsh, and the devcontainers prompt and shell snippets, pinned to a commit.
+ARG OH_MY_ZSH_COMMIT=b509b1c6ed0c1ba37de12cbd37f30b2b2f61193a
+ARG DEVCONTAINERS_FEATURES_COMMIT=ad7094ecdc1d5d3b28e5b727591a12bf104fa853
 
 SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
 
@@ -29,8 +31,26 @@ RUN apt-get update; \
       > /etc/apt/sources.list.d/pgdg.list; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      bash-completion file jq less neovim postgresql-client-18 skopeo sudo vim xz-utils; \
-    rm -rf /var/lib/apt/lists/*
+      bash-completion file htop iproute2 jq less locales lsof ncdu neovim openssh-client \
+      postgresql-client-18 procps psmisc skopeo sudo tree unzip vim xz-utils yamllint zsh; \
+    rm -rf /var/lib/apt/lists/*; \
+    sed -i 's/^# *\(en_US.UTF-8 UTF-8\)/\1/' /etc/locale.gen; \
+    locale-gen
+
+# The devcontainers shell snippets and prompts, as VS Code's own images have them.
+RUN base="https://raw.githubusercontent.com/devcontainers/features/${DEVCONTAINERS_FEATURES_COMMIT}/src/common-utils/scripts"; \
+    install -d /usr/local/share/devcontainers; \
+    cd /usr/local/share/devcontainers; \
+    for file in rc_snippet.sh bash_theme_snippet.sh devcontainers.zsh-theme; do \
+      curl -fsSL -o "${file}" "${base}/${file}"; \
+    done; \
+    sha256sum -c - <<'EOF'
+386211422128f024f627070d030cd1034984197e97dd61b9e652d813b13360ea  rc_snippet.sh
+3a9a8fa86ff1643d9976f4ec9711fbec11b8f38576ea256bb2a7fce3267ae3ed  bash_theme_snippet.sh
+598772c994f1179ef44890d89b51a16a1162feaef8224f5bd1ca2dd9d18ec0e0  devcontainers.zsh-theme
+EOF
+RUN cat /usr/local/share/devcontainers/rc_snippet.sh >> /etc/bash.bashrc; \
+    cat /usr/local/share/devcontainers/rc_snippet.sh >> /etc/zsh/zshrc
 
 # Zig is the cross-linker used by cargo-zigbuild.
 RUN arch="$(uname -m)"; \
@@ -65,13 +85,14 @@ RUN rustup component add clippy rustfmt rust-src rust-analyzer; \
 
 # Non-root user with passwordless sudo. Directories that compose mounts volumes onto
 # are created here so the volumes inherit the user's ownership.
-RUN useradd --create-home --shell /bin/bash --uid "${USER_UID}" "${USERNAME}"; \
+RUN useradd --create-home --shell /bin/zsh --uid "${USER_UID}" "${USERNAME}"; \
     echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/${USERNAME}"; \
     chmod 0440 "/etc/sudoers.d/${USERNAME}"; \
     install -d -o "${USERNAME}" -g "${USERNAME}" \
       "/home/${USERNAME}/.kube" \
       "/home/${USERNAME}/.cache/kube" \
       "/home/${USERNAME}/.cache/target" \
+      "/home/${USERNAME}/.local/state/shell" \
       "${CARGO_HOME}/registry"; \
     chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}" "${CARGO_HOME}"; \
     # The workspace is mounted from the host, owned by another UID.
@@ -88,6 +109,36 @@ RUN curl -fsSL "https://github.com/cargo-bins/cargo-binstall/releases/download/v
     cargo install --locked --no-default-features --features rustls,postgres "sqlx-cli@${SQLX_CLI_VERSION}"; \
     rm -rf "${CARGO_HOME}/registry/"* "${CARGO_HOME}/git"
 
+# zsh with oh-my-zsh and the devcontainers prompt, completion for just, kubectl, rustup
+# and cargo, and the shell history in a volume, so it outlives rebuilds. Bash gets the
+# same prompt, aliases and history.
+RUN git init --quiet ~/.oh-my-zsh; \
+    git -C ~/.oh-my-zsh fetch --quiet --depth=1 https://github.com/ohmyzsh/ohmyzsh "${OH_MY_ZSH_COMMIT}"; \
+    git -C ~/.oh-my-zsh checkout --quiet FETCH_HEAD; \
+    install -D -m 0644 /usr/local/share/devcontainers/devcontainers.zsh-theme \
+      ~/.oh-my-zsh/custom/themes/devcontainers.zsh-theme; \
+    install -d ~/.zfunc ~/.local/share/bash-completion/completions; \
+    just --completions zsh > ~/.zfunc/_just; \
+    just --completions bash > ~/.local/share/bash-completion/completions/just; \
+    { printf '%s\n' \
+        "zstyle ':omz:update' mode disabled" \
+        'fpath=(~/.zfunc $fpath)' \
+        'HISTFILE=~/.local/state/shell/zsh_history' \
+        'HISTSIZE=50000' \
+        'SAVEHIST=50000'; \
+      sed -e 's/^ZSH_THEME=.*/ZSH_THEME="devcontainers"/' \
+          -e 's/^plugins=.*/plugins=(git kubectl rust)/' \
+          ~/.oh-my-zsh/templates/zshrc.zsh-template; \
+      echo '[ -f ~/.bash_aliases ] && source ~/.bash_aliases'; \
+    } > ~/.zshrc; \
+    cat /usr/local/share/devcontainers/bash_theme_snippet.sh >> ~/.bashrc; \
+    echo 'HISTFILE=~/.local/state/shell/bash_history' >> ~/.bashrc; \
+    printf '%s\n' \
+      "alias k='kubectl'" \
+      "alias kz='kubectl kustomize'" \
+      "alias yl='yamllint'" \
+      > ~/.bash_aliases
+
 # Neovim reads Vim's ~/.vimrc and ~/.vim, which `just dev` mounts from the host. A host
 # ~/.config/nvim, mounted over this, wins.
 RUN mkdir -p "/home/${USERNAME}/.config/nvim"; \
@@ -99,6 +150,7 @@ RUN mkdir -p "/home/${USERNAME}/.config/nvim"; \
 
 ENV CARGO_TARGET_DIR=/home/${USERNAME}/.cache/target \
     KUBECACHEDIR=/home/${USERNAME}/.cache/kube \
-    EDITOR=vim
+    EDITOR=vim \
+    LANG=en_US.UTF-8
 
 WORKDIR /workspaces/innby
