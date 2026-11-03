@@ -10,7 +10,7 @@ use askama::Template;
 use axum::{
     Form, Router,
     extract::{FromRef, Path, Query, State},
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     middleware,
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
@@ -38,6 +38,13 @@ use crate::{
 struct AdminState {
     config: Arc<Config>,
     db: PgPool,
+    login: Arc<auth::Login>,
+}
+
+impl FromRef<AdminState> for Arc<auth::Login> {
+    fn from_ref(state: &AdminState) -> Self {
+        Arc::clone(&state.login)
+    }
 }
 
 impl FromRef<AdminState> for PgPool {
@@ -54,11 +61,12 @@ pub async fn serve(config: Config, admin: AdminConfig, db: PgPool) -> anyhow::Re
 fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
     // The admin hostname is served the same way as the public one.
     let https = config.is_https();
+    let login = Arc::new(auth::Login::new(admin));
     let state = AdminState {
         config: Arc::new(config),
         db,
+        login: Arc::clone(&login),
     };
-    let login = Arc::new(auth::Login::new(admin));
     let pages = Router::new()
         .route(paths::HOME, get(index))
         .route(
@@ -74,12 +82,18 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
         .route(paths::GUEST_DELETE, post(delete))
         .route(paths::GUESTS_CSV, get(export_csv))
         .route(paths::REMINDERS, post(queue_reminders))
-        .route(paths::STYLESHEET, get(web::stylesheet))
+        .route(paths::LOGOUT, post(log_out))
         .layer(middleware::from_fn_with_state(login, auth::require_login));
     let router = web::no_store(pages)
-        // Probes don't log in.
+        // Probes don't log in, and neither do the pages around logging in.
         .route(paths::HEALTH, get(|| async { "ok" }))
         .route(paths::READY, get(web::ready))
+        .route(paths::STYLESHEET, get(web::stylesheet))
+        .route(
+            paths::LOGGED_OUT,
+            get(|| async { render(auth::LoginPage::logged_out()) }),
+        )
+        .layer(middleware::from_fn(crate::theme::scope))
         .with_state(state);
     web::harden(router, https)
 }
@@ -106,14 +120,16 @@ impl Row {
     fn new(rsvp: &Rsvp, tz: Tz, groups: &[Group]) -> Self {
         let group = groups.iter().find(|group| Some(group.id) == rsvp.group_id);
         Self {
-            path: paths::path(paths::GUEST, rsvp.id),
+            path: paths::admin(&paths::path(paths::GUEST, rsvp.id)),
             name: rsvp.name.clone(),
             source: match (rsvp.source, group) {
                 (Source::Invite, _) => "invitation".to_owned(),
                 (Source::Open, Some(group)) => format!("sign-up: {}", group.name),
                 (Source::Open, None) => "sign-up".to_owned(),
             },
-            group_path: rsvp.group_id.map(|id| paths::path(paths::GROUP, id)),
+            group_path: rsvp
+                .group_id
+                .map(|id| paths::admin(&paths::path(paths::GROUP, id))),
             answer: match rsvp.response {
                 rsvp::Response::Pending => "no answer",
                 rsvp::Response::Attending => "coming",
@@ -233,13 +249,23 @@ async fn index(State(state): State<AdminState>, Query(query): Query<IndexQuery>)
     index_page(&state, None, feedback).await
 }
 
+/// Logs the browser out: it asks for the password on the next page.
+async fn log_out(State(login): State<Arc<auth::Login>>, headers: HeaderMap) -> Response {
+    if let Some(authorization) = headers.get(header::AUTHORIZATION) {
+        login.log_out(authorization);
+    }
+    tracing::info!("host logged out");
+    Redirect::to(&paths::admin(paths::LOGGED_OUT)).into_response()
+}
+
 /// Queues a reminder for everyone with a confirmed address who hasn't declined. Each
 /// guest gets at most one.
 async fn queue_reminders(State(state): State<AdminState>) -> Response {
     match outbox::queue_reminders(&state.db).await {
         Ok(count) => {
             tracing::info!(count, "reminders queued");
-            Redirect::to(&format!("{}?reminders={count}", paths::HOME)).into_response()
+            Redirect::to(&paths::admin(&format!("{}?reminders={count}", paths::HOME)))
+                .into_response()
         }
         Err(err) => server_error(err),
     }
@@ -329,7 +355,8 @@ async fn create_invitations(
         Ok(ids) => {
             tracing::info!(count = ids.len(), "invitations created");
             // The ids are UUIDv7, so the new ones are those from the first on.
-            Redirect::to(&format!("{}?from={}", paths::INVITATIONS, ids[0])).into_response()
+            let page = format!("{}?from={}", paths::INVITATIONS, ids[0]);
+            Redirect::to(&paths::admin(&page)).into_response()
         }
         Err(err) => server_error(err),
     }
@@ -484,7 +511,8 @@ async fn show(
 }
 
 fn saved_redirect(id: Uuid) -> Response {
-    Redirect::to(&format!("{}?saved", paths::path(paths::GUEST, id))).into_response()
+    let page = format!("{}?saved", paths::path(paths::GUEST, id));
+    Redirect::to(&paths::admin(&page)).into_response()
 }
 
 async fn edit(
@@ -528,7 +556,7 @@ async fn delete(
     }
     rsvp::delete(&state.db, id).await?;
     tracing::info!(rsvp = %id, "rsvp deleted by host");
-    Ok(Redirect::to(paths::HOME).into_response())
+    Ok(Redirect::to(&paths::admin(paths::HOME)).into_response())
 }
 
 /// The guest list as CSV, with each guest's link for a mail merge.
@@ -700,6 +728,63 @@ mod tests {
         let response = admin.get("/").await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+    }
+
+    #[sqlx::test]
+    async fn logging_out_asks_for_the_password_again(db: PgPool) {
+        let admin = Admin::new(db);
+        // One router throughout, as it remembers the login.
+        let app = router(admin.config.clone(), &admin.admin, admin.db.clone());
+        let send = |method: &str, uri: &str| {
+            let request = Admin::login(Request::builder().method(method).uri(uri), "admin:secret")
+                .header("sec-fetch-site", "same-origin")
+                .header("sec-fetch-mode", "navigate")
+                .body(Body::empty())
+                .unwrap();
+            app.clone().oneshot(request)
+        };
+        let response = send("POST", "/logout").await.unwrap();
+        assert_eq!(location(&response), "/logged-out");
+        let response = admin.send(Request::get("/logged-out"), "").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(body(response).await.contains("<h1>Logged out</h1>"));
+
+        let response = send("GET", "/").await.unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert!(response.headers().contains_key(header::WWW_AUTHENTICATE));
+        assert!(body(response).await.contains("<h1>Log in</h1>"));
+        // The browser asked, and the password was typed again.
+        let response = send("GET", "/").await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[sqlx::test]
+    async fn links_carry_the_colour_scheme(db: PgPool) {
+        let admin = Admin::new(db);
+        let html = body(admin.get("/?theme=dark").await).await;
+        assert!(html.contains(r#"data-theme="dark""#), "{html}");
+        assert!(
+            html.contains(r#"action="/invitations?theme=dark""#),
+            "{html}"
+        );
+        assert!(html.contains(r#"action="/logout?theme=dark""#), "{html}");
+
+        let response = admin
+            .post("/invitations?theme=dark", "names=Eva&max_party_size=1")
+            .await;
+        assert!(
+            location(&response).ends_with("&theme=dark"),
+            "{}",
+            location(&response)
+        );
+        let response = admin
+            .post("/groups?theme=light", "names=Climbers&max_party_size=1")
+            .await;
+        assert_eq!(location(&response), "/?groups=1&theme=light#groups");
+
+        // The login page has its style before anyone logs in.
+        let response = admin.send(Request::get("/static/style.css"), "").await;
+        assert_eq!(response.status(), StatusCode::OK);
     }
 
     /// The `value` of every read-only link field on the page.

@@ -38,7 +38,7 @@ pub(super) struct GroupRow {
 impl GroupRow {
     pub(super) fn new(config: &Config, group: &Group, rsvps: &[Rsvp]) -> Self {
         Self {
-            path: paths::path(paths::GROUP, group.id),
+            path: paths::admin(&paths::path(paths::GROUP, group.id)),
             name: group.name.clone(),
             max_party_size: group.max_party_size,
             sign_ups: rsvps
@@ -84,7 +84,7 @@ pub(super) async fn create(
         Ok(()) => {
             tracing::info!(count = entries.len(), "groups created");
             let index = format!("{}?groups={}#groups", paths::HOME, entries.len());
-            Redirect::to(&index).into_response()
+            Redirect::to(&paths::admin(&index)).into_response()
         }
         Err(err) => server_error(err),
     }
@@ -142,7 +142,8 @@ impl GroupPage {
 }
 
 fn saved_redirect(id: Uuid) -> Response {
-    Redirect::to(&format!("{}?saved", paths::path(paths::GROUP, id))).into_response()
+    let page = format!("{}?saved", paths::path(paths::GROUP, id));
+    Redirect::to(&paths::admin(&page)).into_response()
 }
 
 pub(super) async fn show(
@@ -207,5 +208,5 @@ pub(super) async fn delete(
         };
     }
     tracing::info!(group = %id, "group deleted");
-    Ok(Redirect::to(&format!("{}#groups", paths::HOME)).into_response())
+    Ok(Redirect::to(&paths::admin(&format!("{}#groups", paths::HOME))).into_response())
 }

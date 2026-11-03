@@ -6,13 +6,13 @@
 {% if saved %}<p class="notice success" role="status">Saved.</p>{% endif %}
 <h1>{{ row.name }}</h1>
 <dl class="facts">
-  <dt>Answer</dt><dd>{{ row.answer }}</dd>
-  <dt>People</dt><dd>{{ row.party }}</dd>
-  <dt>Source</dt><dd>{% if let Some(group_path) = row.group_path %}<a href="{{ group_path }}">{{ row.source }}</a>{% else %}{{ row.source }}{% endif %}</dd>
-  <dt>Guest list</dt><dd>{{ row.listed }}</dd>
-  {% if !row.email.is_empty() %}<dt>E-mail</dt><dd>{{ row.email }}</dd>{% endif %}
-  <dt>Created</dt><dd>{{ row.created }}</dd>
-  {% if !row.responded.is_empty() %}<dt>Answered</dt><dd>{{ row.responded }}</dd>{% endif %}
+  <div><dt>Answer</dt><dd>{{ row.answer }}</dd></div>
+  <div><dt>People</dt><dd>{{ row.party }}</dd></div>
+  <div><dt>Source</dt><dd>{% if let Some(group_path) = row.group_path %}<a href="{{ group_path }}">{{ row.source }}</a>{% else %}{{ row.source }}{% endif %}</dd></div>
+  <div><dt>Guest list</dt><dd>{{ row.listed }}</dd></div>
+  {% if !row.email.is_empty() %}<div><dt>E-mail</dt><dd>{{ row.email }}</dd></div>{% endif %}
+  <div><dt>Created</dt><dd>{{ row.created }}</dd></div>
+  {% if !row.responded.is_empty() %}<div><dt>Answered</dt><dd>{{ row.responded }}</dd></div>{% endif %}
 </dl>
 
 <section class="card">

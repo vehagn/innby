@@ -160,7 +160,7 @@ Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pendin
 - **Invitations:** create them in a batch, one per line, and get a page of their links; edit them (label, maximum party size), show the link and QR code, revoke the link (bumps the nonce), delete.
 - **Groups:** create them in a batch, one per line; each has a page with its link, QR code and sign-ups, and can be renamed, given a new link, or deleted while nobody has signed up.
 - **Overview:** attending, declined and no-answer counts, a total headcount, and a CSV export.
-- **Authentication:** reachable only through the internal gateway (LAN or VPN), plus basic auth with an argon2 hash from a SealedSecret, since the admin can change data. Each argon2 check needs 19 MiB, so checks run one at a time, a login that checked out is remembered for an hour, and after 10 checks in 15 minutes new logins get 429 (remembered ones keep working). Later, for fun: OIDC login against Authelia.
+- **Authentication:** reachable only through the internal gateway (LAN or VPN), plus basic auth with an argon2 hash from a SealedSecret, since the admin can change data. Each argon2 check needs 19 MiB, so checks run one at a time, a login that checked out is remembered for an hour, and after 10 checks in 15 minutes new logins get 429 (remembered ones keep working). Basic auth has no logout, so *Log out* forgets the login and answers the browser's next page with 401, which makes it ask for the password again. Later, for fun: OIDC login against Authelia.
 
 ### 5.6 Guest list
 
