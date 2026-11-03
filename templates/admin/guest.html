@@ -3,46 +3,47 @@
 {% block title %}{{ row.name }}{% endblock %}
 
 {% block content %}
-{% if saved %}<p class="notice success" role="status">Saved.</p>{% endif %}
+{% let a = crate::admin::lang::text() %}
+{% if saved %}<p class="notice success" role="status">{{ a.saved }}</p>{% endif %}
 <h1>{{ row.name }}</h1>
 <dl class="facts">
-  <div><dt>Answer</dt><dd>{{ row.answer }}</dd></div>
-  <div><dt>People</dt><dd>{{ row.party }}</dd></div>
-  <div><dt>Source</dt><dd>{% if let Some(group_path) = row.group_path %}<a href="{{ group_path }}">{{ row.source }}</a>{% else %}{{ row.source }}{% endif %}</dd></div>
-  <div><dt>Guest list</dt><dd>{{ row.listed }}</dd></div>
-  {% if !row.email.is_empty() %}<div><dt>E-mail</dt><dd>{{ row.email }}</dd></div>{% endif %}
-  <div><dt>Created</dt><dd>{{ row.created }}</dd></div>
-  {% if !row.responded.is_empty() %}<div><dt>Answered</dt><dd>{{ row.responded }}</dd></div>{% endif %}
+  <div><dt>{{ a.col_answer }}</dt><dd>{{ row.answer }}</dd></div>
+  <div><dt>{{ a.col_people }}</dt><dd>{{ row.party }}</dd></div>
+  <div><dt>{{ a.col_source }}</dt><dd>{% if let Some(group_path) = row.group_path %}<a href="{{ group_path }}">{{ row.source }}</a>{% else %}{{ row.source }}{% endif %}</dd></div>
+  <div><dt>{{ a.col_guest_list }}</dt><dd>{{ row.listed }}</dd></div>
+  {% if !row.email.is_empty() %}<div><dt>{{ a.col_email }}</dt><dd>{{ row.email }}</dd></div>{% endif %}
+  <div><dt>{{ a.col_created }}</dt><dd>{{ row.created }}</dd></div>
+  {% if !row.responded.is_empty() %}<div><dt>{{ a.col_answered }}</dt><dd>{{ row.responded }}</dd></div>{% endif %}
 </dl>
 
 <section class="card">
-  <h2>Link</h2>
-  <p class="muted small">Anyone with this link can answer for this guest. Send it to them only.</p>
-  <label for="url">Guest's link</label>
+  <h2>{{ a.link }}</h2>
+  <p class="muted small">{{ a.guest_link_hint }}</p>
+  <label for="url">{{ a.guest_link }}</label>
   <input id="url" type="text" readonly value="{{ url }}">
   <div class="qr">{{ qr|safe }}</div>
   <form method="post" action="{{ links.revoke }}">
-    <button class="secondary">Make a new link</button>
-    <span class="muted small">The current link stops working.</span>
+    <button class="secondary">{{ a.new_link }}</button>
+    <span class="muted small">{{ a.new_link_hint }}</span>
   </form>
 </section>
 
 <details>
-  <summary>Edit</summary>
+  <summary>{{ a.edit }}</summary>
   <form method="post" action="{{ links.page }}">
-    <label for="name">Name or household</label>
+    <label for="name">{{ a.name_or_household }}</label>
     <input id="name" name="name" required maxlength="100" value="{{ rsvp.name }}">
-    <label for="max_party_size">Max people</label>
+    <label for="max_party_size">{{ a.max_people }}</label>
     <input id="max_party_size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="{{ rsvp.max_party_size }}" required>
-    <button class="secondary">Save</button>
+    <button class="secondary">{{ a.save }}</button>
   </form>
 </details>
 
 <details>
-  <summary>Delete</summary>
+  <summary>{{ a.delete }}</summary>
   <form method="post" action="{{ links.delete }}">
-    <label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> Delete {{ row.name }} and everything stored about them</label>
-    <button class="danger">Delete</button>
+    <label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> {{ crate::i18n::filled(a.delete_guest, "name", row.name) }}</label>
+    <button class="danger">{{ a.delete }}</button>
   </form>
 </details>
 {% endblock %}

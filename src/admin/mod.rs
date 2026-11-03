@@ -1,8 +1,10 @@
-//! `innby admin`: the host's UI for invitations, group links and the headcount. English
-//! only, and served on its own listener behind the internal gateway and basic auth.
+//! `innby admin`: the host's UI for invitations, group links and the headcount, in the
+//! site's languages. Served on its own listener behind the internal gateway and basic
+//! auth.
 
 pub mod auth;
 mod groups;
+pub mod lang;
 
 use std::sync::Arc;
 
@@ -29,6 +31,7 @@ use crate::{
         outbox,
         rsvp::{self, EmailStatus, Headcount, MAX_PARTY_SIZE, NameDisplay, Rsvp, Source},
     },
+    i18n::{count, fill, filled},
     link::Purpose,
     paths::{self, AdminLinks},
     web::{self, render, render_with, server_error},
@@ -94,6 +97,7 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
             get(|| async { render(auth::LoginPage::logged_out()) }),
         )
         .layer(middleware::from_fn(crate::theme::scope))
+        .layer(middleware::from_fn(lang::scope))
         .with_state(state);
     web::harden(router, https)
 }
@@ -119,32 +123,33 @@ struct Row {
 impl Row {
     fn new(rsvp: &Rsvp, tz: Tz, groups: &[Group]) -> Self {
         let group = groups.iter().find(|group| Some(group.id) == rsvp.group_id);
+        let text = lang::text();
         Self {
             path: paths::admin(&paths::path(paths::GUEST, rsvp.id)),
             name: rsvp.name.clone(),
             source: match (rsvp.source, group) {
-                (Source::Invite, _) => "invitation".to_owned(),
-                (Source::Open, Some(group)) => format!("sign-up: {}", group.name),
-                (Source::Open, None) => "sign-up".to_owned(),
+                (Source::Invite, _) => text.source_invitation.clone(),
+                (Source::Open, Some(group)) => filled(&text.source_group, "group", &group.name),
+                (Source::Open, None) => text.source_sign_up.clone(),
             },
             group_path: rsvp
                 .group_id
                 .map(|id| paths::admin(&paths::path(paths::GROUP, id))),
             answer: match rsvp.response {
-                rsvp::Response::Pending => "no answer",
-                rsvp::Response::Attending => "coming",
-                rsvp::Response::Declined => "not coming",
+                rsvp::Response::Pending => &text.answer_pending,
+                rsvp::Response::Attending => &text.answer_attending,
+                rsvp::Response::Declined => &text.answer_declined,
             },
             party: format!("{} / {}", rsvp.party_size, rsvp.max_party_size),
             email: match rsvp.email_status {
                 EmailStatus::None => "",
-                EmailStatus::Unconfirmed => "unconfirmed",
-                EmailStatus::Confirmed => "confirmed",
+                EmailStatus::Unconfirmed => &text.email_unconfirmed,
+                EmailStatus::Confirmed => &text.email_confirmed,
             },
             listed: match rsvp.listed() {
-                NameDisplay::Full => "full name",
-                NameDisplay::Partial => "first name and initial",
-                NameDisplay::Hidden => "not listed",
+                NameDisplay::Full => &text.listed_full,
+                NameDisplay::Partial => &text.listed_partial,
+                NameDisplay::Hidden => &text.listed_hidden,
             },
             responded: rsvp
                 .responded_at
@@ -200,7 +205,7 @@ async fn index_page(state: &AdminState, error: Option<String>, feedback: Feedbac
         None => StatusCode::OK,
     };
     let page = IndexPage {
-        title: &state.config.event.title.nb,
+        title: state.config.event.title.get(lang::current()),
         headcount,
         subscribers: rsvps
             .iter()
@@ -228,18 +233,19 @@ struct IndexQuery {
     groups: Option<usize>,
 }
 
-/// "1 reminder", "3 reminders".
-fn count(n: usize, thing: &str) -> String {
-    match n {
-        1 => format!("1 {thing}"),
-        n => format!("{n} {thing}s"),
-    }
-}
-
 async fn index(State(state): State<AdminState>, Query(query): Query<IndexQuery>) -> Response {
+    let text = lang::text();
     let notice = match (query.reminders, query.groups) {
-        (Some(n), _) => Some(format!("{} queued.", count(n, "reminder"))),
-        (_, Some(n)) => Some(format!("{} created.", count(n, "group"))),
+        (Some(n), _) => Some(count(
+            n,
+            &text.reminders_queued_one,
+            &text.reminders_queued_other,
+        )),
+        (_, Some(n)) => Some(count(
+            n,
+            &text.groups_created_one,
+            &text.groups_created_other,
+        )),
         (None, None) => None,
     };
     let feedback = Feedback {
@@ -279,16 +285,17 @@ struct InviteForm {
 }
 
 impl InviteForm {
-    fn validate(&self) -> Result<String, &'static str> {
+    fn validate(&self) -> Result<String, String> {
         validate(&self.name, self.max_party_size)
     }
 }
 
-fn validate(name: &str, max_party_size: i32) -> Result<String, &'static str> {
+fn validate(name: &str, max_party_size: i32) -> Result<String, String> {
+    let text = lang::text();
     if !(1..=MAX_PARTY_SIZE).contains(&max_party_size) {
-        return Err("The party size must be between 1 and 20.");
+        return Err(fill(&text.error_party_size, &[("max", &MAX_PARTY_SIZE)]));
     }
-    rsvp::normalize_name(name).ok_or("Enter a name of up to 100 characters.")
+    rsvp::normalize_name(name).ok_or_else(|| text.error_name.clone())
 }
 
 /// Several names at once, one per line.
@@ -312,12 +319,14 @@ impl BatchForm {
                 .rsplit_once(',')
                 .and_then(|(name, size)| Some((name, size.trim().parse().ok()?)))
                 .unwrap_or((line, self.max_party_size));
-            let name = validate(name, max_party_size)
-                .map_err(|error| format!("Line {}: {error}", index + 1))?;
+            let name = validate(name, max_party_size).map_err(|error| {
+                let line = index + 1;
+                fill(&lang::text().error_line, &[("n", &line), ("error", &error)])
+            })?;
             entries.push((name, max_party_size));
         }
         if entries.is_empty() {
-            return Err("Enter at least one name.".to_owned());
+            return Err(lang::text().error_no_names.clone());
         }
         Ok(entries)
     }
@@ -368,7 +377,7 @@ struct InvitationsPage {
     /// Only the invitations just created.
     new: bool,
     invitations: Vec<Invitation>,
-    error: Option<&'static str>,
+    error: Option<String>,
 }
 
 struct Invitation {
@@ -417,7 +426,7 @@ struct GuestPage {
     qr: String,
     max_party_size: i32,
     saved: bool,
-    error: Option<&'static str>,
+    error: Option<String>,
 }
 
 impl GuestPage {
@@ -448,7 +457,7 @@ impl GuestPage {
     async fn render_error(
         state: &AdminState,
         id: Uuid,
-        error: &'static str,
+        error: String,
     ) -> Result<Response, PageError> {
         let mut page = Self::load(state, id).await?;
         page.error = Some(error);
@@ -489,7 +498,9 @@ impl From<sqlx::Error> for PageError {
 impl IntoResponse for PageError {
     fn into_response(self) -> Response {
         match self {
-            Self::Missing => (StatusCode::NOT_FOUND, "not found").into_response(),
+            Self::Missing => {
+                (StatusCode::NOT_FOUND, lang::text().not_found.as_str()).into_response()
+            }
             Self::Database(err) => server_error(err),
         }
     }
@@ -552,7 +563,8 @@ async fn delete(
     Form(form): Form<DeleteForm>,
 ) -> Result<Response, PageError> {
     if form.confirm.is_none() {
-        return GuestPage::render_error(&state, id, "Tick the box to confirm the deletion.").await;
+        let error = lang::text().error_confirm_delete.clone();
+        return GuestPage::render_error(&state, id, error).await;
     }
     rsvp::delete(&state.db, id).await?;
     tracing::info!(rsvp = %id, "rsvp deleted by host");
@@ -566,20 +578,21 @@ async fn export_csv(State(state): State<AdminState>) -> Response {
         Err(err) => return server_error(err),
     };
     let tz = state.config.event.starts_at.timezone();
+    let text = lang::text();
     // The byte order mark makes spreadsheet apps read the file as UTF-8 (æ, ø, å).
     let mut csv = String::from("\u{feff}");
     csv_line(
         &mut csv,
         &[
-            "name",
-            "source",
-            "answer",
-            "people",
-            "max people",
-            "e-mail",
-            "guest list",
-            "answered",
-            "link",
+            &text.col_name,
+            &text.col_source,
+            &text.col_answer,
+            &text.col_people,
+            &text.col_max_people,
+            &text.col_email,
+            &text.col_guest_list,
+            &text.col_answered,
+            &text.col_link,
         ],
     );
     for rsvp in &rsvps {
@@ -679,8 +692,10 @@ mod tests {
         }
 
         async fn send(&self, request: axum::http::request::Builder, body: &str) -> Response {
+            // The tests read the British texts.
             let request = request
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .header(header::ACCEPT_LANGUAGE, "en-GB")
                 .header("sec-fetch-site", "same-origin")
                 .body(Body::from(body.to_owned()))
                 .unwrap();
@@ -737,6 +752,7 @@ mod tests {
         let app = router(admin.config.clone(), &admin.admin, admin.db.clone());
         let send = |method: &str, uri: &str| {
             let request = Admin::login(Request::builder().method(method).uri(uri), "admin:secret")
+                .header(header::ACCEPT_LANGUAGE, "en-GB")
                 .header("sec-fetch-site", "same-origin")
                 .header("sec-fetch-mode", "navigate")
                 .body(Body::empty())
@@ -756,6 +772,47 @@ mod tests {
         // The browser asked, and the password was typed again.
         let response = send("GET", "/").await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[sqlx::test]
+    async fn speaks_the_browsers_language_or_the_one_picked(db: PgPool) {
+        let admin = Admin::new(db);
+        let request = Admin::login(Request::get("/"), "admin:secret")
+            .header(header::ACCEPT_LANGUAGE, "nn-NO")
+            .body(Body::empty())
+            .unwrap();
+        let app = router(admin.config.clone(), &admin.admin, admin.db.clone());
+        let html = body(app.oneshot(request).await.unwrap()).await;
+        assert!(html.contains(r#"<html lang="nn""#), "{html}");
+        assert!(html.contains("Nye invitasjonar"), "{html}");
+        // The browser's language needs no carrying.
+        assert!(html.contains(r#"action="/invitations""#), "{html}");
+
+        // A picked one is carried, through forms and redirects too.
+        let html = body(admin.get("/?lang=zh-hant&theme=dark").await).await;
+        assert!(html.contains("新邀請"), "{html}");
+        assert!(
+            html.contains(r#"action="/invitations?lang=zh-hant&#38;theme=dark""#),
+            "{html}"
+        );
+        let response = admin
+            .post(
+                "/groups?lang=zh-hant",
+                "names=%E9%84%B0%E5%B1%85&max_party_size=1",
+            )
+            .await;
+        assert_eq!(location(&response), "/?groups=1&lang=zh-hant#groups");
+        let html = body(admin.get(location(&response)).await).await;
+        assert!(html.contains("已建立 1 個群組。"), "{html}");
+        // A form with a mistake says so in the picked language.
+        let response = admin
+            .post("/invitations?lang=nb", "names=Kari%2C+0&max_party_size=1")
+            .await;
+        let html = body(response).await;
+        assert!(
+            html.contains("Linje 1: Antall personer må være mellom 1 og 20."),
+            "{html}"
+        );
     }
 
     #[sqlx::test]
@@ -928,7 +985,7 @@ mod tests {
         let csv = body(response).await;
         let lines: Vec<&str> = csv.trim_start_matches('\u{feff}').lines().collect();
         assert_eq!(lines.len(), 3);
-        assert!(lines[0].starts_with(r#""name","source","answer""#));
+        assert!(lines[0].starts_with(r#""Name","Source","Answer""#));
         assert!(lines[1].starts_with(r#""'=cmd|' /C calc'!A0","invitation","no answer","1","1""#));
         assert!(lines[2].starts_with(r#""Kari ""K"" Ø","#));
         assert!(lines[2].contains(r#""https://fest.example.com/r/"#));

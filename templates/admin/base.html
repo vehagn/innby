@@ -1,24 +1,39 @@
 <!doctype html>
 {% let theme = crate::theme::Theme::current() %}
-{% let t = crate::i18n::Lang::EnUs.messages() %}
-<html lang="en" data-theme="{{ theme.code() }}">
+{% let lang = crate::admin::lang::current() %}
+{% let t = lang.messages() %}
+<html lang="{{ lang.tag() }}" data-theme="{{ theme.code() }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}{% endblock %} · Innby admin</title>
+  <title>{% block title %}{% endblock %} · Innby {{ t.admin.admin }}</title>
   <link rel="stylesheet" href="{{ crate::web::stylesheet_link() }}">
 </head>
 <body class="admin">
   <header>
-    <a class="brand" href="{{ crate::paths::admin(crate::paths::HOME) }}">Innby <span>admin</span></a>
+    <a class="brand" href="{{ crate::paths::admin(crate::paths::HOME) }}">Innby <span>{{ t.admin.admin }}</span></a>
     <nav class="theme-switch" aria-label="{{ t.theme }}">
       {% for option in crate::theme::Theme::ALL %}
-      <a href="?theme={{ option.code() }}" title="{{ option.label(t) }}"{% if option == theme %} aria-current="true"{% endif %}>{{ option.icon()|safe }}<span class="visually-hidden">{{ option.label(t) }}</span></a>
+      <a href="{{ crate::paths::admin_themed(option) }}" title="{{ option.label(t) }}"{% if option == theme %} aria-current="true"{% endif %}>{{ option.icon()|safe }}<span class="visually-hidden">{{ option.label(t) }}</span></a>
       {% endfor %}
+    </nav>
+    <nav class="lang-menu" aria-label="{{ t.languages }}">
+      <details>
+        <summary title="{{ t.languages }}">
+          <svg class="globe" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3"/></svg>
+          <span class="badge" aria-hidden="true">{{ lang.badge() }}</span>
+          <span class="visually-hidden">{{ t.languages }}: {{ t.language_name }}</span>
+        </summary>
+        <ul>
+          {% for other in lang.others() %}
+          <li><a href="{{ crate::paths::themed(other, theme) }}" hreflang="{{ other.tag() }}" lang="{{ other.tag() }}"><span class="badge" aria-hidden="true">{{ other.badge() }}</span>{{ other.messages().language_name }}</a></li>
+          {% endfor %}
+        </ul>
+      </details>
     </nav>
     {% block account %}
     <form class="logout" method="post" action="{{ crate::paths::admin(crate::paths::LOGOUT) }}">
-      <button class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg>Log out</button>
+      <button class="pill" title="{{ t.admin.log_out }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg><span class="label">{{ t.admin.log_out }}</span></button>
     </form>
     {% endblock %}
   </header>

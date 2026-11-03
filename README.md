@@ -49,14 +49,16 @@ ports themselves.
 
 ## Translate
 
-Every text on the public site and in the mails is in [`locales/`](locales/): `nb.toml`
+Every text on the public site, the admin UI and in the mails is in
+[`locales/`](locales/): `nb.toml`
 (Bokmål), `nn.toml` (Nynorsk), `en.toml` (British, posh), `en-us.toml` (American,
 simplified), `zh-hans.toml` (Simplified Chinese) and `zh-hant.toml` (Traditional
 Chinese). Punctuation that differs between scripts, like "：" for ": ", is part of the
 texts, with placeholders such as `{name}` where a value goes. All files have the same keys; keep placeholders like `{name}` as they are.
 `just test` checks that the files agree. The privacy notice is
 an HTML template per language, in [`templates/privacy/`](templates/privacy/). The admin
-UI is English only.
+UI's texts are under `[admin]`; it follows the browser's language too, and has the same
+language menu.
 
 ## Run a local copy
 

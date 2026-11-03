@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use super::{
     AdminState, BatchForm, DeleteForm, Feedback, InviteForm, PageError, Row, ShowQuery, index_page,
-    local, qr_svg,
+    lang, local, qr_svg,
 };
 use crate::{
     config::Config,
@@ -103,7 +103,7 @@ struct GroupPage {
     max_party_size: i32,
     accepts_answers: bool,
     saved: bool,
-    error: Option<&'static str>,
+    error: Option<String>,
 }
 
 impl GroupPage {
@@ -133,7 +133,7 @@ impl GroupPage {
     async fn render_error(
         state: &AdminState,
         id: Uuid,
-        error: &'static str,
+        error: String,
     ) -> Result<Response, PageError> {
         let mut page = Self::load(state, id).await?;
         page.error = Some(error);
@@ -192,17 +192,14 @@ pub(super) async fn delete(
     Form(form): Form<DeleteForm>,
 ) -> Result<Response, PageError> {
     if form.confirm.is_none() {
-        return GroupPage::render_error(&state, id, "Tick the box to confirm the deletion.").await;
+        let error = lang::text().error_confirm_delete.clone();
+        return GroupPage::render_error(&state, id, error).await;
     }
     if !group::delete_unused(&state.db, id).await? {
         return match group::find(&state.db, id).await? {
             Some(_) => {
-                GroupPage::render_error(
-                    &state,
-                    id,
-                    "People have signed up through this group, so it can't be deleted.",
-                )
-                .await
+                let error = lang::text().error_group_in_use.clone();
+                GroupPage::render_error(&state, id, error).await
             }
             None => Err(PageError::Missing),
         };

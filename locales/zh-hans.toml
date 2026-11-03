@@ -1,5 +1,6 @@
-# Simplified Chinese texts for the public site and the mails. Every language has the
-# same keys; a missing or unknown key fails the tests and stops fest at start.
+# Simplified Chinese texts for the public site, the admin pages and the mails.
+# Every language has the same keys; a missing or unknown key fails the tests and stops
+# fest at start.
 # `{name}` and the like are filled in; keep them as they are.
 
 # The language's own name, on the language switch.
@@ -123,6 +124,131 @@ to_event = "返回首页"
 too_many_attempts = "尝试次数过多，请一小时后再试。"
 not_found_title = "页面不存在"
 not_found_text = "请检查链接是否正确，或询问主人。"
+
+# The host's admin pages. Pairs ending in _one and _other are for one of something
+# and for any other number.
+[admin]
+# After "Innby" in the header and the page titles.
+admin = "管理"
+log_out = "退出登录"
+log_in = "登录"
+log_in_text = "查看宾客名单需要管理员用户名和密码。"
+logged_out = "已退出登录"
+logged_out_text = "浏览器会先要求输入用户名和密码，然后才会再次显示宾客名单。"
+too_many_logins = "登录尝试次数过多，请 15 分钟后再试。"
+not_found = "找不到这位宾客或这个群组。"
+saved = "已保存。"
+
+# The headcount
+coming_one = "{n} 人参加"
+coming_other = "{n} 人参加"
+parties_one = "（{n} 份回复）"
+parties_other = "（{n} 份回复）"
+not_coming = "不参加：{n}"
+no_answer = "未回复：{n}"
+
+# Invitations
+new_invitations = "新邀请"
+new_invitations_hint = "每行一位宾客或一个家庭，每行各得一个专属链接。要为某一行单独设定人数上限，请在行末加英文逗号和数字。"
+names = "姓名"
+# Example lines in the empty box, one per line. Keep the comma before a number.
+names_placeholder = "张伟和王芳, 2\n李娜"
+max_per_invitation = "每份邀请最多人数"
+create_invitations = "创建邀请"
+all_invitation_links = "所有邀请链接"
+invitation_links = "邀请链接"
+invitation_links_hint = "每位宾客的链接只发给本人：任何拿到链接的人都能替这位宾客回复。CSV 文件里有相同的链接，可用于邮件合并。"
+no_invitations = "还没有邀请。"
+invitations_created_one = "已创建 {n} 份邀请。"
+invitations_created_other = "已创建 {n} 份邀请。"
+
+# Group links
+group_links = "群组链接"
+group_links_hint = "供一群人报名的链接，可以发到群聊或印在海报上。任何拿到链接的人都能填写姓名报名，并得到自己的专属链接。"
+closed = "已关闭：回复截止日期已过。"
+no_groups = "还没有群组。"
+# The label of a group's link field, for screen readers.
+link_for = "{name} 的链接"
+new_groups = "新群组，每行一个"
+# Example lines in the empty box, one per line. Keep the comma before a number.
+groups_placeholder = "攀岩俱乐部\n邻居, 4"
+max_per_sign_up = "每次报名最多人数"
+create_groups = "创建群组"
+groups_created_one = "已创建 {n} 个群组。"
+groups_created_other = "已创建 {n} 个群组。"
+sign_up_link = "报名链接"
+group_link_hint_one = "把它发到群组成员看得到的地方，例如群聊。任何拿到链接的人都能填写姓名报名，每次最多 {n} 人，并得到自己的专属链接。被转发到的人也能报名。"
+group_link_hint_other = "把它发到群组成员看得到的地方，例如群聊。任何拿到链接的人都能填写姓名报名，每次最多 {n} 人，并得到自己的专属链接。被转发到的人也能报名。"
+group_link = "群组的链接"
+group_new_link_hint = "当前链接将失效。已报名的人仍可使用自己的链接。"
+no_sign_ups = "还没有人通过此链接报名。"
+group_name = "群组名称"
+max_for_new_sign_ups = "每次报名最多人数（仅限新报名）"
+delete_group = "删除群组 {name} 及其链接"
+group_in_use_hint = "已有人通过此群组报名，因此无法删除。要停止新的报名，请生成新链接并且不要分享。"
+
+# Guests
+guests = "宾客"
+no_guests = "还没有宾客。"
+download_csv = "下载 CSV"
+link = "链接"
+guest_link = "宾客的链接"
+guest_link_hint = "任何拿到此链接的人都能替这位宾客回复。请只发给本人。"
+new_link = "生成新链接"
+new_link_hint = "当前链接将失效。"
+edit = "编辑"
+name_or_household = "姓名或家庭"
+max_people = "最多人数"
+save = "保存"
+delete = "删除"
+delete_guest = "删除 {name} 及其所有已存储的信息"
+
+# Reminders
+reminders = "提醒"
+subscribers_one = "{n} 位宾客已确认电子邮件地址。"
+subscribers_other = "{n} 位宾客已确认电子邮件地址。"
+reminders_hint = "提醒会发给所有没有谢绝的宾客，每人一次。"
+send_reminders = "发送提醒"
+reminders_queued_one = "已安排发送 {n} 条提醒。"
+reminders_queued_other = "已安排发送 {n} 条提醒。"
+
+# Table columns and facts, also the CSV's header
+col_name = "姓名"
+col_answer = "回复"
+col_people = "人数"
+col_max_people = "最多人数"
+col_source = "来源"
+col_guest_list = "宾客名单"
+col_email = "电子邮件"
+col_answered = "回复时间"
+col_created = "创建时间"
+col_group = "群组"
+col_signed_up = "已报名"
+col_people_each = "每次人数"
+col_link = "链接"
+
+# A guest's row
+answer_pending = "未回复"
+answer_attending = "参加"
+answer_declined = "不参加"
+source_invitation = "邀请"
+source_sign_up = "报名"
+# A sign-up through a group's link.
+source_group = "报名：{group}"
+email_unconfirmed = "未确认"
+email_confirmed = "已确认"
+listed_full = "全名"
+listed_partial = "部分姓名"
+listed_hidden = "不显示"
+
+# Errors
+error_party_size = "人数须在 1 到 {max} 之间。"
+error_name = "请输入不超过 100 个字符的姓名。"
+# A line of a batch that needs fixing.
+error_line = "第 {n} 行：{error}"
+error_no_names = "请至少输入一个姓名。"
+error_confirm_delete = "请勾选方框以确认删除。"
+error_group_in_use = "已有人通过此群组报名，因此无法删除。"
 
 # Mails. Each is plain text; `{url}` is a link on the site and `{title}` the event.
 [mail]

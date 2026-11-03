@@ -1,5 +1,6 @@
-# Norwegian (bokmål) texts for the public site and the mails. Every language has the
-# same keys; a missing or unknown key fails the tests and stops fest at start.
+# Norwegian (bokmål) texts for the public site, the admin pages and the mails.
+# Every language has the same keys; a missing or unknown key fails the tests and stops
+# fest at start.
 # `{name}` and the like are filled in; keep them as they are.
 
 # The language's own name, on the language switch.
@@ -137,6 +138,148 @@ to_event = "Til forsiden"
 too_many_attempts = "For mange forsøk herfra. Prøv igjen om en time."
 not_found_title = "Siden finnes ikke"
 not_found_text = "Sjekk at lenken er riktig, eller spør verten."
+
+# The host's admin pages. Pairs ending in _one and _other are for one of something
+# and for any other number.
+[admin]
+# After "Innby" in the header and the page titles.
+admin = "admin"
+log_out = "Logg ut"
+log_in = "Logg inn"
+log_in_text = "Gjestelisten krever brukernavnet og passordet til admin."
+logged_out = "Logget ut"
+logged_out_text = """
+Nettleseren ber om brukernavn og passord før den viser gjestelisten igjen."""
+too_many_logins = "For mange innloggingsforsøk. Prøv igjen om 15 minutter."
+not_found = "Fant ingen slik gjest eller gruppe."
+saved = "Lagret."
+
+# The headcount
+coming_one = "{n} person kommer"
+coming_other = "{n} personer kommer"
+parties_one = "({n} påmelding)"
+parties_other = "({n} påmeldinger)"
+not_coming = "{n} kommer ikke"
+no_answer = "{n} har ikke svart"
+
+# Invitations
+new_invitations = "Nye invitasjoner"
+new_invitations_hint = """
+Én gjest eller husstand per linje, og hver får sin egen lenke. For å gi en linje et \
+eget maksimum, avslutt den med komma og et tall."""
+names = "Navn"
+# Example lines in the empty box, one per line. Keep the comma before a number.
+names_placeholder = "Kari & Ola Nordmann, 2\nPer Hansen"
+max_per_invitation = "Maks antall personer per invitasjon"
+create_invitations = "Opprett invitasjoner"
+all_invitation_links = "Alle invitasjonslenker"
+invitation_links = "Invitasjonslenker"
+invitation_links_hint = """
+Send hver gjest sin egen lenke og ingen andres: alle med en lenke kan svare for den \
+gjesten. CSV-filen har de samme lenkene, for brevfletting."""
+no_invitations = "Ingen invitasjoner ennå."
+invitations_created_one = "{n} invitasjon opprettet."
+invitations_created_other = "{n} invitasjoner opprettet."
+
+# Group links
+group_links = "Gruppelenker"
+group_links_hint = """
+En påmeldingslenke for en gruppe folk, til gruppechatten eller en plakat. Alle med \
+lenken kan melde seg på med navn og får sin egen lenke tilbake."""
+closed = "Stengt: svarfristen har gått ut."
+no_groups = "Ingen grupper ennå."
+# The label of a group's link field, for screen readers.
+link_for = "Lenke for {name}"
+new_groups = "Nye grupper, én per linje"
+# Example lines in the empty box, one per line. Keep the comma before a number.
+groups_placeholder = "Klatreklubben\nNaboer, 4"
+max_per_sign_up = "Maks antall personer per påmelding"
+create_groups = "Opprett grupper"
+groups_created_one = "{n} gruppe opprettet."
+groups_created_other = "{n} grupper opprettet."
+sign_up_link = "Påmeldingslenke"
+group_link_hint_one = """
+Del denne der gruppen ser den, for eksempel i gruppechatten. Alle med lenken kan \
+melde seg på med navn, for opptil {n} person hver, og får sin egen lenke tilbake. \
+Også de lenken sendes videre til, kan melde seg på."""
+group_link_hint_other = """
+Del denne der gruppen ser den, for eksempel i gruppechatten. Alle med lenken kan \
+melde seg på med navn, for opptil {n} personer hver, og får sin egen lenke tilbake. \
+Også de lenken sendes videre til, kan melde seg på."""
+group_link = "Gruppens lenke"
+group_new_link_hint = """
+Den nåværende lenken slutter å virke. De som har meldt seg på, beholder sine egne \
+lenker."""
+no_sign_ups = "Ingen har meldt seg på via denne lenken ennå."
+group_name = "Gruppenavn"
+max_for_new_sign_ups = "Maks antall personer per påmelding, for nye påmeldinger"
+delete_group = "Slett gruppen {name} og lenken dens"
+group_in_use_hint = """
+Noen har meldt seg på via denne gruppen, så den kan ikke slettes. For å stoppe nye \
+påmeldinger kan du lage en ny lenke og la være å dele den."""
+
+# Guests
+guests = "Gjester"
+no_guests = "Ingen gjester ennå."
+download_csv = "Last ned CSV"
+link = "Lenke"
+guest_link = "Gjestens lenke"
+guest_link_hint = "Alle med denne lenken kan svare for gjesten. Send den bare til dem."
+new_link = "Lag en ny lenke"
+new_link_hint = "Den nåværende lenken slutter å virke."
+edit = "Endre"
+name_or_household = "Navn eller husstand"
+max_people = "Maks antall personer"
+save = "Lagre"
+delete = "Slett"
+delete_guest = "Slett {name} og alt som er lagret om dem"
+
+# Reminders
+reminders = "Påminnelser"
+subscribers_one = "{n} gjest har en bekreftet e-postadresse."
+subscribers_other = "{n} gjester har en bekreftet e-postadresse."
+reminders_hint = "En påminnelse går til dem som ikke har takket nei, én gang per gjest."
+send_reminders = "Send påminnelser"
+reminders_queued_one = "{n} påminnelse lagt i kø."
+reminders_queued_other = "{n} påminnelser lagt i kø."
+
+# Table columns and facts, also the CSV's header
+col_name = "Navn"
+col_answer = "Svar"
+col_people = "Personer"
+col_max_people = "Maks personer"
+col_source = "Kilde"
+col_guest_list = "Gjesteliste"
+col_email = "E-post"
+col_answered = "Svart"
+col_created = "Opprettet"
+col_group = "Gruppe"
+col_signed_up = "Påmeldt"
+col_people_each = "Personer hver"
+col_link = "Lenke"
+
+# A guest's row
+answer_pending = "ikke svart"
+answer_attending = "kommer"
+answer_declined = "kommer ikke"
+source_invitation = "invitasjon"
+source_sign_up = "påmelding"
+# A sign-up through a group's link.
+source_group = "påmelding: {group}"
+email_unconfirmed = "ubekreftet"
+email_confirmed = "bekreftet"
+listed_full = "fullt navn"
+listed_partial = "fornavn og initial"
+listed_hidden = "ikke på listen"
+
+# Errors
+error_party_size = "Antall personer må være mellom 1 og {max}."
+error_name = "Skriv inn et navn på opptil 100 tegn."
+# A line of a batch that needs fixing.
+error_line = "Linje {n}: {error}"
+error_no_names = "Skriv inn minst ett navn."
+error_confirm_delete = "Kryss av i boksen for å bekrefte slettingen."
+error_group_in_use = "Noen har meldt seg på via denne gruppen, så den kan ikke slettes."
 
 # Mails. Each is plain text; `{url}` is a link on the site and `{title}` the event.
 [mail]

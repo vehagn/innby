@@ -63,16 +63,29 @@ pub fn themed(lang: impl Borrow<Lang>, theme: impl Borrow<Theme>) -> String {
     format!("?lang={}{}", lang.code(), theme.param())
 }
 
-/// An admin path in the colour scheme the host picked. The admin site has one language,
-/// so only the scheme is carried.
+/// An admin path in the language and colour scheme the host picked, if they did.
 pub fn admin(path: &str) -> String {
-    let param = Theme::current().param();
-    if param.is_empty() {
-        return path.to_owned();
-    }
     let (path, fragment) = path.split_at(path.find('#').unwrap_or(path.len()));
-    let separator = if path.contains('?') { "&" } else { "?" };
-    format!("{path}{separator}{}{fragment}", &param[1..])
+    let mut url = path.to_owned();
+    let lang = crate::admin::lang::picked().map(|lang| format!("lang={}", lang.code()));
+    let theme = Theme::current()
+        .param()
+        .strip_prefix('&')
+        .map(str::to_owned);
+    for param in [lang, theme].into_iter().flatten() {
+        url.push(if url.contains('?') { '&' } else { '?' });
+        url.push_str(&param);
+    }
+    url + fragment
+}
+
+/// The query for this admin page in another colour scheme, keeping a picked language.
+pub fn admin_themed(theme: impl Borrow<Theme>) -> String {
+    let theme = theme.borrow().code();
+    match crate::admin::lang::picked() {
+        Some(lang) => format!("?lang={}&theme={theme}", lang.code()),
+        None => format!("?theme={theme}"),
+    }
 }
 
 /// The pages every public page can link to, in this language.

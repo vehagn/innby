@@ -319,7 +319,136 @@ pub struct Messages {
     pub not_found_title: String,
     pub not_found_text: String,
 
+    pub admin: AdminMessages,
     pub mail: Mails,
+}
+
+/// The host's admin pages. Pairs ending in `_one` and `_other` are for one of something
+/// and for any other number, picked with `count`.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AdminMessages {
+    /// After "Innby" in the header and the page titles.
+    pub admin: String,
+    pub log_out: String,
+    pub log_in: String,
+    pub log_in_text: String,
+    pub logged_out: String,
+    pub logged_out_text: String,
+    pub too_many_logins: String,
+    pub not_found: String,
+    pub saved: String,
+
+    // The headcount
+    pub coming_one: String,
+    pub coming_other: String,
+    pub parties_one: String,
+    pub parties_other: String,
+    pub not_coming: String,
+    pub no_answer: String,
+
+    // Invitations
+    pub new_invitations: String,
+    pub new_invitations_hint: String,
+    pub names: String,
+    /// Example lines in the empty box, one per line.
+    pub names_placeholder: String,
+    pub max_per_invitation: String,
+    pub create_invitations: String,
+    pub all_invitation_links: String,
+    pub invitation_links: String,
+    pub invitation_links_hint: String,
+    pub no_invitations: String,
+    pub invitations_created_one: String,
+    pub invitations_created_other: String,
+
+    // Group links
+    pub group_links: String,
+    pub group_links_hint: String,
+    pub closed: String,
+    pub no_groups: String,
+    /// The label of a group's link field, for screen readers.
+    pub link_for: String,
+    pub new_groups: String,
+    /// Example lines in the empty box, one per line.
+    pub groups_placeholder: String,
+    pub max_per_sign_up: String,
+    pub create_groups: String,
+    pub groups_created_one: String,
+    pub groups_created_other: String,
+    pub sign_up_link: String,
+    pub group_link_hint_one: String,
+    pub group_link_hint_other: String,
+    pub group_link: String,
+    pub group_new_link_hint: String,
+    pub no_sign_ups: String,
+    pub group_name: String,
+    pub max_for_new_sign_ups: String,
+    pub delete_group: String,
+    pub group_in_use_hint: String,
+
+    // Guests
+    pub guests: String,
+    pub no_guests: String,
+    pub download_csv: String,
+    pub link: String,
+    pub guest_link: String,
+    pub guest_link_hint: String,
+    pub new_link: String,
+    pub new_link_hint: String,
+    pub edit: String,
+    pub name_or_household: String,
+    pub max_people: String,
+    pub save: String,
+    pub delete: String,
+    pub delete_guest: String,
+
+    // Reminders
+    pub reminders: String,
+    pub subscribers_one: String,
+    pub subscribers_other: String,
+    pub reminders_hint: String,
+    pub send_reminders: String,
+    pub reminders_queued_one: String,
+    pub reminders_queued_other: String,
+
+    // Table columns and facts, also the CSV's header
+    pub col_name: String,
+    pub col_answer: String,
+    pub col_people: String,
+    pub col_max_people: String,
+    pub col_source: String,
+    pub col_guest_list: String,
+    pub col_email: String,
+    pub col_answered: String,
+    pub col_created: String,
+    pub col_group: String,
+    pub col_signed_up: String,
+    pub col_people_each: String,
+    pub col_link: String,
+
+    // A guest's row
+    pub answer_pending: String,
+    pub answer_attending: String,
+    pub answer_declined: String,
+    pub source_invitation: String,
+    pub source_sign_up: String,
+    /// A sign-up through a group's link.
+    pub source_group: String,
+    pub email_unconfirmed: String,
+    pub email_confirmed: String,
+    pub listed_full: String,
+    pub listed_partial: String,
+    pub listed_hidden: String,
+
+    // Errors
+    pub error_party_size: String,
+    pub error_name: String,
+    /// A batch line that needs fixing: "Line {n}: {error}".
+    pub error_line: String,
+    pub error_no_names: String,
+    pub error_confirm_delete: String,
+    pub error_group_in_use: String,
 }
 
 /// The mails, in plain text.
@@ -387,8 +516,21 @@ impl Messages {
     }
 }
 
+/// `one` if `n` is 1, else `other`, with `{n}` filled in.
+pub fn count(n: impl Display, one: &str, other: &str) -> String {
+    let n = n.to_string();
+    fill(if n == "1" { one } else { other }, &[("n", &n)])
+}
+
+/// `count`, with the number as `<strong>n</strong>` and all of it escaped. For
+/// templates, with `|safe`.
+pub fn bold_count(n: impl Display, one: &str, other: &str) -> String {
+    let n = n.to_string();
+    bold(if n == "1" { one } else { other }, "n", &n)
+}
+
 /// `text` with its one `{key}` filled in. For templates, which escape the result.
-pub fn filled(text: &str, key: &str, value: &str) -> String {
+pub fn filled(text: &str, key: &str, value: impl Display) -> String {
     fill(text, &[(key, &value)])
 }
 
@@ -584,5 +726,13 @@ mod tests {
         assert_eq!(nb.answer(Response::Declined, 2), "Kommer ikke");
         assert_eq!(en.more_guests(3), "+ 3 more");
         assert_eq!(nb.more_guests(1), "+ 1 til");
+        assert_eq!(
+            count(1, &us.admin.coming_one, &us.admin.coming_other),
+            "1 person going"
+        );
+        assert_eq!(
+            bold_count(3, &nb.admin.coming_one, &nb.admin.coming_other),
+            "<strong>3</strong> personer kommer"
+        );
     }
 }

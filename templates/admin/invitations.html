@@ -1,25 +1,25 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Invitation links{% endblock %}
+{% block title %}{{ crate::admin::lang::text().invitation_links }}{% endblock %}
 
 {% block content %}
+{% let a = crate::admin::lang::text() %}
 {% if new %}
-<p class="notice success" role="status">{{ invitations.len() }} {% if invitations.len() == 1 %}invitation{% else %}invitations{% endif %} created.</p>
-<h1>New invitations</h1>
+<p class="notice success" role="status">{{ crate::i18n::count(invitations.len(), a.invitations_created_one, a.invitations_created_other) }}</p>
+<h1>{{ a.new_invitations }}</h1>
 {% else %}
-<h1>Invitation links</h1>
+<h1>{{ a.invitation_links }}</h1>
 {% endif %}
-<p class="muted small">Send each guest their own link and no one else's: anyone with a link
-  can answer for that guest. The <a href="{{ crate::paths::admin(crate::paths::GUESTS_CSV) }}" download>CSV</a> has the same links, for a
-  mail merge.</p>
+<p class="muted small">{{ a.invitation_links_hint }}
+  <a href="{{ crate::paths::admin(crate::paths::GUESTS_CSV) }}" download>{{ a.download_csv }}</a></p>
 
 {% if invitations.is_empty() %}
-<p class="muted">No invitations yet.</p>
+<p class="muted">{{ a.no_invitations }}</p>
 {% else %}
 <div class="table-wrap">
 <table>
   <thead>
-    <tr><th>Name</th><th>Answer</th><th>People</th><th>Link</th></tr>
+    <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th><th>{{ a.col_link }}</th></tr>
   </thead>
   <tbody>
     {% for invitation in invitations %}
@@ -27,7 +27,7 @@
       <td><a href="{{ invitation.row.path }}">{{ invitation.row.name }}</a></td>
       <td>{{ invitation.row.answer }}</td>
       <td>{{ invitation.row.party }}</td>
-      <td><input type="text" readonly value="{{ invitation.url }}" aria-label="Link for {{ invitation.row.name }}"></td>
+      <td><input type="text" readonly value="{{ invitation.url }}" aria-label="{{ crate::i18n::filled(a.link_for, "name", invitation.row.name) }}"></td>
     </tr>
     {% endfor %}
   </tbody>

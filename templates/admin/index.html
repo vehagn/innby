@@ -1,42 +1,42 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Guests{% endblock %}
+{% block title %}{{ crate::admin::lang::text().guests }}{% endblock %}
 
 {% block content %}
+{% let a = crate::admin::lang::text() %}
 {% if let Some(notice) = feedback.notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
 <h1>{{ title }}</h1>
 <p class="stats">
-  <strong>{{ headcount.attending_people }}</strong> people coming
-  ({{ headcount.attending_parties }} {% if headcount.attending_parties == 1 %}party{% else %}parties{% endif %}) ·
-  {{ headcount.declined }} not coming · {{ headcount.pending }} no answer
+  {{ crate::i18n::bold_count(headcount.attending_people, a.coming_one, a.coming_other)|safe }}
+  {{ crate::i18n::count(headcount.attending_parties, a.parties_one, a.parties_other) }} ·
+  {{ crate::i18n::filled(a.not_coming, "n", headcount.declined) }} ·
+  {{ crate::i18n::filled(a.no_answer, "n", headcount.pending) }}
 </p>
 
 <section class="card">
-  <h2>New invitations</h2>
-  <p class="muted small">One guest or household per line, and each gets their own link. To give
-    a line its own maximum, end it with a comma and a number.</p>
+  <h2>{{ a.new_invitations }}</h2>
+  <p class="muted small">{{ a.new_invitations_hint }}</p>
   <form method="post" action="{{ crate::paths::admin(crate::paths::INVITATIONS) }}">
-    <label for="names">Names</label>
-    <textarea id="names" name="names" rows="5" required placeholder="Kari &amp; Ola Nordmann, 2&#10;Per Hansen">{{ feedback.invitations }}</textarea>
-    <label for="max_party_size">Max people per invitation</label>
+    <label for="names">{{ a.names }}</label>
+    <textarea id="names" name="names" rows="5" required placeholder="{{ a.names_placeholder }}">{{ feedback.invitations }}</textarea>
+    <label for="max_party_size">{{ a.max_per_invitation }}</label>
     <input id="max_party_size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="2" required>
-    <button>Create invitations</button>
+    <button>{{ a.create_invitations }}</button>
   </form>
-  <p><a href="{{ crate::paths::admin(crate::paths::INVITATIONS) }}">All invitation links</a></p>
+  <p><a href="{{ crate::paths::admin(crate::paths::INVITATIONS) }}">{{ a.all_invitation_links }}</a></p>
 </section>
 
 <section class="card" id="groups">
-  <h2>Group links</h2>
-  <p class="muted small">A sign-up link for a group of people, for its group chat or a poster.
-    Anyone with it can sign up with a name and gets their own link back.</p>
-  {% if !accepts_answers %}<p class="notice" role="status">Closed: the answer deadline has passed.</p>{% endif %}
+  <h2>{{ a.group_links }}</h2>
+  <p class="muted small">{{ a.group_links_hint }}</p>
+  {% if !accepts_answers %}<p class="notice" role="status">{{ a.closed }}</p>{% endif %}
   {% if groups.is_empty() %}
-  <p class="muted">No groups yet.</p>
+  <p class="muted">{{ a.no_groups }}</p>
   {% else %}
   <div class="table-wrap">
   <table>
     <thead>
-      <tr><th>Group</th><th>Signed up</th><th>People each</th><th>Link</th></tr>
+      <tr><th>{{ a.col_group }}</th><th>{{ a.col_signed_up }}</th><th>{{ a.col_people_each }}</th><th>{{ a.col_link }}</th></tr>
     </thead>
     <tbody>
       {% for group in groups %}
@@ -44,7 +44,7 @@
         <td><a href="{{ group.path }}">{{ group.name }}</a></td>
         <td>{{ group.sign_ups }}</td>
         <td>{{ group.max_party_size }}</td>
-        <td><input type="text" readonly value="{{ group.url }}" aria-label="Link for {{ group.name }}"></td>
+        <td><input type="text" readonly value="{{ group.url }}" aria-label="{{ crate::i18n::filled(a.link_for, "name", group.name) }}"></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -52,22 +52,22 @@
   </div>
   {% endif %}
   <form method="post" action="{{ crate::paths::admin(crate::paths::GROUPS) }}">
-    <label for="group-names">New groups, one per line</label>
-    <textarea id="group-names" name="names" rows="3" required placeholder="Climbing club&#10;Neighbours, 4">{{ feedback.groups }}</textarea>
-    <label for="group-size">Max people per sign-up</label>
+    <label for="group-names">{{ a.new_groups }}</label>
+    <textarea id="group-names" name="names" rows="3" required placeholder="{{ a.groups_placeholder }}">{{ feedback.groups }}</textarea>
+    <label for="group-size">{{ a.max_per_sign_up }}</label>
     <input id="group-size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="2" required>
-    <button>Create groups</button>
+    <button>{{ a.create_groups }}</button>
   </form>
 </section>
 
-<h2>Guests</h2>
+<h2>{{ a.guests }}</h2>
 {% if rows.is_empty() %}
-<p class="muted">No guests yet.</p>
+<p class="muted">{{ a.no_guests }}</p>
 {% else %}
 <div class="table-wrap">
 <table>
   <thead>
-    <tr><th>Name</th><th>Answer</th><th>People</th><th>Source</th><th>Guest list</th><th>E-mail</th><th>Answered</th></tr>
+    <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th><th>{{ a.col_source }}</th><th>{{ a.col_guest_list }}</th><th>{{ a.col_email }}</th><th>{{ a.col_answered }}</th></tr>
   </thead>
   <tbody>
     {% for row in rows %}
@@ -85,13 +85,13 @@
 </table>
 </div>
 {% endif %}
-<p><a href="{{ crate::paths::admin(crate::paths::GUESTS_CSV) }}" download>Download CSV</a></p>
+<p><a href="{{ crate::paths::admin(crate::paths::GUESTS_CSV) }}" download>{{ a.download_csv }}</a></p>
 
 <section class="card">
-  <h2>Reminders</h2>
-  <p>{{ subscribers }} {% if subscribers == 1 %}guest has{% else %}guests have{% endif %} a confirmed e-mail address. A reminder goes to those who haven't declined, once per guest.</p>
+  <h2>{{ a.reminders }}</h2>
+  <p>{{ crate::i18n::count(subscribers, a.subscribers_one, a.subscribers_other) }} {{ a.reminders_hint }}</p>
   <form method="post" action="{{ crate::paths::admin(crate::paths::REMINDERS) }}">
-    <button class="secondary">Send reminders</button>
+    <button class="secondary">{{ a.send_reminders }}</button>
   </form>
 </section>
 {% endblock %}

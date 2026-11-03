@@ -46,7 +46,7 @@ You had no preference, and the devcontainer removes Go's main advantage (it was 
 | TLS roots | `rustls` + `webpki-roots`: CA roots compiled in, so the image needs no `/etc/ssl` |
 
 - **CSRF:** axum has no built-in equivalent of Go's `CrossOriginProtection`, so we add a ~20-line middleware that does the same thing. For unsafe methods it requires `Sec-Fetch-Site` to be `same-origin` or `none`, or (for older browsers) the `Origin` host to match the `Host` header. This needs no cookies, and works unchanged for both the public and the admin hostname.
-- **i18n:** four languages still don't need Fluent. Each language's texts, mails included, live in `locales/{lang}.toml`, compiled into the binary and read into one `Messages` struct that the templates use. A missing or unknown key, or a placeholder like `{name}` that one language has and another lacks, fails the tests and stops the program at start. The privacy notice is a template per language, since it's a document rather than strings.
+- **i18n:** six languages still don't need Fluent. Each language's texts, mails and the admin UI included, live in `locales/{lang}.toml`, compiled into the binary and read into one `Messages` struct that the templates use. A missing or unknown key, or a placeholder like `{name}` that one language has and another lacks, fails the tests and stops the program at start. The privacy notice is a template per language, since it's a document rather than strings.
 - **Cross-compiling:** the devcontainer runs arm64 on your Mac, the cluster is amd64, and the image is published for both. `cargo zigbuild --target x86_64-unknown-linux-musl --target aarch64-unknown-linux-musl` (with Zig as the linker) handles that, including the C code inside `ring`.
 
 ## 3. Architecture: should we split it into microservices?
@@ -342,6 +342,7 @@ just manifests           # render deploy/ with kustomize (Argo CD does the deplo
 15. ✅ **Chinese:** Simplified and Traditional, with punctuation moved from the templates into the texts, and partial names that keep only the family name for names in Chinese, Japanese or Korean script ("王**").
 16. ✅ **Renamed to Innby** (from fest): the crate, binary and commands, the `INNBY_*` settings, the image, the Kubernetes names and the databases. The hostnames stay as they are.
 17. ✅ **Multi-arch and a local copy:** CI builds amd64 and arm64 binaries and pushes their scratch images as one OCI image index; `compose.yaml` and `just up` run a local copy of the published image.
+18. ✅ **Admin in every language:** the admin UI's texts in `[admin]` in each locale file, its CSV header too, and the same language menu, theme switch and header as the public site, plus a logout.
 
 ## 14. Decisions
 
