@@ -29,7 +29,7 @@ RUN apt-get update; \
       > /etc/apt/sources.list.d/pgdg.list; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      bash-completion file jq less postgresql-client-18 sudo xz-utils; \
+      bash-completion file jq less postgresql-client-18 skopeo sudo xz-utils; \
     rm -rf /var/lib/apt/lists/*
 
 # Zig is the cross-linker used by cargo-zigbuild.

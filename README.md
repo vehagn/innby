@@ -59,8 +59,11 @@ the site, admin UI and mailer. The site is on http://localhost:8080, the admin U
 http://localhost:8081 (user `admin`, password `innby`), and the mail it sends on
 http://localhost:8025. Settings come from `.env.example`, overridden by `.env` if there is
 one. `just up v1.0.0` runs a given tag, `just up-janitor` applies the retention rules,
-and `just down` stops it all. It uses `docker compose` unless `COMPOSE` says otherwise,
-e.g. `COMPOSE="podman compose"`.
+and `just down` stops it all. It uses Docker unless `ENGINE` says otherwise, e.g.
+`ENGINE=podman`.
+
+To run your own build instead, run `just image dev` in the dev container, then
+`just load` and `just up dev` on the host.
 
 ## Deploy
 

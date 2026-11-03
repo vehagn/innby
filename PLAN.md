@@ -15,7 +15,7 @@ Plan for a small, GDPR-compliant page where ~100 guests say whether they're comi
 - Pages in **Bokmål, Nynorsk, British English ("traditional", a touch posh), American English ("simplified", short and plain), and Simplified and Traditional Chinese**, chosen from the browser's `Accept-Language`, with a switch through `?lang=nb|nn|en|en-us|zh-hans|zh-hant` (no cookie). English is British unless the browser asks for `en-US`; Chinese is Simplified unless it's Traditional or from Taiwan, Hong Kong or Macau.
 - An admin UI for you: create invitations and group links in batches, revoke them, see the headcount, export CSV.
 - Built for GDPR from the start: minimal data, clear retention, automatic deletion, no cookies or third-party assets.
-- A tiny OCI image that holds nothing but the binary, built with buildah and driven by `just`.
+- A tiny OCI image that holds nothing but the binary, written as plain files by `just image` (no Containerfile, no build tool).
 - A **devcontainer** with every tool needed to develop and deploy, so the host needs nothing but a container runtime. Images are built outside it (§10).
 - Runs on the existing Talos cluster, deployed the same way as the other apps in `vehagn/homelab` (Argo CD and Kustomize).
 
@@ -268,26 +268,23 @@ The devcontainer is a Compose project with three services:
     - create invite → respond → change → delete.
     - group link → link shown → add e-mail → confirm in Mailpit → `/lost`.
 
-## 10. Container image (buildah, binary only)
+## 10. Container image (binary only, no build tool)
 
 - Build: `just build` runs `cargo zigbuild --release --locked` for `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`, with `SQLX_OFFLINE=true` so no database is needed.
   - Release profile: `lto = "fat"`, `codegen-units = 1`, `strip = true`.
   - The cluster is amd64; arm64 is for running a copy on an arm64 machine, such as a Mac.
-- Image steps (`just image`), once per architecture, into one image index:
-
-  ```
-  buildah manifest create ghcr.io/vehagn/innby:<tag>
-  ctr=$(buildah from scratch)
-  buildah copy  $ctr "$CARGO_TARGET_DIR"/<target>/release/innby /innby
-  buildah config --os linux --arch <arch> --entrypoint '["/innby"]' --cmd serve \
-                 --user 65532:65532 --port 8080 --label org.opencontainers.image.source=… $ctr
-  buildah commit --rm --format oci --manifest ghcr.io/vehagn/innby:<tag> $ctr
-  ```
-
-- `just push` sends the index and both images as OCI (`buildah manifest push --all --format oci`); CI checks that the registry serves an OCI image index for amd64 and arm64.
+- `just image [tag]` writes the image as an [OCI image layout](https://github.com/opencontainers/image-spec/blob/main/image-layout.md) in `target/oci`, with `tar`, `gzip`, `sha256sum` and `jq`:
+  - Per architecture: one gzipped layer holding `/innby` (root-owned, mode 0555, time 0), a config (entrypoint, `serve`, user 65532, port 8080, OCI labels) and a manifest.
+  - An image index over the two, named `<tag>` in `index.json`.
+  - A `docker save`-style `manifest.json` for the build machine's architecture, since Docker before 25 can't load OCI layouts.
+  - `target/oci.tar` holds it all, for `just load`.
+  - The same binaries always give the same digests.
+- It needs no privileges, so it runs in the dev container. Buildah can't run there: it needs user namespaces, which the dev container's default seccomp profile blocks, and we keep the profile as it is.
+- `just push` copies the index and both images to the registry with `skopeo copy --all --preserve-digests`; CI checks that the registry serves an OCI image index for amd64 and arm64.
+- `just load`, on the host, loads the image into Docker or Podman, for `just up <tag>`.
 
 - The image contains no shell, no CA bundle and no tzdata: the CA roots and zoneinfo are compiled into the binary. It runs as a numeric non-root UID, so it needs no `/etc/passwd`. Expect about 10–20 MB.
-- **Images are built in CI, not in the devcontainer.** Rootless buildah there needs user namespaces, which means loosening the dev container's seccomp and AppArmor profiles. We tried that, and it builds a correct image, but chose to keep the dev container locked down. `.github/workflows/ci.yaml` runs `just test` and `just lint` against a Postgres 18 service on every push and pull request; on pushes it then runs `just image` on `ubuntu-24.04` (which ships buildah) and pushes `sha-<commit>`, plus `latest` from `main` and the tag name for `v*` tags, to `ghcr.io/vehagn/innby`. Tool versions match the devcontainer. `just image` and `just push` also run anywhere buildah works natively.
+- `.github/workflows/ci.yaml` runs `just test` and `just lint` against a Postgres 18 service on every push and pull request; on pushes it then runs `just image` on `ubuntu-24.04` (which ships skopeo) and pushes `sha-<commit>`, plus `latest` from `main` and the tag name for `v*` tags, to `ghcr.io/vehagn/innby`. Tool versions match the devcontainer.
 - Probes use `httpGet` on `/healthz` and `/readyz`, since there is no shell for `exec` probes.
 
 ## 11. Kubernetes (fits the existing homelab conventions)
@@ -318,8 +315,9 @@ just hash-password       # argon2 hash for INNBY_ADMIN_PASSWORD_HASH
 just test                # cargo test (incl. #[sqlx::test] against db)
 just lint                # cargo fmt --check, clippy -D warnings, sqlx prepare --check, cargo deny check
 just build               # static x86_64 musl binary via cargo zigbuild (SQLX_OFFLINE)
-just image [tag]         # buildah: scratch + binary
-just push [tag]          # buildah push → ghcr.io/vehagn/innby
+just image [tag]         # OCI layout in target/oci: amd64 + arm64, binary only
+just push [tag]          # skopeo copy → ghcr.io/vehagn/innby
+just load                # on the host: target/oci.tar → Docker/Podman
 just seal                # deploy/secrets.env → deploy/sealed-secrets.yaml
 just manifests           # render deploy/ with kustomize (Argo CD does the deploying)
 ```
@@ -334,7 +332,7 @@ just manifests           # render deploy/ with kustomize (Argo CD does the deplo
 5. ✅ **Open RSVP:** `/join/{code}`, honeypot, rate limit, a "save your link" page, and the on/off flag. Replaced by group links in 12.
 6. ✅ **Optional e-mail:** add and confirm an address, the outbox and mailer (Mailpit locally, MailerSend in the cluster), `/lost`, reminders.
 7. ✅ **Janitor and privacy:** retention rules, `/privacy` (nb/en), `docs/ropa.md`.
-8. ✅ **Image:** buildah recipe, plus a CI workflow that pushes to GHCR.
+8. ✅ **Image:** `just image` writes an OCI layout, plus a CI workflow that pushes to GHCR.
 9. ✅ **Deploy:** CNPG cluster, workloads, HTTPRoutes, SealedSecrets, NetworkPolicies, Argo CD app.
 10. ✅ **Hardening and polish:** strict CSP (no inline styles or scripts anywhere), HSTS, `Cross-Origin-Opener-Policy` and `-Resource-Policy`, a 15-second request timeout and a 10-second header timeout, `cargo deny` in CI, and a load sanity check (5000 RSVP-page requests at concurrency 50: p50 0.5 ms, p99 4.5 ms). Still optional: `LISTEN/NOTIFY` for the mailer (it polls every 5 seconds), Authelia OIDC for the admin UI, and `/metrics`.
 11. ✅ **Pentest fixes:** a bounded admin login check with lockout, a confirmation mail without guest text, a site-wide mail cap, unconfirmed addresses that can be shared, the example secrets from `.env.example` refused on an https site, a header timeout, names without invisible or reordering characters, and `/lost` lookups after the response.

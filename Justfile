@@ -3,8 +3,12 @@ set dotenv-load
 target_dir := env("CARGO_TARGET_DIR", justfile_directory() / "target")
 image := env("INNBY_IMAGE", "ghcr.io/vehagn/innby")
 revision := `git rev-parse HEAD 2>/dev/null || echo unknown`
-# Compose for `just up`; any Compose implementation works, e.g. COMPOSE="podman compose".
-compose := env("COMPOSE", "docker compose")
+# Where `just image` writes the OCI image layout; inside the workspace, so the host sees it.
+oci_dir := justfile_directory() / "target/oci"
+# The container engine for `just load` and `just up`, e.g. ENGINE=podman. Any Compose
+# implementation works for `just up`, e.g. COMPOSE=docker-compose.
+engine := env("ENGINE", "docker")
+compose := env("COMPOSE", engine + " compose")
 
 # List available recipes
 default:
@@ -64,42 +68,94 @@ build:
     SQLX_OFFLINE=true cargo zigbuild --locked --release \
       --target x86_64-unknown-linux-musl --target aarch64-unknown-linux-musl
 
-# Build an amd64 and an arm64 scratch image into one image index (needs buildah)
+# Write the amd64 and arm64 images as one OCI image index to target/oci (plain files, no build tool)
 image tag="dev": build
     #!/usr/bin/env bash
     set -euo pipefail
-    index="{{ image }}:{{ tag }}"
-    buildah manifest rm "$index" >/dev/null 2>&1 || true
-    buildah manifest create "$index" >/dev/null
+    out="{{ oci_dir }}"
+    rm -rf "$out" && mkdir -p "$out/blobs/sha256"
+    work=$(mktemp -d) && trap 'rm -rf "$work"' EXIT
+    # Moves a file into the blobs by its digest and prints a descriptor for it.
+    blob() {
+      local digest size
+      digest=$(sha256sum "$2" | cut -d' ' -f1)
+      size=$(stat -c %s "$2")
+      mv "$2" "$out/blobs/sha256/$digest"
+      jq -nc --arg type "$1" --arg digest "sha256:$digest" --argjson size "$size" \
+        '{mediaType: $type, digest: $digest, size: $size}'
+    }
+    created=$(git log -1 --format=%cI 2>/dev/null || date -u +%FT%TZ)
+    case "$(uname -m)" in x86_64) native=amd64 ;; *) native=arm64 ;; esac
+    manifests=()
     for arch in amd64 arm64; do
       case "$arch" in
         amd64) target=x86_64-unknown-linux-musl ;;
         arm64) target=aarch64-unknown-linux-musl ;;
       esac
-      ctr=$(buildah from scratch)
-      buildah copy --chmod 0555 "$ctr" "{{ target_dir }}/$target/release/innby" /innby
-      buildah config \
-        --os linux \
-        --arch "$arch" \
-        --entrypoint '["/innby"]' \
-        --cmd serve \
-        --user 65532:65532 \
-        --port 8080 \
-        --label org.opencontainers.image.source=https://github.com/vehagn/innby \
-        --label org.opencontainers.image.version={{ tag }} \
-        --label org.opencontainers.image.revision={{ revision }} \
-        "$ctr"
-      buildah commit --quiet --rm --format oci --manifest "$index" "$ctr" >/dev/null
+      # One layer: /innby, owned by root, with fixed times so the same binary gives the same digest.
+      mkdir -p "$work/$arch"
+      install -m 0555 "{{ target_dir }}/$target/release/innby" "$work/$arch/innby"
+      tar --create --format=posix --sort=name --owner=0 --group=0 --numeric-owner \
+        --mtime=@0 --pax-option=delete=atime,delete=ctime \
+        --file="$work/layer.tar" --directory="$work/$arch" innby
+      diff_id=sha256:$(sha256sum "$work/layer.tar" | cut -d' ' -f1)
+      gzip -n -9 "$work/layer.tar"
+      layer=$(blob application/vnd.oci.image.layer.v1.tar+gzip "$work/layer.tar.gz")
+      jq -nc --arg arch "$arch" --arg diff_id "$diff_id" --arg created "$created" \
+        --arg version "{{ tag }}" --arg revision "{{ revision }}" '{
+          created: $created, architecture: $arch, os: "linux",
+          config: {
+            Entrypoint: ["/innby"], Cmd: ["serve"], User: "65532:65532",
+            ExposedPorts: {"8080/tcp": {}},
+            Labels: {
+              "org.opencontainers.image.source": "https://github.com/vehagn/innby",
+              "org.opencontainers.image.version": $version,
+              "org.opencontainers.image.revision": $revision,
+              "org.opencontainers.image.created": $created
+            }
+          },
+          rootfs: {type: "layers", diff_ids: [$diff_id]}
+        }' > "$work/config.json"
+      config=$(blob application/vnd.oci.image.config.v1+json "$work/config.json")
+      # Docker before 25 loads only `docker save`'s manifest.json, so it gets this machine's image.
+      if [[ "$arch" == "$native" ]]; then
+        jq -nc --argjson config "$config" --argjson layer "$layer" --arg name "{{ image }}:{{ tag }}" \
+          '[{Config: ("blobs/" + ($config.digest | sub(":"; "/"))), RepoTags: [$name],
+             Layers: ["blobs/" + ($layer.digest | sub(":"; "/"))]}]' > "$out/manifest.json"
+      fi
+      jq -nc --argjson config "$config" --argjson layer "$layer" '{
+          schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json",
+          config: $config, layers: [$layer]
+        }' > "$work/manifest.json"
+      manifests+=("$(blob application/vnd.oci.image.manifest.v1+json "$work/manifest.json" \
+        | jq -c --arg arch "$arch" '. + {platform: {architecture: $arch, os: "linux"}}')")
     done
-    echo "$index"
+    printf '%s\n' "${manifests[@]}" | jq -sc '{
+        schemaVersion: 2, mediaType: "application/vnd.oci.image.index.v1+json", manifests: .
+      }' > "$work/index.json"
+    index=$(blob application/vnd.oci.image.index.v1+json "$work/index.json")
+    jq -nc --argjson index "$index" --arg tag "{{ tag }}" --arg name "{{ image }}:{{ tag }}" '{
+        schemaVersion: 2, mediaType: "application/vnd.oci.image.index.v1+json",
+        manifests: [$index + {annotations: {
+          "org.opencontainers.image.ref.name": $tag, "io.containerd.image.name": $name
+        }}]
+      }' > "$out/index.json"
+    echo '{"imageLayoutVersion":"1.0.0"}' > "$out/oci-layout"
+    tar --create --file="{{ oci_dir }}.tar" --directory="$out" .
+    echo "{{ image }}:{{ tag }} $(jq -r .digest <<< "$index")"
+    echo "{{ oci_dir }}.tar: \`just load\` on the host puts it in Docker"
 
-# Push the OCI image index under each tag given (`buildah login ghcr.io` first)
+# Push the image index from `just image` under each tag given (`skopeo login ghcr.io` first)
 push tag="dev" *also:
     #!/usr/bin/env bash
     set -euo pipefail
     for tag in {{ tag }} {{ also }}; do
-      buildah manifest push --all --format oci "{{ image }}:{{ tag }}" "docker://{{ image }}:$tag"
+      skopeo copy --all --preserve-digests "oci:{{ oci_dir }}:{{ tag }}" "docker://{{ image }}:$tag"
     done
+
+# Load the image from `just image` into Docker or Podman, for `just up <tag>` (run on the host)
+load:
+    {{ engine }} load --input "{{ oci_dir }}.tar"
 
 # Release a version: bump Cargo.toml if needed, tag v<version> (signed), push to build the image
 release version:

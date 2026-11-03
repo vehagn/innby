@@ -80,7 +80,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/zig"
           tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP/zig" --strip-components=1
           echo "$RUNNER_TEMP/zig" >> "$GITHUB_PATH"
-      - name: Build the images for amd64 and arm64
+      - name: Build the amd64 and arm64 images as an OCI layout
         id: build
         run: |
           tag="sha-${GITHUB_SHA::12}"
@@ -99,7 +99,7 @@ jobs:
           TAG: ${{ steps.build.outputs.tag }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "$GITHUB_TOKEN" | buildah login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
+          echo "$GITHUB_TOKEN" | skopeo login --username "$GITHUB_ACTOR" --password-stdin ghcr.io
           also=()
           if [[ "$GITHUB_REF" == refs/heads/main ]]; then also+=(latest); fi
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then also+=("$GITHUB_REF_NAME"); fi
