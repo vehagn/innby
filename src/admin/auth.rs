@@ -4,6 +4,10 @@
 //! Each argon2 check needs 19 MiB and the admin pod gets 64, so checks run one at a time
 //! and a login that checked out is remembered rather than checked on every request. After
 //! too many checks, new logins are refused for a while; remembered ones keep working.
+//!
+//! Basic auth has no logout: the browser keeps sending the password until it's told the
+//! password is wrong. Logging out forgets the login, and the next page asked for with it
+//! gets that answer, so the browser asks for the password again.
 
 use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},
@@ -15,6 +19,7 @@ use argon2::{
     Argon2,
     password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},
 };
+use askama::Template;
 use axum::{
     extract::{Request, State},
     http::{HeaderValue, StatusCode, header},
@@ -26,7 +31,10 @@ use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use tokio::sync::Semaphore;
 
-use crate::{config::AdminConfig, web::RateLimiter};
+use crate::{
+    config::AdminConfig,
+    web::{RateLimiter, render_with},
+};
 
 /// Password checks allowed per window, right or wrong.
 const ATTEMPTS: u32 = 10;
@@ -69,6 +77,9 @@ pub struct Login {
     checking: Arc<Semaphore>,
     /// SHA-256 of the last `Authorization` header that checked out, and when.
     remembered: Mutex<Option<([u8; 32], Instant)>>,
+    /// SHA-256 of the `Authorization` header that logged out, until the browser has
+    /// been asked for the password again.
+    logged_out: Mutex<Option<[u8; 32]>>,
     attempts: RateLimiter,
 }
 
@@ -92,12 +103,18 @@ impl Login {
             credentials: Arc::new(credentials),
             checking: Arc::new(Semaphore::new(1)),
             remembered: Mutex::default(),
+            logged_out: Mutex::default(),
             attempts: RateLimiter::new(ATTEMPTS, ATTEMPT_WINDOW),
         }
     }
 
-    async fn check(&self, authorization: &HeaderValue) -> Outcome {
+    /// `page` is whether the browser is opening a page, rather than fetching an icon or
+    /// the like for one. Only a page asks for the password.
+    async fn check(&self, authorization: &HeaderValue, page: bool) -> Outcome {
         let digest: [u8; 32] = Sha256::digest(authorization.as_bytes()).into();
+        if self.is_logged_out(&digest, page) {
+            return Outcome::Rejected;
+        }
         if self.remembers(&digest) {
             return Outcome::Accepted;
         }
@@ -135,6 +152,25 @@ impl Login {
         }
     }
 
+    /// Forgets the login this header made, and turns it away until the browser has asked
+    /// for the password again.
+    pub fn log_out(&self, authorization: &HeaderValue) {
+        let digest: [u8; 32] = Sha256::digest(authorization.as_bytes()).into();
+        *self.lock_remembered() = None;
+        *lock(&self.logged_out) = Some(digest);
+    }
+
+    /// Whether this header logged out. The first page asked for with it after that
+    /// makes the browser ask for the password, and what's typed then is checked as usual.
+    fn is_logged_out(&self, digest: &[u8; 32], page: bool) -> bool {
+        let mut logged_out = lock(&self.logged_out);
+        let matches = logged_out.is_some_and(|out| bool::from(out.ct_eq(digest)));
+        if matches && page {
+            *logged_out = None;
+        }
+        matches
+    }
+
     fn remembers(&self, digest: &[u8; 32]) -> bool {
         self.lock_remembered().is_some_and(|(remembered, at)| {
             at.elapsed() < REMEMBER_FOR && bool::from(remembered.ct_eq(digest))
@@ -142,10 +178,21 @@ impl Login {
     }
 
     fn lock_remembered(&self) -> MutexGuard<'_, Option<([u8; 32], Instant)>> {
-        self.remembered
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+        lock(&self.remembered)
     }
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Whether the request opens a page. Browsers say so; anything that doesn't is taken
+/// to be opening one.
+fn opens_page(request: &Request) -> bool {
+    request
+        .headers()
+        .get("sec-fetch-mode")
+        .is_none_or(|mode| mode == "navigate")
 }
 
 /// `user:password` from a basic auth header.
@@ -154,24 +201,41 @@ fn decode(authorization: &HeaderValue) -> Option<String> {
     String::from_utf8(STANDARD.decode(encoded.trim()).ok()?).ok()
 }
 
+/// The page for a browser that isn't logged in, or just logged out.
+#[derive(Template, Default)]
+#[template(path = "admin/login.html")]
+pub struct LoginPage {
+    logged_out: bool,
+    error: Option<&'static str>,
+}
+
+impl LoginPage {
+    pub fn logged_out() -> Self {
+        Self {
+            logged_out: true,
+            error: None,
+        }
+    }
+}
+
 pub async fn require_login(
     State(login): State<Arc<Login>>,
     request: Request,
     next: Next,
 ) -> Response {
     let outcome = match request.headers().get(header::AUTHORIZATION) {
-        Some(authorization) => login.check(authorization).await,
+        Some(authorization) => login.check(authorization, opens_page(&request)).await,
         None => Outcome::Rejected,
     };
     match outcome {
         Outcome::Accepted => next.run(request).await,
+        // What the browser shows if the password prompt is cancelled.
         Outcome::Rejected => (
-            StatusCode::UNAUTHORIZED,
             [(
                 header::WWW_AUTHENTICATE,
                 r#"Basic realm="Innby admin", charset="UTF-8""#,
             )],
-            "login required",
+            render_with(StatusCode::UNAUTHORIZED, LoginPage::default()),
         )
             .into_response(),
         Outcome::TooManyAttempts => (
@@ -253,20 +317,41 @@ pub mod tests {
     async fn remembers_logins_and_limits_guessing() {
         let login = Login::with(credentials());
         let right = login_header("admin:secret");
-        assert_eq!(login.check(&right).await, Outcome::Accepted);
-        assert_eq!(login.check(&basic("Basic !!!")).await, Outcome::Rejected);
+        assert_eq!(login.check(&right, true).await, Outcome::Accepted);
+        assert_eq!(
+            login.check(&basic("Basic !!!"), true).await,
+            Outcome::Rejected
+        );
         // The login above was the first of the attempts.
         for i in 1..ATTEMPTS {
             let guess = login_header(&format!("admin:guess{i}"));
-            assert_eq!(login.check(&guess).await, Outcome::Rejected, "{i}");
+            assert_eq!(login.check(&guess, true).await, Outcome::Rejected, "{i}");
         }
         let guess = login_header("admin:one-more");
-        assert_eq!(login.check(&guess).await, Outcome::TooManyAttempts);
+        assert_eq!(login.check(&guess, true).await, Outcome::TooManyAttempts);
 
         // The host's browser keeps working; a new login has to wait.
-        assert_eq!(login.check(&right).await, Outcome::Accepted);
+        assert_eq!(login.check(&right, true).await, Outcome::Accepted);
         let new_login = basic(&format!("{} ", right.to_str().unwrap()));
-        assert_eq!(login.check(&new_login).await, Outcome::TooManyAttempts);
+        assert_eq!(
+            login.check(&new_login, true).await,
+            Outcome::TooManyAttempts
+        );
+    }
+
+    #[tokio::test]
+    async fn logging_out_asks_for_the_password_again() {
+        let login = Login::with(credentials());
+        let right = login_header("admin:secret");
+        assert_eq!(login.check(&right, true).await, Outcome::Accepted);
+        login.log_out(&right);
+
+        // Icons and the like are turned away without the browser asking.
+        assert_eq!(login.check(&right, false).await, Outcome::Rejected);
+        // The next page makes the browser ask, and the password typed then works.
+        assert_eq!(login.check(&right, true).await, Outcome::Rejected);
+        assert_eq!(login.check(&right, false).await, Outcome::Accepted);
+        assert_eq!(login.check(&right, true).await, Outcome::Accepted);
     }
 
     #[tokio::test]
@@ -276,7 +361,7 @@ pub mod tests {
         let requests: Vec<_> = (0..ATTEMPTS + 5)
             .map(|_| {
                 let (login, right) = (Arc::clone(&login), right.clone());
-                tokio::spawn(async move { login.check(&right).await })
+                tokio::spawn(async move { login.check(&right, true).await })
             })
             .collect();
         for request in requests {

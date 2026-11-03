@@ -1,5 +1,7 @@
 <!doctype html>
-<html lang="en">
+{% let theme = crate::theme::Theme::current() %}
+{% let t = crate::i18n::Lang::EnUs.messages() %}
+<html lang="en" data-theme="{{ theme.code() }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,7 +10,17 @@
 </head>
 <body class="admin">
   <header>
-    <a href="{{ crate::paths::HOME }}">Guests</a>
+    <a class="brand" href="{{ crate::paths::admin(crate::paths::HOME) }}">Innby <span>admin</span></a>
+    <nav class="theme-switch" aria-label="{{ t.theme }}">
+      {% for option in crate::theme::Theme::ALL %}
+      <a href="?theme={{ option.code() }}" title="{{ option.label(t) }}"{% if option == theme %} aria-current="true"{% endif %}>{{ option.icon()|safe }}<span class="visually-hidden">{{ option.label(t) }}</span></a>
+      {% endfor %}
+    </nav>
+    {% block account %}
+    <form class="logout" method="post" action="{{ crate::paths::admin(crate::paths::LOGOUT) }}">
+      <button class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg>Log out</button>
+    </form>
+    {% endblock %}
   </header>
   <main>
     {% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}

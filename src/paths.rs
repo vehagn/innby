@@ -38,6 +38,8 @@ pub const GROUP: &str = "/groups/{id}";
 pub const GROUP_REVOKE: &str = "/groups/{id}/revoke";
 pub const GROUP_DELETE: &str = "/groups/{id}/delete";
 pub const REMINDERS: &str = "/reminders";
+pub const LOGOUT: &str = "/logout";
+pub const LOGGED_OUT: &str = "/logged-out";
 
 /// A pattern with its one parameter filled in: `path(RSVP, link)` is `/r/{link}`.
 pub fn path(pattern: &str, value: impl Display) -> String {
@@ -59,6 +61,18 @@ pub fn localized(path: &str, lang: Lang) -> String {
 pub fn themed(lang: impl Borrow<Lang>, theme: impl Borrow<Theme>) -> String {
     let (lang, theme) = (lang.borrow(), theme.borrow());
     format!("?lang={}{}", lang.code(), theme.param())
+}
+
+/// An admin path in the colour scheme the host picked. The admin site has one language,
+/// so only the scheme is carried.
+pub fn admin(path: &str) -> String {
+    let param = Theme::current().param();
+    if param.is_empty() {
+        return path.to_owned();
+    }
+    let (path, fragment) = path.split_at(path.find('#').unwrap_or(path.len()));
+    let separator = if path.contains('?') { "&" } else { "?" };
+    format!("{path}{separator}{}{fragment}", &param[1..])
 }
 
 /// The pages every public page can link to, in this language.
@@ -114,17 +128,17 @@ pub struct AdminLinks {
 impl AdminLinks {
     pub fn guest(id: Uuid) -> Self {
         Self {
-            page: path(GUEST, id),
-            revoke: path(GUEST_REVOKE, id),
-            delete: path(GUEST_DELETE, id),
+            page: admin(&path(GUEST, id)),
+            revoke: admin(&path(GUEST_REVOKE, id)),
+            delete: admin(&path(GUEST_DELETE, id)),
         }
     }
 
     pub fn group(id: Uuid) -> Self {
         Self {
-            page: path(GROUP, id),
-            revoke: path(GROUP_REVOKE, id),
-            delete: path(GROUP_DELETE, id),
+            page: admin(&path(GROUP, id)),
+            revoke: admin(&path(GROUP_REVOKE, id)),
+            delete: admin(&path(GROUP_DELETE, id)),
         }
     }
 }

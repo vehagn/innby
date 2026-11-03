@@ -6,8 +6,8 @@
 {% if saved %}<p class="notice success" role="status">Saved.</p>{% endif %}
 <h1>{{ group.name }}</h1>
 <dl class="facts">
-  <dt>Signed up</dt><dd>{{ members.len() }}</dd>
-  <dt>Created</dt><dd>{{ created }}</dd>
+  <div><dt>Signed up</dt><dd>{{ members.len() }}</dd></div>
+  <div><dt>Created</dt><dd>{{ created }}</dd></div>
 </dl>
 
 <section class="card">

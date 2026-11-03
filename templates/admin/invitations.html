@@ -10,7 +10,7 @@
 <h1>Invitation links</h1>
 {% endif %}
 <p class="muted small">Send each guest their own link and no one else's: anyone with a link
-  can answer for that guest. The <a href="{{ crate::paths::GUESTS_CSV }}" download>CSV</a> has the same links, for a
+  can answer for that guest. The <a href="{{ crate::paths::admin(crate::paths::GUESTS_CSV) }}" download>CSV</a> has the same links, for a
   mail merge.</p>
 
 {% if invitations.is_empty() %}

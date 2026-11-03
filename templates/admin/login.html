@@ -1,0 +1,16 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{% if logged_out %}Logged out{% else %}Log in{% endif %}{% endblock %}
+
+{% block account %}{% endblock %}
+
+{% block content %}
+{% if logged_out %}
+<h1>Logged out</h1>
+<p>Your browser asks for the user name and password before it shows the guest list again.</p>
+{% else %}
+<h1>Log in</h1>
+<p>The guest list needs the admin user name and password.</p>
+{% endif %}
+<p><a class="button" href="{{ crate::paths::admin(crate::paths::HOME) }}">Log in</a></p>
+{% endblock %}
