@@ -1,20 +1,34 @@
 :root {
-  --bg: #fbf8f3;
-  --fg: #1f1c18;
-  --muted: #6b645b;
-  --accent: #b3261e;
-  --success: #2e7d32;
-  /* Borders and rules. */
-  --line: color-mix(in srgb, var(--muted) 30%, transparent);
-  color-scheme: light dark;
+  --bg: #212121;
+  --raised: #282828;
+  --fg: #ffffff;
+  /* Lighter than s9n's #757575, so small grey text keeps a 4.5:1 contrast. */
+  --muted: #9e9e9e;
+  --line: #333333;
+  --teal-bright: #00796b;
+  /* Teal for text and links on the background. */
+  --link: #4db6ac;
+  --danger: #ef9a9a;
+  --success: #81c784;
+  /* Confetti. */
+  --amber: #ffca28;
+  --pink: #f06292;
+  --violet: #9575cd;
+  --mono: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  color-scheme: dark light;
 }
 
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root {
-    --bg: #171513;
-    --fg: #ece7df;
-    --muted: #a39b90;
-    --accent: #f2b8b5;
+    --bg: #fafafa;
+    --raised: #ffffff;
+    --fg: #212121;
+    --muted: #616161;
+    --line: #e0e0e0;
+    --link: #00695c;
+    --danger: #c62828;
+    --success: #2e7d32;
+    --amber: #ffb300;
   }
 }
 
@@ -27,6 +41,7 @@ body {
   background: var(--bg);
   color: var(--fg);
   font: 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 header,
@@ -42,35 +57,214 @@ header {
   padding: 1rem;
 }
 
-.lang-switch {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.5rem 1rem;
-}
-
 main {
   padding: 0 1rem 3rem;
 }
 
 a {
-  color: var(--accent);
+  color: var(--link);
+  text-underline-offset: 0.2em;
 }
 
-h1 {
-  font-size: clamp(2rem, 6vw, 3rem);
-  line-height: 1.1;
-  margin: 1rem 0 1.5rem;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
+/* Language menu: a small globe that opens a list. */
+
+.lang-menu {
+  position: relative;
+}
+
+.lang-menu summary {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.lang-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.lang-menu summary:hover,
+.lang-menu details[open] summary {
+  color: var(--fg);
+  border-color: var(--line);
+}
+
+.globe {
+  width: 1.125rem;
+  height: 1.125rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  transition: transform 0.6s ease;
+}
+
+.lang-menu summary:hover .globe {
+  transform: rotate(180deg);
+}
+
+.badge {
+  display: inline-block;
+  min-width: 1.75rem;
+  font: 0.75rem/1.5 var(--mono);
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.lang-menu ul {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.375rem);
+  z-index: 10;
+  margin: 0;
+  padding: 0.375rem 0;
+  list-style: none;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.3);
+  animation: drop-in 0.15s ease-out;
+}
+
+.lang-menu li a {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.375rem 1rem;
+  white-space: nowrap;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.lang-menu li a:hover,
+.lang-menu li a:focus-visible {
+  background: color-mix(in srgb, var(--teal-bright) 25%, transparent);
+}
+
+.lang-menu li .badge {
+  color: var(--link);
+}
+
+@keyframes drop-in {
+  from { opacity: 0; transform: translateY(-0.25rem); }
+}
+
+/* Event */
+
+.hero {
+  text-align: center;
+  margin: 1.5rem 0 2rem;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  font-size: clamp(2rem, 7vw, 3.25rem);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  margin: 0 0 2rem;
+  overflow-wrap: anywhere;
+}
+
+.title-emoji {
+  display: inline-block;
+  font-size: 0.6em;
+  flex: none;
+  animation: wiggle 4s ease-in-out infinite;
+}
+
+.title-emoji:last-child {
+  animation-delay: -2s;
+}
+
+@keyframes wiggle {
+  0%, 80%, 100% { transform: none; }
+  84% { transform: rotate(-14deg) scale(1.15); }
+  88% { transform: rotate(12deg) scale(1.15); }
+  92% { transform: rotate(-6deg); }
+}
+
+.title-text {
+  position: relative;
+  display: inline-block;
+  font-family: var(--mono);
+}
+
+/* Two offset copies flash over the title now and then, as on s9n.no. */
+.glitch {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.glitch:nth-child(1) {
+  color: var(--teal-bright);
+  clip-path: polygon(0 15%, 100% 15%, 100% 40%, 0 40%);
+  animation: glitch-a 6s infinite;
+}
+
+.glitch:nth-child(2) {
+  color: var(--pink);
+  clip-path: polygon(0 60%, 100% 60%, 100% 85%, 0 85%);
+  animation: glitch-b 6s infinite;
+}
+
+@keyframes glitch-a {
+  0%, 88%, 100% { opacity: 0; transform: none; }
+  89% { opacity: 1; transform: translateX(-4px) skewX(-2deg); }
+  90% { opacity: 1; transform: translateX(3px); }
+  91% { opacity: 0; transform: none; }
+}
+
+@keyframes glitch-b {
+  0%, 89%, 100% { opacity: 0; transform: none; }
+  90% { opacity: 1; transform: translateX(4px) skewX(2deg); }
+  91% { opacity: 1; transform: translateX(-2px); }
+  92% { opacity: 0; transform: none; }
+}
+
+/* When and where, as rows between thin rules. */
 .facts {
+  max-width: 26rem;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.facts div {
   display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.25rem 1rem;
-  margin: 0 0 1.5rem;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.facts div:first-child {
+  border-top: 1px solid var(--line);
 }
 
 .facts dt {
+  align-self: baseline;
+  font: 0.8125rem var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 
@@ -82,20 +276,93 @@ h1 {
   white-space: pre-line;
 }
 
+/* Confetti falls once when the event page opens. */
+.confetti {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.confetti i {
+  position: absolute;
+  top: -1rem;
+  left: var(--x);
+  width: 0.5rem;
+  height: 0.875rem;
+  border-radius: 1px;
+  background: var(--c);
+  opacity: 0;
+  animation: fall var(--t, 2.6s) cubic-bezier(0.3, 0.6, 0.6, 1) var(--d, 0s) forwards;
+}
+
+.confetti i:nth-child(4n + 1) { --c: var(--teal-bright); }
+.confetti i:nth-child(4n + 2) { --c: var(--amber); }
+.confetti i:nth-child(4n + 3) { --c: var(--pink); }
+.confetti i:nth-child(4n + 4) { --c: var(--violet); }
+.confetti i:nth-child(1) { --x: 4%; --d: 0.1s; }
+.confetti i:nth-child(2) { --x: 11%; --d: 0.5s; --t: 3s; }
+.confetti i:nth-child(3) { --x: 17%; --d: 0.2s; --s: -1; }
+.confetti i:nth-child(4) { --x: 24%; --d: 0.7s; --t: 2.2s; }
+.confetti i:nth-child(5) { --x: 31%; --d: 0s; --t: 3.2s; --s: -1; }
+.confetti i:nth-child(6) { --x: 38%; --d: 0.4s; }
+.confetti i:nth-child(7) { --x: 45%; --d: 0.8s; --t: 2.4s; --s: -1; }
+.confetti i:nth-child(8) { --x: 51%; --d: 0.15s; --t: 2.9s; }
+.confetti i:nth-child(9) { --x: 57%; --d: 0.6s; --s: -1; }
+.confetti i:nth-child(10) { --x: 63%; --d: 0.3s; --t: 3.1s; }
+.confetti i:nth-child(11) { --x: 69%; --d: 0.9s; --t: 2.3s; --s: -1; }
+.confetti i:nth-child(12) { --x: 75%; --d: 0.05s; }
+.confetti i:nth-child(13) { --x: 81%; --d: 0.55s; --t: 2.8s; --s: -1; }
+.confetti i:nth-child(14) { --x: 87%; --d: 0.25s; --t: 3.3s; }
+.confetti i:nth-child(15) { --x: 92%; --d: 0.75s; --s: -1; }
+.confetti i:nth-child(16) { --x: 97%; --d: 0.35s; --t: 2.5s; }
+
+@keyframes fall {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0); }
+  25% { transform: translate(calc(var(--s, 1) * 1.5rem), 25vh) rotate(calc(var(--s, 1) * 200deg)); }
+  50% { transform: translate(calc(var(--s, 1) * -1rem), 50vh) rotate(calc(var(--s, 1) * 400deg)); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(var(--s, 1) * 1rem), 100vh) rotate(calc(var(--s, 1) * 720deg)); }
+}
+
+/* Text */
+
+h1 {
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 500;
+  font-family: var(--mono);
+  line-height: 1.15;
+  margin: 1rem 0 1.5rem;
+}
+
+h2 {
+  font-size: 1.375rem;
+  font-weight: 500;
+  margin: 0 0 0.75rem;
+}
+
+h3 {
+  font: 0.8125rem var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 1.25rem 0 0.5rem;
+}
+
 .hint {
   color: var(--muted);
   border-top: 1px solid var(--line);
   padding-top: 1rem;
 }
 
-h2 {
-  font-size: 1.375rem;
-  margin: 0 0 0.75rem;
-}
-
 footer {
   padding: 0 1rem 2rem;
   font-size: 0.875rem;
+}
+
+footer a {
+  color: var(--muted);
 }
 
 .muted {
@@ -106,15 +373,35 @@ footer {
   font-size: 0.875rem;
 }
 
+/* Boxes */
+
 .card {
+  position: relative;
+  background: var(--raised);
   border: 1px solid var(--line);
   border-radius: 0.75rem;
   padding: 1.25rem;
   margin: 0 0 1.5rem;
+  overflow: hidden;
+}
+
+/* A teal rule along the top of each card. */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--teal-bright), var(--link), var(--teal-bright));
+  background-size: 200% 100%;
+  animation: shimmer 6s linear infinite;
+}
+
+@keyframes shimmer {
+  to { background-position: -200% 0; }
 }
 
 .notice {
-  border-left: 4px solid var(--muted);
+  border-left: 3px solid var(--muted);
   background: color-mix(in srgb, var(--muted) 10%, transparent);
   padding: 0.75rem 1rem;
   border-radius: 0.25rem;
@@ -122,11 +409,28 @@ footer {
 
 .notice.success {
   border-color: var(--success);
+  animation: pop 0.4s ease-out;
 }
 
 .notice.error {
-  border-color: var(--accent);
+  border-color: var(--danger);
 }
+
+@keyframes pop {
+  0% { transform: scale(0.96); opacity: 0; }
+  60% { transform: scale(1.01); opacity: 1; }
+}
+
+.save-link {
+  border-color: var(--success);
+  margin: 0 0 1.5rem;
+}
+
+.save-link input {
+  margin: 0;
+}
+
+/* Forms */
 
 label {
   display: block;
@@ -140,10 +444,15 @@ label.checkbox {
   margin: 0.75rem 0;
 }
 
+input[type="checkbox"] {
+  accent-color: var(--teal-bright);
+}
+
 input:not([type]),
 input[type="text"],
 input[type="email"],
 input[type="number"],
+input[type="password"],
 select,
 textarea {
   font: inherit;
@@ -151,10 +460,27 @@ textarea {
   max-width: 24rem;
   padding: 0.5rem 0.625rem;
   margin: 0 0 0.75rem;
-  border: 1px solid var(--muted);
+  border: 1px solid var(--line);
   border-radius: 0.375rem;
   background: var(--bg);
   color: var(--fg);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--teal-bright);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal-bright) 35%, transparent);
+}
+
+input[type="number"] {
+  width: 6rem;
+}
+
+input[readonly] {
+  max-width: none;
 }
 
 .buttons {
@@ -170,59 +496,122 @@ a.button {
   font: inherit;
   font-weight: 600;
   padding: 0.625rem 1.125rem;
-  border: 2px solid var(--accent);
+  border: 1px solid var(--teal-bright);
   border-radius: 0.5rem;
-  background: var(--accent);
-  color: var(--bg);
+  background: var(--teal-bright);
+  color: #ffffff;
   text-decoration: none;
   cursor: pointer;
+  transition: transform 0.15s, background-color 0.2s, box-shadow 0.2s;
+}
+
+button:hover,
+a.button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0.375rem 1rem color-mix(in srgb, var(--teal-bright) 35%, transparent);
+}
+
+button:active,
+a.button:active {
+  transform: translateY(0) scale(0.97);
+}
+
+:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
 }
 
 button.secondary,
 a.button.secondary {
   background: transparent;
-  color: var(--accent);
+  color: var(--link);
+}
+
+/* The way to the guest list gets s9n's sliding arrow. */
+a.button.secondary::after {
+  content: "›";
+  display: inline-block;
+  margin-left: 0.5rem;
+  font-family: var(--mono);
+  transition: transform 0.2s;
+}
+
+a.button.secondary:hover::after {
+  transform: translateX(3px);
 }
 
 button.danger {
   background: transparent;
-  color: var(--accent);
+  color: var(--danger);
+  border-color: var(--danger);
   border-style: dashed;
 }
 
-details {
+button.danger:hover {
+  box-shadow: none;
+}
+
+main details {
   border-top: 1px solid var(--line);
   padding: 0.75rem 0;
 }
 
-summary {
-  cursor: pointer;
-  font-weight: 600;
+main details:last-child {
+  border-bottom: 1px solid var(--line);
 }
 
-details > :not(summary) {
+main summary {
+  cursor: pointer;
+  font-weight: 500;
+  list-style: none;
+}
+
+main summary::-webkit-details-marker {
+  display: none;
+}
+
+main summary::before {
+  content: "›";
+  display: inline-block;
+  width: 1.25rem;
+  font-family: var(--mono);
+  color: var(--link);
+  transition: transform 0.2s;
+}
+
+main details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+main details > :not(summary) {
   margin-top: 0.75rem;
 }
 
-input[type="number"] {
-  width: 6rem;
-}
-
-h3 {
-  font-size: 1rem;
-  margin: 1rem 0 0.25rem;
-}
+/* Guest list */
 
 .names {
   columns: 2 12rem;
   margin: 0;
-  padding-left: 1.25rem;
+  padding: 0;
+  list-style: none;
 }
 
 .names li {
   break-inside: avoid;
   overflow-wrap: anywhere;
+  padding: 0.125rem 0;
 }
+
+.names li::before {
+  content: "✦";
+  margin-right: 0.5rem;
+  font-size: 0.75em;
+  color: var(--teal-bright);
+}
+
+.names li:nth-child(3n + 2)::before { color: var(--amber); }
+.names li:nth-child(3n + 3)::before { color: var(--pink); }
+.names li.muted::before { content: none; }
 
 /* Admin */
 
@@ -233,6 +622,10 @@ body.admin main {
 
 body.admin header {
   justify-content: flex-start;
+}
+
+body.admin .card::before {
+  animation: none;
 }
 
 .stats {
@@ -269,19 +662,21 @@ td {
 }
 
 th {
+  font: 0.8125rem var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--muted);
-  font-weight: 600;
 }
 
+/* Scanners want dark modules on light, whatever the theme. */
 .qr svg {
   width: 12rem;
   height: auto;
   display: block;
   margin: 0.5rem 0 1rem;
-}
-
-input[readonly] {
-  max-width: none;
+  padding: 0.5rem;
+  background: #ffffff;
+  border-radius: 0.375rem;
 }
 
 /* Honeypot: invisible to people, tempting to bots. */
@@ -293,19 +688,24 @@ input[readonly] {
   overflow: hidden;
 }
 
-.save-link {
-  border-color: var(--success);
-  margin: 0 0 1.5rem;
-}
-
-.save-link input {
-  margin: 0;
-}
-
 .prose h2 {
   margin-top: 2rem;
 }
 
 .prose li {
   margin: 0.25rem 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .confetti,
+  .glitch {
+    display: none;
+  }
 }

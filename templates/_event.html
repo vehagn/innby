@@ -1,8 +1,14 @@
-<h1>{{ event.title }}</h1>
-<dl class="facts">
-  <dt>{{ t.when }}</dt>
-  <dd><time datetime="{{ event.starts_at_iso }}">{{ event.starts_at }}</time></dd>
-  <dt>{{ t.place }}</dt>
-  <dd>{{ event.location }}</dd>
-</dl>
+<div class="hero">
+  <h1 class="title"><span class="title-emoji" aria-hidden="true">🎉</span> <span class="title-text">{{ event.title }}<span class="glitch" aria-hidden="true">{{ event.title }}</span><span class="glitch" aria-hidden="true">{{ event.title }}</span></span> <span class="title-emoji" aria-hidden="true">🥂</span></h1>
+  <dl class="facts">
+    <div>
+      <dt>{{ t.when }}</dt>
+      <dd><time datetime="{{ event.starts_at_iso }}">{{ event.starts_at }}</time></dd>
+    </div>
+    <div>
+      <dt>{{ t.place }}</dt>
+      <dd>{{ event.location }}</dd>
+    </div>
+  </dl>
+</div>
 <p class="description">{{ event.description }}</p>

@@ -84,6 +84,8 @@ pub(super) struct RsvpPage<'a> {
     email_confirmed: bool,
     /// A one-off confirmation after a change, e.g. "Saved!".
     flash: Option<&'static str>,
+    /// Confetti, right after the guest says they're coming.
+    celebrate: bool,
     /// The full link, shown right after a group sign-up so the guest can keep it.
     new_link: Option<String>,
     error: Option<&'static str>,
@@ -107,6 +109,7 @@ impl<'a> RsvpPage<'a> {
             accepts_answers: state.config.event.accepts_answers(Utc::now()),
             email_confirmed: rsvp.email_status == rsvp::EmailStatus::Confirmed,
             flash: None,
+            celebrate: false,
             new_link: None,
             error: None,
         }
@@ -196,7 +199,10 @@ pub async fn show(
     Query(query): Query<ShowQuery>,
 ) -> Response {
     let mut page = RsvpPage::new(&state, lang, &guest);
-    page.flash = Notice::flash(query.notice.as_deref(), page.t);
+    let notice = query.notice.as_deref().and_then(Notice::from_code);
+    page.flash = notice.map(|notice| notice.text(page.t));
+    page.celebrate = guest.rsvp.response == rsvp::Response::Attending
+        && (matches!(notice, Some(Notice::Saved)) || query.new.is_some());
     page.new_link = query
         .new
         .map(|_| state.config.url(&paths::path(paths::RSVP, &guest.link)));

@@ -3,6 +3,7 @@
 {% block title %}{{ event.title }}{% endblock %}
 
 {% block content %}
+{% include "_confetti.html" %}
 {% include "_event.html" %}
 <p class="hint">{{ t.rsvp_hint }} <a href="{{ lang.lost() }}">{{ t.lost_link }}</a></p>
 {% endblock %}

@@ -1,11 +1,13 @@
-use std::fmt::Display;
+use std::{fmt::Display, sync::LazyLock};
 
 use askama::Template;
 use axum::{
-    extract::State,
+    extract::{RawQuery, State},
     http::{StatusCode, header},
     response::{Html, IntoResponse, Response},
 };
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -15,6 +17,7 @@ use crate::{
     db::rsvp::{self, NameDisplay, Response as Answer, Rsvp},
     i18n::{Lang, Messages, fill},
     janitor::{KEEP_AFTER_EVENT, KEEP_SENT_MAIL},
+    paths,
 };
 
 /// The event details shown at the top of the public pages.
@@ -267,13 +270,30 @@ pub async fn robots() -> impl IntoResponse {
     )
 }
 
-pub async fn stylesheet() -> impl IntoResponse {
+const STYLE: &str = include_str!("../../static/style.css");
+
+/// `v=` and a hash of the stylesheet: pages link it with this query, so a changed
+/// stylesheet gets a new URL and browsers can keep each one for good.
+static STYLE_VERSION: LazyLock<String> =
+    LazyLock::new(|| format!("v={}", URL_SAFE_NO_PAD.encode(&Sha256::digest(STYLE)[..6])));
+
+/// The stylesheet's link, for templates.
+pub fn stylesheet_link() -> String {
+    format!("{}?{}", paths::STYLESHEET, *STYLE_VERSION)
+}
+
+pub async fn stylesheet(RawQuery(query): RawQuery) -> impl IntoResponse {
+    let cache = if query.as_deref() == Some(STYLE_VERSION.as_str()) {
+        "public, max-age=31536000, immutable"
+    } else {
+        "public, max-age=300"
+    };
     (
         [
             (header::CONTENT_TYPE, "text/css; charset=utf-8"),
-            (header::CACHE_CONTROL, "public, max-age=3600"),
+            (header::CACHE_CONTROL, cache),
         ],
-        include_str!("../../static/style.css"),
+        STYLE,
     )
 }
 

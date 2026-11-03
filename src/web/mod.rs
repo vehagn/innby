@@ -7,7 +7,7 @@ mod rsvp;
 #[cfg(test)]
 pub(crate) mod testing;
 
-pub use pages::{render, render_with, server_error, stylesheet};
+pub use pages::{render, render_with, server_error, stylesheet, stylesheet_link};
 pub use rate_limit::RateLimiter;
 
 use std::{convert::Infallible, net::SocketAddr, pin::pin, sync::Arc, time::Duration};
@@ -344,7 +344,7 @@ mod tests {
     async fn index_defaults_to_norwegian() {
         let html = body(get("/", None).await).await;
         assert!(html.contains(r#"<html lang="nb">"#));
-        assert!(html.contains("<h1>Julebord</h1>"));
+        assert!(html.contains(r#"<span class="title-text">Julebord<"#));
         assert!(html.contains("lørdag 12. desember 2026 kl. 19:00"));
         assert!(html.contains(r#"href="?lang=en""#));
     }
@@ -353,7 +353,7 @@ mod tests {
     async fn index_follows_accept_language() {
         let html = body(get("/", Some("en-GB,en;q=0.9")).await).await;
         assert!(html.contains(r#"<html lang="en-GB">"#));
-        assert!(html.contains("<h1>Christmas party</h1>"));
+        assert!(html.contains(r#"<span class="title-text">Christmas party<"#));
         let starts_at = crate::config::tests::config().event.starts_at;
         assert!(html.contains(&Lang::EnGb.format_date(starts_at)));
         // No English description configured, so the Norwegian one is shown.
@@ -365,16 +365,17 @@ mod tests {
         let html = body(get("/", Some("nn-NO,nb;q=0.9")).await).await;
         assert!(html.contains(r#"<html lang="nn">"#));
         assert!(html.contains("laurdag 12. desember 2026 kl. 19:00"));
-        // The switch offers the other three, each in its own language.
-        for (code, tag, name) in [
-            ("nb", "nb", "Bokmål"),
-            ("en", "en-GB", "English (Traditional)"),
-            ("en-us", "en-US", "English (Simplified)"),
-            ("zh-hans", "zh-Hans", "简体中文"),
-            ("zh-hant", "zh-Hant", "繁體中文"),
+        // The menu offers the others, each in its own language.
+        for (code, tag, badge, name) in [
+            ("nb", "nb", "NB", "Bokmål"),
+            ("en", "en-GB", "GB", "English (Traditional)"),
+            ("en-us", "en-US", "US", "English (Simplified)"),
+            ("zh-hans", "zh-Hans", "简", "简体中文"),
+            ("zh-hant", "zh-Hant", "繁", "繁體中文"),
         ] {
-            let link =
-                format!(r#"<a href="?lang={code}" hreflang="{tag}" lang="{tag}">{name}</a>"#);
+            let link = format!(
+                r#"<a href="?lang={code}" hreflang="{tag}" lang="{tag}"><span class="badge" aria-hidden="true">{badge}</span>{name}</a>"#
+            );
             assert!(html.contains(&link), "{link}");
         }
         assert!(!html.contains(">Nynorsk</a>"));
@@ -419,6 +420,21 @@ mod tests {
         assert_eq!(
             response.headers()[header::CONTENT_TYPE],
             "text/css; charset=utf-8"
+        );
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "public, max-age=300"
+        );
+
+        // Pages link the current version, which may be kept for good.
+        let link = stylesheet_link();
+        let html = body(get("/", None).await).await;
+        assert!(html.contains(&format!(r#"href="{link}""#)), "{link}");
+        let response = get(&link, None).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "public, max-age=31536000, immutable"
         );
     }
 

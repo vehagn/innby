@@ -68,6 +68,18 @@ impl Lang {
         }
     }
 
+    /// A short mark for the language menu: two letters, or one character for Chinese.
+    pub fn badge(self) -> &'static str {
+        match self {
+            Lang::Nb => "NB",
+            Lang::Nn => "NN",
+            Lang::EnGb => "GB",
+            Lang::EnUs => "US",
+            Lang::ZhHans => "简",
+            Lang::ZhHant => "繁",
+        }
+    }
+
     /// Parses a `?lang=` value or a language tag such as "nn-NO". Plain "no" is Bokmål,
     /// English is British unless it's from the US, and Chinese is Simplified unless it's
     /// Traditional or from Taiwan, Hong Kong or Macau.

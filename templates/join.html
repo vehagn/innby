@@ -5,6 +5,7 @@
 {% block content %}
 {% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
 
+{% include "_confetti.html" %}
 {% include "_event.html" %}
 
 <section class="card" aria-labelledby="join-heading">
