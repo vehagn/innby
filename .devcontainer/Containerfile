@@ -29,7 +29,7 @@ RUN apt-get update; \
       > /etc/apt/sources.list.d/pgdg.list; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      bash-completion file jq less postgresql-client-18 skopeo sudo xz-utils; \
+      bash-completion file jq less neovim postgresql-client-18 skopeo sudo vim xz-utils; \
     rm -rf /var/lib/apt/lists/*
 
 # Zig is the cross-linker used by cargo-zigbuild.
@@ -60,7 +60,7 @@ RUN arch="$(dpkg --print-architecture)"; \
     tar -xzf "/tmp/${kubeseal_tar}" -C /usr/local/bin kubeseal; \
     rm "/tmp/${kubeseal_tar}"
 
-RUN rustup component add clippy rustfmt rust-src; \
+RUN rustup component add clippy rustfmt rust-src rust-analyzer; \
     rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl
 
 # Non-root user with passwordless sudo. Directories that compose mounts volumes onto
@@ -88,7 +88,17 @@ RUN curl -fsSL "https://github.com/cargo-bins/cargo-binstall/releases/download/v
     cargo install --locked --no-default-features --features rustls,postgres "sqlx-cli@${SQLX_CLI_VERSION}"; \
     rm -rf "${CARGO_HOME}/registry/"* "${CARGO_HOME}/git"
 
+# Neovim reads Vim's ~/.vimrc and ~/.vim, which `just dev` mounts from the host. A host
+# ~/.config/nvim, mounted over this, wins.
+RUN mkdir -p "/home/${USERNAME}/.config/nvim"; \
+    printf '%s\n' \
+      'set runtimepath^=~/.vim runtimepath+=~/.vim/after' \
+      'let &packpath = &runtimepath' \
+      'if filereadable(expand("~/.vimrc")) | source ~/.vimrc | endif' \
+      > "/home/${USERNAME}/.config/nvim/init.vim"
+
 ENV CARGO_TARGET_DIR=/home/${USERNAME}/.cache/target \
-    KUBECACHEDIR=/home/${USERNAME}/.cache/kube
+    KUBECACHEDIR=/home/${USERNAME}/.cache/kube \
+    EDITOR=vim
 
 WORKDIR /workspaces/innby

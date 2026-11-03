@@ -33,7 +33,11 @@ That builds and runs this checkout: the site on http://localhost:8080, the admin
 http://localhost:8081 (user `admin`, password `innby`), and Mailpit's inbox on
 http://localhost:8025, all in your own browser. Ctrl-C stops it, and `just dev-down` on
 the host stops the devcontainer, keeping its database and build cache. `just dev` makes a
-`.env` from `.env.example` if there is none. `just` lists the other recipes; `just test`
+`.env` from `.env.example` if there is none.
+
+The devcontainer has Vim and Neovim, both with rust-analyzer for language support.
+`just dev` mounts your `~/.vimrc`, `~/.vim` and `~/.config/nvim` read-only, those you have,
+and Neovim falls back to your Vim settings. `just` lists the other recipes; `just test`
 and `just lint` are what CI runs.
 
 VS Code, RustRover and the `devcontainer` CLI open the same devcontainer and forward the

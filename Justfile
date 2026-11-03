@@ -187,10 +187,21 @@ release version:
       echo "Not pushed. Later: git push --atomic origin main $tag"
     fi
 
-# Start the dev container with Postgres and Mailpit and open a shell in it; `just up` in there serves this checkout on localhost
+# Start the dev container with Postgres, Mailpit and your Vim settings, and open a shell in it; `just up` in there serves this checkout on localhost
 dev:
-    @test -f .env || cp .env.example .env
-    {{ dev_compose }} up --detach --build --wait
+    #!/usr/bin/env bash
+    set -euo pipefail
+    test -f .env || cp .env.example .env
+    # Your Vim and Neovim settings, read-only, but only those you have: Docker would
+    # create the missing ones on the host as empty folders.
+    mounts=()
+    for config in .vimrc .vim .config/nvim; do
+      if [[ -e "$HOME/$config" ]]; then mounts+=("\"$HOME/$config:/home/dev/$config:ro\""); fi
+    done
+    mkdir -p target
+    editor=target/compose.editor.yaml
+    printf 'services:\n  dev:\n    volumes: [%s]\n' "$(IFS=,; echo "${mounts[*]-}")" > "$editor"
+    {{ dev_compose }} --file "$editor" up --detach --build --wait
     {{ dev_compose }} exec dev bash
 
 # Stop the dev container, keeping its database and build cache
