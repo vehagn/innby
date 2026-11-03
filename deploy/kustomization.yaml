@@ -25,5 +25,5 @@ configMapGenerator:
 
 images:
   - name: ghcr.io/vehagn/innby
-    # Pin to a sha-<commit> tag from CI for repeatable deploys.
+    # Pin to a release tag, e.g. v0.2.0, for repeatable deploys.
     newTag: latest

@@ -1,6 +1,6 @@
-# Innby — event RSVP page
+# Innby: design
 
-Plan for a small, GDPR-compliant page where ~100 guests say whether they're coming to one event. **Guests need no account and no e-mail address.** They respond through a personal invite link, or through a group link where they only give a name. Everyone with a link sees a guest list, with each name shown as its guest chose. E-mail is an optional extra for reminders.
+How Innby is built and why. It's a small, GDPR-compliant site where about 100 guests say whether they're coming to one event. **Guests need no account and no e-mail address.** They respond through a personal invite link, or through a group link where they only give a name. Everyone with a link sees a guest list, with each name shown as its guest chose. E-mail is an optional extra for reminders.
 
 ## 1. Goals and non-goals
 
@@ -11,12 +11,12 @@ Plan for a small, GDPR-compliant page where ~100 guests say whether they're comi
   2. **Group link.** You make an unlisted sign-up link per group of people (`/join/{link}`), e.g. "Climbing club", for its group chat. The guest types a name and how many are coming, taps *I'm coming*, then gets their own private link to change or cancel later.
   3. **Optional e-mail.** From their RSVP page a guest can add an e-mail address (with double opt-in) to get reminders and their link by mail.
 - Guests can change their answer, party size and name at any time, and can export or delete their data.
-- A guest list on every personal and group link page (§5.6), showing who's coming and who hasn't answered. Each guest chooses whether others see their full name, their first name and initial, or nothing.
+- A guest list behind every personal and group link (§5.6), showing who's coming and who hasn't answered. Each guest chooses whether others see their full name, their first name and initial, or nothing.
 - Pages in **Bokmål, Nynorsk, British English ("traditional", a touch posh), American English ("simplified", short and plain), and Simplified and Traditional Chinese**, chosen from the browser's `Accept-Language`, with a switch through `?lang=nb|nn|en|en-us|zh-hans|zh-hant` (no cookie). English is British unless the browser asks for `en-US`; Chinese is Simplified unless it's Traditional or from Taiwan, Hong Kong or Macau.
 - An admin UI for you: create invitations and group links in batches, revoke them, see the headcount, export CSV.
 - Built for GDPR from the start: minimal data, clear retention, automatic deletion, no third-party assets, and on the public site no cookies but one a guest asks for (§4).
 - A tiny OCI image that holds nothing but the binary, written as plain files by `just image` (no Containerfile, no build tool).
-- A **devcontainer** with every tool needed to develop and deploy, so the host needs nothing but a container runtime. Images are built outside it (§10).
+- A **devcontainer** with every tool needed to develop, build the image and deploy, so the host needs nothing but a container runtime (§9, §10).
 - Runs on the existing Talos cluster, deployed the same way as the other apps in `vehagn/homelab` (Argo CD and Kustomize).
 
 **Non-goals**
@@ -29,29 +29,30 @@ Plan for a small, GDPR-compliant page where ~100 guests say whether they're comi
 
 ## 2. Language: Rust
 
-You had no preference, and the devcontainer removes Go's main advantage (it was already installed). Rust gives compile-time checked SQL and templates, strong types for states such as `Response::{Pending, Attending, Declined}`, and a static musl binary that suits a `FROM scratch` image.
+The devcontainer takes away Go's main advantage, that it's usually installed already. Rust gives compile-time checked SQL and templates, strong types for states such as `Response::{Pending, Attending, Declined}`, and a static musl binary that suits a `FROM scratch` image.
 
 | Concern | Crate |
 |---|---|
 | HTTP | `axum` on `tokio`; `tower-http` for security headers and request tracing |
 | Templates | `askama`: compiled into the binary and type-checked at build time |
+| Texts | `toml` for `locales/*.toml`, compiled into the binary |
 | Postgres | `sqlx` (postgres, rustls, migrate): queries checked against the schema at compile time, with offline `.sqlx/` data so builds don't need a database. `sqlx::migrate!()` embeds the migrations and takes an advisory lock, so there's no custom migrator. |
 | Mail | `lettre` (SMTP over rustls) |
 | Signed links | `hmac` + `sha2`, `base64` |
 | IDs and time | `uuid` (v7), `chrono` + `chrono-tz`: the tz database is compiled in, so the image needs no `/usr/share/zoneinfo` |
 | CLI | `clap` (derive) for the subcommands |
 | Logging | `tracing` + `tracing-subscriber` (JSON output) |
-| Rate limiting | A ~40-line fixed-window counter per IP (IPv6 per /64), in memory; no crate needed |
-| Admin | `argon2` (password hash), HS512 JWTs with `hmac`, `csv`, `qrcode` (the module grid, drawn as SVG by `admin/qr.rs`) |
-| TLS roots | `rustls` + `webpki-roots`: CA roots compiled in, so the image needs no `/etc/ssl` |
+| Rate limiting | A small fixed-window counter per IP (IPv6 per /64), in memory; no crate needed |
+| Admin | `argon2` (password hash), HS512 JWTs with `hmac`, `qrcode` (the module grid, drawn as SVG by `admin/qr.rs`). The CSV is written by hand. |
+| TLS roots | `rustls` with `webpki-roots`, through sqlx's and lettre's features: CA roots compiled in, so the image needs no `/etc/ssl` |
 
-- **CSRF:** axum has no built-in equivalent of Go's `CrossOriginProtection`, so we add a ~20-line middleware that does the same thing. For unsafe methods it requires `Sec-Fetch-Site` to be `same-origin` or `none`, or (for older browsers) the `Origin` host to match the `Host` header. This needs no cookies, and works unchanged for both the public and the admin hostname.
+- **CSRF:** axum has no built-in equivalent of Go's `CrossOriginProtection`, so a small middleware does the same thing. For unsafe methods it requires `Sec-Fetch-Site` to be `same-origin` or `none`, or (for older browsers) the `Origin` host to match the `Host` header. This needs no cookies, and works unchanged for both the public and the admin hostname.
 - **i18n:** six languages still don't need Fluent. Each language's texts, mails and the admin UI included, live in `locales/{lang}.toml`, compiled into the binary and read into one `Messages` struct that the templates use. A missing or unknown key, or a placeholder like `{name}` that one language has and another lacks, fails the tests and stops the program at start. The privacy notice is a template per language, since it's a document rather than strings.
 - **Cross-compiling:** the devcontainer runs arm64 on your Mac, the cluster is amd64, and the image is published for both. `cargo zigbuild --target x86_64-unknown-linux-musl --target aarch64-unknown-linux-musl` (with Zig as the linker) handles that, including the C code inside `ring`.
 
-## 3. Architecture: should we split it into microservices?
+## 3. Architecture: one binary, several workloads
 
-For 100 guests, one process is more than enough. Since this is for fun, here are the options.
+For 100 guests one process would do. These were the options:
 
 | Option | What it looks like | Verdict |
 |---|---|---|
@@ -59,15 +60,16 @@ For 100 guests, one process is more than enough. Since this is for fun, here are
 | **B. One binary, several workloads** ✅ | One image. Subcommands run as separate Kubernetes workloads. They share no API with each other; Postgres links them, and an **outbox table** carries mail jobs. | Feels like microservices where it helps (each workload has its own permissions and network policy and fails on its own) and costs nothing in RPC, service auth or extra images. |
 | **C. Real microservices** | `frontend`, `rsvp-api`, `mailer`, `admin` and `janitor`, talking over HTTP/gRPC or NATS. | You'd still need an outbox for "save and send" to stay consistent, plus mTLS between services and N images and manifests. Each extra service that holds personal data is also another place erasure has to reach. Pure overhead at this size. |
 
-**Recommendation: B.** The binary `innby` has these subcommands:
+**Chosen: B.** The binary `innby` has these subcommands:
 
 | Subcommand | Kubernetes workload | Responsibility | Needs |
 |---|---|---|---|
 | `innby serve` | Deployment (public) | Event page, `/join/{link}`, RSVP pages, e-mail confirm, privacy notice | DB, link key. Reachable from the **external** gateway. |
-| `innby admin` | Deployment (internal) | Invitations, headcount, CSV | DB, link key. Reachable from the **internal** gateway only. |
+| `innby admin` | Deployment (internal) | Invitations, group links, QR codes, headcount, CSV, reminders | DB, link key, admin password hash and JWT secret. Reachable from the **internal** gateway only. |
 | `innby mailer` | Deployment (1 replica) | Processes the outbox and sends e-mail through MailerSend | DB, link key, SMTP credentials, outbound SMTP. No ingress. |
 | `innby janitor` | CronJob (hourly) | Enforces retention and deletes expired data | DB and the event start (`INNBY_EVENT_START`, `INNBY_EVENT_TIMEZONE`) only. |
-| `innby migrate` | init container / Argo CD PreSync Job | Applies the embedded SQL migrations | DB as schema owner. |
+| `innby invite`, `innby hash-password` | run by hand | Create an invitation and print its link; hash the admin password | DB and link key; nothing. |
+| `innby migrate` | init container on `innby-web` | Applies the embedded SQL migrations | DB as schema owner. |
 
 Splitting this way buys real least privilege:
 
@@ -84,7 +86,7 @@ Splitting this way buys real least privilege:
                      │  rsvp (+ outbox in same tx)                │ invitations, headcount
                      ▼                                            ▼
              ┌─────────────────────── Postgres 18 (CNPG) ─────────────────┐
-             │  rsvp · outbox · _sqlx_migrations                          │
+             │  rsvp · invite_group · outbox · qr_style · admin logins    │
              └───────▲──────────────────────────────▲─────────────────────┘
                      │ SELECT … FOR UPDATE SKIP LOCKED │ DELETE / scrub expired
              ┌───────┴───────┐               ┌───────┴───────┐
@@ -96,7 +98,7 @@ Splitting this way buys real least privilege:
 
 Every guest has one **RSVP link**. Possession of the link is the authorisation; there are no logins.
 
-A guest can ask a device to remember them ("Remember me on this device" on their page). The browser then keeps their link in a cookie (`__Host-innby`, `HttpOnly`, `SameSite=Lax`, `Secure`, expiring when guest data is deleted), and the front page greets them with a button to their page. The cookie authorises nothing: every page and form still takes the link from the path, so the cookie can at most show the way back. A link that stops working (revoked, or the reply deleted) is dropped from the cookie the next time the front page sees it, deleting the reply drops it at once, and "Forget this device" drops it on demand. The front page is `no-store`, since it now differs per visitor.
+A guest can ask a device to remember them ("Remember me on this device" on their page). The browser then keeps their link in a cookie (`__Host-innby` with `Secure` over https, `innby` over plain http; `HttpOnly`, `SameSite=Lax`, expiring when guest data is deleted), and the front page greets them with a button to their page. The cookie authorises nothing: every page and form still takes the link from the path, so the cookie can at most show the way back. A link that stops working (revoked, or the reply deleted) is dropped from the cookie the next time the front page sees it, deleting the reply drops it at once, and "Forget this device" drops it on demand. The front page is `no-store`, since it now differs per visitor.
 
 ```
 /r/{id}.{sig}
@@ -122,15 +124,15 @@ A guest can ask a device to remember them ("Remember me on this device" on their
 
 1. In `innby admin` you create invitations, one label per line (e.g. "Kari & Ola, 2"), each with a maximum party size. The admin UI then lists the new links; each invitation's page shows its link and a QR code.
 2. You share it however you like.
-3. The guest opens `/r/{link}`. On the first visit, a short notice explains what is stored, with a link to `/privacy`. The page shows the event, a party-size picker (1…max), how to show their name on the guest list (preset to their full name), **Attending** / **Can't come** buttons, and the guest list.
+3. The guest opens `/r/{link}`. On the first visit, a short notice explains what is stored, with a link to `/privacy`. The page shows the event, a party-size picker (1…max), how to show their name on the guest list (preset to their full name), **Attending** / **Can't come** buttons, and a button to the guest list.
 4. `POST /r/{link}` saves the response, party size, name choice and `responded_at`. The guest can come back and change it any time until the optional RSVP deadline.
 
 ### 5.2 Group links
 
-1. `/` shows only the event info. To RSVP, people need an invite link or a group link, `/join/{id}.{sig}`. You create groups in `innby admin`, one per line with a descriptive name and how many people each sign-up may cover (e.g. "Neighbours, 4"). A group's link is signed like an RSVP link, and *Make a new link* replaces it if it spreads too far.
-2. The guest sees the group's name, the guest list, and a form for their name, party size and how to show their name (preset to full), then taps **I'm coming**.
+1. `/` shows the event info, and greets a guest whose device remembers them with a button to their page. To RSVP, people need an invite link or a group link, `/join/{id}.{sig}`. You create groups in `innby admin`, one per line with a descriptive name and how many people each sign-up may cover (e.g. "Neighbours, 4"). A group's link is signed like an RSVP link, and *Make a new link* replaces it if it spreads too far.
+2. The guest sees the group's name, a form for their name, party size and how to show their name (preset to full), and a button to the guest list, then taps **I'm coming**.
    - Abuse protection: a honeypot field and a per-IP in-memory rate limit (10 sign-ups per hour, generous for a shared household connection). Behind the gateway, `INNBY_TRUST_FORWARDED=true` takes the client address from the `X-Forwarded-For` entry the gateway appends. You can also delete entries in the admin UI. A group can only be deleted while nobody has signed up through it.
-3. The guest is sent straight to their new `/r/{link}`, with a clear "**Bookmark or save this link** to change your answer later" box, plus copy and share buttons and an optional "add your e-mail" field. From there it's identical to 5.1.
+3. The guest is sent straight to their new `/r/{link}`, with a box asking them to **save this link** to change their answer later, holding the link ready to copy. From there it's identical to 5.1, e-mail and remembering the device included.
 
 ### 5.3 Optional e-mail
 
@@ -152,7 +154,7 @@ Mails are sent in the language the guest was using when they added their e-mail 
 |---|---|---|
 | View their data | `GET /r/{link}` | Art. 15: access |
 | Download their data as JSON | `GET /r/{link}/export` | Art. 20: portability |
-| Change name, party size or e-mail | `POST /r/{link}` | Art. 16: rectification |
+| Change answer and party size, name, or e-mail | `POST /r/{link}`, `/r/{link}/name`, `/r/{link}/email` | Art. 16: rectification |
 | Delete their RSVP and all data now | `POST /r/{link}/delete` | Art. 17: erasure, and objecting under Art. 21 |
 
 Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pending outbox rows.
@@ -162,7 +164,8 @@ Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pendin
 - **Invitations:** create them in a batch, one per line, and get a page of their links; edit them (label, maximum party size), show the link and QR code, revoke the link (bumps the nonce), delete.
 - **Groups:** create them in a batch, one per line; each has a page with its link, QR code and sign-ups, and can be renamed, given a new link, or deleted while nobody has signed up.
 - **QR codes:** one style for the whole event, in the one-row `qr_style` table: square, rounded or dotted modules, a colour dark enough to scan on white (4.5:1), and a heart, a star or an emoji in the middle. A code with something in the middle uses error correction level H and hides about a quarter of its width. Each guest's and group's code downloads as an SVG for printing.
-- **Overview:** attending, declined and no-answer counts, a total headcount, and a CSV export.
+- **Overview:** people and parties coming, declined and no-answer counts, every guest in a table, and a CSV export.
+- **Reminders:** *Send reminders* queues one mail per guest with a confirmed address who hasn't declined.
 - **Authentication:** reachable only through the internal gateway (LAN or VPN), plus a login form checked against an argon2 hash from a SealedSecret, since the admin can change data. As in LLDAP, a login sets two `HttpOnly` cookies: `token`, an HS512 JWT that lasts a day, and `refresh_token`, which gets a new JWT for 30 days and is kept in Postgres by its keyed hash. *Log out* revokes both (the JWT's `jti` goes on a list until it would have expired), so copies of the cookies stop working too. The JWT key is `INNBY_ADMIN_JWT_SECRET` bound to the user name and password hash, so a new password logs every browser out. Each argon2 check needs 19 MiB, so checks run one at a time, and after 10 checks in 15 minutes logins get 429 (browsers that are logged in keep working). Later, for fun: OIDC login against Authelia.
 
 ### 5.6 Guest list
@@ -186,18 +189,18 @@ Until a guest chooses, their name shows as first name and initial before they an
 | Data minimisation | Required: a name or label, the response and the party size. E-mail is optional. No free-text notes field, and **no dietary or allergy info**: it can count as health data (Art. 9) and would need explicit consent. Invitation labels should be first names or household names. |
 | IP addresses | Never stored. Rate limiting works per IP in memory only, and logs drop or truncate IPs. |
 | Cookies | **One, only when the guest asks for it** (§4): it keeps the guest's link so the front page can lead them back. Storing it is strictly necessary for a service the guest explicitly asks for, so it needs no consent and no banner; the privacy notice describes it. CSRF is handled by the `Sec-Fetch-Site`/`Origin` middleware (§2), authorisation by the signed link, and the language and colour scheme by `?lang=` and `?theme=`. The admin hostname's login cookies are the host's own and never reach guests. |
-| Third parties | Nothing loaded from a CDN, Google Fonts, analytics or reCAPTCHA. All CSS and fonts are embedded in the binary. A honeypot field and rate limiting replace a CAPTCHA. |
+| Third parties | Nothing loaded from a CDN, Google Fonts, analytics or reCAPTCHA. The stylesheet is embedded in the binary and uses the device's own fonts. A honeypot field and rate limiting replace a CAPTCHA. |
 | Retention | Unconfirmed e-mail addresses: cleared after 48h. Sent outbox rows: deleted after 7 days. **All RSVP data: deleted 30 days after the event.** The janitor enforces this. |
 | Backups | The CNPG backup retention must be ≤ 30 days after the event, or the backup policy must be documented. Otherwise "deleted" data lives on in backups. |
 | Processors | **MailerSend** (MailerSend UAB, Lithuania; your existing account) for e-mail. Before go-live, accept its DPA, check its sub-processor list for transfers outside the EU, and verify the sender domain (SPF, DKIM, DMARC). Nothing sits in front of the site: it is exposed directly through `gateway/external`. |
-| Privacy notice | `/privacy` (nb/en) lists the controller (`INNBY_CONTROLLER_NAME`, `INNBY_CONTROLLER_EMAIL`), purposes, data, legal bases, retention, recipients and processors, the guest's rights (including the right to object), the right to complain to Datatilsynet, and a contact address. It is versioned by `PRIVACY_VERSION`, which is stored with each answer. |
+| Privacy notice | `/privacy`, in all six languages, lists the controller (`INNBY_CONTROLLER_NAME`, `INNBY_CONTROLLER_EMAIL`), purposes, data, legal bases, retention, recipients and processors, the guest's rights (including the right to object), the right to complain to Datatilsynet, and a contact address. It is versioned by `PRIVACY_VERSION`, which is stored with each answer. |
 | Security (Art. 32) | TLS at the gateway (cert-manager). HMAC-signed links with nothing secret in the database. Link hygiene as in §4. Non-root, read-only containers. Least-privilege NetworkPolicies. |
 | Logging | `tracing` JSON output, with no names, e-mail addresses or links in the logs (log the RSVP UUID instead). |
 | Records of processing | `docs/ropa.md`: the Art. 30 record and the legitimate-interest assessment. |
 
 ## 7. Data model (Postgres 18)
 
-PostgreSQL 18 is the newest major version (18.6). The cluster already runs `ghcr.io/cloudnative-pg/postgresql:18.x` for Authelia. PG18's built-in `uuidv7()` gives sortable IDs.
+Postgres 18, as the cluster's other CNPG databases run. Its built-in `uuidv7()` gives sortable IDs.
 
 The schema lives in [`migrations/`](migrations/). In short:
 
@@ -206,9 +209,11 @@ The schema lives in [`migrations/`](migrations/). In short:
 | `rsvp` | `id` (uuidv7), `source`, `name`, `response`, `party_size`, `max_party_size`, `link_nonce`, `lang`, `email`, `email_status`, `email_consent_at`, `privacy_version`, `responded_at`, `created_at`, `group_id`, `name_display` | name 1–100 chars; `party_size` within `1..=max_party_size` (max 20); e-mail present ⇔ status ≠ `none` ⇔ consent recorded; a confirmed e-mail is unique; `name_display` null until the guest chooses |
 | `invite_group` | `id` (uuidv7), `name`, `max_party_size`, `link_nonce`, `created_at` | can't be deleted while an RSVP references it |
 | `outbox` | `id`, `rsvp_id` (cascade delete), `kind`, `attempts`, `next_try_at`, `sent_at`, `last_error` | partial index on unsent rows |
+| `qr_style` | `shape`, `color`, `icon`, `emoji` | one row, for the whole event |
+| `admin_refresh_token`, `admin_revoked_jwt` | keyed hashes of refresh tokens, and the `jti` of logged-out JWTs, each with an expiry | expired rows go whenever a new one is written |
 
-- **Enums are Postgres enum types** (`rsvp_source`, `rsvp_response`, `email_status`, `lang`, `outbox_kind`, `name_display`) rather than `text` + `CHECK`. sqlx maps them straight to Rust enums with `#[derive(sqlx::Type)]`.
-- **Queries** in `src/db/rsvp.rs` use `query_as!`, so they're checked against the schema at compile time. `.sqlx/` holds the offline data, which lets builds and CI compile without a database.
+- **Enums are Postgres enum types** (`rsvp_source`, `rsvp_response`, `email_status`, `lang`, `outbox_kind`, `name_display`, `qr_shape`, `qr_icon`) rather than `text` + `CHECK`. sqlx maps them straight to Rust enums with `#[derive(sqlx::Type)]`.
+- **Queries** in `src/db/` use `query!` and `query_as!`, so they're checked against the schema at compile time. `.sqlx/` holds the offline data, which lets builds and CI compile without a database.
 
 Notes on the model:
 
@@ -217,7 +222,7 @@ Notes on the model:
   1. `SELECT … WHERE sent_at IS NULL AND next_try_at <= now() ORDER BY id LIMIT 10 FOR UPDATE SKIP LOCKED`
   2. Re-read the RSVP. Skip the mail if the address was removed or changed in the meantime.
   3. Render the mail with a freshly signed link, send it, and mark the row sent. A failed send gets exponential backoff (1 minute doubling to at most 6 hours) and is given up after 10 attempts. SMTP errors go to `outbox.last_error`, not the logs, since they often quote the address.
-- **Event config** (title and description in both languages, date, place, optional RSVP deadline, open-RSVP code, open maximum party size = 2) comes from environment variables or a ConfigMap. It doesn't live in the database.
+- **Event config** (title and description per language, start and time zone, place, an optional RSVP deadline, and the controller named in the privacy notice) comes from environment variables, in the cluster from a ConfigMap. It doesn't live in the database. `.env.example` lists them all.
 
 ## 8. Repository layout
 
@@ -226,27 +231,31 @@ innby/
 ├── .devcontainer/
 │   ├── devcontainer.json      # VS Code / RustRover / devcontainer CLI entry point
 │   ├── compose.yaml           # dev + db (postgres:18) + mail (mailpit)
-│   └── Containerfile          # Rust, zig, cargo-zigbuild, sqlx-cli, just, psql, kubectl, kubeseal
+│   ├── compose.ports.yaml     # the ports `just dev` publishes on the host
+│   └── Containerfile          # Rust, zig, cargo-zigbuild, sqlx-cli, just, psql, kubectl, kubeseal, zsh, Vim, Neovim
+├── .github/workflows/ci.yaml  # test, lint, then build and push the image
 ├── Cargo.toml / Cargo.lock
-├── rust-toolchain.toml        # pins the toolchain + musl target
+├── rust-toolchain.toml        # pins the toolchain and both musl targets
 ├── src/
-│   ├── main.rs                # clap: serve | admin | mailer | janitor | migrate
-│   ├── config.rs              # env parsing + validation
-│   ├── db/                    # sqlx pool, migrator, queries
-│   ├── link.rs                # HMAC sign/verify for rsvp, group + email links
+│   ├── main.rs                # clap: serve | admin | mailer | janitor | migrate | invite | hash-password
+│   ├── config.rs              # env parsing and validation
+│   ├── link.rs                # HMAC signing for RSVP, group and e-mail links
 │   ├── paths.rs               # every route pattern, and links built from them
 │   ├── i18n.rs                # Messages, loaded from locales/
-│   ├── web/                   # public pages, RSVP page, CSRF middleware, rate limit
-│   ├── admin/                 # invitations, headcount, CSV, QR
-│   ├── mailer.rs              # outbox worker + mail rendering
-│   └── janitor.rs             # retention rules, reminders
+│   ├── theme.rs               # the colour scheme from ?theme=
+│   ├── db/                    # queries, per table, and the retention rules
+│   ├── web/                   # public pages, CSRF middleware, rate limit, remember-me cookie
+│   ├── admin/                 # host UI: invitations, groups, QR codes, login
+│   ├── mailer/                # outbox worker and mail texts
+│   └── janitor.rs             # runs the retention rules
 ├── locales/*.toml             # texts and mails per language, compiled in
-├── templates/*.html           # askama, compiled in
-├── static/                    # CSS (+ self-hosted font if any), compiled in
+├── templates/                 # askama, compiled in; privacy/ has the notice per language
+├── static/style.css           # the one stylesheet, compiled in
 ├── migrations/*.sql           # sqlx::migrate!(), compiled in
 ├── .sqlx/                     # offline query metadata (committed)
+├── compose.yaml               # a local copy of the published image
 ├── deploy/                    # Kustomize, mirrored into vehagn/homelab k8s/apps/…
-├── docs/ropa.md
+├── docs/ropa.md               # GDPR record of processing
 ├── Justfile
 └── PLAN.md
 ```
@@ -257,12 +266,12 @@ The devcontainer is a Compose project with three services:
 
 | Service | Image | Purpose |
 |---|---|---|
-| `dev` | built from `.devcontainer/Containerfile` (Debian trixie) | Where you work. Contains:<br>• Rust 1.99.1 with rustfmt, clippy and the `x86_64-unknown-linux-musl` target<br>• Zig and `cargo-zigbuild` for cross-compiling<br>• `sqlx-cli`, `just`, `cargo-deny`<br>• `psql` 18<br>• `kubectl` 1.35 (matching the cluster) and `kubeseal` (matching the controller) |
+| `dev` | built from `.devcontainer/Containerfile` (Debian trixie) | Where you work. Contains:<br>• Rust 1.99.1 with rustfmt, clippy, rust-analyzer and both musl targets<br>• Zig and `cargo-zigbuild` for cross-compiling<br>• `sqlx-cli`, `just`, `cargo-deny`<br>• `psql` 18<br>• `kubectl` 1.35 (matching the cluster) and `kubeseal` (matching the controller)<br>• zsh with oh-my-zsh, Vim and Neovim |
 | `db` | `postgres:18.6` | Dev database. `DATABASE_URL` is preset. |
 | `mail` | `axllent/mailpit` | Fake SMTP server with a web inbox on port 8025. |
 
 - **Kubernetes access:** your `~/.kube/config` is mounted read-only, so `kubectl`/`kubeseal` work from inside the container.
-- **Volumes:** Cargo's registry and the `target/` directory live in named volumes. This keeps builds fast on macOS bind mounts and keeps build output out of the repository.
+- **Volumes:** Cargo's registry, the build directory and the shell history live in named volumes. This keeps builds fast on macOS bind mounts and keeps build output out of the repository; `target/oci` stays in the workspace so the host can load the image.
 - **Editors:** works with VS Code (Dev Containers extension), RustRover/IntelliJ (*Remote Development → Dev Containers*) and the `devcontainer` CLI.
 - **Tests:**
   - Unit tests for link signing (tampering, nonce bump, expiry), validation, i18n completeness and retention.
@@ -285,12 +294,11 @@ The devcontainer is a Compose project with three services:
 - It needs no privileges, so it runs in the dev container. Buildah can't run there: it needs user namespaces, which the dev container's default seccomp profile blocks, and we keep the profile as it is.
 - CI's `just push` copies the index and both images to the registry with `skopeo copy --all --preserve-digests`; CI checks that the registry serves an OCI image index for amd64 and arm64.
 - `just up <tag>`, on the host, loads the image into Docker or Podman first when `target/oci` holds that tag.
-
 - The image contains no shell, no CA bundle and no tzdata: the CA roots and zoneinfo are compiled into the binary. It runs as a numeric non-root UID, so it needs no `/etc/passwd`. Expect about 10–20 MB.
 - `.github/workflows/ci.yaml` runs `just test` and `just lint` against a Postgres 18 service on every push and pull request; on pushes it then runs `just image` on `ubuntu-24.04` (which ships skopeo) and pushes `sha-<commit>`, plus `latest` from `main` and the tag name for `v*` tags, to `ghcr.io/vehagn/innby`. Tool versions match the devcontainer.
 - Probes use `httpGet` on `/healthz` and `/readyz`, since there is no shell for `exec` probes.
 
-## 11. Kubernetes (fits the existing homelab conventions)
+## 11. Kubernetes (following the homelab's conventions)
 
 | Resource | Notes |
 |---|---|
@@ -299,7 +307,7 @@ The devcontainer is a Compose project with three services:
 | Deployments | `innby-web` (`serve`, 2 replicas), `innby-admin` (`admin`, 1 replica), `innby-mailer` (`mailer`, 1 replica, `Recreate`). `innby migrate` runs as an **init container** on `innby-web`. |
 | CronJob | `innby-janitor`: hourly, with `concurrencyPolicy: Forbid`. |
 | HTTPRoutes | Public routes on `gateway/external`. The admin hostname on `gateway/internal`. TLS comes from the existing cert-manager setup. |
-| Secrets (SealedSecrets) | One `innby` secret, sealed by `just seal` from the gitignored `deploy/secrets.env`: the link key, the open-RSVP code, the admin hash, and the MailerSend SMTP credentials. Each workload references only the keys it needs. |
+| Secrets (SealedSecrets) | One `innby` secret, sealed by `just seal` from the gitignored `deploy/secrets.env`: the link key, the admin password hash and JWT secret, and the MailerSend SMTP credentials. Each workload references only the keys it needs. |
 | NetworkPolicies (Cilium) | `web` and `admin` accept traffic from the gateways (`fromEntities: ingress`); which gateway reaches which is decided by the HTTPRoutes. `mailer` has no ingress and egress to `smtp.mailersend.net:587` only. `janitor` has egress to the DB only. Postgres accepts ingress from the Innby pods and the CNPG operator. |
 | Pod security | `runAsNonRoot`, `readOnlyRootFilesystem`, `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault`, and the namespace labelled `pod-security.kubernetes.io/enforce: restricted`. |
 | Observability | JSON logs. `/metrics` (responses, headcount, rate-limit hits, outbox lag, mail failures) is left for hardening. |
@@ -323,7 +331,7 @@ just seal                # deploy/secrets.env → deploy/sealed-secrets.yaml
 
 Hidden from the list, for other recipes and CI: `run`, `migrate`, `build` (cargo zigbuild, static musl, `SQLX_OFFLINE`) and `push` (skopeo copy → ghcr.io/vehagn/innby). `kubectl kustomize deploy` renders the manifests.
 
-## 13. Milestones
+## 13. History
 
 0. ✅ **Devcontainer:** Containerfile, compose and `devcontainer.json`, verified by building it and running every tool once.
 1. ✅ **Skeleton:** `cargo init`, `rust-toolchain.toml`, `Justfile`, config, `innby serve` with `/healthz`, an askama layout with embedded CSS, nb/en `Messages`.
@@ -349,19 +357,16 @@ Hidden from the list, for other recipes and CI: `run`, `migrate`, `build` (cargo
 
 ## 14. Decisions
 
-- **Language:** Rust (no preference given; the devcontainer makes the toolchain a non-issue).
+- **Language:** Rust (§2).
 - **RSVP style:** both personal invite links and name-only sign-up through group links the host makes (§5.1, §5.2).
-- **E-mail:** an optional extra for guests (§5.3); the `mailer` workload is part of v1.
+- **E-mail:** an optional extra for guests (§5.3), sent by its own `mailer` workload.
 - **Page languages:** Bokmål, Nynorsk, British English, American English, Simplified Chinese and Traditional Chinese.
 - **Capacity:** no limit and no waitlist.
 - **Group sign-up party size:** set per group, 2 by default (the guest plus one).
-- **Guest list:** the whole event's, on every link; names as each guest chose (§5.6).
-- **Root page `/`:** event info only; RSVP needs an invite link or a group link.
+- **Guest list:** the whole event's, behind every link; names as each guest chose (§5.6).
+- **Root page `/`:** event info, and a way back for a guest whose device remembers them; RSVP needs an invite link or a group link.
+- **RSVP deadline:** optional, unset by default, so answers can change until the event.
 - **Retention:** all guest data is deleted 30 days after the event.
 - **Exposure:** directly through `gateway/external`.
 - **E-mail provider:** MailerSend (existing account).
-
-## 15. Remaining defaults (say if you want them changed)
-
-1. **RSVP deadline:** an optional config value, unset by default (answers can change until the event).
-2. **Registry and CI:** GHCR, with GitHub Actions building and pushing the image.
+- **Registry and CI:** GHCR, with GitHub Actions building and pushing the image.

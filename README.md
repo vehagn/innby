@@ -2,12 +2,12 @@
 
 An RSVP site for one event and about 100 guests. Guests answer through a personal link,
 with no account or e-mail address needed, or sign up through a link the host makes for
-their group. Every link shows a guest list, with each name shown as its guest chose. E-mail
-reminders are optional. Pages are in Bokmål, Nynorsk, Simplified and
-Traditional Chinese, and English in a traditional (British) and a simplified (American)
-flavour, and use no JavaScript. The public site's only cookie is one a guest asks for, so
-the front page leads them back to their own page. All guest data is deleted 30 days after the
-event.
+their group. Every link leads to a guest list, with each name shown as its guest chose.
+E-mail reminders are optional. Pages are in Bokmål, Nynorsk, Simplified and Traditional
+Chinese, and English in a traditional (British) and a simplified (American) flavour, and
+use no JavaScript. The public site's only cookie is one a guest asks for, so that the
+front page leads them back to their own page. All guest data is deleted 30 days after
+the event.
 
 One Rust binary, run as several workloads:
 
@@ -36,16 +36,17 @@ http://localhost:8025, all in your own browser. Ctrl-C stops it, and `just dev d
 the host stops the devcontainer, keeping its database and build cache. `just dev` makes a
 `.env` from `.env.example` if there is none.
 
+`just` lists the other recipes. `just test` and `just lint` are what CI runs, `just db`
+opens psql, `just db prepare` updates the offline query data in `.sqlx/` after a query
+changes, and `just innby` runs the binary's commands, e.g.
+`just innby invite "Kari & Ola" 2`.
+
 The shell is zsh with oh-my-zsh and the devcontainers prompt, which shows the git
-branch. It completes `just`, `cargo`, `rustup` and `kubectl` recipes and arguments,
-has `k`, `kz` (`kubectl kustomize`) and `yl` (`yamllint`) aliases, and keeps its
-history in a volume, so it survives rebuilds. Vim and Neovim are there too, both with
-rust-analyzer for language support.
-`just dev` mounts your `~/.vimrc`, `~/.vim` and `~/.config/nvim` read-only, those you have,
-and Neovim falls back to your Vim settings. `just` lists the other recipes; `just test`
-and `just lint` are what CI runs. `just db` opens psql, `just db prepare` updates the
-offline query data in `.sqlx/` after a query changes, and `just innby` runs the binary's
-commands, e.g. `just innby invite "Kari & Ola" 2`.
+branch. It completes `just`, `cargo`, `rustup` and `kubectl`, has `k`, `kz`
+(`kubectl kustomize`) and `yl` (`yamllint`) aliases, and keeps its history in a volume,
+so it survives rebuilds. Vim and Neovim are there too, both with rust-analyzer.
+`just dev` mounts those of your `~/.vimrc`, `~/.vim` and `~/.config/nvim` that you have,
+read-only, and Neovim falls back to your Vim settings.
 
 VS Code, RustRover and the `devcontainer` CLI open the same devcontainer and forward the
 ports themselves.
@@ -53,15 +54,17 @@ ports themselves.
 ## Translate
 
 Every text on the public site, the admin UI and in the mails is in
-[`locales/`](locales/): `nb.toml`
-(Bokmål), `nn.toml` (Nynorsk), `en.toml` (British, posh), `en-us.toml` (American,
-simplified), `zh-hans.toml` (Simplified Chinese) and `zh-hant.toml` (Traditional
-Chinese). Punctuation that differs between scripts, like "：" for ": ", is part of the
-texts, with placeholders such as `{name}` where a value goes. All files have the same keys; keep placeholders like `{name}` as they are.
-`just test` checks that the files agree. The privacy notice is
-an HTML template per language, in [`templates/privacy/`](templates/privacy/). The admin
-UI's texts are under `[admin]`; it follows the browser's language too, and has the same
-language menu.
+[`locales/`](locales/): `nb.toml` (Bokmål), `nn.toml` (Nynorsk), `en.toml` (British,
+posh), `en-us.toml` (American, simplified), `zh-hans.toml` (Simplified Chinese) and
+`zh-hant.toml` (Traditional Chinese). The admin UI's texts are under `[admin]`. All files
+have the same keys, and placeholders such as `{name}` mark where a value goes; keep them
+as they are. Punctuation that differs between scripts, like "：" for ": ", is part of the
+texts. `just test` checks that the files agree.
+
+The privacy notice is an HTML template per language, in
+[`templates/privacy/`](templates/privacy/). Bump `PRIVACY_VERSION` in
+[`src/web/mod.rs`](src/web/mod.rs) when it changes; each answer records the version the
+guest saw.
 
 ## Run a local copy
 
@@ -84,8 +87,9 @@ on the host, which loads it first.
 
 CI builds `FROM scratch` images holding only the static binary, for amd64 and arm64, and
 pushes them to `ghcr.io/vehagn/innby` as one OCI image index. Every push to `main` is
-`latest`; `just release 0.2.0` bumps `Cargo.toml`, tags `v0.2.0` and pushes, which publishes
-`:v0.2.0`. [`deploy/`](deploy/README.md) has the Kubernetes manifests.
+`latest`; `just release 0.3.0` bumps `Cargo.toml`, tags `v0.3.0` and pushes, which
+publishes `:v0.3.0`. [`deploy/`](deploy/README.md) has the Kubernetes manifests and the
+steps to deploy them.
 
 [PLAN.md](PLAN.md) explains the design, and [docs/ropa.md](docs/ropa.md) is the GDPR
 record of processing.

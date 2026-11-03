@@ -41,14 +41,15 @@ guest expects to give.
   otherwise, and nothing for those who decline. Next to a coming guest's name they see
   how many others the guest brings ("+1"), which the guest can hide with their name.
   Answers beyond "coming" or "not answered" and e-mail addresses are never shown to
-  other guests. There is no profiling, and everything is deleted 30 days after
-  the event. Group links can be forwarded beyond the group, so they carry the same
+  other guests. There is no profiling, and everything is deleted 30 days after the
+  event. Group links can be forwarded beyond the group, so they carry the same
   minimal defaults, and the host can replace a link that spreads too far.
 - *Safeguards.* Information on first visit and at sign-up (Art. 13/14), a choice of
   how the name shows on the guest list, including not at all (Art. 21), the guest list on
   a page of its own so that link previews in chat apps never receive names, a
-  `robots.txt` and `noindex` that keep crawlers out, a full notice at `/privacy`, self-service access, export, rectification and deletion on
-  every RSVP page, and objection handled as deletion.
+  `robots.txt` and `noindex` that keep crawlers out, a full notice at `/privacy`,
+  self-service access, export, rectification and deletion on every RSVP page, and
+  objection handled as deletion.
 
 **Conclusion.** The host's interest is legitimate, the processing is necessary and
 minimal, and it doesn't override the guests' interests or rights. Legitimate interest

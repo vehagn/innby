@@ -13,14 +13,16 @@ These manifests follow the `vehagn/homelab` conventions: one directory per app u
 
 ## Steps
 
-1. **Image.** Push to `main` so CI publishes `ghcr.io/vehagn/innby`. New GHCR packages
-   are private: make it public, or add an image pull secret. Pin `newTag` in
-   `kustomization.yaml` to the `sha-<commit>` tag CI pushed.
+1. **Image.** `just release <version>` tags a release, and CI publishes it as
+   `ghcr.io/vehagn/innby:v<version>`. New GHCR packages are private: make it public, or
+   add an image pull secret. Pin `newTag` in `kustomization.yaml` to that tag.
 2. **Config.** Edit `config.env`: event details, your name and contact address for the
    privacy notice, and the sender address.
-3. **Secrets.** `cp secrets.example.env secrets.env`, fill it in, then from the
-   repository root run `just seal` and uncomment `sealed-secrets.yaml` in
-   `kustomization.yaml`. `secrets.env` is gitignored; never commit it.
+3. **Secrets.** `cp secrets.example.env secrets.env` and fill it in: the link key, the
+   admin password hash (`just innby hash-password`) and JWT secret, and the SMTP
+   credentials from step 4. Then from the repository root run `just seal` and uncomment
+   `sealed-secrets.yaml` in `kustomization.yaml`. `secrets.env` is gitignored; never
+   commit it.
 4. **MailerSend.** Verify the sender domain (SPF, DKIM, DMARC), accept the DPA, and
    create SMTP credentials for step 3.
 5. **Argo CD.** Copy this directory (without `secrets.env`) to
