@@ -104,7 +104,8 @@ impl DisplayChoice {
 pub struct GuestList {
     pub coming: Vec<ListedGuest>,
     pub pending: Vec<ListedGuest>,
-    /// How many chose not to be listed.
+    /// How many aren't listed: those coming who chose not to be, with everyone they
+    /// bring, and the invitations not answered yet that chose not to be.
     pub coming_hidden: usize,
     pub pending_hidden: usize,
     /// Everyone coming, with those they bring, listed or not.
@@ -143,7 +144,7 @@ impl GuestList {
                     plus,
                     you: Some(guest.id) == you,
                 }),
-                None => *hidden += 1,
+                None => *hidden += 1 + plus as usize,
             }
         }
         for names in [&mut list.coming, &mut list.pending] {

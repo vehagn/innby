@@ -695,6 +695,8 @@ mod tests {
             t.guest_list_pending,
             t.invitation_count(2)
         )));
+        // Ola is hidden now, and so is the one Ola brings.
+        assert!(html.contains(&format!(r#"<li class="muted">{}</li>"#, t.more_guests(2))));
     }
 
     #[sqlx::test]
