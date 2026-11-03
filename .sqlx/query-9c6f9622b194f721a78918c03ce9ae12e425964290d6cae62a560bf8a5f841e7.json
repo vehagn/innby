@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "with expired as (delete from admin_refresh_token where expires_at <= now()) insert into admin_refresh_token (digest, expires_at) values ($1, $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9c6f9622b194f721a78918c03ce9ae12e425964290d6cae62a560bf8a5f841e7"
+}

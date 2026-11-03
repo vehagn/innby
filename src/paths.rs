@@ -44,8 +44,8 @@ pub const GROUP_DELETE: &str = "/groups/{id}/delete";
 pub const GROUP_QR: &str = "/groups/{id}/qr.svg";
 pub const QR_STYLE: &str = "/qr-style";
 pub const REMINDERS: &str = "/reminders";
+pub const LOGIN: &str = "/login";
 pub const LOGOUT: &str = "/logout";
-pub const LOGGED_OUT: &str = "/logged-out";
 
 /// A pattern with its one parameter filled in: `path(RSVP, link)` is `/r/{link}`.
 pub fn path(pattern: &str, value: impl Display) -> String {
