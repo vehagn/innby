@@ -160,7 +160,7 @@ pub mod tests {
         let token = key.sign(&claims(now));
         let (message, _) = token.rsplit_once('.').unwrap();
 
-        // Another password hash, as after `just hash-password`, makes another key.
+        // Another password hash, as after `just innby hash-password`, makes another key.
         assert_eq!(key_for("new hash").verify(&token, now), None);
         // Claims that weren't signed.
         let mut longer = claims(now);

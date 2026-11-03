@@ -233,7 +233,7 @@ impl AdminConfig {
             !config.is_https()
                 || !crate::admin::auth::verify(&password_hash, EXAMPLE_ADMIN_PASSWORD),
             "INNBY_ADMIN_PASSWORD_HASH: that's a hash of the example password from \
-             .env.example; make one for a real password with `just hash-password`"
+             .env.example; make one for a real password with `just innby hash-password`"
         );
         let jwt_secret = env.required("INNBY_ADMIN_JWT_SECRET")?;
         ensure!(

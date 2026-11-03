@@ -32,7 +32,7 @@ just up
 
 That builds and runs this checkout: the site on http://localhost:8080, the admin UI on
 http://localhost:8081 (user `admin`, password `innby`), and Mailpit's inbox on
-http://localhost:8025, all in your own browser. Ctrl-C stops it, and `just dev-down` on
+http://localhost:8025, all in your own browser. Ctrl-C stops it, and `just dev down` on
 the host stops the devcontainer, keeping its database and build cache. `just dev` makes a
 `.env` from `.env.example` if there is none.
 
@@ -43,7 +43,9 @@ history in a volume, so it survives rebuilds. Vim and Neovim are there too, both
 rust-analyzer for language support.
 `just dev` mounts your `~/.vimrc`, `~/.vim` and `~/.config/nvim` read-only, those you have,
 and Neovim falls back to your Vim settings. `just` lists the other recipes; `just test`
-and `just lint` are what CI runs.
+and `just lint` are what CI runs. `just db` opens psql, `just db prepare` updates the
+offline query data in `.sqlx/` after a query changes, and `just innby` runs the binary's
+commands, e.g. `just innby invite "Kari & Ola" 2`.
 
 VS Code, RustRover and the `devcontainer` CLI open the same devcontainer and forward the
 ports themselves.
@@ -71,12 +73,12 @@ That runs the published image with [`compose.yaml`](compose.yaml): Postgres, Mai
 the site, admin UI and mailer. The site is on http://localhost:8080, the admin UI on
 http://localhost:8081 (user `admin`, password `innby`), and the mail it sends on
 http://localhost:8025. Settings come from `.env.example`, overridden by `.env` if there is
-one. `just up v1.0.0` runs a given tag, `just up-janitor` applies the retention rules,
+one. `just up v1.0.0` runs a given tag, `just up janitor` applies the retention rules,
 and `just down` stops it all. It uses Docker unless `ENGINE` says otherwise, e.g.
 `ENGINE=podman`.
 
-To run your own build instead, run `just image dev` in the dev container, then
-`just load` and `just up dev` on the host.
+To run your own build instead, run `just image` in the dev container, then `just up dev`
+on the host, which loads it first.
 
 ## Deploy
 

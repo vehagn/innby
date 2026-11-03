@@ -68,7 +68,7 @@ services:
       mail:
         condition: service_started
 
-  # The cluster runs this hourly; here it's `just up-janitor`.
+  # The cluster runs this hourly; here it's `just up janitor`.
   janitor:
     <<: *innby
     command: janitor

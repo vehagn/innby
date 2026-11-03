@@ -273,18 +273,18 @@ The devcontainer is a Compose project with three services:
 
 ## 10. Container image (binary only, no build tool)
 
-- Build: `just build` runs `cargo zigbuild --release --locked` for `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`, with `SQLX_OFFLINE=true` so no database is needed.
+- Build: `just image` first runs `cargo zigbuild --release --locked` for `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`, with `SQLX_OFFLINE=true` so no database is needed.
   - Release profile: `lto = "fat"`, `codegen-units = 1`, `strip = true`.
   - The cluster is amd64; arm64 is for running a copy on an arm64 machine, such as a Mac.
 - `just image [tag]` writes the image as an [OCI image layout](https://github.com/opencontainers/image-spec/blob/main/image-layout.md) in `target/oci`, with `tar`, `gzip`, `sha256sum` and `jq`:
   - Per architecture: one gzipped layer holding `/innby` (root-owned, mode 0555, time 0), a config (entrypoint, `serve`, user 65532, port 8080, OCI labels) and a manifest.
   - An image index over the two, named `<tag>` in `index.json`.
   - A `docker save`-style `manifest.json` for the build machine's architecture, since Docker before 25 can't load OCI layouts.
-  - `target/oci.tar` holds it all, for `just load`.
+  - `target/oci.tar` holds it all, for `just up <tag>` on the host.
   - The same binaries always give the same digests.
 - It needs no privileges, so it runs in the dev container. Buildah can't run there: it needs user namespaces, which the dev container's default seccomp profile blocks, and we keep the profile as it is.
-- `just push` copies the index and both images to the registry with `skopeo copy --all --preserve-digests`; CI checks that the registry serves an OCI image index for amd64 and arm64.
-- `just load`, on the host, loads the image into Docker or Podman, for `just up <tag>`.
+- CI's `just push` copies the index and both images to the registry with `skopeo copy --all --preserve-digests`; CI checks that the registry serves an OCI image index for amd64 and arm64.
+- `just up <tag>`, on the host, loads the image into Docker or Podman first when `target/oci` holds that tag.
 
 - The image contains no shell, no CA bundle and no tzdata: the CA roots and zoneinfo are compiled into the binary. It runs as a numeric non-root UID, so it needs no `/etc/passwd`. Expect about 10–20 MB.
 - `.github/workflows/ci.yaml` runs `just test` and `just lint` against a Postgres 18 service on every push and pull request; on pushes it then runs `just image` on `ubuntu-24.04` (which ships skopeo) and pushes `sha-<commit>`, plus `latest` from `main` and the tag name for `v*` tags, to `ghcr.io/vehagn/innby`. Tool versions match the devcontainer.
@@ -305,25 +305,23 @@ The devcontainer is a Compose project with three services:
 | Observability | JSON logs. `/metrics` (responses, headcount, rate-limit hits, outbox lag, mail failures) is left for hardening. |
 | Delivery | Kustomize in `deploy/` (see `deploy/README.md`), copied to `vehagn/homelab` → `k8s/apps/<group>/innby`, where the group's ApplicationSet picks it up. |
 
-## 12. Justfile (draft)
+## 12. Justfile
 
 ```
 just                     # list recipes
-just run                 # serve (:8080) + admin (:8081) locally (+ mailer from milestone 6)
-just migrate             # apply migrations to $DATABASE_URL
-just prepare             # cargo sqlx prepare → .sqlx/ (commit it)
-just psql                # shell into dev db
-just invite "Kari & Ola" 2   # create an invitation from the CLI, print link
-just hash-password       # argon2 hash for INNBY_ADMIN_PASSWORD_HASH
+just dev [down]          # on the host: shell in the dev container, or stop it
+just up [tag|janitor]    # dev container: serve this checkout (+ mailer); host: local copy of the image
+just down                # stop the local copy
 just test                # cargo test (incl. #[sqlx::test] against db)
 just lint                # cargo fmt --check, clippy -D warnings, sqlx prepare --check, cargo deny check
-just build               # static x86_64 musl binary via cargo zigbuild (SQLX_OFFLINE)
+just db [prepare]        # psql on the dev db, or cargo sqlx prepare → .sqlx/ (commit it)
+just innby invite "Kari & Ola" 2   # any innby command; hash-password asks without echo
 just image [tag]         # OCI layout in target/oci: amd64 + arm64, binary only
-just push [tag]          # skopeo copy → ghcr.io/vehagn/innby
-just load                # on the host: target/oci.tar → Docker/Podman
+just release 0.3.0       # bump, tag (signed), push
 just seal                # deploy/secrets.env → deploy/sealed-secrets.yaml
-just manifests           # render deploy/ with kustomize (Argo CD does the deploying)
 ```
+
+Hidden from the list, for other recipes and CI: `run`, `migrate`, `build` (cargo zigbuild, static musl, `SQLX_OFFLINE`) and `push` (skopeo copy → ghcr.io/vehagn/innby). `kubectl kustomize deploy` renders the manifests.
 
 ## 13. Milestones
 

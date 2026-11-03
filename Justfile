@@ -5,71 +5,154 @@ image := env("INNBY_IMAGE", "ghcr.io/vehagn/innby")
 revision := `git rev-parse HEAD 2>/dev/null || echo unknown`
 # Where `just image` writes the OCI image layout; inside the workspace, so the host sees it.
 oci_dir := justfile_directory() / "target/oci"
-# The container engine for `just load` and `just up`, e.g. ENGINE=podman. Any Compose
-# implementation works for `just up`, e.g. COMPOSE=docker-compose.
+# The container engine for `just up` and `just dev`, e.g. ENGINE=podman. Any Compose
+# implementation works, e.g. COMPOSE=docker-compose.
 engine := env("ENGINE", "docker")
 compose := env("COMPOSE", engine + " compose")
 dev_compose := compose + " --file .devcontainer/compose.yaml --file .devcontainer/compose.ports.yaml"
 
-# List available recipes
+[private]
 default:
     @just --list
 
-# Run the public site (:8080), the admin UI (:8081) and the mailer (reads .env, see .env.example)
-run: migrate
+# Starts the dev container with Postgres, Mailpit and your Vim settings, and opens a
+# shell in it. `just dev down` stops it, keeping its database and build cache.
+[doc("Open a shell in the dev container; `just dev down` stops it")]
+[group("dev")]
+dev command="up":
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo build --quiet
-    trap 'kill 0' EXIT
-    cargo run --quiet -- admin &
-    cargo run --quiet -- mailer &
-    cargo run --quiet -- serve
+    case "{{ command }}" in
+      up) ;;
+      down) exec {{ dev_compose }} down ;;
+      *) echo "just dev [up|down]" >&2; exit 1 ;;
+    esac
+    test -f .env || cp .env.example .env
+    # Your Vim and Neovim settings, read-only, but only those you have: Docker would
+    # create the missing ones on the host as empty folders.
+    mounts=()
+    for config in .vimrc .vim .config/nvim; do
+      if [[ -e "$HOME/$config" ]]; then mounts+=("\"$HOME/$config:/home/dev/$config:ro\""); fi
+    done
+    mkdir -p target
+    editor=target/compose.editor.yaml
+    printf 'services:\n  dev:\n    volumes: [%s]\n' "$(IFS=,; echo "${mounts[*]-}")" > "$editor"
+    {{ dev_compose }} --file "$editor" up --detach --build --wait
+    {{ dev_compose }} exec dev zsh
 
-# Create an invitation and print the guest's link
-invite name max_party_size="1": migrate
-    cargo run --quiet -- invite "{{ name }}" {{ max_party_size }}
-
-# Apply the retention rules once, as the hourly CronJob does
-janitor: migrate
-    cargo run --quiet -- janitor
-
-# Hash an admin password for INNBY_ADMIN_PASSWORD_HASH (prompts without echo)
-hash-password:
+# Site :8080, admin :8081, mail :8025. In the dev container it serves this checkout; on
+# the host it runs the published image with compose.yaml. `just up v1.0.0` runs a given
+# tag, or the one `just image` wrote, and `just up janitor` applies the local copy's
+# retention rules once.
+[doc("Serve this checkout, or on the host run the published image")]
+[group("dev")]
+up tag="latest":
     #!/usr/bin/env bash
     set -euo pipefail
-    read -rsp "Password: " password
-    echo >&2
-    printf %s "$password" | cargo run --quiet -- hash-password
+    urls="http://localhost:8080  http://localhost:8081  http://localhost:8025"
+    if [[ -n "${INNBY_DEVCONTAINER:-}" ]]; then
+      # In the dev container, which has no container engine: serve this checkout instead,
+      # on the ports `just dev` publishes. Ctrl-C stops it.
+      echo "$urls"
+      exec just run
+    fi
+    if [[ "{{ tag }}" == janitor ]]; then
+      exec {{ compose }} run --rm janitor
+    fi
+    # The tag `just image` last wrote in the dev container is loaded from there.
+    built=$(sed -n 's/.*"org.opencontainers.image.ref.name":"\([^"]*\)".*/\1/p' \
+      "{{ oci_dir }}/index.json" 2>/dev/null || true)
+    if [[ "$built" == "{{ tag }}" ]]; then
+      {{ engine }} load --input "{{ oci_dir }}.tar"
+    fi
+    INNBY_TAG={{ tag }} {{ compose }} up --detach --pull missing
+    echo "$urls"
 
-# Run all tests; database tests get a throwaway database each
+# `down --volumes` deletes the database too.
+[doc("Stop the local copy, keeping its database")]
+[group("dev")]
+down:
+    {{ compose }} down
+
+# Database tests get a throwaway database each.
+[doc("Run all tests")]
+[group("dev")]
 test: migrate
     cargo test --locked
 
-# Apply the migrations to $DATABASE_URL (the query macros check against it at compile time)
-migrate:
-    sqlx migrate run
-
-# Regenerate the offline query data in .sqlx/ (commit it)
-prepare: migrate
-    cargo sqlx prepare -- --all-targets
-
-# Check formatting, lints and dependencies
+[doc("Check formatting, lints, the offline query data and dependencies")]
+[group("dev")]
 lint:
     cargo fmt --check
     cargo clippy --locked --all-targets -- -D warnings
     cargo sqlx prepare --check -- --all-targets
     cargo deny check
 
-# Format the code
-fmt:
-    cargo fmt
+# `just db prepare` regenerates the offline query data in .sqlx/, which is committed.
+[doc("Open psql on the dev database; `just db prepare` updates .sqlx/")]
+[group("dev")]
+db command="psql": migrate
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{ command }}" in
+      psql) exec psql "$DATABASE_URL" ;;
+      prepare) exec cargo sqlx prepare -- --all-targets ;;
+      *) echo "just db [psql|prepare]" >&2; exit 1 ;;
+    esac
 
-# Build static musl release binaries for amd64 and arm64 (offline, from .sqlx/)
-build:
-    SQLX_OFFLINE=true cargo zigbuild --locked --release \
-      --target x86_64-unknown-linux-musl --target aarch64-unknown-linux-musl
+# E.g. `just innby invite "Kari & Ola" 2`, `just innby janitor`, or `just innby
+# hash-password`, which asks for the password without echoing it.
+[doc("Run an innby command against the dev database")]
+[group("dev")]
+[positional-arguments]
+innby *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ "${1:-}" == hash-password ]]; then
+      read -rsp "Password: " password
+      echo >&2
+      printf %s "$password" | cargo run --quiet -- hash-password
+      exit
+    fi
+    sqlx migrate run
+    exec cargo run --quiet -- "$@"
 
-# Write the amd64 and arm64 images as one OCI image index to target/oci (plain files, no build tool)
+# Bumps Cargo.toml if needed, tags v<version> (signed) and pushes, which builds and
+# publishes the image.
+[doc("Release a version, e.g. `just release 0.3.0`")]
+[group("release")]
+release version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version="{{ trim_start_match(version, "v") }}"
+    tag="v$version"
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
+      || { echo "not a version: $version (want e.g. 0.2.0)" >&2; exit 1; }
+    [[ "$(git branch --show-current)" == main ]] || { echo "check out main first" >&2; exit 1; }
+    [[ -z "$(git status --porcelain)" ]] || { echo "commit or stash your changes first" >&2; exit 1; }
+    git fetch --quiet --tags origin main
+    git merge-base --is-ancestor origin/main HEAD || { echo "main is behind origin/main" >&2; exit 1; }
+    ! git rev-parse --quiet --verify "refs/tags/$tag" >/dev/null || { echo "$tag already exists" >&2; exit 1; }
+    current=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)
+    if [[ "$current" != "$version" ]]; then
+      perl -pi -e 's/^version = "[^"]*"/version = "'"$version"'"/ if /^version = / && !$done++' Cargo.toml
+      perl -0pi -e 's/(name = "innby"\nversion = )"[^"]*"/$1"'"$version"'"/' Cargo.lock
+      git commit --quiet --message "Release $tag" -- Cargo.toml Cargo.lock
+      echo "Bumped $current → $version"
+    fi
+    git tag --sign --message "Innby $version" "$tag"
+    git --no-pager log --oneline --decorate -1
+    read -rp "Push main and $tag to origin? [y/N] " answer
+    if [[ "$answer" == [yY] ]]; then
+      git push --atomic origin main "$tag"
+    else
+      echo "Not pushed. Later: git push --atomic origin main $tag"
+    fi
+
+# Writes the amd64 and arm64 images as one OCI image index to target/oci, as plain files
+# with no build tool. `just up <tag>` on the host loads and runs it.
+[doc("Build the images into target/oci")]
+[group("release")]
 image tag="dev": build
     #!/usr/bin/env bash
     set -euo pipefail
@@ -144,92 +227,10 @@ image tag="dev": build
     echo '{"imageLayoutVersion":"1.0.0"}' > "$out/oci-layout"
     tar --create --file="{{ oci_dir }}.tar" --directory="$out" .
     echo "{{ image }}:{{ tag }} $(jq -r .digest <<< "$index")"
-    echo "{{ oci_dir }}.tar: \`just load\` on the host puts it in Docker"
+    echo "{{ oci_dir }}.tar: \`just up {{ tag }}\` on the host loads and runs it"
 
-# Push the image index from `just image` under each tag given (`skopeo login ghcr.io` first)
-push tag="dev" *also:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    for tag in {{ tag }} {{ also }}; do
-      skopeo copy --all --preserve-digests "oci:{{ oci_dir }}:{{ tag }}" "docker://{{ image }}:$tag"
-    done
-
-# Load the image from `just image` into Docker or Podman, for `just up <tag>` (run on the host)
-load:
-    {{ engine }} load --input "{{ oci_dir }}.tar"
-
-# Release a version: bump Cargo.toml if needed, tag v<version> (signed), push to build the image
-release version:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    version="{{ trim_start_match(version, "v") }}"
-    tag="v$version"
-    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] \
-      || { echo "not a version: $version (want e.g. 0.2.0)" >&2; exit 1; }
-    [[ "$(git branch --show-current)" == main ]] || { echo "check out main first" >&2; exit 1; }
-    [[ -z "$(git status --porcelain)" ]] || { echo "commit or stash your changes first" >&2; exit 1; }
-    git fetch --quiet --tags origin main
-    git merge-base --is-ancestor origin/main HEAD || { echo "main is behind origin/main" >&2; exit 1; }
-    ! git rev-parse --quiet --verify "refs/tags/$tag" >/dev/null || { echo "$tag already exists" >&2; exit 1; }
-    current=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)
-    if [[ "$current" != "$version" ]]; then
-      perl -pi -e 's/^version = "[^"]*"/version = "'"$version"'"/ if /^version = / && !$done++' Cargo.toml
-      perl -0pi -e 's/(name = "innby"\nversion = )"[^"]*"/$1"'"$version"'"/' Cargo.lock
-      git commit --quiet --message "Release $tag" -- Cargo.toml Cargo.lock
-      echo "Bumped $current → $version"
-    fi
-    git tag --sign --message "Innby $version" "$tag"
-    git --no-pager log --oneline --decorate -1
-    read -rp "Push main and $tag to origin? [y/N] " answer
-    if [[ "$answer" == [yY] ]]; then
-      git push --atomic origin main "$tag"
-    else
-      echo "Not pushed. Later: git push --atomic origin main $tag"
-    fi
-
-# Start the dev container with Postgres, Mailpit and your Vim settings, and open a shell in it; `just up` in there serves this checkout on localhost
-dev:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    test -f .env || cp .env.example .env
-    # Your Vim and Neovim settings, read-only, but only those you have: Docker would
-    # create the missing ones on the host as empty folders.
-    mounts=()
-    for config in .vimrc .vim .config/nvim; do
-      if [[ -e "$HOME/$config" ]]; then mounts+=("\"$HOME/$config:/home/dev/$config:ro\""); fi
-    done
-    mkdir -p target
-    editor=target/compose.editor.yaml
-    printf 'services:\n  dev:\n    volumes: [%s]\n' "$(IFS=,; echo "${mounts[*]-}")" > "$editor"
-    {{ dev_compose }} --file "$editor" up --detach --build --wait
-    {{ dev_compose }} exec dev zsh
-
-# Stop the dev container, keeping its database and build cache
-dev-down:
-    {{ dev_compose }} down
-
-# Run a local copy of the published image (see compose.yaml), or of this checkout in the dev container: site :8080, admin :8081, mail :8025
-up tag="latest":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [[ -n "${INNBY_DEVCONTAINER:-}" ]]; then
-      # In the dev container, which has no container engine: serve this checkout instead,
-      # on the ports `just dev` publishes. Ctrl-C stops it.
-      echo "http://localhost:8080  http://localhost:8081  http://localhost:8025"
-      exec just run
-    fi
-    INNBY_TAG={{ tag }} {{ compose }} up --detach --pull missing
-    echo "http://localhost:8080  http://localhost:8081  http://localhost:8025"
-
-# Run the local copy's retention rules once
-up-janitor:
-    {{ compose }} run --rm janitor
-
-# Stop the local copy, keeping its database (`down --volumes` deletes it)
-down:
-    {{ compose }} down
-
-# Seal deploy/secrets.env with the cluster's key into deploy/sealed-secrets.yaml
+[doc("Seal deploy/secrets.env with the cluster's key into deploy/sealed-secrets.yaml")]
+[group("release")]
 seal:
     kubectl create secret generic innby --namespace innby \
       --from-env-file=deploy/secrets.env --dry-run=client --output=yaml \
@@ -238,10 +239,33 @@ seal:
       > deploy/sealed-secrets.yaml
     @echo "deploy/sealed-secrets.yaml: add it to deploy/kustomization.yaml"
 
-# Render the Kubernetes manifests
-manifests:
-    kubectl kustomize deploy
+# Run the site (:8080), the admin UI (:8081) and the mailer from this checkout (reads .env)
+[private]
+run: migrate
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build --quiet
+    trap 'kill 0' EXIT
+    cargo run --quiet -- admin &
+    cargo run --quiet -- mailer &
+    cargo run --quiet -- serve
 
-# Open psql against the dev database
-psql:
-    psql "$DATABASE_URL"
+# Apply the migrations to $DATABASE_URL (the query macros check against it at compile time)
+[private]
+migrate:
+    sqlx migrate run
+
+# Build static musl release binaries for amd64 and arm64 (offline, from .sqlx/)
+[private]
+build:
+    SQLX_OFFLINE=true cargo zigbuild --locked --release \
+      --target x86_64-unknown-linux-musl --target aarch64-unknown-linux-musl
+
+# Push the image index from `just image` under each tag given (`skopeo login ghcr.io` first); CI does this
+[private]
+push tag="dev" *also:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for tag in {{ tag }} {{ also }}; do
+      skopeo copy --all --preserve-digests "oci:{{ oci_dir }}:{{ tag }}" "docker://{{ image }}:$tag"
+    done
