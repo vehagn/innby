@@ -280,6 +280,7 @@ pub struct Listing {
     pub id: Uuid,
     pub name: String,
     pub response: Response,
+    pub party_size: i32,
     pub name_display: Option<NameDisplay>,
 }
 
@@ -288,7 +289,7 @@ pub async fn guest_list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Listing>> {
     sqlx::query_as!(
         Listing,
         r#"
-        select id, name, response as "response: Response",
+        select id, name, response as "response: Response", party_size,
             name_display as "name_display: NameDisplay"
         from rsvp
         where response <> 'declined'

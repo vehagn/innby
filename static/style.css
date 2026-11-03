@@ -777,6 +777,11 @@ main details > :not(summary) {
 .names li:nth-child(3n + 3)::before { color: var(--pink); }
 .names li.muted::before { content: none; }
 
+.names .plus {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 /* Admin */
 
 body.admin header,

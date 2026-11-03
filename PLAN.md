@@ -175,7 +175,7 @@ Every personal and group link page has a *See who's coming* button to the guest 
 | First name and initial | "Kari N.", or the family name for a name in Chinese, Japanese or Korean script: "王**" |
 | Hidden | not listed; the list ends with "+ 1 more" |
 
-Until a guest chooses, their name shows as first name and initial before they answer and in full once they're coming. The answer form presets the full name, and the guest list page has buttons to change the choice at any time. Declined guests are never listed.
+Until a guest chooses, their name shows as first name and initial before they answer and in full once they're coming. The answer form presets the full name, and the guest list page has buttons to change the choice at any time. Declined guests are never listed. A coming guest who brings others has the count after their name, "Kari Nordmann +1"; the count shows only alongside a name, so a hidden guest's party stays hidden too.
 
 ## 6. GDPR checklist
 

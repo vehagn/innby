@@ -111,6 +111,8 @@ pub struct GuestList {
 
 pub struct ListedGuest {
     pub name: String,
+    /// How many a coming guest brings besides themselves, shown as "+1".
+    pub plus: i32,
     /// Whether this is the guest looking at the list.
     pub you: bool,
 }
@@ -120,13 +122,20 @@ impl GuestList {
     pub async fn load(db: &PgPool, you: Option<Uuid>) -> sqlx::Result<Self> {
         let mut list = Self::default();
         for guest in rsvp::guest_list(db).await? {
-            let (names, hidden) = match guest.response {
-                Answer::Attending => (&mut list.coming, &mut list.coming_hidden),
-                Answer::Pending | Answer::Declined => (&mut list.pending, &mut list.pending_hidden),
+            let (names, hidden, plus) = match guest.response {
+                Answer::Attending => (
+                    &mut list.coming,
+                    &mut list.coming_hidden,
+                    guest.party_size - 1,
+                ),
+                Answer::Pending | Answer::Declined => {
+                    (&mut list.pending, &mut list.pending_hidden, 0)
+                }
             };
             match NameDisplay::listed(guest.response, guest.name_display).apply(&guest.name) {
                 Some(name) => names.push(ListedGuest {
                     name,
+                    plus,
                     you: Some(guest.id) == you,
                 }),
                 None => *hidden += 1,

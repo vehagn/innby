@@ -44,7 +44,7 @@ use crate::{config::Config, db, i18n::Lang, paths};
 
 /// Version of the privacy notice, recorded with each answer.
 /// Bump it whenever the notice in `templates/privacy/` changes in substance.
-pub const PRIVACY_VERSION: &str = "2026-11-03";
+pub const PRIVACY_VERSION: &str = "2026-11-03.2";
 
 const SECURITY_HEADERS: [(header::HeaderName, &str); 6] = [
     (

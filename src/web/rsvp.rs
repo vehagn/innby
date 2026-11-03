@@ -659,6 +659,29 @@ mod tests {
     }
 
     #[sqlx::test]
+    async fn guest_list_shows_who_brings_others(db: PgPool) {
+        let site = Site::new(db);
+        let (_, kari) = site.invite("Kari Nordmann", 3).await;
+        let (_, ola) = site.invite("Ola Hansen", 2).await;
+        let (_, per) = site.invite("Per Berg", 3).await;
+        for (link, party_size) in [(&kari, 3), (&ola, 2), (&per, 1)] {
+            let form = format!("party_size={party_size}&response=attending&name_display=full");
+            site.post(&format!("/r/{link}"), &form).await;
+        }
+        site.invite("Anne Lie", 3).await;
+
+        let html = body(site.get(&format!("/r/{kari}/guests?lang=en")).await).await;
+        assert!(html.contains(&format!(
+            r#"<li>Kari Nordmann <span class="plus">+2</span> <span class="muted">{}</span></li>"#,
+            en().you
+        )));
+        assert!(html.contains(r#"<li>Ola Hansen <span class="plus">+1</span></li>"#));
+        // Coming alone, or not answered yet: no one to count.
+        assert!(html.contains("<li>Per Berg</li>"));
+        assert!(html.contains("<li>Anne L.</li>"));
+    }
+
+    #[sqlx::test]
     async fn chinese_pages_and_names(db: PgPool) {
         let site = Site::new(db);
         let (_, link) = site.invite("王小明", 1).await;

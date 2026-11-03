@@ -297,7 +297,10 @@ mod tests {
         assert!(html.contains(&format!(r#"value="https://fest.example.com{path}""#)));
         assert!(html.contains(&t.answer(rsvp::Response::Attending, 2)));
         let html = body(site.get(&format!("{path}/guests?lang=en")).await).await;
-        assert!(html.contains(&format!(r#"Per H. <span class="muted">{}</span>"#, t.you)));
+        assert!(html.contains(&format!(
+            r#"Per H. <span class="plus">+1</span> <span class="muted">{}</span>"#,
+            t.you
+        )));
     }
 
     #[sqlx::test]

@@ -1,7 +1,7 @@
 {% if guests.has_coming() %}
 <h3>{{ t.guest_list_coming }}</h3>
 <ul class="names">
-  {% for guest in guests.coming %}<li>{{ guest.name }}{% if guest.you %} <span class="muted">{{ t.you }}</span>{% endif %}</li>
+  {% for guest in guests.coming %}<li>{{ guest.name }}{% if guest.plus > 0 %} <span class="plus">+{{ guest.plus }}</span>{% endif %}{% if guest.you %} <span class="muted">{{ t.you }}</span>{% endif %}</li>
   {% endfor %}
   {% if guests.coming_hidden > 0 %}<li class="muted">{{ t.more_guests(guests.coming_hidden) }}</li>{% endif %}
 </ul>
