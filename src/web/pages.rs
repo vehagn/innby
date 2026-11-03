@@ -3,7 +3,7 @@ use std::{fmt::Display, sync::LazyLock};
 use askama::Template;
 use axum::{
     extract::{RawQuery, State},
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{Html, IntoResponse, Response},
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -11,7 +11,10 @@ use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::{AppState, PRIVACY_VERSION};
+use super::{
+    AppState, PRIVACY_VERSION,
+    remember::{self, Remembered},
+};
 use crate::{
     config::{Controller, Event},
     db::rsvp::{self, NameDisplay, Response as Answer, Rsvp},
@@ -191,14 +194,43 @@ struct IndexPage<'a> {
     lang: Lang,
     t: &'static Messages,
     event: EventView<'a>,
+    welcome: Option<Welcome>,
 }
 
-pub async fn index(State(state): State<AppState>, lang: Lang) -> Response {
-    render(IndexPage {
+/// A guest this device remembers, greeted on the front page.
+struct Welcome {
+    name: String,
+    /// Their answer, e.g. "Coming · 2 people".
+    status: String,
+    page: String,
+}
+
+pub async fn index(State(state): State<AppState>, lang: Lang, headers: HeaderMap) -> Response {
+    let t = lang.messages();
+    let remembered = match Remembered::load(&state, &headers).await {
+        Ok(remembered) => remembered,
+        Err(err) => return server_error(err),
+    };
+    let welcome = match &remembered {
+        Remembered::Guest(guest) => Some(Welcome {
+            name: guest.rsvp.name.clone(),
+            status: t.answer(guest.rsvp.response, guest.rsvp.party_size),
+            page: paths::localized(&paths::path(paths::RSVP, &guest.link), lang),
+        }),
+        Remembered::Nobody | Remembered::Stale => None,
+    };
+    let mut response = render(IndexPage {
         lang,
-        t: lang.messages(),
+        t,
         event: EventView::new(&state.config.event, lang),
-    })
+        welcome,
+    });
+    // A link that stopped working is forgotten.
+    if let Remembered::Stale = remembered {
+        let cookie = remember::forget_cookie(state.config.is_https());
+        response.headers_mut().append(header::SET_COOKIE, cookie);
+    }
+    response
 }
 
 #[derive(Template)]

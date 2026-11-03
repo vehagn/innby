@@ -668,6 +668,42 @@ a.button.secondary:hover::after {
   transform: translateX(3px);
 }
 
+/* A button that reads as a link, for a quiet way out. */
+button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font-weight: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+button.link:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* The front page's greeting for a guest this device remembers. */
+.welcome {
+  margin-top: 2rem;
+}
+
+.not-you {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  align-items: baseline;
+}
+
+.remember {
+  margin: 0 0 1.5rem;
+}
+
+.remember p {
+  margin: 0.5rem 0 0;
+}
+
 button.danger {
   background: transparent;
   color: var(--danger);

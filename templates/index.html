@@ -5,5 +5,17 @@
 {% block content %}
 {% include "_confetti.html" %}
 {% include "_event.html" %}
+{% if let Some(welcome) = welcome %}
+<section class="card welcome" aria-labelledby="welcome-heading">
+  <h2 id="welcome-heading">{{ crate::i18n::filled(t.welcome_back, "name", welcome.name) }}</h2>
+  <p>{{ crate::i18n::bold(t.your_answer, "answer", welcome.status)|safe }}</p>
+  <p><a class="button" href="{{ welcome.page }}">{{ t.to_your_page }}</a></p>
+  <form method="post" action="{{ lang.forget() }}" class="not-you">
+    <span class="muted small">{{ t.not_you }}</span>
+    <button class="link small">{{ t.forget_device }}</button>
+  </form>
+</section>
+{% else %}
 <p class="hint">{{ t.rsvp_hint }} <a href="{{ lang.lost() }}">{{ t.lost_link }}</a></p>
+{% endif %}
 {% endblock %}

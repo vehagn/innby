@@ -4,7 +4,7 @@ use askama::Template;
 use axum::{
     Form, Json,
     extract::{FromRequestParts, Path, Query, State},
-    http::{StatusCode, header, request::Parts},
+    http::{HeaderMap, StatusCode, header, request::Parts},
     response::{IntoResponse, Redirect, Response},
 };
 use chrono::Utc;
@@ -16,6 +16,7 @@ use super::{
         DisplayChoice, EventView, GuestList, GuestsPage, MessagePage, PartySize, YourListing,
         render, render_with, server_error,
     },
+    remember,
 };
 use crate::{
     db::rsvp::{self, NameDisplay, Rsvp},
@@ -39,21 +40,32 @@ impl FromRequestParts<AppState> for Guest {
         let Path(link) = Path::<String>::from_request_parts(parts, state)
             .await
             .map_err(|_| gone(lang))?;
-        let Ok(parsed) = link.parse::<IdLink>() else {
-            return Err(gone(lang));
-        };
-        match rsvp::find(&state.db, parsed.id).await {
-            Ok(Some(rsvp))
-                if state
-                    .config
-                    .link_key
-                    .verify(Purpose::Rsvp, &parsed, rsvp.link_nonce) =>
-            {
-                Ok(Self { link, rsvp })
-            }
-            Ok(_) => Err(gone(lang)),
+        match Self::find(state, &link).await {
+            Ok(Some(guest)) => Ok(guest),
+            Ok(None) => Err(gone(lang)),
             Err(err) => Err(server_error(err)),
         }
+    }
+}
+
+impl Guest {
+    /// The guest a link leads to, if it's well-formed, genuine and current.
+    pub(super) async fn find(state: &AppState, link: &str) -> sqlx::Result<Option<Self>> {
+        let Ok(parsed) = link.parse::<IdLink>() else {
+            return Ok(None);
+        };
+        let rsvp = rsvp::find(&state.db, parsed.id).await?;
+        Ok(rsvp
+            .filter(|rsvp| {
+                state
+                    .config
+                    .link_key
+                    .verify(Purpose::Rsvp, &parsed, rsvp.link_nonce)
+            })
+            .map(|rsvp| Self {
+                link: link.to_owned(),
+                rsvp,
+            }))
     }
 }
 
@@ -88,6 +100,8 @@ pub(super) struct RsvpPage<'a> {
     celebrate: bool,
     /// The full link, shown right after a group sign-up so the guest can keep it.
     new_link: Option<String>,
+    /// Whether this device remembers the guest, for the front page.
+    remembered: bool,
     error: Option<&'static str>,
 }
 
@@ -111,6 +125,7 @@ impl<'a> RsvpPage<'a> {
             flash: None,
             celebrate: false,
             new_link: None,
+            remembered: false,
             error: None,
         }
     }
@@ -133,14 +148,18 @@ pub(super) enum Notice {
     EmailSent,
     EmailRemoved,
     EmailConfirmed,
+    Remembered,
+    Forgotten,
 }
 
 impl Notice {
-    const ALL: [Self; 4] = [
+    const ALL: [Self; 6] = [
         Self::Saved,
         Self::EmailSent,
         Self::EmailRemoved,
         Self::EmailConfirmed,
+        Self::Remembered,
+        Self::Forgotten,
     ];
 
     fn code(self) -> &'static str {
@@ -149,6 +168,8 @@ impl Notice {
             Self::EmailSent => "email_sent",
             Self::EmailRemoved => "email_removed",
             Self::EmailConfirmed => "email_confirmed",
+            Self::Remembered => "remembered",
+            Self::Forgotten => "forgotten",
         }
     }
 
@@ -162,6 +183,8 @@ impl Notice {
             Self::EmailSent => &t.email_sent_notice,
             Self::EmailRemoved => &t.email_removed_notice,
             Self::EmailConfirmed => &t.email_confirmed_notice,
+            Self::Remembered => &t.remembered_notice,
+            Self::Forgotten => &t.forgotten_notice,
         }
     }
 }
@@ -196,9 +219,12 @@ pub async fn show(
     State(state): State<AppState>,
     lang: Lang,
     guest: Guest,
+    headers: HeaderMap,
     Query(query): Query<ShowQuery>,
 ) -> Response {
     let mut page = RsvpPage::new(&state, lang, &guest);
+    page.remembered =
+        remember::link(&headers, state.config.is_https()) == Some(guest.link.as_str());
     let notice = query.notice.as_deref().and_then(Notice::from_code);
     page.flash = notice.map(|notice| notice.text(page.t));
     page.celebrate = guest.rsvp.response == rsvp::Response::Attending
@@ -354,6 +380,7 @@ pub async fn delete(
     State(state): State<AppState>,
     lang: Lang,
     guest: Guest,
+    headers: HeaderMap,
     Form(form): Form<DeleteForm>,
 ) -> Response {
     if form.confirm.is_none() {
@@ -363,9 +390,16 @@ pub async fn delete(
     match rsvp::delete(&state.db, guest.rsvp.id).await {
         Ok(_) => {
             tracing::info!(rsvp = %guest.rsvp.id, "rsvp deleted by guest");
-            render(MessagePage::new(lang, |t| {
+            let mut response = render(MessagePage::new(lang, |t| {
                 (&t.deleted_title, &t.deleted_text)
-            }))
+            }));
+            // A device that remembers the guest forgets them too.
+            let https = state.config.is_https();
+            if remember::link(&headers, https) == Some(guest.link.as_str()) {
+                let cookie = remember::forget_cookie(https);
+                response.headers_mut().append(header::SET_COOKIE, cookie);
+            }
+            response
         }
         Err(err) => server_error(err),
     }

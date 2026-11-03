@@ -50,6 +50,18 @@ delete = "刪除"
 save_link_title = "請保存好你的連結！"
 save_link_text = "這是修改或刪除回覆的唯一方式。請將本頁加入書籤，或把連結複製到安全的地方。"
 
+# Remembering the guest on this device, with their consent, in one cookie
+remember_device = "在這台裝置上記住我"
+remember_hint = "這樣，在這台裝置上打開網站首頁就會直接帶你來這裡。你的連結會儲存在一個 Cookie 中，你可以隨時刪除。"
+remembered_text = "這台裝置記得你，首頁會帶你來這裡。"
+forget_device = "讓這台裝置忘記我"
+remembered_notice = "好了，這台裝置會記住你。"
+forgotten_notice = "這台裝置已不再記得你。"
+# On the front page, for a guest this device remembers.
+welcome_back = "歡迎回來，{name}！"
+to_your_page = "前往你的頁面"
+not_you = "不是你？"
+
 # Optional e-mail
 email_heading = "電子郵件提醒"
 email_intro = "想透過電子郵件收到提醒和你的連結嗎？完全自願。"

@@ -21,6 +21,9 @@ pub const RSVP_GUESTS: &str = "/r/{link}/guests";
 pub const RSVP_LISTING: &str = "/r/{link}/listing";
 pub const RSVP_EXPORT: &str = "/r/{link}/export";
 pub const RSVP_DELETE: &str = "/r/{link}/delete";
+pub const RSVP_REMEMBER: &str = "/r/{link}/remember";
+pub const RSVP_FORGET: &str = "/r/{link}/forget";
+pub const FORGET: &str = "/forget";
 pub const RSVP_EMAIL: &str = "/r/{link}/email";
 pub const RSVP_EMAIL_REMOVE: &str = "/r/{link}/email/remove";
 pub const JOIN: &str = "/join/{link}";
@@ -104,6 +107,10 @@ impl Lang {
     pub fn lost(self) -> String {
         localized(LOST, self)
     }
+
+    pub fn forget(self) -> String {
+        localized(FORGET, self)
+    }
 }
 
 /// A guest's page and what its forms post to, in the page's language.
@@ -116,6 +123,8 @@ pub struct GuestLinks {
     pub email_remove: String,
     pub delete: String,
     pub export: String,
+    pub remember: String,
+    pub forget: String,
 }
 
 impl GuestLinks {
@@ -130,6 +139,8 @@ impl GuestLinks {
             email_remove: at(RSVP_EMAIL_REMOVE),
             delete: at(RSVP_DELETE),
             export: path(RSVP_EXPORT, link),
+            remember: at(RSVP_REMEMBER),
+            forget: at(RSVP_FORGET),
         }
     }
 }

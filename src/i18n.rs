@@ -249,6 +249,18 @@ pub struct Messages {
     pub save_link_title: String,
     pub save_link_text: String,
 
+    // Remembering the guest on this device
+    pub remember_device: String,
+    pub remember_hint: String,
+    pub remembered_text: String,
+    pub forget_device: String,
+    pub remembered_notice: String,
+    pub forgotten_notice: String,
+    /// On the front page, for a guest this device remembers.
+    pub welcome_back: String,
+    pub to_your_page: String,
+    pub not_you: String,
+
     // Optional e-mail
     pub email_heading: String,
     pub email_intro: String,

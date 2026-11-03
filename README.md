@@ -5,8 +5,9 @@ with no account or e-mail address needed, or sign up through a link the host mak
 their group. Every link shows a guest list, with each name shown as its guest chose. E-mail
 reminders are optional. Pages are in Bokmål, Nynorsk, Simplified and
 Traditional Chinese, and English in a traditional (British) and a simplified (American)
-flavour, use no cookies or JavaScript, and all
-guest data is deleted 30 days after the event.
+flavour, and use no JavaScript. The only cookie is one a guest asks for, so the front
+page leads them back to their own page. All guest data is deleted 30 days after the
+event.
 
 One Rust binary, run as several workloads:
 

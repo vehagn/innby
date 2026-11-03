@@ -3,6 +3,7 @@ mod email;
 mod join;
 mod pages;
 mod rate_limit;
+mod remember;
 mod rsvp;
 #[cfg(test)]
 pub(crate) mod testing;
@@ -43,7 +44,7 @@ use crate::{config::Config, db, i18n::Lang, paths};
 
 /// Version of the privacy notice, recorded with each answer.
 /// Bump it whenever the notice in `templates/privacy/` changes in substance.
-pub const PRIVACY_VERSION: &str = "2026-11-02";
+pub const PRIVACY_VERSION: &str = "2026-11-03";
 
 const SECURITY_HEADERS: [(header::HeaderName, &str); 6] = [
     (
@@ -198,6 +199,11 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         .route(paths::RSVP_LISTING, post(rsvp::listing))
         .route(paths::RSVP_EXPORT, get(rsvp::export))
         .route(paths::RSVP_DELETE, post(rsvp::delete))
+        .route(paths::RSVP_REMEMBER, post(remember::remember))
+        .route(paths::RSVP_FORGET, post(remember::forget_here))
+        .route(paths::FORGET, post(remember::forget))
+        // Greets a guest this device remembers, so no cache may keep it.
+        .route(paths::HOME, get(pages::index))
         .route(paths::RSVP_EMAIL, post(email::add))
         .route(paths::RSVP_EMAIL_REMOVE, post(email::remove))
         .route(
@@ -206,7 +212,6 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         )
         .route(paths::LOST, get(email::lost_page).post(email::lost));
     let router = Router::new()
-        .route(paths::HOME, get(pages::index))
         .route(paths::PRIVACY, get(pages::privacy))
         .route(paths::STYLESHEET, get(pages::stylesheet))
         .route(paths::ROBOTS, get(pages::robots))

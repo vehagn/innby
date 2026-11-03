@@ -51,6 +51,20 @@ save_link_title = "Save your link!"
 save_link_text = """
 It's the only way to change or delete your RSVP. Bookmark it or copy it somewhere safe."""
 
+# Remembering the guest on this device, with their consent, in one cookie
+remember_device = "Remember me on this device"
+remember_hint = """
+The front page will link straight here, on this device only. It saves your link in \
+one cookie you can remove anytime."""
+remembered_text = "This device remembers you, so the front page links here."
+forget_device = "Forget this device"
+remembered_notice = "Done! This device will remember you."
+forgotten_notice = "This device forgot you."
+# On the front page, for a guest this device remembers.
+welcome_back = "Welcome back, {name}!"
+to_your_page = "Go to your page"
+not_you = "Not you?"
+
 # Optional e-mail
 email_heading = "Email reminders"
 email_intro = "Want a reminder and your link by email? Totally optional."

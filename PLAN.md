@@ -14,7 +14,7 @@ Plan for a small, GDPR-compliant page where ~100 guests say whether they're comi
 - A guest list on every personal and group link page (§5.6), showing who's coming and who hasn't answered. Each guest chooses whether others see their full name, their first name and initial, or nothing.
 - Pages in **Bokmål, Nynorsk, British English ("traditional", a touch posh), American English ("simplified", short and plain), and Simplified and Traditional Chinese**, chosen from the browser's `Accept-Language`, with a switch through `?lang=nb|nn|en|en-us|zh-hans|zh-hant` (no cookie). English is British unless the browser asks for `en-US`; Chinese is Simplified unless it's Traditional or from Taiwan, Hong Kong or Macau.
 - An admin UI for you: create invitations and group links in batches, revoke them, see the headcount, export CSV.
-- Built for GDPR from the start: minimal data, clear retention, automatic deletion, no cookies or third-party assets.
+- Built for GDPR from the start: minimal data, clear retention, automatic deletion, no third-party assets, and no cookies but one a guest asks for (§4).
 - A tiny OCI image that holds nothing but the binary, written as plain files by `just image` (no Containerfile, no build tool).
 - A **devcontainer** with every tool needed to develop and deploy, so the host needs nothing but a container runtime. Images are built outside it (§10).
 - Runs on the existing Talos cluster, deployed the same way as the other apps in `vehagn/homelab` (Argo CD and Kustomize).
@@ -94,7 +94,9 @@ Splitting this way buys real least privilege:
 
 ## 4. Links: signed, never stored
 
-Every guest has one **RSVP link**. Possession of the link is the authorisation; there are no logins or cookies.
+Every guest has one **RSVP link**. Possession of the link is the authorisation; there are no logins.
+
+A guest can ask a device to remember them ("Remember me on this device" on their page). The browser then keeps their link in a cookie (`__Host-innby`, `HttpOnly`, `SameSite=Lax`, `Secure`, expiring when guest data is deleted), and the front page greets them with a button to their page. The cookie authorises nothing: every page and form still takes the link from the path, so the cookie can at most show the way back. A link that stops working (revoked, or the reply deleted) is dropped from the cookie the next time the front page sees it, deleting the reply drops it at once, and "Forget this device" drops it on demand. The front page is `no-store`, since it now differs per visitor.
 
 ```
 /r/{id}.{sig}
@@ -183,7 +185,7 @@ Until a guest chooses, their name shows as first name and initial before they an
 | Transparency | Invitation data is entered by you, not the guest, so Art. 14 information appears on their first visit to the link. Group sign-up and e-mail show the Art. 13 notice at the point where the data is collected. The notice is available in every page language. |
 | Data minimisation | Required: a name or label, the response and the party size. E-mail is optional. No free-text notes field, and **no dietary or allergy info**: it can count as health data (Art. 9) and would need explicit consent. Invitation labels should be first names or household names. |
 | IP addresses | Never stored. Rate limiting works per IP in memory only, and logs drop or truncate IPs. |
-| Cookies | **None.** CSRF is handled by the `Sec-Fetch-Site`/`Origin` middleware (§2), authorisation by the signed link, and the language choice by `?lang=`, so no cookie banner is needed. |
+| Cookies | **One, only when the guest asks for it** (§4): it keeps the guest's link so the front page can lead them back. Storing it is strictly necessary for a service the guest explicitly asks for, so it needs no consent and no banner; the privacy notice describes it. CSRF is handled by the `Sec-Fetch-Site`/`Origin` middleware (§2), authorisation by the signed link, and the language and colour scheme by `?lang=` and `?theme=`. |
 | Third parties | Nothing loaded from a CDN, Google Fonts, analytics or reCAPTCHA. All CSS and fonts are embedded in the binary. A honeypot field and rate limiting replace a CAPTCHA. |
 | Retention | Unconfirmed e-mail addresses: cleared after 48h. Sent outbox rows: deleted after 7 days. **All RSVP data: deleted 30 days after the event.** The janitor enforces this. |
 | Backups | The CNPG backup retention must be ≤ 30 days after the event, or the backup policy must be documented. Otherwise "deleted" data lives on in backups. |

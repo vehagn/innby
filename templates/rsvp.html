@@ -46,6 +46,20 @@
   <p class="muted small">{{ t.keep_link }}</p>
 </section>
 
+<section class="remember">
+  {% if remembered %}
+  <form method="post" action="{{ links.forget }}">
+    <p class="muted small">{{ t.remembered_text }}</p>
+    <button class="secondary">{{ t.forget_device }}</button>
+  </form>
+  {% else %}
+  <form method="post" action="{{ links.remember }}">
+    <button class="secondary">{{ t.remember_device }}</button>
+    <p class="muted small">{{ t.remember_hint }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
+  </form>
+  {% endif %}
+</section>
+
 <p><a class="button secondary" href="{{ links.guests }}" rel="nofollow">{{ t.see_guest_list }}</a></p>
 
 <details>

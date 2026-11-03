@@ -55,6 +55,20 @@ save_link_text = """
 Dette er den einaste måten å endre eller slette svaret ditt på. Legg til eit bokmerke \
 eller kopier lenkja til ein trygg stad."""
 
+# Remembering the guest on this device, with their consent, in one cookie
+remember_device = "Hugs meg på denne eininga"
+remember_hint = """
+Då leier framsida rett hit, berre på denne eininga. Lenkja di blir lagra i éin \
+informasjonskapsel, som du kan fjerne når som helst."""
+remembered_text = "Denne eininga hugsar deg, så framsida leier hit."
+forget_device = "Gløym denne eininga"
+remembered_notice = "Denne eininga hugsar deg no."
+forgotten_notice = "Denne eininga hugsar deg ikkje lenger."
+# On the front page, for a guest this device remembers.
+welcome_back = "Velkomen tilbake, {name}!"
+to_your_page = "Til sida di"
+not_you = "Ikkje deg?"
+
 # Optional e-mail
 email_heading = "Påminning på e-post"
 email_intro = "Vil du få ei påminning og lenkja di på e-post? Det er heilt valfritt."
