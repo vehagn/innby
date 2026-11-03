@@ -18,6 +18,7 @@
   <label for="url">{{ a.group_link }}</label>
   <input id="url" type="text" readonly value="{{ url }}">
   <div class="qr">{{ qr|safe }}</div>
+  <p><a href="{{ links.qr }}" download>{{ a.qr_download }}</a></p>
   <form method="post" action="{{ links.revoke }}">
     <button class="secondary">{{ a.new_link }}</button>
     <span class="muted small">{{ a.group_new_link_hint }}</span>

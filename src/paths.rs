@@ -32,11 +32,14 @@ pub const INVITATIONS: &str = "/invitations";
 pub const GUEST: &str = "/guests/{id}";
 pub const GUEST_REVOKE: &str = "/guests/{id}/revoke";
 pub const GUEST_DELETE: &str = "/guests/{id}/delete";
+pub const GUEST_QR: &str = "/guests/{id}/qr.svg";
 pub const GUESTS_CSV: &str = "/guests.csv";
 pub const GROUPS: &str = "/groups";
 pub const GROUP: &str = "/groups/{id}";
 pub const GROUP_REVOKE: &str = "/groups/{id}/revoke";
 pub const GROUP_DELETE: &str = "/groups/{id}/delete";
+pub const GROUP_QR: &str = "/groups/{id}/qr.svg";
+pub const QR_STYLE: &str = "/qr-style";
 pub const REMINDERS: &str = "/reminders";
 pub const LOGOUT: &str = "/logout";
 pub const LOGGED_OUT: &str = "/logged-out";
@@ -136,6 +139,8 @@ pub struct AdminLinks {
     pub page: String,
     pub revoke: String,
     pub delete: String,
+    /// The QR code as a file.
+    pub qr: String,
 }
 
 impl AdminLinks {
@@ -144,6 +149,7 @@ impl AdminLinks {
             page: admin(&path(GUEST, id)),
             revoke: admin(&path(GUEST_REVOKE, id)),
             delete: admin(&path(GUEST_DELETE, id)),
+            qr: admin(&path(GUEST_QR, id)),
         }
     }
 
@@ -152,6 +158,7 @@ impl AdminLinks {
             page: admin(&path(GROUP, id)),
             revoke: admin(&path(GROUP_REVOKE, id)),
             delete: admin(&path(GROUP_DELETE, id)),
+            qr: admin(&path(GROUP_QR, id)),
         }
     }
 }

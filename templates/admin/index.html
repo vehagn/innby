@@ -60,6 +60,35 @@
   </form>
 </section>
 
+<section class="card" id="qr">
+  <h2>{{ a.qr_heading }}</h2>
+  <p class="muted small">{{ a.qr_hint }}</p>
+  <div class="qr-style">
+    <form method="post" action="{{ crate::paths::admin(crate::paths::QR_STYLE) }}">
+      <fieldset>
+        <legend>{{ a.qr_shape }}</legend>
+        {% for shape in crate::db::qr::Shape::ALL %}
+        <label class="choice"><input type="radio" name="shape" value="{{ shape.code() }}"{% if shape == qr_style.shape %} checked{% endif %}> {{ a.qr_shape_name(shape) }}</label>
+        {% endfor %}
+      </fieldset>
+      <label for="qr-color">{{ a.qr_color }}</label>
+      <input id="qr-color" name="color" type="color" value="{{ qr_style.color }}">
+      <fieldset>
+        <legend>{{ a.qr_icon }}</legend>
+        {% for icon in crate::db::qr::Icon::ALL %}
+        <label class="choice"><input type="radio" name="icon" value="{{ icon.code() }}"{% if icon == qr_style.icon %} checked{% endif %}> {{ a.qr_icon_name(icon) }}</label>
+        {% endfor %}
+        <input class="emoji" name="emoji" type="text" maxlength="16" value="{{ qr_style.emoji }}" placeholder="🎉" aria-label="{{ a.qr_emoji }}">
+      </fieldset>
+      <button>{{ a.qr_save }}</button>
+    </form>
+    <figure class="qr">
+      {{ qr_preview|safe }}
+      <figcaption class="muted small">{{ a.qr_preview }}</figcaption>
+    </figure>
+  </div>
+</section>
+
 <h2>{{ a.guests }}</h2>
 {% if rows.is_empty() %}
 <p class="muted">{{ a.no_guests }}</p>

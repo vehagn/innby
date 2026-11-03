@@ -13,7 +13,7 @@ One Rust binary, run as several workloads:
 | Command | What it does |
 |---|---|
 | `innby serve` | The public site: event page, `/r/{link}` RSVP pages, `/join/{link}` group sign-up, `/lost`, `/privacy` |
-| `innby admin` | The host's UI: invitations and group links in batches, QR codes, headcount, CSV, reminders |
+| `innby admin` | The host's UI: invitations and group links in batches, QR codes in the event's style, headcount, CSV, reminders |
 | `innby mailer` | Sends queued mail (confirmations, links, reminders) |
 | `innby janitor` | Deletes data past its retention; run hourly |
 | `innby migrate` | Applies the database migrations |

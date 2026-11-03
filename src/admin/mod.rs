@@ -5,6 +5,7 @@
 pub mod auth;
 mod groups;
 pub mod lang;
+mod qr;
 
 use std::sync::Arc;
 
@@ -19,7 +20,6 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
-use qrcode::{QrCode, render::svg};
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -27,6 +27,7 @@ use uuid::Uuid;
 use crate::{
     config::{AdminConfig, Config},
     db::{
+        self,
         group::{self, Group},
         outbox,
         rsvp::{self, EmailStatus, Headcount, MAX_PARTY_SIZE, NameDisplay, Rsvp, Source},
@@ -36,6 +37,7 @@ use crate::{
     paths::{self, AdminLinks},
     web::{self, render, render_with, server_error},
 };
+use qr as admin_qr;
 
 #[derive(Clone)]
 struct AdminState {
@@ -83,6 +85,9 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
         .route(paths::GUEST, get(show).post(edit))
         .route(paths::GUEST_REVOKE, post(revoke))
         .route(paths::GUEST_DELETE, post(delete))
+        .route(paths::GUEST_QR, get(guest_qr))
+        .route(paths::GROUP_QR, get(groups::qr))
+        .route(paths::QR_STYLE, post(save_qr_style))
         .route(paths::GUESTS_CSV, get(export_csv))
         .route(paths::REMINDERS, post(queue_reminders))
         .route(paths::LOGOUT, post(log_out))
@@ -176,6 +181,9 @@ struct IndexPage<'a> {
     max_party_size: i32,
     /// False once the answer deadline has passed, which closes the group links too.
     accepts_answers: bool,
+    qr_style: db::qr::Style,
+    /// A code for the event page, in that style.
+    qr_preview: String,
     feedback: Feedback,
     error: Option<String>,
 }
@@ -194,8 +202,9 @@ async fn index_page(state: &AdminState, error: Option<String>, feedback: Feedbac
         rsvp::list(&state.db),
         rsvp::headcount(&state.db),
         group::list(&state.db),
+        db::qr::style(&state.db),
     );
-    let (rsvps, headcount, groups) = match loaded {
+    let (rsvps, headcount, groups, qr_style) = match loaded {
         Ok(loaded) => loaded,
         Err(err) => return server_error(err),
     };
@@ -221,6 +230,8 @@ async fn index_page(state: &AdminState, error: Option<String>, feedback: Feedbac
             .collect(),
         max_party_size: MAX_PARTY_SIZE,
         accepts_answers: state.config.event.accepts_answers(Utc::now()),
+        qr_preview: admin_qr::svg(&state.config.url(paths::HOME), &qr_style, None),
+        qr_style,
         feedback,
         error,
     };
@@ -231,6 +242,8 @@ async fn index_page(state: &AdminState, error: Option<String>, feedback: Feedbac
 struct IndexQuery {
     reminders: Option<usize>,
     groups: Option<usize>,
+    /// The QR code style was saved.
+    qr: Option<String>,
 }
 
 async fn index(State(state): State<AdminState>, Query(query): Query<IndexQuery>) -> Response {
@@ -246,13 +259,29 @@ async fn index(State(state): State<AdminState>, Query(query): Query<IndexQuery>)
             &text.groups_created_one,
             &text.groups_created_other,
         )),
-        (None, None) => None,
+        (None, None) => query.qr.map(|_| text.qr_saved.clone()),
     };
     let feedback = Feedback {
         notice,
         ..Feedback::default()
     };
     index_page(&state, None, feedback).await
+}
+
+/// Saves the QR code style that every code on these pages uses.
+async fn save_qr_style(
+    State(state): State<AdminState>,
+    Form(form): Form<admin_qr::StyleForm>,
+) -> Response {
+    let style = match form.validate() {
+        Ok(style) => style,
+        Err(error) => return index_page(&state, Some(error), Feedback::default()).await,
+    };
+    if let Err(err) = db::qr::save(&state.db, &style).await {
+        return server_error(err);
+    }
+    tracing::info!("qr style saved");
+    Redirect::to(&paths::admin(&format!("{}?qr#qr", paths::HOME))).into_response()
 }
 
 /// Logs the browser out: it asks for the password on the next page.
@@ -430,12 +459,12 @@ struct GuestPage {
 }
 
 impl GuestPage {
-    fn new(config: &Config, rsvp: Rsvp, groups: &[Group]) -> Self {
+    fn new(config: &Config, rsvp: Rsvp, groups: &[Group], style: &db::qr::Style) -> Self {
         let url = guest_url(config, &rsvp);
         Self {
             row: Row::new(&rsvp, config.event.starts_at.timezone(), groups),
             links: AdminLinks::guest(rsvp.id),
-            qr: qr_svg(&url),
+            qr: admin_qr::svg(&url, style, None),
             url,
             rsvp,
             max_party_size: MAX_PARTY_SIZE,
@@ -446,11 +475,16 @@ impl GuestPage {
 
     /// The guest's page again with an error, for an invalid form.
     async fn load(state: &AdminState, id: Uuid) -> Result<Self, PageError> {
-        let (rsvp, groups) = tokio::try_join!(rsvp::find(&state.db, id), group::list(&state.db))?;
+        let (rsvp, groups, style) = tokio::try_join!(
+            rsvp::find(&state.db, id),
+            group::list(&state.db),
+            db::qr::style(&state.db),
+        )?;
         Ok(Self::new(
             &state.config,
             rsvp.ok_or(PageError::Missing)?,
             &groups,
+            &style,
         ))
     }
 
@@ -472,15 +506,33 @@ fn guest_url(config: &Config, rsvp: &Rsvp) -> String {
     config.url(&paths::path(paths::RSVP, link))
 }
 
-/// The link as an inline SVG QR code, for printing on paper invitations or posters.
-fn qr_svg(url: &str) -> String {
-    let Ok(code) = QrCode::new(url.as_bytes()) else {
-        return String::new();
-    };
-    let svg = code.render::<svg::Color>().min_dimensions(200, 200).build();
-    // Drop the XML declaration so the SVG can sit inside HTML.
-    svg.find("<svg")
-        .map_or(svg.clone(), |start| svg[start..].to_owned())
+/// A QR code as an SVG file to save, named after what it's for.
+fn qr_file(url: &str, style: &db::qr::Style, name: &str) -> Response {
+    let mut slug = String::new();
+    for c in name.chars().flat_map(char::to_lowercase) {
+        if c.is_ascii_alphanumeric() {
+            slug.push(c);
+        } else if !slug.is_empty() && !slug.ends_with('-') {
+            slug.push('-');
+        }
+    }
+    let slug = slug.trim_end_matches('-');
+    let slug = if slug.is_empty() { "code" } else { slug };
+    let svg = format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n{}\n",
+        admin_qr::svg(url, style, Some(1024))
+    );
+    (
+        [
+            (header::CONTENT_TYPE, "image/svg+xml".to_owned()),
+            (
+                header::CONTENT_DISPOSITION,
+                format!(r#"attachment; filename="qr-{slug}.svg""#),
+            ),
+        ],
+        svg,
+    )
+        .into_response()
 }
 
 /// Why a request about one guest or group failed.
@@ -504,6 +556,20 @@ impl IntoResponse for PageError {
             Self::Database(err) => server_error(err),
         }
     }
+}
+
+/// The guest's QR code as a file, for printing.
+async fn guest_qr(
+    State(state): State<AdminState>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, PageError> {
+    let (rsvp, style) = tokio::try_join!(rsvp::find(&state.db, id), db::qr::style(&state.db))?;
+    let rsvp = rsvp.ok_or(PageError::Missing)?;
+    Ok(qr_file(
+        &guest_url(&state.config, &rsvp),
+        &style,
+        &rsvp.name,
+    ))
 }
 
 #[derive(Deserialize)]
@@ -813,6 +879,54 @@ mod tests {
             html.contains("Linje 1: Antall personer må være mellom 1 og 20."),
             "{html}"
         );
+    }
+
+    #[sqlx::test]
+    async fn styles_and_downloads_qr_codes(db: PgPool) {
+        let admin = Admin::new(db);
+        let html = body(admin.get("/").await).await;
+        assert!(html.contains(r#"value="rounded" checked"#), "{html}");
+
+        // A colour phones can't read on white is refused.
+        let response = admin
+            .post("/qr-style", "shape=dots&color=%23ffeb3b&icon=none")
+            .await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(body(response).await.contains("Pick a darker colour"));
+        let response = admin
+            .post("/qr-style", "shape=dots&color=%23000000&icon=emoji&emoji=")
+            .await;
+        assert!(body(response).await.contains("Enter one emoji"));
+
+        let response = admin
+            .post(
+                "/qr-style",
+                "shape=dots&color=%23000000&icon=emoji&emoji=%F0%9F%8E%89",
+            )
+            .await;
+        assert_eq!(location(&response), "/?qr#qr");
+        let html = body(admin.get("/?qr").await).await;
+        assert!(html.contains("QR code style saved."), "{html}");
+        assert!(html.contains(r#"value="dots" checked"#), "{html}");
+        assert!(html.contains("🎉</text>"), "{html}");
+
+        admin
+            .post("/invitations", "names=Kari+Nordmann&max_party_size=1")
+            .await;
+        let id = rsvp::list(&admin.db).await.unwrap()[0].id;
+        let html = body(admin.get(&format!("/guests/{id}")).await).await;
+        assert!(html.contains(&format!(r#"href="/guests/{id}/qr.svg" download"#)));
+        let response = admin.get(&format!("/guests/{id}/qr.svg")).await;
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "image/svg+xml");
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        assert_eq!(
+            response.headers()[header::CONTENT_DISPOSITION],
+            r#"attachment; filename="qr-kari-nordmann.svg""#
+        );
+        let svg = body(response).await;
+        assert!(svg.starts_with("<?xml"));
+        assert!(svg.contains(r##"fill="#000000""##));
+        assert!(svg.contains(r#"width="1024""#));
     }
 
     #[sqlx::test]

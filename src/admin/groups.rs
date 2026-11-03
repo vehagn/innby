@@ -11,13 +11,14 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use super::{
-    AdminState, BatchForm, DeleteForm, Feedback, InviteForm, PageError, Row, ShowQuery, index_page,
-    lang, local, qr_svg,
+    AdminState, BatchForm, DeleteForm, Feedback, InviteForm, PageError, Row, ShowQuery, admin_qr,
+    index_page, lang, local, qr_file,
 };
 use crate::{
     config::Config,
     db::{
         group::{self, Group},
+        qr,
         rsvp::{self, MAX_PARTY_SIZE, Rsvp},
     },
     link::Purpose,
@@ -108,7 +109,11 @@ struct GroupPage {
 
 impl GroupPage {
     async fn load(state: &AdminState, id: Uuid) -> Result<Self, PageError> {
-        let (group, rsvps) = tokio::try_join!(group::find(&state.db, id), rsvp::list(&state.db))?;
+        let (group, rsvps, style) = tokio::try_join!(
+            group::find(&state.db, id),
+            rsvp::list(&state.db),
+            qr::style(&state.db),
+        )?;
         let group = group.ok_or(PageError::Missing)?;
         let tz = state.config.event.starts_at.timezone();
         let url = group_url(&state.config, &group);
@@ -118,7 +123,7 @@ impl GroupPage {
                 .filter(|rsvp| rsvp.group_id == Some(id))
                 .map(|rsvp| Row::new(rsvp, tz, std::slice::from_ref(&group)))
                 .collect(),
-            qr: qr_svg(&url),
+            qr: admin_qr::svg(&url, &style, None),
             url,
             links: AdminLinks::group(group.id),
             created: local(group.created_at, tz),
@@ -154,6 +159,20 @@ pub(super) async fn show(
     let mut page = GroupPage::load(&state, id).await?;
     page.saved = query.saved.is_some();
     Ok(render(page))
+}
+
+/// The group's QR code as a file, for a poster.
+pub(super) async fn qr(
+    State(state): State<AdminState>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, PageError> {
+    let (group, style) = tokio::try_join!(group::find(&state.db, id), qr::style(&state.db))?;
+    let group = group.ok_or(PageError::Missing)?;
+    Ok(qr_file(
+        &group_url(&state.config, &group),
+        &style,
+        &group.name,
+    ))
 }
 
 /// Renames the group, or changes how many people new sign-ups may cover.

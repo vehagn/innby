@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update qr_style set shape = $1, color = $2, icon = $3, emoji = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "qr_shape",
+            "kind": {
+              "Enum": [
+                "square",
+                "rounded",
+                "dots"
+              ]
+            }
+          }
+        },
+        "Text",
+        {
+          "Custom": {
+            "name": "qr_icon",
+            "kind": {
+              "Enum": [
+                "none",
+                "heart",
+                "star",
+                "emoji"
+              ]
+            }
+          }
+        },
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f507055c0c556f37863e45efb01b71944acf89a65021757456aa05889f59aa0b"
+}

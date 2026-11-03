@@ -187,6 +187,26 @@ max_for_new_sign_ups = "每次报名最多人数（仅限新报名）"
 delete_group = "删除群组 {name} 及其链接"
 group_in_use_hint = "已有人通过此群组报名，因此无法删除。要停止新的报名，请生成新链接并且不要分享。"
 
+# QR codes
+qr_heading = "二维码"
+qr_hint = "宾客页和群组页上的二维码样式。整场活动使用同一种样式，让印出来的邀请函和海报保持一致。"
+qr_shape = "形状"
+qr_square = "方块"
+qr_rounded = "圆角"
+qr_dots = "圆点"
+qr_color = "颜色"
+# What goes in the middle of the code.
+qr_icon = "中间"
+qr_none = "无"
+qr_heart = "爱心"
+qr_star = "星星"
+qr_emoji = "表情符号"
+qr_save = "保存样式"
+qr_saved = "二维码样式已保存。"
+# Under the example code on the index page.
+qr_preview = "示例：活动页面。"
+qr_download = "下载二维码（SVG）"
+
 # Guests
 guests = "宾客"
 no_guests = "还没有宾客。"
@@ -249,6 +269,8 @@ error_line = "第 {n} 行：{error}"
 error_no_names = "请至少输入一个姓名。"
 error_confirm_delete = "请勾选方框以确认删除。"
 error_group_in_use = "已有人通过此群组报名，因此无法删除。"
+error_qr_color = "请选一个更深的颜色，手机才能识别二维码。"
+error_qr_emoji = "请输入一个放在中间的表情符号。"
 
 # Mails. Each is plain text; `{url}` is a link on the site and `{title}` the event.
 [mail]

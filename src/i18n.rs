@@ -1,10 +1,13 @@
-use std::{fmt::Display, sync::LazyLock};
+use std::{borrow::Borrow, fmt::Display, sync::LazyLock};
 
 use chrono::{DateTime, Locale};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 
-use crate::db::rsvp::{NameDisplay, Response};
+use crate::db::{
+    qr,
+    rsvp::{NameDisplay, Response},
+};
 
 /// The site's languages. Enum order is `Lang::ALL` order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
@@ -387,6 +390,26 @@ pub struct AdminMessages {
     pub delete_group: String,
     pub group_in_use_hint: String,
 
+    // QR codes
+    pub qr_heading: String,
+    pub qr_hint: String,
+    pub qr_shape: String,
+    pub qr_square: String,
+    pub qr_rounded: String,
+    pub qr_dots: String,
+    pub qr_color: String,
+    /// What goes in the middle of the code.
+    pub qr_icon: String,
+    pub qr_none: String,
+    pub qr_heart: String,
+    pub qr_star: String,
+    pub qr_emoji: String,
+    pub qr_save: String,
+    pub qr_saved: String,
+    /// Under the example code on the index page.
+    pub qr_preview: String,
+    pub qr_download: String,
+
     // Guests
     pub guests: String,
     pub no_guests: String,
@@ -449,6 +472,28 @@ pub struct AdminMessages {
     pub error_no_names: String,
     pub error_confirm_delete: String,
     pub error_group_in_use: String,
+    pub error_qr_color: String,
+    pub error_qr_emoji: String,
+}
+
+impl AdminMessages {
+    /// Takes references too, as templates pass them.
+    pub fn qr_shape_name(&self, shape: impl Borrow<qr::Shape>) -> &str {
+        match shape.borrow() {
+            qr::Shape::Square => &self.qr_square,
+            qr::Shape::Rounded => &self.qr_rounded,
+            qr::Shape::Dots => &self.qr_dots,
+        }
+    }
+
+    pub fn qr_icon_name(&self, icon: impl Borrow<qr::Icon>) -> &str {
+        match icon.borrow() {
+            qr::Icon::None => &self.qr_none,
+            qr::Icon::Heart => &self.qr_heart,
+            qr::Icon::Star => &self.qr_star,
+            qr::Icon::Emoji => &self.qr_emoji,
+        }
+    }
 }
 
 /// The mails, in plain text.

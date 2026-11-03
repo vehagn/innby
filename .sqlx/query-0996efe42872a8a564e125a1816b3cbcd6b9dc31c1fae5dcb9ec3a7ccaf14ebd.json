@@ -1,0 +1,85 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select shape as \"shape: Shape\", color, icon as \"icon: Icon\", emoji from qr_style",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "shape: Shape",
+        "type_info": {
+          "Custom": {
+            "name": "qr_shape",
+            "kind": {
+              "Enum": [
+                "square",
+                "rounded",
+                "dots"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "qr_style",
+            "name": "shape"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "color",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "qr_style",
+            "name": "color"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "icon: Icon",
+        "type_info": {
+          "Custom": {
+            "name": "qr_icon",
+            "kind": {
+              "Enum": [
+                "none",
+                "heart",
+                "star",
+                "emoji"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "qr_style",
+            "name": "icon"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "emoji",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "qr_style",
+            "name": "emoji"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0996efe42872a8a564e125a1816b3cbcd6b9dc31c1fae5dcb9ec3a7ccaf14ebd"
+}

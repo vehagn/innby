@@ -1,5 +1,6 @@
 pub mod group;
 pub mod outbox;
+pub mod qr;
 pub mod retention;
 pub mod rsvp;
 
