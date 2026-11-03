@@ -112,6 +112,8 @@ guest_list_coming = "Attending"
 guest_list_pending = "Yet to reply"
 # "+ {n} more", for guests who'd rather not be listed.
 guest_list_more = "+ {n} more"
+invitations_one = "{n} invitation"
+invitations_other = "{n} invitations"
 guest_list_empty = "Nobody on the list as yet."
 guest_list_note = "Guests who have sent their regrets are not listed."
 # After your own name on the guest list.

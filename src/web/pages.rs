@@ -107,6 +107,8 @@ pub struct GuestList {
     /// How many chose not to be listed.
     pub coming_hidden: usize,
     pub pending_hidden: usize,
+    /// Everyone coming, with those they bring, listed or not.
+    pub coming_people: i32,
 }
 
 pub struct ListedGuest {
@@ -123,11 +125,14 @@ impl GuestList {
         let mut list = Self::default();
         for guest in rsvp::guest_list(db).await? {
             let (names, hidden, plus) = match guest.response {
-                Answer::Attending => (
-                    &mut list.coming,
-                    &mut list.coming_hidden,
-                    guest.party_size - 1,
-                ),
+                Answer::Attending => {
+                    list.coming_people += guest.party_size;
+                    (
+                        &mut list.coming,
+                        &mut list.coming_hidden,
+                        guest.party_size - 1,
+                    )
+                }
                 Answer::Pending | Answer::Declined => {
                     (&mut list.pending, &mut list.pending_hidden, 0)
                 }
@@ -153,6 +158,11 @@ impl GuestList {
 
     pub fn has_pending(&self) -> bool {
         !self.pending.is_empty() || self.pending_hidden > 0
+    }
+
+    /// How many invitations have yet to be answered, listed or not.
+    pub fn pending_count(&self) -> usize {
+        self.pending.len() + self.pending_hidden
     }
 }
 

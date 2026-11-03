@@ -679,6 +679,22 @@ mod tests {
         // Coming alone, or not answered yet: no one to count.
         assert!(html.contains("<li>Per Berg</li>"));
         assert!(html.contains("<li>Anne L.</li>"));
+        // The totals count hidden guests too.
+        site.invite("Liv Moe", 1).await;
+        site.post(&format!("/r/{ola}/listing?lang=en"), "name_display=hidden")
+            .await;
+        let html = body(site.get(&format!("/r/{kari}/guests?lang=en")).await).await;
+        let t = en();
+        assert!(html.contains(&format!(
+            "<h3>{} · {}</h3>",
+            t.guest_list_coming,
+            t.people_count(6)
+        )));
+        assert!(html.contains(&format!(
+            "<h3>{} · {}</h3>",
+            t.guest_list_pending,
+            t.invitation_count(2)
+        )));
     }
 
     #[sqlx::test]

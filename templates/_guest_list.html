@@ -1,5 +1,5 @@
 {% if guests.has_coming() %}
-<h3>{{ t.guest_list_coming }}</h3>
+<h3>{{ t.guest_list_coming }} · {{ t.people_count(*guests.coming_people) }}</h3>
 <ul class="names">
   {% for guest in guests.coming %}<li>{{ guest.name }}{% if guest.plus > 0 %} <span class="plus">+{{ guest.plus }}</span>{% endif %}{% if guest.you %} <span class="muted">{{ t.you }}</span>{% endif %}</li>
   {% endfor %}
@@ -7,7 +7,7 @@
 </ul>
 {% endif %}
 {% if guests.has_pending() %}
-<h3>{{ t.guest_list_pending }}</h3>
+<h3>{{ t.guest_list_pending }} · {{ t.invitation_count(guests.pending_count()) }}</h3>
 <ul class="names">
   {% for guest in guests.pending %}<li>{{ guest.name }}{% if guest.you %} <span class="muted">{{ t.you }}</span>{% endif %}</li>
   {% endfor %}

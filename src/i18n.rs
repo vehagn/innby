@@ -298,6 +298,10 @@ pub struct Messages {
     pub guest_list_pending: String,
     /// "+ {n} more", for guests who'd rather not be listed.
     pub guest_list_more: String,
+    /// "{n} invitation", for how many have yet to reply.
+    pub invitations_one: String,
+    /// "{n} invitations".
+    pub invitations_other: String,
     pub guest_list_empty: String,
     pub guest_list_note: String,
     /// After your own name on the guest list: "(you)".
@@ -545,6 +549,11 @@ impl Messages {
         fill(text, &[("n", &n)])
     }
 
+    /// "1 invitation", "3 invitations".
+    pub fn invitation_count(&self, n: impl Display) -> String {
+        count(n, &self.invitations_one, &self.invitations_other)
+    }
+
     /// "+ 3 more".
     pub fn more_guests(&self, n: impl Display) -> String {
         fill(&self.guest_list_more, &[("n", &n)])
@@ -784,6 +793,8 @@ mod tests {
         assert_eq!(us.answer(Response::Attending, 2), "Going · 2 people");
         assert_eq!(nb.answer(Response::Declined, 2), "Kommer ikke");
         assert_eq!(en.more_guests(3), "+ 3 more");
+        assert_eq!(en.invitation_count(1), "1 invitation");
+        assert_eq!(nn.invitation_count(4), "4 invitasjonar");
         assert_eq!(nb.more_guests(1), "+ 1 til");
         assert_eq!(
             count(1, &us.admin.coming_one, &us.admin.coming_other),

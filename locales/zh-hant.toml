@@ -99,6 +99,8 @@ guest_list_coming = "參加"
 guest_list_pending = "尚未回覆"
 # "+ {n} more", for guests who'd rather not be listed.
 guest_list_more = "另有 {n} 人"
+invitations_one = "{n} 份邀請"
+invitations_other = "{n} 份邀請"
 guest_list_empty = "名單上還沒有人。"
 guest_list_note = "不參加的賓客不會列在名單上。"
 # After your own name on the guest list.

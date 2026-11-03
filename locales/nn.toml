@@ -110,6 +110,8 @@ guest_list_coming = "Kjem"
 guest_list_pending = "Har ikkje svart enno"
 # "+ {n} more", for guests who'd rather not be listed.
 guest_list_more = "+ {n} til"
+invitations_one = "{n} invitasjon"
+invitations_other = "{n} invitasjonar"
 guest_list_empty = "Ingen på lista enno."
 guest_list_note = "Gjester som ikkje kjem, står ikkje på lista."
 # After your own name on the guest list.
