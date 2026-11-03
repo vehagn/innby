@@ -40,6 +40,9 @@ spec:
             - name: INNBY_ADMIN_PASSWORD_HASH
               valueFrom:
                 secretKeyRef: { name: innby, key: INNBY_ADMIN_PASSWORD_HASH }
+            - name: INNBY_ADMIN_JWT_SECRET
+              valueFrom:
+                secretKeyRef: { name: innby, key: INNBY_ADMIN_JWT_SECRET }
           ports:
             - name: http
               containerPort: 8081

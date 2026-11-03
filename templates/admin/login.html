@@ -1,17 +1,19 @@
 {% extends "admin/base.html" %}
 
-{% block title %}{% let a = crate::admin::lang::text() %}{% if logged_out %}{{ a.logged_out }}{% else %}{{ a.log_in }}{% endif %}{% endblock %}
+{% block title %}{{ crate::admin::lang::text().log_in }}{% endblock %}
 
 {% block account %}{% endblock %}
 
 {% block content %}
 {% let a = crate::admin::lang::text() %}
-{% if logged_out %}
-<h1>{{ a.logged_out }}</h1>
-<p>{{ a.logged_out_text }}</p>
-{% else %}
+{% if logged_out %}<p class="notice success" role="status">{{ a.logged_out }}</p>{% endif %}
 <h1>{{ a.log_in }}</h1>
 <p>{{ a.log_in_text }}</p>
-{% endif %}
-<p><a class="button" href="{{ crate::paths::admin(crate::paths::HOME) }}">{{ a.log_in }}</a></p>
+<form method="post" action="{{ crate::paths::admin(crate::paths::LOGIN) }}">
+  <label for="user">{{ a.user_name }}</label>
+  <input id="user" name="user" required autocomplete="username" autocapitalize="none" value="{{ user }}"{% if user.is_empty() %} autofocus{% endif %}>
+  <label for="password">{{ a.password }}</label>
+  <input id="password" name="password" type="password" required autocomplete="current-password"{% if !user.is_empty() %} autofocus{% endif %}>
+  <div class="buttons"><button>{{ a.log_in }}</button></div>
+</form>
 {% endblock %}

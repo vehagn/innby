@@ -4,12 +4,14 @@ use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, NaiveDateTime};
 use chrono_tz::Tz;
 
-use crate::{i18n::Localized, link::LinkKey};
+use crate::{admin::jwt, i18n::Localized, link::LinkKey};
 
 /// Secrets that `.env.example` publishes. Anyone could sign links or log in with them,
 /// so a public site, one with an https base URL, refuses them.
 const EXAMPLE_LINK_KEY: &str = "ZGV2LW9ubHktbGluay1rZXktZG8tbm90LXVzZS1pbi1wcm9k";
 const EXAMPLE_ADMIN_PASSWORD: &str = "innby";
+const EXAMPLE_ADMIN_JWT_SECRET: &str =
+    "ZGV2LW9ubHktYWRtaW4tand0LXNlY3JldC1kby1ub3QtdXNlLWluLXByb2Q=";
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -214,6 +216,8 @@ pub struct AdminConfig {
     pub user: String,
     /// An argon2 PHC string from `innby hash-password`.
     pub password_hash: String,
+    /// Signs the login's JWTs.
+    pub jwt_secret: jwt::Secret,
 }
 
 impl AdminConfig {
@@ -231,12 +235,18 @@ impl AdminConfig {
             "INNBY_ADMIN_PASSWORD_HASH: that's a hash of the example password from \
              .env.example; make one for a real password with `just hash-password`"
         );
+        let jwt_secret = env.required("INNBY_ADMIN_JWT_SECRET")?;
+        ensure!(
+            !config.is_https() || jwt_secret.trim() != EXAMPLE_ADMIN_JWT_SECRET,
+            "INNBY_ADMIN_JWT_SECRET: that's the example from .env.example, which anyone can read"
+        );
         Ok(Self {
             listen: env.socket_address("INNBY_ADMIN_LISTEN", "0.0.0.0:8081")?,
             user: env
                 .optional("INNBY_ADMIN_USER")
                 .unwrap_or_else(|| "admin".into()),
             password_hash,
+            jwt_secret: jwt::Secret::from_base64(&jwt_secret).context("INNBY_ADMIN_JWT_SECRET")?,
         })
     }
 }
@@ -360,11 +370,19 @@ pub mod tests {
         assert!(parse(&[("INNBY_EVENT_START", "2026-03-29T02:30")]).is_err());
     }
 
-    fn admin_with_hash(hash: &str, config: &Config) -> Result<AdminConfig> {
+    fn admin_with(hash: &str, jwt_secret: &str, config: &Config) -> Result<AdminConfig> {
         AdminConfig::from_lookup(
-            |key| (key == "INNBY_ADMIN_PASSWORD_HASH").then(|| hash.to_owned()),
+            |key| match key {
+                "INNBY_ADMIN_PASSWORD_HASH" => Some(hash.to_owned()),
+                "INNBY_ADMIN_JWT_SECRET" => Some(jwt_secret.to_owned()),
+                _ => None,
+            },
             config,
         )
+    }
+
+    fn admin_with_hash(hash: &str, config: &Config) -> Result<AdminConfig> {
+        admin_with(hash, crate::link::tests::KEY, config)
     }
 
     #[test]
@@ -378,6 +396,8 @@ pub mod tests {
         assert!(AdminConfig::from_lookup(|_| None, &config).is_err());
         let err = admin_with_hash("hunter2", &config).unwrap_err();
         assert!(format!("{err:#}").starts_with("INNBY_ADMIN_PASSWORD_HASH"));
+        let err = admin_with(&hash, "c2hvcnQ=", &config).unwrap_err();
+        assert!(format!("{err:#}").starts_with("INNBY_ADMIN_JWT_SECRET"));
     }
 
     #[test]
@@ -391,6 +411,11 @@ pub mod tests {
         let hash = crate::admin::auth::tests::cheap_hash(EXAMPLE_ADMIN_PASSWORD);
         assert!(admin_with_hash(&hash, &config()).is_err());
         admin_with_hash(&hash, &parse(&local).unwrap()).unwrap();
+
+        let hash = crate::admin::auth::tests::cheap_hash("secret");
+        let err = admin_with(&hash, EXAMPLE_ADMIN_JWT_SECRET, &config()).unwrap_err();
+        assert!(err.to_string().contains(".env.example"), "{err}");
+        admin_with(&hash, EXAMPLE_ADMIN_JWT_SECRET, &parse(&local).unwrap()).unwrap();
     }
 
     #[test]
@@ -403,6 +428,8 @@ pub mod tests {
                 .unwrap_or_else(|| panic!("{key} in .env.example"))
         };
         assert_eq!(value("INNBY_LINK_KEY"), EXAMPLE_LINK_KEY);
+        assert_eq!(value("INNBY_ADMIN_JWT_SECRET"), EXAMPLE_ADMIN_JWT_SECRET);
+        assert_eq!(EXAMPLE_ADMIN_JWT_SECRET, jwt::tests::SECRET);
         let hash = value("INNBY_ADMIN_PASSWORD_HASH").trim_matches('\'');
         assert!(crate::admin::auth::verify(hash, EXAMPLE_ADMIN_PASSWORD));
     }

@@ -1,9 +1,9 @@
 //! `innby admin`: the host's UI for invitations, group links and the headcount, in the
-//! site's languages. Served on its own listener behind the internal gateway and basic
-//! auth.
+//! site's languages. Served on its own listener behind the internal gateway and a login.
 
 pub mod auth;
 mod groups;
+pub mod jwt;
 pub mod lang;
 
 use std::sync::Arc;
@@ -12,7 +12,7 @@ use askama::Template;
 use axum::{
     Form, Router,
     extract::{FromRef, Path, Query, State},
-    http::{HeaderMap, StatusCode, header},
+    http::{StatusCode, header},
     middleware,
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
@@ -41,12 +41,12 @@ use crate::{
 struct AdminState {
     config: Arc<Config>,
     db: PgPool,
-    login: Arc<auth::Login>,
+    auth: Arc<auth::Auth>,
 }
 
-impl FromRef<AdminState> for Arc<auth::Login> {
+impl FromRef<AdminState> for Arc<auth::Auth> {
     fn from_ref(state: &AdminState) -> Self {
-        Arc::clone(&state.login)
+        Arc::clone(&state.auth)
     }
 }
 
@@ -64,11 +64,11 @@ pub async fn serve(config: Config, admin: AdminConfig, db: PgPool) -> anyhow::Re
 fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
     // The admin hostname is served the same way as the public one.
     let https = config.is_https();
-    let login = Arc::new(auth::Login::new(admin));
+    let auth = Arc::new(auth::Auth::new(admin, https, db.clone()));
     let state = AdminState {
         config: Arc::new(config),
         db,
-        login: Arc::clone(&login),
+        auth: Arc::clone(&auth),
     };
     let pages = Router::new()
         .route(paths::HOME, get(index))
@@ -85,17 +85,14 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
         .route(paths::GUEST_DELETE, post(delete))
         .route(paths::GUESTS_CSV, get(export_csv))
         .route(paths::REMINDERS, post(queue_reminders))
-        .route(paths::LOGOUT, post(log_out))
-        .layer(middleware::from_fn_with_state(login, auth::require_login));
+        .layer(middleware::from_fn_with_state(auth, auth::require_login))
+        .route(paths::LOGIN, get(auth::login_page).post(auth::log_in))
+        .route(paths::LOGOUT, post(auth::log_out));
     let router = web::no_store(pages)
-        // Probes don't log in, and neither do the pages around logging in.
+        // Probes don't log in, and the login page has its style before anyone does.
         .route(paths::HEALTH, get(|| async { "ok" }))
         .route(paths::READY, get(web::ready))
         .route(paths::STYLESHEET, get(web::stylesheet))
-        .route(
-            paths::LOGGED_OUT,
-            get(|| async { render(auth::LoginPage::logged_out()) }),
-        )
         .layer(middleware::from_fn(crate::theme::scope))
         .layer(middleware::from_fn(lang::scope))
         .with_state(state);
@@ -253,15 +250,6 @@ async fn index(State(state): State<AdminState>, Query(query): Query<IndexQuery>)
         ..Feedback::default()
     };
     index_page(&state, None, feedback).await
-}
-
-/// Logs the browser out: it asks for the password on the next page.
-async fn log_out(State(login): State<Arc<auth::Login>>, headers: HeaderMap) -> Response {
-    if let Some(authorization) = headers.get(header::AUTHORIZATION) {
-        login.log_out(authorization);
-    }
-    tracing::info!("host logged out");
-    Redirect::to(&paths::admin(paths::LOGGED_OUT)).into_response()
 }
 
 /// Queues a reminder for everyone with a confirmed address who hasn't declined. Each
@@ -662,32 +650,31 @@ pub async fn invite(
 #[cfg(test)]
 mod tests {
     use axum::{body::Body, http::Request};
-    use base64::{Engine, engine::general_purpose::STANDARD};
     use tower::ServiceExt;
 
     use super::*;
     use crate::{
         config::tests::config,
         link::IdLink,
-        web::testing::{body, location},
+        web::testing::{body, escape, location},
     };
 
     struct Admin {
         db: PgPool,
         config: Config,
         admin: AdminConfig,
+        /// The `token` cookie of a login.
+        token: String,
     }
 
     impl Admin {
         fn new(db: PgPool) -> Self {
+            let admin = auth::tests::admin_config();
             Self {
+                token: format!("token={}", auth::tests::token(&admin, db.clone())),
                 db,
                 config: config(),
-                admin: AdminConfig {
-                    listen: "127.0.0.1:0".parse().unwrap(),
-                    user: "admin".into(),
-                    password_hash: auth::tests::cheap_hash("secret"),
-                },
+                admin,
             }
         }
 
@@ -705,40 +692,56 @@ mod tests {
                 .unwrap()
         }
 
-        fn login(
-            request: axum::http::request::Builder,
-            user_password: &str,
-        ) -> axum::http::request::Builder {
-            request.header(
-                header::AUTHORIZATION,
-                format!("Basic {}", STANDARD.encode(user_password)),
-            )
+        fn logged_in(&self, request: axum::http::request::Builder) -> axum::http::request::Builder {
+            request.header(header::COOKIE, &self.token)
         }
 
         async fn get(&self, uri: &str) -> Response {
-            self.send(Self::login(Request::get(uri), "admin:secret"), "")
-                .await
+            self.send(self.logged_in(Request::get(uri)), "").await
         }
 
         async fn post(&self, uri: &str, form: &str) -> Response {
-            self.send(Self::login(Request::post(uri), "admin:secret"), form)
-                .await
+            self.send(self.logged_in(Request::post(uri)), form).await
         }
+    }
+
+    /// The `name=value` of each cookie the response sets, and the whole header.
+    fn set_cookies(response: &Response) -> Vec<(String, String)> {
+        response
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .map(|value| {
+                let value = value.to_str().unwrap();
+                (
+                    value.split(';').next().unwrap().to_owned(),
+                    value.to_owned(),
+                )
+            })
+            .collect()
     }
 
     #[sqlx::test]
     async fn requires_login_except_for_probes(db: PgPool) {
         let admin = Admin::new(db);
-        let response = admin.send(Request::get("/"), "").await;
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-        assert!(response.headers().contains_key(header::WWW_AUTHENTICATE));
-
-        for wrong in ["admin:wrong", "root:secret", "garbage"] {
-            let response = admin.send(Admin::login(Request::get("/"), wrong), "").await;
-            assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{wrong}");
+        for cookie in ["", "token=garbage", "refresh_token=garbage"] {
+            let response = admin
+                .send(Request::get("/").header(header::COOKIE, cookie), "")
+                .await;
+            assert_eq!(location(&response), "/login", "{cookie}");
         }
+        // A form posted without a login doesn't run either.
+        let response = admin
+            .send(Request::post("/invitations"), "names=Eva&max_party_size=1")
+            .await;
+        assert_eq!(location(&response), "/login");
+        assert!(rsvp::list(&admin.db).await.unwrap().is_empty());
+
         let response = admin.send(Request::get("/healthz"), "").await;
         assert_eq!(response.status(), StatusCode::OK);
+        let response = admin.send(Request::get("/login"), "").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(body(response).await.contains(r#"type="password""#));
 
         let response = admin.get("/").await;
         assert_eq!(response.status(), StatusCode::OK);
@@ -746,38 +749,81 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn logging_out_asks_for_the_password_again(db: PgPool) {
+    async fn logs_in_refreshes_and_logs_out(db: PgPool) {
         let admin = Admin::new(db);
-        // One router throughout, as it remembers the login.
         let app = router(admin.config.clone(), &admin.admin, admin.db.clone());
-        let send = |method: &str, uri: &str| {
-            let request = Admin::login(Request::builder().method(method).uri(uri), "admin:secret")
+        let send = |method: &str, uri: &str, cookie: &str, form: &str| {
+            let request = Request::builder()
+                .method(method)
+                .uri(uri)
+                .header(header::COOKIE, cookie)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header(header::ACCEPT_LANGUAGE, "en-GB")
                 .header("sec-fetch-site", "same-origin")
-                .header("sec-fetch-mode", "navigate")
-                .body(Body::empty())
+                .body(Body::from(form.to_owned()))
                 .unwrap();
-            app.clone().oneshot(request)
+            let app = app.clone();
+            async move { app.oneshot(request).await.unwrap() }
         };
-        let response = send("POST", "/logout").await.unwrap();
-        assert_eq!(location(&response), "/logged-out");
-        let response = admin.send(Request::get("/logged-out"), "").await;
-        assert_eq!(response.status(), StatusCode::OK);
-        assert!(body(response).await.contains("<h1>Logged out</h1>"));
 
-        let response = send("GET", "/").await.unwrap();
+        let response = send("POST", "/login", "", "user=admin&password=wrong").await;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-        assert!(response.headers().contains_key(header::WWW_AUTHENTICATE));
-        assert!(body(response).await.contains("<h1>Log in</h1>"));
-        // The browser asked, and the password was typed again.
-        let response = send("GET", "/").await.unwrap();
+        assert!(set_cookies(&response).is_empty());
+        let html = body(response).await;
+        assert!(html.contains("Wrong user name or password."), "{html}");
+        assert!(html.contains(r#"value="admin""#), "{html}");
+
+        let response = send("POST", "/login", "", "user=admin&password=secret").await;
+        assert_eq!(location(&response), "/");
+        let cookies = set_cookies(&response);
+        let [(token, token_header), (refresh, refresh_header)] = &cookies[..] else {
+            panic!("{cookies:?}");
+        };
+        assert!(token.starts_with("token=ey"), "{token}");
+        assert!(token_header.ends_with("; HttpOnly; SameSite=Lax; Secure"));
+        assert!(refresh.starts_with("refresh_token="), "{refresh}");
+        assert!(refresh_header.contains("; Max-Age=2592000;"));
+        let both = format!("{token}; {refresh}");
+
+        let response = send("GET", "/", &both, "").await;
         assert_eq!(response.status(), StatusCode::OK);
+        assert!(set_cookies(&response).is_empty());
+        // Without a JWT, as once it expires, the refresh token gets a new one.
+        let response = send("GET", "/", refresh, "").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let renewed = set_cookies(&response);
+        assert!(renewed[0].0.starts_with("token=ey"), "{renewed:?}");
+        assert_ne!(&renewed[0].0, token);
+
+        let response = send("POST", "/logout", &both, "").await;
+        assert_eq!(location(&response), "/login?logged_out");
+        let cleared = set_cookies(&response);
+        assert_eq!(
+            cleared
+                .iter()
+                .map(|(cookie, _)| cookie.as_str())
+                .collect::<Vec<_>>(),
+            ["token=", "refresh_token="]
+        );
+        assert!(cleared[0].1.contains("; Max-Age=0;"));
+        let html = body(send("GET", "/login?logged_out", "", "").await).await;
+        assert!(html.contains(&escape("You're logged out.")), "{html}");
+
+        // Copies of the cookies stop working too.
+        for cookie in [both.as_str(), token, refresh] {
+            let response = send("GET", "/", cookie, "").await;
+            assert_eq!(location(&response), "/login", "{cookie}");
+        }
+        // Another login still works.
+        let response = send("POST", "/login", "", "user=admin&password=secret").await;
+        assert_eq!(location(&response), "/");
     }
 
     #[sqlx::test]
     async fn speaks_the_browsers_language_or_the_one_picked(db: PgPool) {
         let admin = Admin::new(db);
-        let request = Admin::login(Request::get("/"), "admin:secret")
+        let request = admin
+            .logged_in(Request::get("/"))
             .header(header::ACCEPT_LANGUAGE, "nn-NO")
             .body(Body::empty())
             .unwrap();

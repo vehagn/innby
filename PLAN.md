@@ -42,7 +42,7 @@ You had no preference, and the devcontainer removes Go's main advantage (it was 
 | CLI | `clap` (derive) for the subcommands |
 | Logging | `tracing` + `tracing-subscriber` (JSON output) |
 | Rate limiting | A ~40-line fixed-window counter per IP (IPv6 per /64), in memory; no crate needed |
-| Admin | `argon2` (basic-auth hash), `csv`, `qrcode` (SVG output) |
+| Admin | `argon2` (password hash), HS512 JWTs with `hmac`, `csv`, `qrcode` (SVG output) |
 | TLS roots | `rustls` + `webpki-roots`: CA roots compiled in, so the image needs no `/etc/ssl` |
 
 - **CSRF:** axum has no built-in equivalent of Go's `CrossOriginProtection`, so we add a ~20-line middleware that does the same thing. For unsafe methods it requires `Sec-Fetch-Site` to be `same-origin` or `none`, or (for older browsers) the `Origin` host to match the `Host` header. This needs no cookies, and works unchanged for both the public and the admin hostname.
@@ -160,7 +160,7 @@ Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pendin
 - **Invitations:** create them in a batch, one per line, and get a page of their links; edit them (label, maximum party size), show the link and QR code, revoke the link (bumps the nonce), delete.
 - **Groups:** create them in a batch, one per line; each has a page with its link, QR code and sign-ups, and can be renamed, given a new link, or deleted while nobody has signed up.
 - **Overview:** attending, declined and no-answer counts, a total headcount, and a CSV export.
-- **Authentication:** reachable only through the internal gateway (LAN or VPN), plus basic auth with an argon2 hash from a SealedSecret, since the admin can change data. Each argon2 check needs 19 MiB, so checks run one at a time, a login that checked out is remembered for an hour, and after 10 checks in 15 minutes new logins get 429 (remembered ones keep working). Basic auth has no logout, so *Log out* forgets the login and answers the browser's next page with 401, which makes it ask for the password again. Later, for fun: OIDC login against Authelia.
+- **Authentication:** reachable only through the internal gateway (LAN or VPN), plus a login form checked against an argon2 hash from a SealedSecret, since the admin can change data. As in LLDAP, a login sets two `HttpOnly` cookies: `token`, an HS512 JWT that lasts a day, and `refresh_token`, which gets a new JWT for 30 days and is kept in Postgres by its keyed hash. *Log out* revokes both (the JWT's `jti` goes on a list until it would have expired), so copies of the cookies stop working too. The JWT key is `INNBY_ADMIN_JWT_SECRET` bound to the user name and password hash, so a new password logs every browser out. Each argon2 check needs 19 MiB, so checks run one at a time, and after 10 checks in 15 minutes logins get 429 (browsers that are logged in keep working). Later, for fun: OIDC login against Authelia.
 
 ### 5.6 Guest list
 
@@ -343,6 +343,7 @@ just manifests           # render deploy/ with kustomize (Argo CD does the deplo
 16. ✅ **Renamed to Innby** (from fest): the crate, binary and commands, the `INNBY_*` settings, the image, the Kubernetes names and the databases. The hostnames stay as they are.
 17. ✅ **Multi-arch and a local copy:** CI builds amd64 and arm64 binaries and pushes their scratch images as one OCI image index; `compose.yaml` and `just up` run a local copy of the published image.
 18. ✅ **Admin in every language:** the admin UI's texts in `[admin]` in each locale file, its CSV header too, and the same language menu, theme switch and header as the public site, plus a logout.
+19. ✅ **Admin login with a JWT:** a login form instead of basic auth. As in LLDAP, an HS512 JWT for a day and a refresh token for 30 days in `HttpOnly` cookies, and a logout that revokes both. Needs `INNBY_ADMIN_JWT_SECRET` in `deploy/secrets.env`.
 
 ## 14. Decisions
 

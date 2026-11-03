@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from admin_refresh_token where digest = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "790852905b4e8f8715a4205b5e2efeb66e39f51a2d80120766d1fac0b2c97a3f"
+}

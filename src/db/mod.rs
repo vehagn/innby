@@ -1,3 +1,4 @@
+pub mod admin_login;
 pub mod group;
 pub mod outbox;
 pub mod retention;
