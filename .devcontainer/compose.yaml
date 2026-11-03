@@ -1,3 +1,6 @@
+# `name` keeps the IDE and `just dev` on the same containers and volumes.
+name: innby-dev
+
 services:
   dev:
     build:
@@ -13,6 +16,8 @@ services:
     environment:
       DATABASE_URL: postgres://innby:innby@db:5432/innby
       INNBY_SMTP_URL: smtp://mail:1025
+      # Tells `just up` it runs in here.
+      INNBY_DEVCONTAINER: "1"
     depends_on:
       db:
         condition: service_healthy

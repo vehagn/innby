@@ -6,7 +6,6 @@
   "workspaceFolder": "/workspaces/innby",
   "shutdownAction": "stopCompose",
   "remoteUser": "dev",
-  "postCreateCommand": "git config --global --add safe.directory /workspaces/innby",
   "forwardPorts": [8080, 8081, "mail:8025"],
   "portsAttributes": {
     "8080": { "label": "innby serve" },

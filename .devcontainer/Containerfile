@@ -73,7 +73,9 @@ RUN useradd --create-home --shell /bin/bash --uid "${USER_UID}" "${USERNAME}"; \
       "/home/${USERNAME}/.cache/kube" \
       "/home/${USERNAME}/.cache/target" \
       "${CARGO_HOME}/registry"; \
-    chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}" "${CARGO_HOME}"
+    chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}" "${CARGO_HOME}"; \
+    # The workspace is mounted from the host, owned by another UID.
+    git config --system --add safe.directory /workspaces/innby
 
 USER ${USERNAME}
 

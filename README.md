@@ -22,20 +22,22 @@ One Rust binary, run as several workloads:
 
 ## Develop
 
-Open the repository in the devcontainer (VS Code, RustRover or the `devcontainer` CLI).
-It comes with Postgres 18 and Mailpit, and every tool the Justfile needs.
+Run `just dev` on the host. It starts the devcontainer with Postgres 18 and Mailpit and
+every tool the Justfile needs, then opens a shell in it. In there:
 
 ```bash
-cp .env.example .env
+just up
 ```
 
-```bash
-just run
-```
+That builds and runs this checkout: the site on http://localhost:8080, the admin UI on
+http://localhost:8081 (user `admin`, password `innby`), and Mailpit's inbox on
+http://localhost:8025, all in your own browser. Ctrl-C stops it, and `just dev-down` on
+the host stops the devcontainer, keeping its database and build cache. `just dev` makes a
+`.env` from `.env.example` if there is none. `just` lists the other recipes; `just test`
+and `just lint` are what CI runs.
 
-The site is on port 8080, the admin UI on 8081 (user `admin`, password `innby`), and
-Mailpit's inbox on 8025. `just` lists the other recipes; `just test` and `just lint` are
-what CI runs.
+VS Code, RustRover and the `devcontainer` CLI open the same devcontainer and forward the
+ports themselves.
 
 ## Translate
 

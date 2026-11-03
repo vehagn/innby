@@ -9,6 +9,7 @@ oci_dir := justfile_directory() / "target/oci"
 # implementation works for `just up`, e.g. COMPOSE=docker-compose.
 engine := env("ENGINE", "docker")
 compose := env("COMPOSE", engine + " compose")
+dev_compose := compose + " --file .devcontainer/compose.yaml --file .devcontainer/compose.ports.yaml"
 
 # List available recipes
 default:
@@ -186,10 +187,28 @@ release version:
       echo "Not pushed. Later: git push --atomic origin main $tag"
     fi
 
-# Run a local copy of the published image (see compose.yaml): site :8080, admin :8081, mail :8025
+# Start the dev container with Postgres and Mailpit and open a shell in it; `just up` in there serves this checkout on localhost
+dev:
+    @test -f .env || cp .env.example .env
+    {{ dev_compose }} up --detach --build --wait
+    {{ dev_compose }} exec dev bash
+
+# Stop the dev container, keeping its database and build cache
+dev-down:
+    {{ dev_compose }} down
+
+# Run a local copy of the published image (see compose.yaml), or of this checkout in the dev container: site :8080, admin :8081, mail :8025
 up tag="latest":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -n "${INNBY_DEVCONTAINER:-}" ]]; then
+      # In the dev container, which has no container engine: serve this checkout instead,
+      # on the ports `just dev` publishes. Ctrl-C stops it.
+      echo "http://localhost:8080  http://localhost:8081  http://localhost:8025"
+      exec just run
+    fi
     INNBY_TAG={{ tag }} {{ compose }} up --detach --pull missing
-    @echo "http://localhost:8080  http://localhost:8081  http://localhost:8025"
+    echo "http://localhost:8080  http://localhost:8081  http://localhost:8025"
 
 # Run the local copy's retention rules once
 up-janitor:
