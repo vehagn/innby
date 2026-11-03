@@ -221,12 +221,14 @@ qr_star = "星星"
 qr_emoji = "表情符號"
 qr_save = "儲存樣式"
 qr_saved = "QR 碼樣式已儲存。"
-# Under the example code on the index page.
+# Under the example code on the QR codes page.
 qr_preview = "範例：活動頁面。"
 qr_download = "下載 QR 碼（SVG）"
 
 # Guests
 guests = "賓客"
+show_all = "顯示全部"
+no_guests_shown = "沒有賓客給出這個回覆。"
 no_guests = "還沒有賓客。"
 download_csv = "下載 CSV"
 link = "連結"

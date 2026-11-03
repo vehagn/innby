@@ -242,12 +242,14 @@ qr_star = "Star"
 qr_emoji = "Emoji"
 qr_save = "Save style"
 qr_saved = "QR code style saved!"
-# Under the example code on the index page.
+# Under the example code on the QR codes page.
 qr_preview = "Example: the party page."
 qr_download = "Download QR code (SVG)"
 
 # Guests
 guests = "Guests"
+show_all = "Show all"
+no_guests_shown = "No one with this answer."
 no_guests = "No guests yet."
 download_csv = "Download CSV"
 link = "Link"

@@ -2,6 +2,8 @@
 
 {% block title %}{{ group.name }}{% endblock %}
 
+{% block tabs %}{% let current = crate::admin::Tab::Groups %}{% include "admin/_tabs.html" %}{% endblock %}
+
 {% block content %}
 {% let a = crate::admin::lang::text() %}
 {% if saved %}<p class="notice success" role="status">{{ a.saved }}</p>{% endif %}

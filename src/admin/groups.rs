@@ -11,8 +11,8 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use super::{
-    AdminState, BatchForm, DeleteForm, Feedback, InviteForm, PageError, Row, ShowQuery, admin_qr,
-    index_page, lang, local, qr_file,
+    AdminState, BatchForm, DeleteForm, InviteForm, PageError, Row, SavedQuery, admin_qr, count,
+    lang, local, qr_file,
 };
 use crate::{
     config::Config,
@@ -26,7 +26,7 @@ use crate::{
     web::{render, render_with, server_error},
 };
 
-/// One group as the index page lists it.
+/// One group as the group links page lists it.
 pub(super) struct GroupRow {
     /// The group's admin page.
     pub path: String,
@@ -58,6 +58,65 @@ fn group_url(config: &Config, group: &Group) -> String {
     config.url(&paths::path(paths::JOIN, link))
 }
 
+#[derive(Template)]
+#[template(path = "admin/groups.html")]
+struct GroupsPage {
+    groups: Vec<GroupRow>,
+    /// The batch form's text, kept when a line needs fixing.
+    names: String,
+    max_party_size: i32,
+    /// False once the answer deadline has passed, which closes the group links too.
+    accepts_answers: bool,
+    notice: Option<String>,
+    error: Option<String>,
+}
+
+async fn groups_page(
+    state: &AdminState,
+    names: String,
+    notice: Option<String>,
+    error: Option<String>,
+) -> Response {
+    let (groups, rsvps) = match tokio::try_join!(group::list(&state.db), rsvp::list(&state.db)) {
+        Ok(loaded) => loaded,
+        Err(err) => return server_error(err),
+    };
+    let status = match error {
+        Some(_) => StatusCode::UNPROCESSABLE_ENTITY,
+        None => StatusCode::OK,
+    };
+    let page = GroupsPage {
+        groups: groups
+            .iter()
+            .map(|group| GroupRow::new(&state.config, group, &rsvps))
+            .collect(),
+        names,
+        max_party_size: MAX_PARTY_SIZE,
+        accepts_answers: state.config.event.accepts_answers(Utc::now()),
+        notice,
+        error,
+    };
+    render_with(status, page)
+}
+
+#[derive(serde::Deserialize)]
+pub(super) struct GroupsQuery {
+    /// How many groups were just created.
+    created: Option<usize>,
+}
+
+/// Every group's link, and the form for new ones.
+pub(super) async fn list(
+    State(state): State<AdminState>,
+    Query(query): Query<GroupsQuery>,
+) -> Response {
+    let text = lang::text();
+    let notice = query
+        .created
+        .map(|n| count(n, &text.groups_created_one, &text.groups_created_other));
+    groups_page(&state, String::new(), notice, None).await
+}
+
 /// Creates a group per line, all or none.
 pub(super) async fn create(
     State(state): State<AdminState>,
@@ -65,13 +124,7 @@ pub(super) async fn create(
 ) -> Response {
     let entries = match form.parse() {
         Ok(entries) => entries,
-        Err(error) => {
-            let feedback = Feedback {
-                groups: form.names,
-                ..Feedback::default()
-            };
-            return index_page(&state, Some(error), feedback).await;
-        }
+        Err(error) => return groups_page(&state, form.names, None, Some(error)).await,
     };
     let created = async {
         let mut tx = state.db.begin().await?;
@@ -84,8 +137,8 @@ pub(super) async fn create(
     match created {
         Ok(()) => {
             tracing::info!(count = entries.len(), "groups created");
-            let index = format!("{}?groups={}#groups", paths::HOME, entries.len());
-            Redirect::to(&paths::admin(&index)).into_response()
+            let page = format!("{}?created={}", paths::GROUPS, entries.len());
+            Redirect::to(&paths::admin(&page)).into_response()
         }
         Err(err) => server_error(err),
     }
@@ -154,7 +207,7 @@ fn saved_redirect(id: Uuid) -> Response {
 pub(super) async fn show(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
-    Query(query): Query<ShowQuery>,
+    Query(query): Query<SavedQuery>,
 ) -> Result<Response, PageError> {
     let mut page = GroupPage::load(&state, id).await?;
     page.saved = query.saved.is_some();
@@ -224,5 +277,5 @@ pub(super) async fn delete(
         };
     }
     tracing::info!(group = %id, "group deleted");
-    Ok(Redirect::to(&paths::admin(&format!("{}#groups", paths::HOME))).into_response())
+    Ok(Redirect::to(&paths::admin(paths::GROUPS)).into_response())
 }

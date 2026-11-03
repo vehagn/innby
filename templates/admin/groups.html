@@ -1,0 +1,48 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ crate::admin::lang::text().group_links }}{% endblock %}
+
+{% block tabs %}{% let current = crate::admin::Tab::Groups %}{% include "admin/_tabs.html" %}{% endblock %}
+
+{% block content %}
+{% let a = crate::admin::lang::text() %}
+{% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
+<h1>{{ a.group_links }}</h1>
+<p class="muted small">{{ a.group_links_hint }}</p>
+{% if !accepts_answers %}<p class="notice" role="status">{{ a.closed }}</p>{% endif %}
+
+<section class="card">
+  {% if groups.is_empty() %}
+  <p class="muted">{{ a.no_groups }}</p>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>{{ a.col_group }}</th><th>{{ a.col_signed_up }}</th><th>{{ a.col_people_each }}</th><th>{{ a.col_link }}</th></tr>
+    </thead>
+    <tbody>
+      {% for group in groups %}
+      <tr>
+        <td><a href="{{ group.path }}">{{ group.name }}</a></td>
+        <td>{{ group.sign_ups }}</td>
+        <td>{{ group.max_party_size }}</td>
+        <td><input type="text" readonly value="{{ group.url }}" aria-label="{{ crate::i18n::filled(a.link_for, "name", group.name) }}"></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>{{ a.new_groups }}</h2>
+  <form method="post" action="{{ crate::paths::admin(crate::paths::GROUPS) }}">
+    <label for="group-names">{{ a.names }}</label>
+    <textarea id="group-names" name="names" rows="3" required placeholder="{{ a.groups_placeholder }}">{{ names }}</textarea>
+    <label for="group-size">{{ a.max_per_sign_up }}</label>
+    <input id="group-size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="2" required>
+    <button>{{ a.create_groups }}</button>
+  </form>
+</section>
+{% endblock %}

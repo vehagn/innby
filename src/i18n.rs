@@ -430,6 +430,10 @@ pub struct AdminMessages {
 
     // Guests
     pub guests: String,
+    /// Under the guests' heading when the table shows one answer only.
+    pub show_all: String,
+    /// When the table shows one answer and nobody has given it.
+    pub no_guests_shown: String,
     pub no_guests: String,
     pub download_csv: String,
     pub link: String,

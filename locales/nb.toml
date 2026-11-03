@@ -253,12 +253,14 @@ qr_star = "Stjerne"
 qr_emoji = "Emoji"
 qr_save = "Lagre stilen"
 qr_saved = "Stilen for QR-kodene er lagret."
-# Under the example code on the index page.
+# Under the example code on the QR codes page.
 qr_preview = "Et eksempel, til festsiden."
 qr_download = "Last ned QR-koden (SVG)"
 
 # Guests
 guests = "Gjester"
+show_all = "Vis alle"
+no_guests_shown = "Ingen gjester med dette svaret."
 no_guests = "Ingen gjester ennå."
 download_csv = "Last ned CSV"
 link = "Lenke"

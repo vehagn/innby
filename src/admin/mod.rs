@@ -78,7 +78,7 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
             paths::INVITATIONS,
             get(invitations).post(create_invitations),
         )
-        .route(paths::GROUPS, post(groups::create))
+        .route(paths::GROUPS, get(groups::list).post(groups::create))
         .route(paths::GROUP, get(groups::show).post(groups::edit))
         .route(paths::GROUP_REVOKE, post(groups::revoke))
         .route(paths::GROUP_DELETE, post(groups::delete))
@@ -87,7 +87,7 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
         .route(paths::GUEST_DELETE, post(delete))
         .route(paths::GUEST_QR, get(guest_qr))
         .route(paths::GROUP_QR, get(groups::qr))
-        .route(paths::QR_STYLE, post(save_qr_style))
+        .route(paths::QR_STYLE, get(qr_style).post(save_qr_style))
         .route(paths::GUESTS_CSV, get(export_csv))
         .route(paths::REMINDERS, post(queue_reminders))
         .layer(middleware::from_fn_with_state(auth, auth::require_login))
@@ -104,6 +104,38 @@ fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
     web::harden(router, https)
 }
 
+/// The admin's sections, as tabs under the header.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Tab {
+    Guests,
+    Invitations,
+    Groups,
+    Qr,
+}
+
+impl Tab {
+    pub const ALL: [Self; 4] = [Self::Guests, Self::Invitations, Self::Groups, Self::Qr];
+
+    pub fn path(self) -> String {
+        paths::admin(match self {
+            Self::Guests => paths::HOME,
+            Self::Invitations => paths::INVITATIONS,
+            Self::Groups => paths::GROUPS,
+            Self::Qr => paths::QR_STYLE,
+        })
+    }
+
+    pub fn label(self) -> &'static str {
+        let text = lang::text();
+        match self {
+            Self::Guests => &text.guests,
+            Self::Invitations => &text.invitation_links,
+            Self::Groups => &text.group_links,
+            Self::Qr => &text.qr_heading,
+        }
+    }
+}
+
 /// One guest as the admin tables show it.
 struct Row {
     /// The guest's admin page.
@@ -114,6 +146,8 @@ struct Row {
     /// The admin page of that group.
     group_path: Option<String>,
     answer: &'static str,
+    /// The answer as a class for its colour: `pending`, `attending` or `declined`.
+    status: &'static str,
     party: String,
     email: &'static str,
     /// How other guests see the name in the guest list.
@@ -142,6 +176,7 @@ impl Row {
                 rsvp::Response::Attending => &text.answer_attending,
                 rsvp::Response::Declined => &text.answer_declined,
             },
+            status: response_code(rsvp.response),
             party: format!("{} / {}", rsvp.party_size, rsvp.max_party_size),
             email: match rsvp.email_status {
                 EmailStatus::None => "",
@@ -162,6 +197,14 @@ impl Row {
     }
 }
 
+fn response_code(response: rsvp::Response) -> &'static str {
+    match response {
+        rsvp::Response::Pending => "pending",
+        rsvp::Response::Attending => "attending",
+        rsvp::Response::Declined => "declined",
+    }
+}
+
 fn local(at: DateTime<Utc>, tz: Tz) -> String {
     at.with_timezone(&tz).format("%Y-%m-%d %H:%M").to_string()
 }
@@ -173,44 +216,49 @@ struct IndexPage<'a> {
     headcount: Headcount,
     /// Guests with a confirmed address.
     subscribers: usize,
+    /// The guests the table shows: everyone, or those with one answer.
     rows: Vec<Row>,
-    groups: Vec<groups::GroupRow>,
-    max_party_size: i32,
-    /// False once the answer deadline has passed, which closes the group links too.
-    accepts_answers: bool,
-    qr_style: db::qr::Style,
-    /// A code for the event page, in that style.
-    qr_preview: String,
-    feedback: Feedback,
+    /// The answer the table is filtered to, as in `?show=`.
+    show: Option<&'static str>,
+    notice: Option<String>,
     error: Option<String>,
 }
 
-/// What the index page shows on top of the data: a notice after a change, and the text
-/// of the batch forms, kept when a line needs fixing.
-#[derive(Default)]
-struct Feedback {
-    notice: Option<String>,
-    invitations: String,
-    groups: String,
+impl IndexPage<'_> {
+    /// Whether the table shows only the guests with this answer.
+    fn showing(&self, code: &str) -> bool {
+        self.show == Some(code)
+    }
 }
 
-async fn index_page(state: &AdminState, error: Option<String>, feedback: Feedback) -> Response {
+#[derive(Deserialize)]
+struct IndexQuery {
+    /// `pending`, `attending` or `declined`.
+    show: Option<String>,
+    reminders: Option<usize>,
+}
+
+/// Every guest, with the headcount on top; the headcount's figures filter the table.
+async fn index(State(state): State<AdminState>, Query(query): Query<IndexQuery>) -> Response {
     let loaded = tokio::try_join!(
         rsvp::list(&state.db),
         rsvp::headcount(&state.db),
         group::list(&state.db),
-        db::qr::style(&state.db),
     );
-    let (rsvps, headcount, groups, qr_style) = match loaded {
+    let (rsvps, headcount, groups) = match loaded {
         Ok(loaded) => loaded,
         Err(err) => return server_error(err),
     };
+    let show = [
+        rsvp::Response::Pending,
+        rsvp::Response::Attending,
+        rsvp::Response::Declined,
+    ]
+    .into_iter()
+    .find(|response| query.show.as_deref() == Some(response_code(*response)));
     let tz = state.config.event.starts_at.timezone();
-    let status = match error {
-        Some(_) => StatusCode::UNPROCESSABLE_ENTITY,
-        None => StatusCode::OK,
-    };
-    let page = IndexPage {
+    let text = lang::text();
+    render(IndexPage {
         title: state.config.event.title.get(lang::current()),
         headcount,
         subscribers: rsvps
@@ -219,50 +267,52 @@ async fn index_page(state: &AdminState, error: Option<String>, feedback: Feedbac
             .count(),
         rows: rsvps
             .iter()
+            .filter(|rsvp| show.is_none_or(|show| rsvp.response == show))
             .map(|rsvp| Row::new(rsvp, tz, &groups))
             .collect(),
-        groups: groups
-            .iter()
-            .map(|group| groups::GroupRow::new(&state.config, group, &rsvps))
-            .collect(),
-        max_party_size: MAX_PARTY_SIZE,
-        accepts_answers: state.config.event.accepts_answers(Utc::now()),
-        qr_preview: admin_qr::svg(&state.config.url(paths::HOME), &qr_style, None),
-        qr_style,
-        feedback,
-        error,
-    };
-    render_with(status, page)
+        show: show.map(response_code),
+        notice: query
+            .reminders
+            .map(|n| count(n, &text.reminders_queued_one, &text.reminders_queued_other)),
+        error: None,
+    })
+}
+
+#[derive(Template)]
+#[template(path = "admin/qr.html")]
+struct QrPage {
+    qr_style: db::qr::Style,
+    /// A code for the event page, in that style.
+    qr_preview: String,
+    saved: bool,
+    error: Option<String>,
+}
+
+impl QrPage {
+    fn new(config: &Config, qr_style: db::qr::Style) -> Self {
+        Self {
+            qr_preview: admin_qr::svg(&config.url(paths::HOME), &qr_style, None),
+            qr_style,
+            saved: false,
+            error: None,
+        }
+    }
 }
 
 #[derive(Deserialize)]
-struct IndexQuery {
-    reminders: Option<usize>,
-    groups: Option<usize>,
-    /// The QR code style was saved.
-    qr: Option<String>,
+struct SavedQuery {
+    saved: Option<String>,
 }
 
-async fn index(State(state): State<AdminState>, Query(query): Query<IndexQuery>) -> Response {
-    let text = lang::text();
-    let notice = match (query.reminders, query.groups) {
-        (Some(n), _) => Some(count(
-            n,
-            &text.reminders_queued_one,
-            &text.reminders_queued_other,
-        )),
-        (_, Some(n)) => Some(count(
-            n,
-            &text.groups_created_one,
-            &text.groups_created_other,
-        )),
-        (None, None) => query.qr.map(|_| text.qr_saved.clone()),
-    };
-    let feedback = Feedback {
-        notice,
-        ..Feedback::default()
-    };
-    index_page(&state, None, feedback).await
+/// The QR code style, with an example.
+async fn qr_style(State(state): State<AdminState>, Query(query): Query<SavedQuery>) -> Response {
+    match db::qr::style(&state.db).await {
+        Ok(style) => render(QrPage {
+            saved: query.saved.is_some(),
+            ..QrPage::new(&state.config, style)
+        }),
+        Err(err) => server_error(err),
+    }
 }
 
 /// Saves the QR code style that every code on these pages uses.
@@ -272,13 +322,23 @@ async fn save_qr_style(
 ) -> Response {
     let style = match form.validate() {
         Ok(style) => style,
-        Err(error) => return index_page(&state, Some(error), Feedback::default()).await,
+        Err(error) => {
+            let saved = match db::qr::style(&state.db).await {
+                Ok(saved) => saved,
+                Err(err) => return server_error(err),
+            };
+            let page = QrPage {
+                error: Some(error),
+                ..QrPage::new(&state.config, saved)
+            };
+            return render_with(StatusCode::UNPROCESSABLE_ENTITY, page);
+        }
     };
     if let Err(err) = db::qr::save(&state.db, &style).await {
         return server_error(err);
     }
     tracing::info!("qr style saved");
-    Redirect::to(&paths::admin(&format!("{}?qr#qr", paths::HOME))).into_response()
+    Redirect::to(&paths::admin(&format!("{}?saved", paths::QR_STYLE))).into_response()
 }
 
 /// Queues a reminder for everyone with a confirmed address who hasn't declined. Each
@@ -356,13 +416,7 @@ async fn create_invitations(
 ) -> Response {
     let entries = match form.parse() {
         Ok(entries) => entries,
-        Err(error) => {
-            let feedback = Feedback {
-                invitations: form.names,
-                ..Feedback::default()
-            };
-            return index_page(&state, Some(error), feedback).await;
-        }
+        Err(error) => return invitations_page(&state, None, form.names, Some(error)).await,
     };
     let created = async {
         let mut tx = state.db.begin().await?;
@@ -394,6 +448,9 @@ struct InvitationsPage {
     /// Only the invitations just created.
     new: bool,
     invitations: Vec<Invitation>,
+    /// The batch form's text, kept when a line needs fixing.
+    names: String,
+    max_party_size: i32,
     error: Option<String>,
 }
 
@@ -407,10 +464,20 @@ struct InvitationsQuery {
     from: Option<Uuid>,
 }
 
-/// Every invitation's link, for sending them out.
+/// Every invitation's link, for sending them out, and the form for new ones.
 async fn invitations(
     State(state): State<AdminState>,
     Query(query): Query<InvitationsQuery>,
+) -> Response {
+    invitations_page(&state, query.from, String::new(), None).await
+}
+
+/// The invitations from `from` on, or all of them.
+async fn invitations_page(
+    state: &AdminState,
+    from: Option<Uuid>,
+    names: String,
+    error: Option<String>,
 ) -> Response {
     let rsvps = match rsvp::list(&state.db).await {
         Ok(rsvps) => rsvps,
@@ -420,17 +487,26 @@ async fn invitations(
     let invitations = rsvps
         .iter()
         .filter(|rsvp| rsvp.source == Source::Invite)
-        .filter(|rsvp| query.from.is_none_or(|from| rsvp.id >= from))
+        .filter(|rsvp| from.is_none_or(|from| rsvp.id >= from))
         .map(|rsvp| Invitation {
             row: Row::new(rsvp, tz, &[]),
             url: guest_url(&state.config, rsvp),
         })
         .collect();
-    render(InvitationsPage {
-        new: query.from.is_some(),
-        invitations,
-        error: None,
-    })
+    let status = match error {
+        Some(_) => StatusCode::UNPROCESSABLE_ENTITY,
+        None => StatusCode::OK,
+    };
+    render_with(
+        status,
+        InvitationsPage {
+            new: from.is_some(),
+            invitations,
+            names,
+            max_party_size: MAX_PARTY_SIZE,
+            error,
+        },
+    )
 }
 
 #[derive(Template)]
@@ -560,15 +636,10 @@ async fn guest_qr(
     ))
 }
 
-#[derive(Deserialize)]
-struct ShowQuery {
-    saved: Option<String>,
-}
-
 async fn show(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
-    Query(query): Query<ShowQuery>,
+    Query(query): Query<SavedQuery>,
 ) -> Result<Response, PageError> {
     let mut page = GuestPage::load(&state, id).await?;
     page.saved = query.saved.is_some();
@@ -889,7 +960,7 @@ mod tests {
     async fn speaks_the_browsers_language_or_the_one_picked(db: PgPool) {
         let admin = Admin::new(db);
         let request = admin
-            .logged_in(Request::get("/"))
+            .logged_in(Request::get("/invitations"))
             .header(header::ACCEPT_LANGUAGE, "nn-NO")
             .body(Body::empty())
             .unwrap();
@@ -901,7 +972,7 @@ mod tests {
         assert!(html.contains(r#"action="/invitations""#), "{html}");
 
         // A picked one is carried, through forms and redirects too.
-        let html = body(admin.get("/?lang=zh-hant&theme=dark").await).await;
+        let html = body(admin.get("/invitations?lang=zh-hant&theme=dark").await).await;
         assert!(html.contains("新邀請"), "{html}");
         assert!(
             html.contains(r#"action="/invitations?lang=zh-hant&#38;theme=dark""#),
@@ -913,7 +984,7 @@ mod tests {
                 "names=%E9%84%B0%E5%B1%85&max_party_size=1",
             )
             .await;
-        assert_eq!(location(&response), "/?groups=1&lang=zh-hant#groups");
+        assert_eq!(location(&response), "/groups?created=1&lang=zh-hant");
         let html = body(admin.get(location(&response)).await).await;
         assert!(html.contains("已建立 1 個群組。"), "{html}");
         // A form with a mistake says so in the picked language.
@@ -930,7 +1001,7 @@ mod tests {
     #[sqlx::test]
     async fn styles_and_downloads_qr_codes(db: PgPool) {
         let admin = Admin::new(db);
-        let html = body(admin.get("/").await).await;
+        let html = body(admin.get("/qr-style").await).await;
         assert!(html.contains(r#"value="rounded" checked"#), "{html}");
 
         // A colour phones can't read on white is refused.
@@ -950,8 +1021,8 @@ mod tests {
                 "shape=dots&color=%23000000&icon=emoji&emoji=%F0%9F%8E%89",
             )
             .await;
-        assert_eq!(location(&response), "/?qr#qr");
-        let html = body(admin.get("/?qr").await).await;
+        assert_eq!(location(&response), "/qr-style?saved");
+        let html = body(admin.get("/qr-style?saved").await).await;
         assert!(html.contains("QR code style saved."), "{html}");
         assert!(html.contains(r#"value="dots" checked"#), "{html}");
         assert!(html.contains("🎉</text>"), "{html}");
@@ -980,6 +1051,8 @@ mod tests {
         let admin = Admin::new(db);
         let html = body(admin.get("/?theme=dark").await).await;
         assert!(html.contains(r#"data-theme="dark""#), "{html}");
+        assert!(html.contains(r#"href="/invitations?theme=dark""#), "{html}");
+        let html = body(admin.get("/invitations?theme=dark").await).await;
         assert!(
             html.contains(r#"action="/invitations?theme=dark""#),
             "{html}"
@@ -997,7 +1070,7 @@ mod tests {
         let response = admin
             .post("/groups?theme=light", "names=Climbers&max_party_size=1")
             .await;
-        assert_eq!(location(&response), "/?groups=1&theme=light#groups");
+        assert_eq!(location(&response), "/groups?created=1&theme=light");
 
         // The login page has its style before anyone logs in.
         let response = admin.send(Request::get("/static/style.css"), "").await;
@@ -1128,6 +1201,49 @@ mod tests {
     }
 
     #[sqlx::test]
+    async fn the_headcount_filters_the_guests(db: PgPool) {
+        let admin = Admin::new(db);
+        let kari = rsvp::create_invite(&admin.db, "Kari", 3).await.unwrap();
+        rsvp::create_invite(&admin.db, "Ola", 1).await.unwrap();
+        rsvp::respond(
+            &admin.db,
+            kari.id,
+            rsvp::Response::Attending,
+            3,
+            None,
+            crate::i18n::Lang::EnGb,
+            web::PRIVACY_VERSION,
+        )
+        .await
+        .unwrap();
+
+        let html = body(admin.get("/").await).await;
+        assert!(html.contains("<strong>3</strong> people coming"), "{html}");
+        assert!(html.contains("<strong>1</strong> no answer"), "{html}");
+        assert!(
+            html.contains(r#"<a href="/" aria-current="page">Guests</a>"#),
+            "{html}"
+        );
+        assert!(html.contains("Kari") && html.contains("Ola"));
+        assert!(!html.contains("Show everyone"));
+
+        let html = body(admin.get("/?show=attending").await).await;
+        assert!(
+            html.contains(r#"href="/?show=attending" aria-current="true""#),
+            "{html}"
+        );
+        assert!(
+            html.contains(r#"<span class="status attending">coming</span>"#),
+            "{html}"
+        );
+        assert!(html.contains("Kari") && !html.contains(">Ola<"), "{html}");
+        assert!(html.contains("Show everyone"));
+        // An unknown answer shows everyone.
+        let html = body(admin.get("/?show=maybe").await).await;
+        assert!(html.contains(">Ola<") && !html.contains("Show everyone"));
+    }
+
+    #[sqlx::test]
     async fn exports_csv_with_links(db: PgPool) {
         let admin = Admin::new(db);
         rsvp::create_invite(&admin.db, "=cmd|' /C calc'!A0", 1)
@@ -1160,8 +1276,8 @@ mod tests {
                 "names=Climbing+club%0D%0ANeighbours%2C+4&max_party_size=2",
             )
             .await;
-        assert_eq!(location(&response), "/?groups=2#groups");
-        let html = body(admin.get("/?groups=2").await).await;
+        assert_eq!(location(&response), "/groups?created=2");
+        let html = body(admin.get("/groups?created=2").await).await;
         assert!(html.contains("2 groups created."));
         let [climbing, neighbours] = group::list(&admin.db).await.unwrap().try_into().unwrap();
         assert_eq!(
@@ -1217,7 +1333,7 @@ mod tests {
         let response = admin
             .post(&format!("/groups/{}/delete", neighbours.id), "confirm=yes")
             .await;
-        assert_eq!(location(&response), "/#groups");
+        assert_eq!(location(&response), "/groups");
         assert!(
             group::find(&admin.db, neighbours.id)
                 .await

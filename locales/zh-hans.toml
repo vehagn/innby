@@ -219,12 +219,14 @@ qr_star = "星星"
 qr_emoji = "表情符号"
 qr_save = "保存样式"
 qr_saved = "二维码样式已保存。"
-# Under the example code on the index page.
+# Under the example code on the QR codes page.
 qr_preview = "示例：活动页面。"
 qr_download = "下载二维码（SVG）"
 
 # Guests
 guests = "宾客"
+show_all = "显示全部"
+no_guests_shown = "没有宾客给出这个回复。"
 no_guests = "还没有宾客。"
 download_csv = "下载 CSV"
 link = "链接"

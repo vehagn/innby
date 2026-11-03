@@ -2,18 +2,17 @@
 
 {% block title %}{{ crate::admin::lang::text().invitation_links }}{% endblock %}
 
+{% block tabs %}{% let current = crate::admin::Tab::Invitations %}{% include "admin/_tabs.html" %}{% endblock %}
+
 {% block content %}
 {% let a = crate::admin::lang::text() %}
-{% if new %}
-<p class="notice success" role="status">{{ crate::i18n::count(invitations.len(), a.invitations_created_one, a.invitations_created_other) }}</p>
-<h1>{{ a.new_invitations }}</h1>
-{% else %}
+{% if new %}<p class="notice success" role="status">{{ crate::i18n::count(invitations.len(), a.invitations_created_one, a.invitations_created_other) }}</p>{% endif %}
 <h1>{{ a.invitation_links }}</h1>
-{% endif %}
 <p class="muted small">{{ a.invitation_links_hint }}
   <a href="{{ crate::paths::admin(crate::paths::GUESTS_CSV) }}" download>{{ a.download_csv }}</a></p>
 
 <section class="card">
+  {% if new %}<h2>{{ a.new_invitations }}</h2>{% endif %}
   {% if invitations.is_empty() %}
   <p class="muted">{{ a.no_invitations }}</p>
   {% else %}
@@ -26,7 +25,7 @@
       {% for invitation in invitations %}
       <tr>
         <td><a href="{{ invitation.row.path }}">{{ invitation.row.name }}</a></td>
-        <td>{{ invitation.row.answer }}</td>
+        <td><span class="status {{ invitation.row.status }}">{{ invitation.row.answer }}</span></td>
         <td>{{ invitation.row.party }}</td>
         <td><input type="text" readonly value="{{ invitation.url }}" aria-label="{{ crate::i18n::filled(a.link_for, "name", invitation.row.name) }}"></td>
       </tr>
@@ -35,5 +34,18 @@
   </table>
   </div>
   {% endif %}
+  {% if new %}<p><a href="{{ crate::paths::admin(crate::paths::INVITATIONS) }}">{{ a.all_invitation_links }}</a></p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>{{ a.new_invitations }}</h2>
+  <p class="muted small">{{ a.new_invitations_hint }}</p>
+  <form method="post" action="{{ crate::paths::admin(crate::paths::INVITATIONS) }}">
+    <label for="names">{{ a.names }}</label>
+    <textarea id="names" name="names" rows="5" required placeholder="{{ a.names_placeholder }}">{{ names }}</textarea>
+    <label for="max_party_size">{{ a.max_per_invitation }}</label>
+    <input id="max_party_size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="2" required>
+    <button>{{ a.create_invitations }}</button>
+  </form>
 </section>
 {% endblock %}

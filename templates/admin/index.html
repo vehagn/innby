@@ -2,97 +2,31 @@
 
 {% block title %}{{ crate::admin::lang::text().guests }}{% endblock %}
 
+{% block tabs %}{% let current = crate::admin::Tab::Guests %}{% include "admin/_tabs.html" %}{% endblock %}
+
 {% block content %}
 {% let a = crate::admin::lang::text() %}
-{% if let Some(notice) = feedback.notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
+{% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
 <h1>{{ title }}</h1>
-<p class="stats">
-  {{ crate::i18n::bold_count(headcount.attending_people, a.coming_one, a.coming_other)|safe }}
-  {{ crate::i18n::count(headcount.attending_parties, a.parties_one, a.parties_other) }} ·
-  {{ crate::i18n::filled(a.not_coming, "n", headcount.declined) }} ·
-  {{ crate::i18n::filled(a.no_answer, "n", headcount.pending) }}
-</p>
 
-<section class="card">
-  <h2>{{ a.new_invitations }}</h2>
-  <p class="muted small">{{ a.new_invitations_hint }}</p>
-  <form method="post" action="{{ crate::paths::admin(crate::paths::INVITATIONS) }}">
-    <label for="names">{{ a.names }}</label>
-    <textarea id="names" name="names" rows="5" required placeholder="{{ a.names_placeholder }}">{{ feedback.invitations }}</textarea>
-    <label for="max_party_size">{{ a.max_per_invitation }}</label>
-    <input id="max_party_size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="2" required>
-    <button>{{ a.create_invitations }}</button>
-  </form>
-  <p><a href="{{ crate::paths::admin(crate::paths::INVITATIONS) }}">{{ a.all_invitation_links }}</a></p>
-</section>
-
-<section class="card" id="groups">
-  <h2>{{ a.group_links }}</h2>
-  <p class="muted small">{{ a.group_links_hint }}</p>
-  {% if !accepts_answers %}<p class="notice" role="status">{{ a.closed }}</p>{% endif %}
-  {% if groups.is_empty() %}
-  <p class="muted">{{ a.no_groups }}</p>
-  {% else %}
-  <div class="table-wrap">
-  <table>
-    <thead>
-      <tr><th>{{ a.col_group }}</th><th>{{ a.col_signed_up }}</th><th>{{ a.col_people_each }}</th><th>{{ a.col_link }}</th></tr>
-    </thead>
-    <tbody>
-      {% for group in groups %}
-      <tr>
-        <td><a href="{{ group.path }}">{{ group.name }}</a></td>
-        <td>{{ group.sign_ups }}</td>
-        <td>{{ group.max_party_size }}</td>
-        <td><input type="text" readonly value="{{ group.url }}" aria-label="{{ crate::i18n::filled(a.link_for, "name", group.name) }}"></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% endif %}
-  <form method="post" action="{{ crate::paths::admin(crate::paths::GROUPS) }}">
-    <label for="group-names">{{ a.new_groups }}</label>
-    <textarea id="group-names" name="names" rows="3" required placeholder="{{ a.groups_placeholder }}">{{ feedback.groups }}</textarea>
-    <label for="group-size">{{ a.max_per_sign_up }}</label>
-    <input id="group-size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="2" required>
-    <button>{{ a.create_groups }}</button>
-  </form>
-</section>
-
-<section class="card" id="qr">
-  <h2>{{ a.qr_heading }}</h2>
-  <p class="muted small">{{ a.qr_hint }}</p>
-  <div class="qr-style">
-    <form method="post" action="{{ crate::paths::admin(crate::paths::QR_STYLE) }}">
-      <fieldset>
-        <legend>{{ a.qr_shape }}</legend>
-        {% for shape in crate::db::qr::Shape::ALL %}
-        <label class="choice"><input type="radio" name="shape" value="{{ shape.code() }}"{% if shape == qr_style.shape %} checked{% endif %}> {{ a.qr_shape_name(shape) }}</label>
-        {% endfor %}
-      </fieldset>
-      <label for="qr-color">{{ a.qr_color }}</label>
-      <input id="qr-color" name="color" type="color" value="{{ qr_style.color }}">
-      <fieldset>
-        <legend>{{ a.qr_icon }}</legend>
-        {% for icon in crate::db::qr::Icon::ALL %}
-        <label class="choice"><input type="radio" name="icon" value="{{ icon.code() }}"{% if icon == qr_style.icon %} checked{% endif %}> {{ a.qr_icon_name(icon) }}</label>
-        {% endfor %}
-        <input class="emoji" name="emoji" type="text" maxlength="16" value="{{ qr_style.emoji }}" placeholder="🎉" aria-label="{{ a.qr_emoji }}">
-      </fieldset>
-      <button>{{ a.qr_save }}</button>
-    </form>
-    <figure class="qr">
-      {{ qr_preview|safe }}
-      <figcaption class="muted small">{{ a.qr_preview }}</figcaption>
-    </figure>
-  </div>
-</section>
+<div class="tiles">
+  <a class="tile attending" href="{{ crate::paths::admin("/?show=attending") }}"{% if self.showing("attending") %} aria-current="true"{% endif %}>
+    <span>{{ crate::i18n::bold_count(headcount.attending_people, a.coming_one, a.coming_other)|safe }}</span>
+    <span class="muted small">{{ crate::i18n::count(headcount.attending_parties, a.parties_one, a.parties_other) }}</span>
+  </a>
+  <a class="tile pending" href="{{ crate::paths::admin("/?show=pending") }}"{% if self.showing("pending") %} aria-current="true"{% endif %}>
+    <span>{{ crate::i18n::bold_count(headcount.pending, a.no_answer, a.no_answer)|safe }}</span>
+  </a>
+  <a class="tile declined" href="{{ crate::paths::admin("/?show=declined") }}"{% if self.showing("declined") %} aria-current="true"{% endif %}>
+    <span>{{ crate::i18n::bold_count(headcount.declined, a.not_coming, a.not_coming)|safe }}</span>
+  </a>
+</div>
 
 <section class="card" id="guests">
   <h2>{{ a.guests }}</h2>
+  {% if show.is_some() %}<p class="small"><a href="{{ crate::paths::admin(crate::paths::HOME) }}">{{ a.show_all }}</a></p>{% endif %}
   {% if rows.is_empty() %}
-  <p class="muted">{{ a.no_guests }}</p>
+  <p class="muted">{% if show.is_some() %}{{ a.no_guests_shown }}{% else %}{{ a.no_guests }}{% endif %}</p>
   {% else %}
   <div class="table-wrap">
   <table>
@@ -103,7 +37,7 @@
       {% for row in rows %}
       <tr>
         <td><a href="{{ row.path }}">{{ row.name }}</a></td>
-        <td>{{ row.answer }}</td>
+        <td><span class="status {{ row.status }}">{{ row.answer }}</span></td>
         <td>{{ row.party }}</td>
         <td>{{ row.source }}</td>
         <td>{{ row.listed }}</td>
