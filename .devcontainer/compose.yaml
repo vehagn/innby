@@ -12,6 +12,7 @@ services:
       - ..:/workspaces/innby:cached
       - cargo-registry:/usr/local/cargo/registry
       - cargo-target:/home/dev/.cache/target
+      - shell-history:/home/dev/.local/state/shell
       - ${HOME}/.kube/config:/home/dev/.kube/config:ro
     environment:
       DATABASE_URL: postgres://innby:innby@db:5432/innby
@@ -47,4 +48,5 @@ services:
 volumes:
   cargo-registry:
   cargo-target:
+  shell-history:
   postgres:

@@ -202,7 +202,7 @@ dev:
     editor=target/compose.editor.yaml
     printf 'services:\n  dev:\n    volumes: [%s]\n' "$(IFS=,; echo "${mounts[*]-}")" > "$editor"
     {{ dev_compose }} --file "$editor" up --detach --build --wait
-    {{ dev_compose }} exec dev bash
+    {{ dev_compose }} exec dev zsh
 
 # Stop the dev container, keeping its database and build cache
 dev-down:

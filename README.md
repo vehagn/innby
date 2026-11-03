@@ -23,7 +23,7 @@ One Rust binary, run as several workloads:
 ## Develop
 
 Run `just dev` on the host. It starts the devcontainer with Postgres 18 and Mailpit and
-every tool the Justfile needs, then opens a shell in it. In there:
+every tool the Justfile needs, then opens a zsh in it. In there:
 
 ```bash
 just up
@@ -35,7 +35,11 @@ http://localhost:8025, all in your own browser. Ctrl-C stops it, and `just dev-d
 the host stops the devcontainer, keeping its database and build cache. `just dev` makes a
 `.env` from `.env.example` if there is none.
 
-The devcontainer has Vim and Neovim, both with rust-analyzer for language support.
+The shell is zsh with oh-my-zsh and the devcontainers prompt, which shows the git
+branch. It completes `just`, `cargo`, `rustup` and `kubectl` recipes and arguments,
+has `k`, `kz` (`kubectl kustomize`) and `yl` (`yamllint`) aliases, and keeps its
+history in a volume, so it survives rebuilds. Vim and Neovim are there too, both with
+rust-analyzer for language support.
 `just dev` mounts your `~/.vimrc`, `~/.vim` and `~/.config/nvim` read-only, those you have,
 and Neovim falls back to your Vim settings. `just` lists the other recipes; `just test`
 and `just lint` are what CI runs.
