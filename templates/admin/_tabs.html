@@ -1,5 +1,5 @@
 <nav class="tabs" aria-label="Innby {{ crate::admin::lang::text().admin }}">
-  {% for tab in crate::admin::Tab::ALL %}
-  <a href="{{ tab.path() }}"{% if tab == current %} aria-current="page"{% endif %}>{{ tab.label() }}</a>
+  {% for tab in tabs %}
+  <a href="{{ tab.href }}"{% if tab.current %} aria-current="page"{% endif %}>{{ tab.label }}</a>
   {% endfor %}
 </nav>

@@ -12,18 +12,19 @@ use uuid::Uuid;
 
 use super::{
     AdminState, BatchForm, DeleteForm, InviteForm, PageError, Row, SavedQuery, admin_qr, count,
-    lang, local, qr_file,
+    lang, load_event, local, qr_file,
 };
 use crate::{
     config::Config,
     db::{
+        event::Event,
         group::{self, Group},
         qr,
         rsvp::{self, MAX_PARTY_SIZE, Rsvp},
     },
     link::Purpose,
-    paths::{self, AdminLinks},
-    web::{render, render_with, server_error},
+    paths::{self, AdminLinks, EventLinks},
+    web::{render, render_with},
 };
 
 /// One group as the group links page lists it.
@@ -61,6 +62,8 @@ fn group_url(config: &Config, group: &Group) -> String {
 #[derive(Template)]
 #[template(path = "admin/groups.html")]
 struct GroupsPage {
+    event: Event,
+    links: EventLinks,
     groups: Vec<GroupRow>,
     /// The batch form's text, kept when a line needs fixing.
     names: String,
@@ -73,30 +76,33 @@ struct GroupsPage {
 
 async fn groups_page(
     state: &AdminState,
+    event: Event,
     names: String,
     notice: Option<String>,
     error: Option<String>,
-) -> Response {
-    let (groups, rsvps) = match tokio::try_join!(group::list(&state.db), rsvp::list(&state.db)) {
-        Ok(loaded) => loaded,
-        Err(err) => return server_error(err),
-    };
+) -> Result<Response, PageError> {
+    let (groups, rsvps) = tokio::try_join!(
+        group::list(&state.db, event.id),
+        rsvp::list(&state.db, event.id)
+    )?;
     let status = match error {
         Some(_) => StatusCode::UNPROCESSABLE_ENTITY,
         None => StatusCode::OK,
     };
     let page = GroupsPage {
+        links: EventLinks::new(event.id),
+        accepts_answers: event.details.accepts_answers(Utc::now()),
+        event,
         groups: groups
             .iter()
             .map(|group| GroupRow::new(&state.config, group, &rsvps))
             .collect(),
         names,
         max_party_size: MAX_PARTY_SIZE,
-        accepts_answers: state.config.event.accepts_answers(Utc::now()),
         notice,
         error,
     };
-    render_with(status, page)
+    Ok(render_with(status, page))
 }
 
 #[derive(serde::Deserialize)]
@@ -105,48 +111,49 @@ pub(super) struct GroupsQuery {
     created: Option<usize>,
 }
 
-/// Every group's link, and the form for new ones.
+/// The event's group links, and the form for new ones.
 pub(super) async fn list(
     State(state): State<AdminState>,
+    Path(id): Path<Uuid>,
     Query(query): Query<GroupsQuery>,
-) -> Response {
+) -> Result<Response, PageError> {
+    let event = load_event(&state, id).await?;
     let text = lang::text();
     let notice = query
         .created
         .map(|n| count(n, &text.groups_created_one, &text.groups_created_other));
-    groups_page(&state, String::new(), notice, None).await
+    groups_page(&state, event, String::new(), notice, None).await
 }
 
-/// Creates a group per line, all or none.
+/// Creates a group per line for the event, all or none.
 pub(super) async fn create(
     State(state): State<AdminState>,
+    Path(id): Path<Uuid>,
     Form(form): Form<BatchForm>,
-) -> Response {
+) -> Result<Response, PageError> {
+    let event = load_event(&state, id).await?;
     let entries = match form.parse() {
         Ok(entries) => entries,
-        Err(error) => return groups_page(&state, form.names, None, Some(error)).await,
+        Err(error) => return groups_page(&state, event, form.names, None, Some(error)).await,
     };
-    let created = async {
-        let mut tx = state.db.begin().await?;
-        for (name, max_party_size) in &entries {
-            group::create(&mut *tx, name, *max_party_size).await?;
-        }
-        tx.commit().await
+    let mut tx = state.db.begin().await?;
+    for (name, max_party_size) in &entries {
+        group::create(&mut *tx, id, name, *max_party_size).await?;
     }
-    .await;
-    match created {
-        Ok(()) => {
-            tracing::info!(count = entries.len(), "groups created");
-            let page = format!("{}?created={}", paths::GROUPS, entries.len());
-            Redirect::to(&paths::admin(&page)).into_response()
-        }
-        Err(err) => server_error(err),
-    }
+    tx.commit().await?;
+    tracing::info!(count = entries.len(), event = %id, "groups created");
+    let page = format!(
+        "{}?created={}",
+        paths::path(paths::EVENT_GROUPS, id),
+        entries.len()
+    );
+    Ok(Redirect::to(&paths::admin(&page)).into_response())
 }
 
 #[derive(Template)]
 #[template(path = "admin/group.html")]
 struct GroupPage {
+    event: Event,
     group: Group,
     links: AdminLinks,
     created: String,
@@ -162,13 +169,13 @@ struct GroupPage {
 
 impl GroupPage {
     async fn load(state: &AdminState, id: Uuid) -> Result<Self, PageError> {
-        let (group, rsvps, style) = tokio::try_join!(
-            group::find(&state.db, id),
-            rsvp::list(&state.db),
-            qr::style(&state.db),
-        )?;
-        let group = group.ok_or(PageError::Missing)?;
-        let tz = state.config.event.starts_at.timezone();
+        let group = group::find(&state.db, id)
+            .await?
+            .ok_or(PageError::Missing)?;
+        let event = load_event(state, group.event_id).await?;
+        let (rsvps, style) =
+            tokio::try_join!(rsvp::list(&state.db, group.event_id), qr::style(&state.db),)?;
+        let tz = event.details.starts_at.timezone();
         let url = group_url(&state.config, &group);
         Ok(Self {
             members: rsvps
@@ -182,7 +189,8 @@ impl GroupPage {
             created: local(group.created_at, tz),
             group,
             max_party_size: MAX_PARTY_SIZE,
-            accepts_answers: state.config.event.accepts_answers(Utc::now()),
+            accepts_answers: event.details.accepts_answers(Utc::now()),
+            event,
             saved: false,
             error: None,
         })
@@ -267,15 +275,14 @@ pub(super) async fn delete(
         let error = lang::text().error_confirm_delete.clone();
         return GroupPage::render_error(&state, id, error).await;
     }
+    let group = group::find(&state.db, id)
+        .await?
+        .ok_or(PageError::Missing)?;
     if !group::delete_unused(&state.db, id).await? {
-        return match group::find(&state.db, id).await? {
-            Some(_) => {
-                let error = lang::text().error_group_in_use.clone();
-                GroupPage::render_error(&state, id, error).await
-            }
-            None => Err(PageError::Missing),
-        };
+        let error = lang::text().error_group_in_use.clone();
+        return GroupPage::render_error(&state, id, error).await;
     }
     tracing::info!(group = %id, "group deleted");
-    Ok(Redirect::to(&paths::admin(paths::GROUPS)).into_response())
+    let groups = paths::path(paths::EVENT_GROUPS, group.event_id);
+    Ok(Redirect::to(&paths::admin(&groups)).into_response())
 }

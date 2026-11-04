@@ -11,11 +11,12 @@
 //! reworded text doesn't break them. Prefer checking what a page shows over what's in
 //! the database; the unit tests next to each module cover the details.
 //!
-//! To add a journey, add a `#[sqlx::test]` to the file for its area: guests, groups,
-//! e-mail or the host.
+//! To add a journey, add a `#[sqlx::test]` to the file for its area: events, guests,
+//! groups, e-mail or the host.
 
 mod browser;
 mod email;
+mod events;
 mod groups;
 mod guests;
 mod host;
@@ -83,20 +84,34 @@ impl World {
         Browser::new(self)
     }
 
-    /// The host's browser, logged in to the admin UI on its Guests tab.
-    pub async fn host(&self) -> Browser<'_> {
+    /// The host's browser, logged in to the admin UI, on the list of events.
+    pub async fn admin(&self) -> Browser<'_> {
         let mut host = self.browser();
         host.open(ADMIN).await.expect(&admin().log_in_text);
         host.fill(&admin().user_name, USER)
             .fill(&admin().password, PASSWORD);
-        host.press(&admin().log_in).await.expect(&admin().guests);
+        host.press(&admin().log_in).await.expect(&admin().events);
         host
+    }
+
+    /// The host's browser, logged in, on the Guests tab of the tests' event.
+    pub async fn host(&self) -> Browser<'_> {
+        self.event().await;
+        let mut host = self.admin().await;
+        host.click("Christmas party").await.expect(&admin().guests);
+        host
+    }
+
+    /// The tests' event, the Christmas party, made the first time it's needed.
+    pub async fn event(&self) -> crate::db::event::Event {
+        crate::db::event::tests::event(&self.db).await
     }
 
     /// An invitation made straight in the database, for journeys that don't start
     /// with the host. Returns the guest's link.
     pub async fn invite(&self, name: &str, max_party_size: i32) -> String {
-        let rsvp = crate::db::rsvp::create_invite(&self.db, name, max_party_size)
+        let event = self.event().await;
+        let rsvp = crate::db::rsvp::create_invite(&self.db, event.id, name, max_party_size)
             .await
             .unwrap();
         let link = self

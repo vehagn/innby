@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select\n            count(*) filter (where response = 'attending') as \"attending_parties!\",\n            coalesce(sum(party_size) filter (where response = 'attending'), 0)\n                as \"attending_people!\",\n            count(*) filter (where response = 'declined') as \"declined!\",\n            count(*) filter (where response = 'pending') as \"pending!\"\n        from rsvp\n        ",
+  "query": "\n        select\n            count(*) filter (where response = 'attending') as \"attending_parties!\",\n            coalesce(sum(party_size) filter (where response = 'attending'), 0)\n                as \"attending_people!\",\n            count(*) filter (where response = 'declined') as \"declined!\",\n            count(*) filter (where response = 'pending') as \"pending!\"\n        from rsvp\n        where event_id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -29,7 +29,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       null,
@@ -38,5 +40,5 @@
       null
     ]
   },
-  "hash": "6d78ed4be03d87ed3c8f2ec1ce649ca8f26cfed8f2e1f1dbfe45b7ac9c79894c"
+  "hash": "653a30db47cab9191bab842793f343fa15ab6e29fb8f2f5f493b0e3035c3997e"
 }

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        update rsvp set email_status = 'confirmed'\n        where id = $1 and email = $2 and email_status = 'unconfirmed'\n            and not exists (\n                select from rsvp other\n                where other.event_id = rsvp.event_id and other.email = $2\n                    and other.email_status = 'confirmed'\n            )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "149be14ac255faa462784df9c4f39b2b7d6446b3902ac5c487e1a4745ab2070b"
+}

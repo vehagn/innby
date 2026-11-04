@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select id, name, response as \"response: Response\", party_size,\n            name_display as \"name_display: NameDisplay\"\n        from rsvp\n        where response <> 'declined'\n        ",
+  "query": "\n        select id, name, response as \"response: Response\", party_size,\n            name_display as \"name_display: NameDisplay\"\n        from rsvp\n        where event_id = $1 and response <> 'declined'\n        ",
   "describe": {
     "columns": [
       {
@@ -82,7 +82,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -92,5 +94,5 @@
       true
     ]
   },
-  "hash": "f102519e2cd3b741a164d91d3ea19cac77d8c461bbba26e8e9e78cc643a2b7e8"
+  "hash": "8d02b436dcc36b62bad5054574953b2ccd7ebbe35aeaf952480c7ffa059f0e48"
 }

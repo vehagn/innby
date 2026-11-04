@@ -1,30 +1,30 @@
 {% extends "admin/base.html" %}
 
-{% block title %}{{ crate::admin::lang::text().guests }}{% endblock %}
+{% block title %}{{ event.details.title(crate::admin::lang::current()) }}{% endblock %}
 
-{% block tabs %}{% let current = crate::admin::Tab::Guests %}{% include "admin/_tabs.html" %}{% endblock %}
+{% block tabs %}{% let tabs = crate::admin::tabs(Some(event.id), crate::admin::Tab::Guests) %}{% include "admin/_event_nav.html" %}{% endblock %}
 
 {% block content %}
 {% let a = crate::admin::lang::text() %}
 {% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
-<h1>{{ title }}</h1>
+<h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
 
 <div class="tiles">
-  <a class="tile attending" href="{{ crate::paths::admin("/?show=attending") }}"{% if self.showing("attending") %} aria-current="true"{% endif %}>
+  <a class="tile attending" href="{{ self.show_link("attending") }}"{% if self.showing("attending") %} aria-current="true"{% endif %}>
     <span>{{ crate::i18n::bold_count(headcount.attending_people, a.coming_one, a.coming_other)|safe }}</span>
     <span class="muted small">{{ crate::i18n::count(headcount.attending_parties, a.parties_one, a.parties_other) }}</span>
   </a>
-  <a class="tile pending" href="{{ crate::paths::admin("/?show=pending") }}"{% if self.showing("pending") %} aria-current="true"{% endif %}>
+  <a class="tile pending" href="{{ self.show_link("pending") }}"{% if self.showing("pending") %} aria-current="true"{% endif %}>
     <span>{{ crate::i18n::bold_count(headcount.pending, a.no_answer, a.no_answer)|safe }}</span>
   </a>
-  <a class="tile declined" href="{{ crate::paths::admin("/?show=declined") }}"{% if self.showing("declined") %} aria-current="true"{% endif %}>
+  <a class="tile declined" href="{{ self.show_link("declined") }}"{% if self.showing("declined") %} aria-current="true"{% endif %}>
     <span>{{ crate::i18n::bold_count(headcount.declined, a.not_coming, a.not_coming)|safe }}</span>
   </a>
 </div>
 
 <section class="card" id="guests">
   <h2>{{ a.guests }}</h2>
-  {% if show.is_some() %}<p class="small"><a href="{{ crate::paths::admin(crate::paths::HOME) }}">{{ a.show_all }}</a></p>{% endif %}
+  {% if show.is_some() %}<p class="small"><a href="{{ links.guests }}">{{ a.show_all }}</a></p>{% endif %}
   {% if rows.is_empty() %}
   <p class="muted">{% if show.is_some() %}{{ a.no_guests_shown }}{% else %}{{ a.no_guests }}{% endif %}</p>
   {% else %}
@@ -49,13 +49,13 @@
   </table>
   </div>
   {% endif %}
-  <p><a href="{{ crate::paths::admin(crate::paths::GUESTS_CSV) }}" download>{{ a.download_csv }}</a></p>
+  <p><a href="{{ links.csv }}" download>{{ a.download_csv }}</a></p>
 </section>
 
 <section class="card">
   <h2>{{ a.reminders }}</h2>
   <p>{{ crate::i18n::count(subscribers, a.subscribers_one, a.subscribers_other) }} {{ a.reminders_hint }}</p>
-  <form method="post" action="{{ crate::paths::admin(crate::paths::REMINDERS) }}">
+  <form method="post" action="{{ links.reminders }}">
     <button class="secondary">{{ a.send_reminders }}</button>
   </form>
 </section>

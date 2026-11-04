@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into invite_group (name, max_party_size) values ($1, $2) returning *",
+  "query": "insert into invite_group (event_id, name, max_party_size) values ($1, $2, $3) returning id, event_id, name, max_party_size, link_nonce, created_at",
   "describe": {
     "columns": [
       {
@@ -16,6 +16,17 @@
       },
       {
         "ordinal": 1,
+        "name": "event_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "invite_group",
+            "name": "event_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
         "name": "name",
         "type_info": "Text",
         "origin": {
@@ -26,7 +37,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "max_party_size",
         "type_info": "Int4",
         "origin": {
@@ -37,7 +48,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "link_nonce",
         "type_info": "Int4",
         "origin": {
@@ -48,7 +59,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -61,6 +72,7 @@
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Text",
         "Int4"
       ]
@@ -70,8 +82,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "46820c083adbb8ef80fa808ecc673a3c8f9325263a2e588529ae6fc82cc4b28d"
+  "hash": "1eab286a735db6f87adcaca937a56514dfde06f70852d43f6540cb11a079301e"
 }

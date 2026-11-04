@@ -1,15 +1,15 @@
 {% extends "admin/base.html" %}
 
-{% block title %}{{ crate::admin::lang::text().invitation_links }}{% endblock %}
+{% block title %}{{ crate::admin::lang::text().invitation_links }} · {{ event.details.title(crate::admin::lang::current()) }}{% endblock %}
 
-{% block tabs %}{% let current = crate::admin::Tab::Invitations %}{% include "admin/_tabs.html" %}{% endblock %}
+{% block tabs %}{% let tabs = crate::admin::tabs(Some(event.id), crate::admin::Tab::Invitations) %}{% include "admin/_event_nav.html" %}{% endblock %}
 
 {% block content %}
 {% let a = crate::admin::lang::text() %}
 {% if new %}<p class="notice success" role="status">{{ crate::i18n::count(invitations.len(), a.invitations_created_one, a.invitations_created_other) }}</p>{% endif %}
-<h1>{{ a.invitation_links }}</h1>
+<h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
 <p class="muted small">{{ a.invitation_links_hint }}
-  <a href="{{ crate::paths::admin(crate::paths::GUESTS_CSV) }}" download>{{ a.download_csv }}</a></p>
+  <a href="{{ links.csv }}" download>{{ a.download_csv }}</a></p>
 
 <section class="card">
   {% if new %}<h2>{{ a.new_invitations }}</h2>{% endif %}
@@ -34,13 +34,13 @@
   </table>
   </div>
   {% endif %}
-  {% if new %}<p><a href="{{ crate::paths::admin(crate::paths::INVITATIONS) }}">{{ a.all_invitation_links }}</a></p>{% endif %}
+  {% if new %}<p><a href="{{ links.invitations }}">{{ a.all_invitation_links }}</a></p>{% endif %}
 </section>
 
 <section class="card">
   <h2>{{ a.new_invitations }}</h2>
   <p class="muted small">{{ a.new_invitations_hint }}</p>
-  <form method="post" action="{{ crate::paths::admin(crate::paths::INVITATIONS) }}">
+  <form method="post" action="{{ links.invitations }}">
     <label for="names">{{ a.names }}</label>
     <textarea id="names" name="names" rows="5" required placeholder="{{ a.names_placeholder }}">{{ names }}</textarea>
     <label for="max_party_size">{{ a.max_per_invitation }}</label>

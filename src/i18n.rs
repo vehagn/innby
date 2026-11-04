@@ -164,26 +164,58 @@ impl Lang {
     }
 }
 
-/// A value that exists in every supported language.
-#[derive(Debug, Clone)]
-pub struct Localized<T> {
-    pub nb: T,
-    pub nn: T,
-    pub en_gb: T,
-    pub en_us: T,
-    pub zh_hans: T,
-    pub zh_hant: T,
+/// A text the host writes, such as an event's title: in Bokmål, and in other languages
+/// if the host gives them. A missing language falls back: Nynorsk and British English to
+/// Bokmål, American English and Simplified Chinese to British, and Traditional Chinese
+/// to Simplified.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Texts {
+    pub nb: String,
+    pub nn: Option<String>,
+    pub en_gb: Option<String>,
+    pub en_us: Option<String>,
+    pub zh_hans: Option<String>,
+    pub zh_hant: Option<String>,
 }
 
-impl<T> Localized<T> {
-    pub fn get(&self, lang: Lang) -> &T {
+impl Texts {
+    /// The text in this language, or the one it falls back to.
+    pub fn get(&self, lang: Lang) -> &str {
+        let en_gb = self.en_gb.as_deref().unwrap_or(&self.nb);
+        let zh_hans = self.zh_hans.as_deref().unwrap_or(en_gb);
         match lang {
             Lang::Nb => &self.nb,
-            Lang::Nn => &self.nn,
-            Lang::EnGb => &self.en_gb,
-            Lang::EnUs => &self.en_us,
-            Lang::ZhHans => &self.zh_hans,
-            Lang::ZhHant => &self.zh_hant,
+            Lang::Nn => self.nn.as_deref().unwrap_or(&self.nb),
+            Lang::EnGb => en_gb,
+            Lang::EnUs => self.en_us.as_deref().unwrap_or(en_gb),
+            Lang::ZhHans => zh_hans,
+            Lang::ZhHant => self.zh_hant.as_deref().unwrap_or(zh_hans),
+        }
+    }
+
+    /// The text written for this language, without falling back; empty if there's none.
+    pub fn own(&self, lang: Lang) -> &str {
+        match lang {
+            Lang::Nb => &self.nb,
+            Lang::Nn => self.nn.as_deref().unwrap_or_default(),
+            Lang::EnGb => self.en_gb.as_deref().unwrap_or_default(),
+            Lang::EnUs => self.en_us.as_deref().unwrap_or_default(),
+            Lang::ZhHans => self.zh_hans.as_deref().unwrap_or_default(),
+            Lang::ZhHant => self.zh_hant.as_deref().unwrap_or_default(),
+        }
+    }
+
+    /// Sets the text for one language; a blank one falls back again.
+    pub fn set(&mut self, lang: Lang, text: &str) {
+        let text = text.trim();
+        let other = (!text.is_empty()).then(|| text.to_owned());
+        match lang {
+            Lang::Nb => text.clone_into(&mut self.nb),
+            Lang::Nn => self.nn = other,
+            Lang::EnGb => self.en_gb = other,
+            Lang::EnUs => self.en_us = other,
+            Lang::ZhHans => self.zh_hans = other,
+            Lang::ZhHant => self.zh_hant = other,
         }
     }
 }
@@ -218,6 +250,8 @@ pub struct Messages {
     pub date_format: String,
     pub when: String,
     pub place: String,
+    pub site_intro: String,
+    pub your_invitations: String,
     pub rsvp_hint: String,
 
     // RSVP page
@@ -333,7 +367,7 @@ pub struct Messages {
     pub gone_text: String,
     pub deleted_title: String,
     pub deleted_text: String,
-    pub to_event: String,
+    pub to_home: String,
     pub too_many_attempts: String,
     pub not_found_title: String,
     pub not_found_text: String,
@@ -359,6 +393,32 @@ pub struct AdminMessages {
     pub too_many_logins: String,
     pub not_found: String,
     pub saved: String,
+    pub events: String,
+    pub all_events: String,
+    pub no_events: String,
+    pub new_event: String,
+    pub create_event: String,
+    pub event_created: String,
+    pub event_deleted: String,
+    pub details: String,
+    pub event_title: String,
+    pub event_description: String,
+    pub event_location: String,
+    pub event_starts: String,
+    pub event_time_zone: String,
+    pub event_deadline: String,
+    pub event_deadline_hint: String,
+    pub event_languages: String,
+    pub event_languages_hint: String,
+    pub event_retention_hint: String,
+    pub delete_event: String,
+    pub error_event_title: String,
+    pub error_event_text: String,
+    pub error_event_time: String,
+    pub error_event_deadline: String,
+    pub error_time_zone: String,
+    pub col_event: String,
+    pub col_when: String,
 
     // The headcount
     pub coming_one: String,

@@ -21,6 +21,7 @@ use super::{
 };
 use crate::{
     db::{
+        event::{self, Event},
         group::{self, Group},
         rsvp::{self, NameDisplay, SignUp},
     },
@@ -46,12 +47,13 @@ struct JoinPage<'a> {
 }
 
 impl<'a> JoinPage<'a> {
-    fn new(state: &'a AppState, lang: Lang, group: &'a Group, link: &'a str) -> Self {
+    fn new(lang: Lang, joining: &'a Joining, link: &'a str) -> Self {
         let t = lang.messages();
+        let group = &joining.group;
         Self {
             lang,
             t,
-            event: EventView::new(&state.config.event, lang),
+            event: EventView::new(&joining.event.details, lang),
             group,
             action: paths::localized(&paths::path(paths::JOIN, link), lang),
             name: "",
@@ -59,7 +61,7 @@ impl<'a> JoinPage<'a> {
             // Signing up means coming, and coming shows the full name unless chosen otherwise.
             display_choices: DisplayChoice::choices(t, None, NameDisplay::Full),
             guests_link: paths::localized(&paths::path(paths::JOIN_GUESTS, link), lang),
-            accepts_answers: state.config.event.accepts_answers(Utc::now()),
+            accepts_answers: joining.event.details.accepts_answers(Utc::now()),
             error: None,
         }
     }
@@ -74,23 +76,33 @@ impl<'a> JoinPage<'a> {
     }
 }
 
+/// A group behind a sign-up link, and the event it signs people up for.
+struct Joining {
+    group: Group,
+    event: Event,
+}
+
 /// The group behind a sign-up link, unless the link is malformed, forged or revoked.
-async fn find_group(state: &AppState, link: &str) -> sqlx::Result<Option<Group>> {
+async fn find_group(state: &AppState, link: &str) -> sqlx::Result<Option<Joining>> {
     let Ok(parsed) = link.parse::<IdLink>() else {
         return Ok(None);
     };
-    let group = group::find(&state.db, parsed.id).await?;
-    Ok(group.filter(|group| {
+    let group = group::find(&state.db, parsed.id).await?.filter(|group| {
         state
             .config
             .link_key
             .verify(Purpose::Group, &parsed, group.link_nonce)
-    }))
+    });
+    let Some(group) = group else {
+        return Ok(None);
+    };
+    let event = event::find(&state.db, group.event_id).await?;
+    Ok(event.map(|event| Joining { group, event }))
 }
 
 pub async fn show(State(state): State<AppState>, lang: Lang, Path(link): Path<String>) -> Response {
     match find_group(&state, &link).await {
-        Ok(Some(group)) => render(JoinPage::new(&state, lang, &group, &link)),
+        Ok(Some(joining)) => render(JoinPage::new(lang, &joining, &link)),
         Ok(None) => gone(lang),
         Err(err) => server_error(err),
     }
@@ -102,12 +114,12 @@ pub async fn guests(
     lang: Lang,
     Path(link): Path<String>,
 ) -> Response {
-    match find_group(&state, &link).await {
-        Ok(Some(_)) => {}
+    let joining = match find_group(&state, &link).await {
+        Ok(Some(joining)) => joining,
         Ok(None) => return gone(lang),
         Err(err) => return server_error(err),
-    }
-    let guests = match GuestList::load(&state.db, None).await {
+    };
+    let guests = match GuestList::load(&state.db, joining.event.id, None).await {
         Ok(guests) => guests,
         Err(err) => return server_error(err),
     };
@@ -115,7 +127,7 @@ pub async fn guests(
     render(GuestsPage {
         lang,
         t,
-        event: EventView::new(&state.config.event, lang),
+        event: EventView::new(&joining.event.details, lang),
         guests,
         you: None,
         flash: None,
@@ -141,17 +153,18 @@ pub async fn join(
     Path(link): Path<String>,
     Form(form): Form<JoinForm>,
 ) -> Response {
-    let group = match find_group(&state, &link).await {
-        Ok(Some(group)) => group,
+    let joining = match find_group(&state, &link).await {
+        Ok(Some(joining)) => joining,
         Ok(None) => return gone(lang),
         Err(err) => return server_error(err),
     };
+    let group = &joining.group;
     if !form.website.is_empty() {
         tracing::info!("group sign-up honeypot triggered");
         return Redirect::to("/").into_response();
     }
     let name_display = form.name_display.unwrap_or(NameDisplay::Full);
-    let mut page = JoinPage::new(&state, lang, &group, &link);
+    let mut page = JoinPage::new(lang, &joining, &link);
     page.name = &form.name;
     page.display_choices = DisplayChoice::choices(page.t, None, name_display);
     if !page.accepts_answers {
@@ -170,7 +183,7 @@ pub async fn join(
     }
 
     let sign_up = SignUp {
-        group: &group,
+        group,
         name: &name,
         party_size: form.party_size,
         name_display,
@@ -198,12 +211,21 @@ mod tests {
     use crate::web::testing::{Site, body, en, escape, location};
 
     async fn all(site: &Site) -> Vec<rsvp::Rsvp> {
-        rsvp::list(&site.db).await.unwrap()
+        rsvp::list(&site.db, crate::db::event::tests::event(&site.db).await.id)
+            .await
+            .unwrap()
     }
 
     /// A group for up to two people per sign-up, and its link.
     async fn climbing_club(site: &Site) -> (Group, String) {
-        let group = group::create(&site.db, "Climbing club", 2).await.unwrap();
+        let group = group::create(
+            &site.db,
+            crate::db::event::tests::event(&site.db).await.id,
+            "Climbing club",
+            2,
+        )
+        .await
+        .unwrap();
         let link = site
             .config
             .link_key
@@ -238,9 +260,14 @@ mod tests {
     async fn guest_joins_and_gets_their_link(db: PgPool) {
         let site = Site::new(db);
         let (group, link) = climbing_club(&site).await;
-        rsvp::create_invite(&site.db, "Kari Nordmann", 1)
-            .await
-            .unwrap();
+        rsvp::create_invite(
+            &site.db,
+            crate::db::event::tests::event(&site.db).await.id,
+            "Kari Nordmann",
+            1,
+        )
+        .await
+        .unwrap();
         let response = site.get(&format!("/join/{link}?lang=en")).await;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -346,8 +373,9 @@ mod tests {
 
     #[sqlx::test]
     async fn closes_at_the_deadline(db: PgPool) {
-        let site = Site::with(db, &[("INNBY_RSVP_DEADLINE", "2020-01-01T12:00")]);
+        let site = Site::new(db);
         let (_, link) = climbing_club(&site).await;
+        site.close_answers().await;
         let join = format!("/join/{link}");
         assert!(
             body(site.get(&join).await)

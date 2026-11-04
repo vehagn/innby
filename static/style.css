@@ -580,6 +580,7 @@ input[type="text"],
 input[type="email"],
 input[type="number"],
 input[type="password"],
+input[type="datetime-local"],
 select,
 textarea {
   display: block;
@@ -688,9 +689,27 @@ button.link:hover {
   box-shadow: none;
 }
 
-/* The front page's greeting for a guest this device remembers. */
+/* The front page: what Innby is, then a card per invitation this device remembers. */
+.intro {
+  max-width: 32rem;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 1.125rem;
+}
+
 .welcome {
-  margin-top: 2rem;
+  margin-top: 1rem;
+}
+
+/* An event's name on its card: a heading in the page's own type, not a small label. */
+.event-title {
+  font: inherit;
+  font-size: 1.375rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--fg);
+  margin: 0 0 0.75rem;
 }
 
 .not-you {
@@ -795,6 +814,20 @@ body.admin main {
 
 body.admin .card::before {
   animation: none;
+}
+
+/* The way from an event's pages back to the list of events. */
+.crumb {
+  margin: 0 0 0.5rem;
+}
+
+.crumb a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.crumb a:hover {
+  color: var(--fg);
 }
 
 /* The admin's sections, as tabs along a rule. */

@@ -18,7 +18,7 @@ async fn the_host_logs_in_and_out(db: PgPool) {
     host.fill(&a.user_name, USER).fill(&a.password, "wrong");
     host.press(&a.log_in).await.expect(&a.wrong_login);
     host.fill(&a.password, PASSWORD);
-    host.press(&a.log_in).await.expect(&a.guests);
+    host.press(&a.log_in).await.expect(&a.events);
 
     host.press(&a.log_out).await.expect(&a.logged_out);
     host.open("https://admin.fest.example.com/")
@@ -61,7 +61,7 @@ async fn the_host_edits_a_guest_and_replaces_a_leaked_link(db: PgPool) {
 async fn the_host_styles_the_qr_codes(db: PgPool) {
     let world = World::new(db);
     let a = admin();
-    let mut host = world.host().await;
+    let mut host = world.admin().await;
     host.click(&a.qr_heading).await;
 
     // A colour too light to scan is refused.

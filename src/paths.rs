@@ -30,20 +30,25 @@ pub const JOIN: &str = "/join/{link}";
 pub const JOIN_GUESTS: &str = "/join/{link}/guests";
 pub const CONFIRM_EMAIL: &str = "/e/{link}";
 
-// The admin site.
-pub const INVITATIONS: &str = "/invitations";
+// The admin site. `HOME` lists the events; each event's pages are under `EVENT`, and its
+// guests and groups have pages of their own.
+pub const EVENTS: &str = "/events";
+pub const EVENT: &str = "/events/{id}";
+pub const EVENT_INVITATIONS: &str = "/events/{id}/invitations";
+pub const EVENT_GROUPS: &str = "/events/{id}/groups";
+pub const EVENT_DETAILS: &str = "/events/{id}/details";
+pub const EVENT_DELETE: &str = "/events/{id}/delete";
+pub const EVENT_CSV: &str = "/events/{id}/guests.csv";
+pub const EVENT_REMINDERS: &str = "/events/{id}/reminders";
 pub const GUEST: &str = "/guests/{id}";
 pub const GUEST_REVOKE: &str = "/guests/{id}/revoke";
 pub const GUEST_DELETE: &str = "/guests/{id}/delete";
 pub const GUEST_QR: &str = "/guests/{id}/qr.svg";
-pub const GUESTS_CSV: &str = "/guests.csv";
-pub const GROUPS: &str = "/groups";
 pub const GROUP: &str = "/groups/{id}";
 pub const GROUP_REVOKE: &str = "/groups/{id}/revoke";
 pub const GROUP_DELETE: &str = "/groups/{id}/delete";
 pub const GROUP_QR: &str = "/groups/{id}/qr.svg";
 pub const QR_STYLE: &str = "/qr-style";
-pub const REMINDERS: &str = "/reminders";
 pub const LOGIN: &str = "/login";
 pub const LOGOUT: &str = "/logout";
 
@@ -170,6 +175,32 @@ impl AdminLinks {
             revoke: admin(&path(GROUP_REVOKE, id)),
             delete: admin(&path(GROUP_DELETE, id)),
             qr: admin(&path(GROUP_QR, id)),
+        }
+    }
+}
+
+/// The admin pages of one event, carrying the language and colour scheme.
+pub struct EventLinks {
+    pub guests: String,
+    pub invitations: String,
+    pub groups: String,
+    pub details: String,
+    pub delete: String,
+    pub csv: String,
+    pub reminders: String,
+}
+
+impl EventLinks {
+    pub fn new(id: Uuid) -> Self {
+        let at = |pattern| admin(&path(pattern, id));
+        Self {
+            guests: at(EVENT),
+            invitations: at(EVENT_INVITATIONS),
+            groups: at(EVENT_GROUPS),
+            details: at(EVENT_DETAILS),
+            delete: at(EVENT_DELETE),
+            csv: at(EVENT_CSV),
+            reminders: at(EVENT_REMINDERS),
         }
     }
 }

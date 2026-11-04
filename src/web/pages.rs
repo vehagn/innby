@@ -11,13 +11,13 @@ use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::{
-    AppState, PRIVACY_VERSION,
-    remember::{self, Remembered},
-};
+use super::{AppState, PRIVACY_VERSION, remember::Remembered};
 use crate::{
-    config::{Controller, Event},
-    db::rsvp::{self, NameDisplay, Response as Answer, Rsvp},
+    config::Controller,
+    db::{
+        event::Details,
+        rsvp::{self, NameDisplay, Response as Answer, Rsvp},
+    },
     i18n::{Lang, Messages, fill},
     janitor::{KEEP_AFTER_EVENT, KEEP_SENT_MAIL},
     paths,
@@ -34,7 +34,7 @@ pub struct EventView<'a> {
 }
 
 impl<'a> EventView<'a> {
-    pub fn new(event: &'a Event, lang: Lang) -> Self {
+    pub fn new(event: &'a Details, lang: Lang) -> Self {
         Self {
             title: event.title.get(lang),
             description: event.description.get(lang),
@@ -121,10 +121,11 @@ pub struct ListedGuest {
 }
 
 impl GuestList {
-    /// The list as the guest `you` sees it, or as someone who hasn't signed up yet.
-    pub async fn load(db: &PgPool, you: Option<Uuid>) -> sqlx::Result<Self> {
+    /// The event's list as the guest `you` sees it, or as someone who hasn't signed up
+    /// yet.
+    pub async fn load(db: &PgPool, event_id: Uuid, you: Option<Uuid>) -> sqlx::Result<Self> {
         let mut list = Self::default();
-        for guest in rsvp::guest_list(db).await? {
+        for guest in rsvp::guest_list(db, event_id).await? {
             let (names, hidden, plus) = match guest.response {
                 Answer::Attending => {
                     list.coming_people += guest.party_size;
@@ -210,44 +211,57 @@ impl YourListing {
 
 #[derive(Template)]
 #[template(path = "index.html")]
-struct IndexPage<'a> {
+struct IndexPage {
     lang: Lang,
     t: &'static Messages,
-    event: EventView<'a>,
-    welcome: Option<Welcome>,
+    /// The invitations this device remembers, the soonest event first.
+    remembered: Vec<Welcome>,
 }
 
-/// A guest this device remembers, greeted on the front page.
+/// An invitation this device remembers, greeted on the front page.
 struct Welcome {
+    title: String,
+    when: String,
+    place: String,
     name: String,
     /// Their answer, e.g. "Coming · 2 people".
     status: String,
     page: String,
+    /// For forgetting it again.
+    event_id: Uuid,
 }
 
+/// The front page: what Innby is, and the way back to each invitation this device
+/// remembers.
 pub async fn index(State(state): State<AppState>, lang: Lang, headers: HeaderMap) -> Response {
     let t = lang.messages();
     let remembered = match Remembered::load(&state, &headers).await {
         Ok(remembered) => remembered,
         Err(err) => return server_error(err),
     };
-    let welcome = match &remembered {
-        Remembered::Guest(guest) => Some(Welcome {
-            name: guest.rsvp.name.clone(),
-            status: t.answer(guest.rsvp.response, guest.rsvp.party_size),
-            page: paths::localized(&paths::path(paths::RSVP, &guest.link), lang),
-        }),
-        Remembered::Nobody | Remembered::Stale => None,
-    };
+    let mut guests = remembered.guests;
+    guests.sort_by_key(|guest| guest.event.details.starts_at);
     let mut response = render(IndexPage {
         lang,
         t,
-        event: EventView::new(&state.config.event, lang),
-        welcome,
+        remembered: guests
+            .iter()
+            .map(|guest| {
+                let event = &guest.event.details;
+                Welcome {
+                    title: event.title(lang).to_owned(),
+                    when: lang.format_date(event.starts_at),
+                    place: event.location.clone(),
+                    name: guest.rsvp.name.clone(),
+                    status: t.answer(guest.rsvp.response, guest.rsvp.party_size),
+                    page: paths::localized(&paths::path(paths::RSVP, &guest.link), lang),
+                    event_id: guest.event.id,
+                }
+            })
+            .collect(),
     });
-    // A link that stopped working is forgotten.
-    if let Remembered::Stale = remembered {
-        let cookie = remember::forget_cookie(state.config.is_https());
+    // Links that stopped working are forgotten, and an older cookie gets its new name.
+    for cookie in remembered.cookies {
         response.headers_mut().append(header::SET_COOKIE, cookie);
     }
     response
@@ -259,7 +273,6 @@ struct PrivacyPage<'a> {
     lang: Lang,
     t: &'static Messages,
     version: &'static str,
-    event_title: &'a str,
     controller: &'a Controller,
     keep_after_event_days: i64,
     keep_sent_mail_days: i64,
@@ -271,7 +284,6 @@ pub async fn privacy(State(state): State<AppState>, lang: Lang) -> Response {
         lang,
         t: lang.messages(),
         version: PRIVACY_VERSION,
-        event_title: state.config.event.title.get(lang),
         controller: &state.config.controller,
         keep_after_event_days: KEEP_AFTER_EVENT.num_days(),
         keep_sent_mail_days: KEEP_SENT_MAIL.num_days(),
@@ -304,7 +316,6 @@ impl MessagePage {
     }
 }
 
-/// The fallback for unknown paths and links.
 /// The page every guest or group link that doesn't work gets: mistyped, replaced by a
 /// new one, or its guest deleted.
 pub fn gone(lang: Lang) -> Response {
@@ -314,6 +325,7 @@ pub fn gone(lang: Lang) -> Response {
     )
 }
 
+/// The fallback for unknown paths.
 pub async fn not_found(lang: Lang) -> Response {
     render_with(
         StatusCode::NOT_FOUND,

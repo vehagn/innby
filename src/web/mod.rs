@@ -44,7 +44,7 @@ use crate::{config::Config, db, i18n::Lang, paths};
 
 /// Version of the privacy notice, recorded with each answer.
 /// Bump it whenever the notice in `templates/privacy/` changes in substance.
-pub const PRIVACY_VERSION: &str = "2026-11-03.2";
+pub const PRIVACY_VERSION: &str = "2026-11-04";
 
 const SECURITY_HEADERS: [(header::HeaderName, &str); 6] = [
     (
@@ -300,7 +300,10 @@ mod tests {
     use axum::{body::Body, response::Response};
     use sqlx::postgres::PgPoolOptions;
 
-    use super::{testing::body, *};
+    use super::{
+        testing::{body, escape},
+        *,
+    };
 
     /// A pool pointing at a closed port, for tests that don't touch the database.
     fn unreachable_db() -> PgPool {
@@ -347,11 +350,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn index_defaults_to_norwegian() {
+    async fn index_is_about_innby_in_norwegian() {
         let html = body(get("/", None).await).await;
         assert!(html.contains(r#"<html lang="nb" "#));
-        assert!(html.contains(r#"<span class="title-text">Julebord<"#));
-        assert!(html.contains("lørdag 12. desember 2026 kl. 19:00"));
+        assert!(html.contains(r#"<span class="title-text">Innby<"#));
+        assert!(html.contains(&escape(&Lang::Nb.messages().site_intro)));
+        // No event on the front page: that's on the invitation's.
+        assert!(!html.contains("Julebord"));
         assert!(html.contains(r#"href="?lang=en""#));
     }
 
@@ -359,18 +364,13 @@ mod tests {
     async fn index_follows_accept_language() {
         let html = body(get("/", Some("en-GB,en;q=0.9")).await).await;
         assert!(html.contains(r#"<html lang="en-GB" "#));
-        assert!(html.contains(r#"<span class="title-text">Christmas party<"#));
-        let starts_at = crate::config::tests::config().event.starts_at;
-        assert!(html.contains(&Lang::EnGb.format_date(starts_at)));
-        // No English description configured, so the Norwegian one is shown.
-        assert!(html.contains("Velkommen!"));
+        assert!(html.contains(&escape(&Lang::EnGb.messages().site_intro)));
     }
 
     #[tokio::test]
     async fn offers_every_language() {
         let html = body(get("/", Some("nn-NO,nb;q=0.9")).await).await;
         assert!(html.contains(r#"<html lang="nn" "#));
-        assert!(html.contains("laurdag 12. desember 2026 kl. 19:00"));
         // The menu offers the others, each in its own language.
         for (code, tag, badge, name) in [
             ("nb", "nb", "NB", "Bokmål"),
@@ -388,11 +388,9 @@ mod tests {
 
         let html = body(get("/", Some("en-US,en;q=0.9")).await).await;
         assert!(html.contains(r#"<html lang="en-US" "#));
-        assert!(html.contains("Sat, Dec 12, 2026, 7:00 PM"));
 
         let html = body(get("/", Some("zh-TW,zh;q=0.9")).await).await;
         assert!(html.contains(r#"<html lang="zh-Hant" "#));
-        assert!(html.contains("2026年12月12日（週六）19:00"));
     }
 
     #[tokio::test]
@@ -486,7 +484,7 @@ mod tests {
 
         let html = body(get("/privacy?lang=en", None).await).await;
         assert!(html.contains("<h1>Privacy notice</h1>"));
-        assert!(html.contains("Kari Nordmann is hosting the event"));
+        assert!(html.contains("Kari Nordmann hosts the events on this site"));
         assert!(html.contains("deleted after 7 days"));
     }
 

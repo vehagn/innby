@@ -8,6 +8,7 @@ use chrono::{Duration, Utc};
 use crate::{
     config::Config,
     db::{
+        event::Details,
         outbox::Kind,
         rsvp::{EmailStatus, Rsvp},
     },
@@ -28,7 +29,12 @@ pub struct Mail {
 
 /// The mail for a job, or why there's nothing to send any more: the guest may have
 /// removed or changed their address since the job was queued.
-pub fn compose(config: &Config, kind: Kind, rsvp: &Rsvp) -> Result<Mail, &'static str> {
+pub fn compose(
+    config: &Config,
+    kind: Kind,
+    rsvp: &Rsvp,
+    event: &Details,
+) -> Result<Mail, &'static str> {
     let to = rsvp.email.clone().ok_or("address removed")?;
     let needed = match kind {
         Kind::ConfirmEmail => EmailStatus::Unconfirmed,
@@ -63,12 +69,9 @@ pub fn compose(config: &Config, kind: Kind, rsvp: &Rsvp) -> Result<Mail, &'stati
         Kind::Reminder => (&t.mail.reminder, rsvp_url()),
     };
 
-    let event = &config.event;
-    let mut values: Vec<(&str, &dyn Display)> = vec![
-        ("title", event.title.get(lang)),
-        ("url", &url),
-        ("base", &config.base_url),
-    ];
+    let title = event.title(lang);
+    let mut values: Vec<(&str, &dyn Display)> =
+        vec![("title", &title), ("url", &url), ("base", &config.base_url)];
     // Anyone can type in any address, so the confirmation carries nothing a guest wrote,
     // not even their name: it can't be used to send someone else a message.
     if kind != Kind::ConfirmEmail {
@@ -111,6 +114,7 @@ mod tests {
     fn guest(lang: Lang, email_status: EmailStatus) -> Rsvp {
         Rsvp {
             id: Uuid::nil(),
+            event_id: Uuid::nil(),
             source: Source::Invite,
             name: "Kari Nordmann".into(),
             response: Response::Attending,
@@ -143,7 +147,8 @@ mod tests {
                     Kind::ConfirmEmail => EmailStatus::Unconfirmed,
                     _ => EmailStatus::Confirmed,
                 };
-                let mail = compose(&config, kind, &guest(lang, status)).unwrap();
+                let event = crate::db::event::tests::details();
+                let mail = compose(&config, kind, &guest(lang, status), &event).unwrap();
                 let text = format!("{}\n{}", mail.subject, mail.body);
                 assert!(!text.contains(['{', '}']), "{lang:?} {kind:?}: {text}");
                 assert!(text.contains("https://fest.example.com/"), "{text}");

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        with gone as (delete from event where starts_at <= $1 returning id)\n        select count(*) as \"guests!\" from rsvp where event_id in (select id from gone)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "guests!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "19b4b8ee8aed2c3f3fa1563d39d07ba13c0b34d5e3bf8c0bd85c021c195c9ba3"
+}

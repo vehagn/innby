@@ -1,4 +1,5 @@
 pub mod admin_login;
+pub mod event;
 pub mod group;
 pub mod outbox;
 pub mod qr;

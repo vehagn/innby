@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into event (title, starts_at) values ('', now())",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "db5540a28aad60e0b684d6b9ecf3e411ccc339394ae407870e6ead40742df878"
+}

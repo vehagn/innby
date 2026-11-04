@@ -1,0 +1,28 @@
+{% let a = crate::admin::lang::text() %}
+{% let bokmal = crate::i18n::Lang::Nb.messages().language_name.as_str() %}
+<label for="title">{{ a.event_title }} · {{ bokmal }}</label>
+<input id="title" name="title" required maxlength="200" value="{{ form.title() }}">
+<label for="description">{{ a.event_description }} · {{ bokmal }}</label>
+<textarea id="description" name="description" rows="4">{{ form.description() }}</textarea>
+<label for="location">{{ a.event_location }}</label>
+<input id="location" name="location" maxlength="200" value="{{ form.location() }}">
+<label for="starts_at">{{ a.event_starts }}</label>
+<input id="starts_at" name="starts_at" type="datetime-local" required value="{{ form.starts_at() }}">
+<label for="time_zone">{{ a.event_time_zone }}</label>
+<input id="time_zone" name="time_zone" required value="{{ form.time_zone() }}">
+<label for="rsvp_deadline">{{ a.event_deadline }}</label>
+<input id="rsvp_deadline" name="rsvp_deadline" type="datetime-local" value="{{ form.rsvp_deadline() }}">
+<p class="muted small">{{ a.event_deadline_hint }}</p>
+<details class="translations">
+  <summary>{{ a.event_languages }}</summary>
+  <p class="muted small">{{ a.event_languages_hint }}</p>
+  {% for translation in form.translations() %}
+  <fieldset>
+    <legend>{{ translation.language }}</legend>
+    <label for="{{ translation.title_field }}">{{ a.event_title }} · {{ translation.language }}</label>
+    <input id="{{ translation.title_field }}" name="{{ translation.title_field }}" maxlength="200" value="{{ translation.title }}">
+    <label for="{{ translation.description_field }}">{{ a.event_description }} · {{ translation.language }}</label>
+    <textarea id="{{ translation.description_field }}" name="{{ translation.description_field }}" rows="3">{{ translation.description }}</textarea>
+  </fieldset>
+  {% endfor %}
+</details>

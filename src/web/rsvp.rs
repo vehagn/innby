@@ -19,7 +19,10 @@ use super::{
     remember,
 };
 use crate::{
-    db::rsvp::{self, NameDisplay, Rsvp},
+    db::{
+        event::{self, Event},
+        rsvp::{self, NameDisplay, Rsvp},
+    },
     i18n::{Lang, Messages},
     link::{IdLink, Purpose},
     paths::{self, GuestLinks},
@@ -30,6 +33,8 @@ use crate::{
 pub(super) struct Guest {
     pub link: String,
     pub rsvp: Rsvp,
+    /// The event the guest is invited to.
+    pub event: Event,
 }
 
 impl FromRequestParts<AppState> for Guest {
@@ -54,18 +59,22 @@ impl Guest {
         let Ok(parsed) = link.parse::<IdLink>() else {
             return Ok(None);
         };
-        let rsvp = rsvp::find(&state.db, parsed.id).await?;
-        Ok(rsvp
-            .filter(|rsvp| {
-                state
-                    .config
-                    .link_key
-                    .verify(Purpose::Rsvp, &parsed, rsvp.link_nonce)
-            })
-            .map(|rsvp| Self {
-                link: link.to_owned(),
-                rsvp,
-            }))
+        let rsvp = rsvp::find(&state.db, parsed.id).await?.filter(|rsvp| {
+            state
+                .config
+                .link_key
+                .verify(Purpose::Rsvp, &parsed, rsvp.link_nonce)
+        });
+        let Some(rsvp) = rsvp else {
+            return Ok(None);
+        };
+        // The event can't be gone while its guests are there: they go with it.
+        let event = event::find(&state.db, rsvp.event_id).await?;
+        Ok(event.map(|event| Self {
+            link: link.to_owned(),
+            rsvp,
+            event,
+        }))
     }
 }
 
@@ -98,21 +107,21 @@ pub(super) struct RsvpPage<'a> {
 }
 
 impl<'a> RsvpPage<'a> {
-    pub(super) fn new(state: &'a AppState, lang: Lang, guest: &'a Guest) -> Self {
+    pub(super) fn new(lang: Lang, guest: &'a Guest) -> Self {
         let t = lang.messages();
         let rsvp = &guest.rsvp;
         let chosen = rsvp.name_display.unwrap_or(NameDisplay::Full);
         Self {
             lang,
             t,
-            event: EventView::new(&state.config.event, lang),
+            event: EventView::new(&guest.event.details, lang),
             links: GuestLinks::new(&guest.link, lang),
             rsvp,
             status: t.answer(rsvp.response, rsvp.party_size),
             party_sizes: PartySize::choices(t, rsvp.max_party_size, rsvp.party_size),
             display_choices: DisplayChoice::choices(t, Some(&rsvp.name), chosen),
             first_visit: rsvp.privacy_version.is_none(),
-            accepts_answers: state.config.event.accepts_answers(Utc::now()),
+            accepts_answers: guest.event.details.accepts_answers(Utc::now()),
             email_confirmed: rsvp.email_status == rsvp::EmailStatus::Confirmed,
             flash: None,
             celebrate: false,
@@ -214,9 +223,8 @@ pub async fn show(
     headers: HeaderMap,
     Query(query): Query<ShowQuery>,
 ) -> Response {
-    let mut page = RsvpPage::new(&state, lang, &guest);
-    page.remembered =
-        remember::link(&headers, state.config.is_https()) == Some(guest.link.as_str());
+    let mut page = RsvpPage::new(lang, &guest);
+    page.remembered = remember::remembers(&headers, state.config.is_https(), &guest);
     let notice = query.notice.as_deref().and_then(Notice::from_code);
     page.flash = notice.map(|notice| notice.text(page.t));
     page.celebrate = guest.rsvp.response == rsvp::Response::Attending
@@ -234,7 +242,7 @@ pub async fn guests(
     guest: Guest,
     Query(query): Query<ShowQuery>,
 ) -> Response {
-    let guests = match GuestList::load(&state.db, Some(guest.rsvp.id)).await {
+    let guests = match GuestList::load(&state.db, guest.event.id, Some(guest.rsvp.id)).await {
         Ok(guests) => guests,
         Err(err) => return server_error(err),
     };
@@ -243,7 +251,7 @@ pub async fn guests(
     render(GuestsPage {
         lang,
         t,
-        event: EventView::new(&state.config.event, lang),
+        event: EventView::new(&guest.event.details, lang),
         guests,
         you: Some(YourListing::new(t, &guest.rsvp, links.listing)),
         flash: Notice::flash(query.notice.as_deref(), t),
@@ -272,8 +280,8 @@ pub async fn answer(
     guest: Guest,
     Form(form): Form<AnswerForm>,
 ) -> Response {
-    let page = || RsvpPage::new(&state, lang, &guest);
-    if !state.config.event.accepts_answers(Utc::now()) {
+    let page = || RsvpPage::new(lang, &guest);
+    if !guest.event.details.accepts_answers(Utc::now()) {
         return page().render_error(StatusCode::FORBIDDEN, |t| &t.answers_closed);
     }
     if !(1..=guest.rsvp.max_party_size).contains(&form.party_size) {
@@ -318,7 +326,7 @@ pub async fn rename(
     Form(form): Form<NameForm>,
 ) -> Response {
     let Some(name) = rsvp::normalize_name(&form.name) else {
-        return RsvpPage::new(&state, lang, &guest)
+        return RsvpPage::new(lang, &guest)
             .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name);
     };
     match rsvp::rename(&state.db, guest.rsvp.id, &name).await {
@@ -376,7 +384,7 @@ pub async fn delete(
     Form(form): Form<DeleteForm>,
 ) -> Response {
     if form.confirm.is_none() {
-        return RsvpPage::new(&state, lang, &guest)
+        return RsvpPage::new(lang, &guest)
             .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.confirm_delete);
     }
     match rsvp::delete(&state.db, guest.rsvp.id).await {
@@ -387,8 +395,8 @@ pub async fn delete(
             }));
             // A device that remembers the guest forgets them too.
             let https = state.config.is_https();
-            if remember::link(&headers, https) == Some(guest.link.as_str()) {
-                let cookie = remember::forget_cookie(https);
+            if remember::remembers(&headers, https, &guest) {
+                let cookie = remember::forget_cookie(https, guest.event.id);
                 response.headers_mut().append(header::SET_COOKIE, cookie);
             }
             response
@@ -513,8 +521,9 @@ mod tests {
 
     #[sqlx::test]
     async fn answers_close_at_the_deadline(db: PgPool) {
-        let site = Site::with(db, &[("INNBY_RSVP_DEADLINE", "2020-01-01T12:00")]);
+        let site = Site::new(db);
         let (invite, link) = site.invite("Kari", 1).await;
+        site.close_answers().await;
 
         let html = body(site.get(&format!("/r/{link}")).await).await;
         assert!(html.contains("Svarfristen har gått ut."));

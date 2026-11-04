@@ -17,7 +17,7 @@ use sqlx::PgPool;
 
 use crate::{
     config::{Config, MailConfig},
-    db::{outbox, rsvp},
+    db::{event, outbox, rsvp},
 };
 
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
@@ -99,7 +99,11 @@ pub async fn process_batch(
         let Some(guest) = rsvp::find(&mut *tx, job.rsvp_id).await? else {
             continue;
         };
-        let mail = match compose::compose(config, job.kind, &guest) {
+        // The event cascades too.
+        let Some(event) = event::find(&mut *tx, guest.event_id).await? else {
+            continue;
+        };
+        let mail = match compose::compose(config, job.kind, &guest, &event.details) {
             Ok(mail) => mail,
             Err(reason) => {
                 tracing::info!(job = job.id, rsvp = %guest.id, kind = ?job.kind, reason, "mail dropped");
@@ -183,7 +187,9 @@ mod tests {
     }
 
     async fn guest_with_email(db: &PgPool, email: &str, lang: Lang) -> Rsvp {
-        let guest = create_invite(db, "Kari", 1).await.unwrap();
+        let guest = create_invite(db, crate::db::event::tests::event(db).await.id, "Kari", 1)
+            .await
+            .unwrap();
         rsvp::set_email(db, guest.id, email, lang, crate::web::PRIVACY_VERSION)
             .await
             .unwrap();

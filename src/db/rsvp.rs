@@ -99,6 +99,7 @@ fn partial_name(name: &str) -> String {
 #[derive(Debug, Clone, Serialize)]
 pub struct Rsvp {
     pub id: Uuid,
+    pub event_id: Uuid,
     pub source: Source,
     pub name: String,
     pub response: Response,
@@ -152,7 +153,7 @@ macro_rules! query_rsvp {
         sqlx::query_as!(
             Rsvp,
             $($head +)*
-            r#" id, source as "source: Source", name, response as "response: Response",
+            r#" id, event_id, source as "source: Source", name, response as "response: Response",
                 party_size, max_party_size, link_nonce, lang as "lang: Lang", email,
                 email_status as "email_status: EmailStatus", email_consent_at,
                 privacy_version, responded_at, created_at, group_id,
@@ -163,14 +164,17 @@ macro_rules! query_rsvp {
     };
 }
 
-/// Creates an invitation that the guest answers later through their link.
+/// Creates an invitation to the event that the guest answers later through their link.
 pub async fn create_invite(
     db: impl PgExecutor<'_>,
+    event_id: Uuid,
     name: &str,
     max_party_size: i32,
 ) -> sqlx::Result<Rsvp> {
     query_rsvp!(
-        "insert into rsvp (source, name, max_party_size) values ('invite', $1, $2)" returning,
+        "insert into rsvp (event_id, source, name, max_party_size) \
+         values ($1, 'invite', $2, $3)" returning,
+        event_id,
         name,
         max_party_size,
     )
@@ -194,9 +198,9 @@ pub async fn create_open(
     privacy_version: &str,
 ) -> sqlx::Result<Rsvp> {
     query_rsvp!(
-        "insert into rsvp (source, group_id, name, response, party_size, max_party_size, \
-            name_display, lang, privacy_version, responded_at) \
-         values ('open', $1, $2, 'attending', $3, $4, $5, $6, $7, now())" returning,
+        "insert into rsvp (event_id, source, group_id, name, response, party_size, \
+            max_party_size, name_display, lang, privacy_version, responded_at) \
+         values ($8, 'open', $1, $2, 'attending', $3, $4, $5, $6, $7, now())" returning,
         sign_up.group.id,
         sign_up.name,
         sign_up.party_size,
@@ -204,6 +208,7 @@ pub async fn create_open(
         sign_up.name_display as NameDisplay,
         sign_up.lang as Lang,
         privacy_version,
+        sign_up.group.event_id,
     )
     .fetch_one(db)
     .await
@@ -215,19 +220,35 @@ pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Rsvp
         .await
 }
 
-/// The RSVP that has confirmed this address. Others may hold it unconfirmed.
+/// The RSVP to this event that has confirmed the address. Others may hold it
+/// unconfirmed.
 pub async fn find_by_confirmed_email(
     db: impl PgExecutor<'_>,
+    event_id: Uuid,
     email: &str,
 ) -> sqlx::Result<Option<Rsvp>> {
-    query_rsvp!(select "from rsvp where email = $1 and email_status = 'confirmed'", email)
-        .fetch_optional(db)
+    query_rsvp!(
+        select "from rsvp where event_id = $1 and email = $2 and email_status = 'confirmed'",
+        event_id,
+        email,
+    )
+    .fetch_optional(db)
+    .await
+}
+
+/// Every RSVP that has confirmed the address, one per event at most.
+pub async fn all_with_confirmed_email(
+    db: impl PgExecutor<'_>,
+    email: &str,
+) -> sqlx::Result<Vec<Rsvp>> {
+    query_rsvp!(select "from rsvp where email = $1 and email_status = 'confirmed' order by id", email)
+        .fetch_all(db)
         .await
 }
 
-/// All RSVPs, oldest first (the ids are UUIDv7, so they sort by creation time).
-pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Rsvp>> {
-    query_rsvp!(select "from rsvp order by id")
+/// The event's RSVPs, oldest first (the ids are UUIDv7, so they sort by creation time).
+pub async fn list(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<Vec<Rsvp>> {
+    query_rsvp!(select "from rsvp where event_id = $1 order by id", event_id)
         .fetch_all(db)
         .await
 }
@@ -284,16 +305,17 @@ pub struct Listing {
     pub name_display: Option<NameDisplay>,
 }
 
-/// Everyone who hasn't declined, for the guest list.
-pub async fn guest_list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Listing>> {
+/// Everyone invited to the event who hasn't declined, for its guest list.
+pub async fn guest_list(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<Vec<Listing>> {
     sqlx::query_as!(
         Listing,
         r#"
         select id, name, response as "response: Response", party_size,
             name_display as "name_display: NameDisplay"
         from rsvp
-        where response <> 'declined'
-        "#
+        where event_id = $1 and response <> 'declined'
+        "#,
+        event_id,
     )
     .fetch_all(db)
     .await
@@ -396,13 +418,17 @@ pub async fn set_email(
 }
 
 /// Confirms the address, as long as it's still the one the confirmation was sent to and
-/// no other RSVP has confirmed it first.
+/// no other RSVP to the same event has confirmed it first.
 pub async fn confirm_email(db: impl PgExecutor<'_>, id: Uuid, email: &str) -> sqlx::Result<bool> {
     let result = sqlx::query!(
         r#"
         update rsvp set email_status = 'confirmed'
         where id = $1 and email = $2 and email_status = 'unconfirmed'
-            and not exists (select from rsvp where email = $2 and email_status = 'confirmed')
+            and not exists (
+                select from rsvp other
+                where other.event_id = rsvp.event_id and other.email = $2
+                    and other.email_status = 'confirmed'
+            )
         "#,
         id,
         email,
@@ -464,7 +490,7 @@ pub async fn delete(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<bool> {
     Ok(result.rows_affected() == 1)
 }
 
-pub async fn headcount(db: impl PgExecutor<'_>) -> sqlx::Result<Headcount> {
+pub async fn headcount(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<Headcount> {
     sqlx::query_as!(
         Headcount,
         r#"
@@ -475,7 +501,9 @@ pub async fn headcount(db: impl PgExecutor<'_>) -> sqlx::Result<Headcount> {
             count(*) filter (where response = 'declined') as "declined!",
             count(*) filter (where response = 'pending') as "pending!"
         from rsvp
+        where event_id = $1
         "#,
+        event_id,
     )
     .fetch_one(db)
     .await
@@ -490,7 +518,13 @@ pub(crate) mod tests {
 
     /// Signs `name` up, in English, through a new group link for up to two people.
     pub async fn sign_up(pool: &PgPool, name: &str, party_size: i32) -> sqlx::Result<Rsvp> {
-        let group = group::create(pool, "Climbing club", 2).await?;
+        let group = group::create(
+            pool,
+            crate::db::event::tests::event(pool).await.id,
+            "Climbing club",
+            2,
+        )
+        .await?;
         let sign_up = SignUp {
             group: &group,
             name,
@@ -510,7 +544,13 @@ pub(crate) mod tests {
 
     #[sqlx::test]
     async fn invitation_starts_pending(pool: PgPool) -> sqlx::Result<()> {
-        let rsvp = create_invite(&pool, "Kari & Ola", 2).await?;
+        let rsvp = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Kari & Ola",
+            2,
+        )
+        .await?;
         assert_eq!(rsvp.source, Source::Invite);
         assert_eq!(rsvp.response, Response::Pending);
         assert_eq!((rsvp.party_size, rsvp.max_party_size), (1, 2));
@@ -536,7 +576,13 @@ pub(crate) mod tests {
 
     #[sqlx::test]
     async fn respond_records_the_answer(pool: PgPool) -> sqlx::Result<()> {
-        let invite = create_invite(&pool, "Kari & Ola", 2).await?;
+        let invite = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Kari & Ola",
+            2,
+        )
+        .await?;
         let answered = respond(
             &pool,
             invite.id,
@@ -559,7 +605,13 @@ pub(crate) mod tests {
 
     #[sqlx::test]
     async fn respond_rejects_party_larger_than_invited(pool: PgPool) -> sqlx::Result<()> {
-        let invite = create_invite(&pool, "Kari & Ola", 2).await?;
+        let invite = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Kari & Ola",
+            2,
+        )
+        .await?;
         let err = respond(
             &pool,
             invite.id,
@@ -600,8 +652,20 @@ pub(crate) mod tests {
 
     #[sqlx::test]
     async fn guest_list_leaves_out_declined_guests(pool: PgPool) -> sqlx::Result<()> {
-        let kari = create_invite(&pool, "Kari Nordmann", 1).await?;
-        let ola = create_invite(&pool, "Ola", 1).await?;
+        let kari = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Kari Nordmann",
+            1,
+        )
+        .await?;
+        let ola = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Ola",
+            1,
+        )
+        .await?;
         respond(
             &pool,
             ola.id,
@@ -614,7 +678,11 @@ pub(crate) mod tests {
         .await?;
         assert!(set_name_display(&pool, kari.id, NameDisplay::Hidden).await?);
 
-        let [listed] = guest_list(&pool).await?.try_into().ok().unwrap();
+        let [listed] = guest_list(&pool, crate::db::event::tests::event(&pool).await.id)
+            .await?
+            .try_into()
+            .ok()
+            .unwrap();
         assert_eq!(
             (listed.id, listed.name_display),
             (kari.id, Some(NameDisplay::Hidden))
@@ -637,7 +705,13 @@ pub(crate) mod tests {
 
     #[sqlx::test]
     async fn rename_enforces_name_length(pool: PgPool) -> sqlx::Result<()> {
-        let invite = create_invite(&pool, "Kari", 1).await?;
+        let invite = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Kari",
+            1,
+        )
+        .await?;
         assert!(rename(&pool, invite.id, "Kari Nordmann").await?);
         assert_eq!(find(&pool, invite.id).await?.unwrap().name, "Kari Nordmann");
 
@@ -726,7 +800,13 @@ pub(crate) mod tests {
 
     #[sqlx::test]
     async fn email_lifecycle(pool: PgPool) -> sqlx::Result<()> {
-        let rsvp = create_invite(&pool, "Kari", 1).await?;
+        let rsvp = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Kari",
+            1,
+        )
+        .await?;
         assert!(
             set_email(
                 &pool,
@@ -743,13 +823,19 @@ pub(crate) mod tests {
         assert_eq!(stored.lang, Lang::EnGb);
         assert!(stored.email_consent_at.is_some());
         assert!(
-            find_by_confirmed_email(&pool, "kari@example.com")
+            find_by_confirmed_email(&pool, rsvp.event_id, "kari@example.com")
                 .await?
                 .is_none()
         );
 
         // Until it's confirmed, another RSVP may hold the address too.
-        let other = create_invite(&pool, "Ola", 1).await?;
+        let other = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Ola",
+            1,
+        )
+        .await?;
         assert!(
             set_email(
                 &pool,
@@ -764,7 +850,7 @@ pub(crate) mod tests {
         assert!(!confirm_email(&pool, rsvp.id, "other@example.com").await?);
         assert!(confirm_email(&pool, rsvp.id, "kari@example.com").await?);
         assert!(!confirm_email(&pool, rsvp.id, "kari@example.com").await?);
-        let confirmed = find_by_confirmed_email(&pool, "kari@example.com")
+        let confirmed = find_by_confirmed_email(&pool, rsvp.event_id, "kari@example.com")
             .await?
             .unwrap();
         assert_eq!(confirmed.id, rsvp.id);
@@ -793,7 +879,13 @@ pub(crate) mod tests {
 
     #[sqlx::test]
     async fn shrinking_an_invitation_shrinks_the_party(pool: PgPool) -> sqlx::Result<()> {
-        let invite = create_invite(&pool, "Familien Hansen", 4).await?;
+        let invite = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Familien Hansen",
+            4,
+        )
+        .await?;
         respond(
             &pool,
             invite.id,
@@ -816,7 +908,13 @@ pub(crate) mod tests {
 
     #[sqlx::test]
     async fn revoke_link_bumps_nonce(pool: PgPool) -> sqlx::Result<()> {
-        let invite = create_invite(&pool, "Kari", 1).await?;
+        let invite = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Kari",
+            1,
+        )
+        .await?;
         assert_eq!(revoke_link(&pool, invite.id).await?, Some(1));
         assert_eq!(revoke_link(&pool, invite.id).await?, Some(2));
         Ok(())
@@ -840,7 +938,13 @@ pub(crate) mod tests {
 
     #[sqlx::test]
     async fn email_requires_consent_and_status(pool: PgPool) -> sqlx::Result<()> {
-        let rsvp = create_invite(&pool, "Kari", 1).await?;
+        let rsvp = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Kari",
+            1,
+        )
+        .await?;
         let err = sqlx::query("update rsvp set email = 'kari@example.com' where id = $1")
             .bind(rsvp.id)
             .execute(&pool)
@@ -863,7 +967,7 @@ pub(crate) mod tests {
     #[sqlx::test]
     async fn headcount_sums_attending_parties(pool: PgPool) -> sqlx::Result<()> {
         assert_eq!(
-            headcount(&pool).await?,
+            headcount(&pool, crate::db::event::tests::event(&pool).await.id).await?,
             Headcount {
                 attending_parties: 0,
                 attending_people: 0,
@@ -872,7 +976,13 @@ pub(crate) mod tests {
             }
         );
 
-        let family = create_invite(&pool, "Familien Hansen", 4).await?;
+        let family = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Familien Hansen",
+            4,
+        )
+        .await?;
         respond(
             &pool,
             family.id,
@@ -883,7 +993,13 @@ pub(crate) mod tests {
             PRIVACY_VERSION,
         )
         .await?;
-        let busy = create_invite(&pool, "Ola", 1).await?;
+        let busy = create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Ola",
+            1,
+        )
+        .await?;
         respond(
             &pool,
             busy.id,
@@ -894,11 +1010,17 @@ pub(crate) mod tests {
             PRIVACY_VERSION,
         )
         .await?;
-        create_invite(&pool, "Kari", 1).await?;
+        create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Kari",
+            1,
+        )
+        .await?;
         sign_up(&pool, "Per", 2).await?;
 
         assert_eq!(
-            headcount(&pool).await?,
+            headcount(&pool, crate::db::event::tests::event(&pool).await.id).await?,
             Headcount {
                 attending_parties: 2,
                 attending_people: 5,

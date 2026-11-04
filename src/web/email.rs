@@ -44,7 +44,7 @@ pub async fn add(
     guest: Guest,
     Form(form): Form<AddForm>,
 ) -> Response {
-    let page = || RsvpPage::new(&state, lang, &guest);
+    let page = || RsvpPage::new(lang, &guest);
     if form.consent.is_none() {
         return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.consent_required);
     }
@@ -73,7 +73,7 @@ async fn add_email(db: &PgPool, guest: &Rsvp, email: &str, lang: Lang) -> sqlx::
         return Ok(());
     }
     // Asking again only queues mail that isn't already waiting.
-    match rsvp::find_by_confirmed_email(&mut *tx, email).await? {
+    match rsvp::find_by_confirmed_email(&mut *tx, guest.event_id, email).await? {
         Some(owner) => {
             outbox::enqueue_once(&mut *tx, owner.id, Kind::EmailInUse).await?;
             tracing::info!(rsvp = %guest.id, "e-mail address already in use");
@@ -251,13 +251,13 @@ pub async fn lost(
     }))
 }
 
-/// Queues the link for the guest with this address, if it's confirmed.
+/// Queues the link for every invitation that has confirmed this address, one mail per
+/// event.
 async fn mail_link(db: &PgPool, email: &str) -> sqlx::Result<()> {
-    let Some(guest) = rsvp::find_by_confirmed_email(db, email).await? else {
-        return Ok(());
-    };
-    if outbox::enqueue_once(db, guest.id, Kind::RsvpLink).await? {
-        tracing::info!(rsvp = %guest.id, "lost link mailed");
+    for guest in rsvp::all_with_confirmed_email(db, email).await? {
+        if outbox::enqueue_once(db, guest.id, Kind::RsvpLink).await? {
+            tracing::info!(rsvp = %guest.id, "lost link mailed");
+        }
     }
     Ok(())
 }

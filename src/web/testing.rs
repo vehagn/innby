@@ -12,7 +12,10 @@ use tower::ServiceExt;
 
 use crate::{
     config::{Config, tests::parse},
-    db::rsvp::{self, Rsvp},
+    db::{
+        event::Event,
+        rsvp::{self, Rsvp},
+    },
     i18n::{Lang, Messages},
     link::Purpose,
 };
@@ -27,11 +30,7 @@ pub struct Site {
 
 impl Site {
     pub fn new(db: PgPool) -> Self {
-        Self::with(db, &[])
-    }
-
-    pub fn with(db: PgPool, overrides: &[(&str, &str)]) -> Self {
-        let config = parse(overrides).unwrap();
+        let config = parse(&[]).unwrap();
         Self {
             router: super::router(config.clone(), db.clone()),
             db,
@@ -39,8 +38,24 @@ impl Site {
         }
     }
 
+    /// The event the tests invite guests to.
+    pub async fn event(&self) -> Event {
+        crate::db::event::tests::event(&self.db).await
+    }
+
+    /// Closes answers to the event, as a deadline that has passed does.
+    pub async fn close_answers(&self) {
+        let event = self.event().await;
+        let mut details = event.details;
+        details.rsvp_deadline = Some(details.starts_at - chrono::Duration::days(3650));
+        crate::db::event::update(&self.db, event.id, &details)
+            .await
+            .unwrap();
+    }
+
     pub async fn invite(&self, name: &str, max_party_size: i32) -> (Rsvp, String) {
-        let rsvp = rsvp::create_invite(&self.db, name, max_party_size)
+        let event = self.event().await;
+        let rsvp = rsvp::create_invite(&self.db, event.id, name, max_party_size)
             .await
             .unwrap();
         let link = self

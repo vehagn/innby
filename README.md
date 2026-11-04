@@ -1,24 +1,25 @@
 # Innby
 
-An RSVP site for one event and about 100 guests. Guests answer through a personal link,
+An RSVP site for a host's events, about 100 guests each. Guests answer through a personal link,
 with no account or e-mail address needed, or sign up through a link the host makes for
 their group. Every link leads to a guest list, with each name shown as its guest chose.
 E-mail reminders are optional. Pages are in Bokmål, Nynorsk, Simplified and Traditional
 Chinese, and English in a traditional (British) and a simplified (American) flavour, and
-use no JavaScript. The public site's only cookie is one a guest asks for, so that the
-front page leads them back to their own page. All guest data is deleted 30 days after
-the event.
+use no JavaScript. The front page is about Innby; each event shows on its invitations.
+The public site's only cookies are those a guest asks for, one per invitation, so that the
+front page leads them back. An event and everything in it is deleted 30 days after it
+starts.
 
 One Rust binary, run as several workloads:
 
 | Command | What it does |
 |---|---|
 | `innby serve` | The public site: event page, `/r/{link}` RSVP pages, `/join/{link}` group sign-up, `/lost`, `/privacy` |
-| `innby admin` | The host's UI: invitations and group links in batches, QR codes in the event's style, headcount, CSV, reminders |
+| `innby admin` | The host's UI: events, and for each its invitations and group links in batches, headcount, CSV and reminders; QR codes in one style |
 | `innby mailer` | Sends queued mail (confirmations, links, reminders) |
 | `innby janitor` | Deletes data past its retention; run hourly |
 | `innby migrate` | Applies the database migrations |
-| `innby invite NAME [MAX]` | Creates an invitation and prints its link |
+| `innby invite [--event ID] NAME [MAX]` | Creates an invitation and prints its link |
 | `innby hash-password` | Hashes the admin password read from stdin |
 
 ## Develop

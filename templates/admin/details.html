@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ crate::admin::lang::text().details }} · {{ event.details.title(crate::admin::lang::current()) }}{% endblock %}
+
+{% block tabs %}{% let tabs = crate::admin::tabs(Some(event.id), crate::admin::Tab::Details) %}{% include "admin/_event_nav.html" %}{% endblock %}
+
+{% block content %}
+{% let a = crate::admin::lang::text() %}
+{% if saved %}<p class="notice success" role="status">{{ a.saved }}</p>{% endif %}
+<h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
+
+<section class="card">
+  <form method="post" action="{{ links.details }}">
+    {% include "admin/_event_form.html" %}
+    <button>{{ a.save }}</button>
+  </form>
+</section>
+
+<details>
+  <summary>{{ a.delete }}</summary>
+  <p class="muted small">{{ crate::i18n::filled(a.event_retention_hint, "days", keep_after_event_days) }}</p>
+  <form method="post" action="{{ links.delete }}">
+    <label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> {{ crate::i18n::filled(a.delete_event, "title", event.details.title(crate::admin::lang::current())) }}</label>
+    <button class="danger">{{ a.delete }}</button>
+  </form>
+</details>
+{% endblock %}

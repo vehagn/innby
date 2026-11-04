@@ -2,7 +2,7 @@
 
 {% block title %}{{ crate::admin::lang::text().qr_heading }}{% endblock %}
 
-{% block tabs %}{% let current = crate::admin::Tab::Qr %}{% include "admin/_tabs.html" %}{% endblock %}
+{% block tabs %}{% let tabs = crate::admin::tabs(None, crate::admin::Tab::Qr) %}{% include "admin/_tabs.html" %}{% endblock %}
 
 {% block content %}
 {% let a = crate::admin::lang::text() %}

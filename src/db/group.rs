@@ -7,6 +7,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct Group {
     pub id: Uuid,
+    pub event_id: Uuid,
     /// What the group is, e.g. "Climbing club". Shown on its sign-up page.
     pub name: String,
     /// How many people each sign-up may cover.
@@ -17,12 +18,15 @@ pub struct Group {
 
 pub async fn create(
     db: impl PgExecutor<'_>,
+    event_id: Uuid,
     name: &str,
     max_party_size: i32,
 ) -> sqlx::Result<Group> {
     sqlx::query_as!(
         Group,
-        "insert into invite_group (name, max_party_size) values ($1, $2) returning *",
+        "insert into invite_group (event_id, name, max_party_size) values ($1, $2, $3) \
+         returning id, event_id, name, max_party_size, link_nonce, created_at",
+        event_id,
         name,
         max_party_size,
     )
@@ -31,16 +35,26 @@ pub async fn create(
 }
 
 pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Group>> {
-    sqlx::query_as!(Group, "select * from invite_group where id = $1", id)
-        .fetch_optional(db)
-        .await
+    sqlx::query_as!(
+        Group,
+        "select id, event_id, name, max_party_size, link_nonce, created_at \
+         from invite_group where id = $1",
+        id
+    )
+    .fetch_optional(db)
+    .await
 }
 
-/// All groups, oldest first.
-pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Group>> {
-    sqlx::query_as!(Group, "select * from invite_group order by id")
-        .fetch_all(db)
-        .await
+/// The event's groups, oldest first.
+pub async fn list(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<Vec<Group>> {
+    sqlx::query_as!(
+        Group,
+        "select id, event_id, name, max_party_size, link_nonce, created_at \
+         from invite_group where event_id = $1 order by id",
+        event_id
+    )
+    .fetch_all(db)
+    .await
 }
 
 /// Renames the group and changes how many people later sign-ups may cover.
@@ -94,9 +108,14 @@ mod tests {
         web::PRIVACY_VERSION,
     };
 
+    async fn event(pool: &PgPool) -> Uuid {
+        crate::db::event::tests::event(pool).await.id
+    }
+
     #[sqlx::test]
     async fn create_update_revoke(pool: PgPool) -> sqlx::Result<()> {
-        let group = create(&pool, "Climbing club", 2).await?;
+        let event = event(&pool).await;
+        let group = create(&pool, event, "Climbing club", 2).await?;
         assert_eq!(
             (group.name.as_str(), group.link_nonce),
             ("Climbing club", 0)
@@ -109,14 +128,15 @@ mod tests {
             (updated.name.as_str(), updated.max_party_size),
             ("Climbing friends", 3)
         );
-        assert_eq!(list(&pool).await?.len(), 1);
+        assert_eq!(list(&pool, event).await?.len(), 1);
         Ok(())
     }
 
     #[sqlx::test]
     async fn only_unused_groups_can_be_deleted(pool: PgPool) -> sqlx::Result<()> {
-        let used = create(&pool, "Climbing club", 2).await?;
-        let unused = create(&pool, "Neighbours", 2).await?;
+        let event = event(&pool).await;
+        let used = create(&pool, event, "Climbing club", 2).await?;
+        let unused = create(&pool, event, "Neighbours", 2).await?;
         let sign_up = rsvp::SignUp {
             group: &used,
             name: "Per",
@@ -128,7 +148,7 @@ mod tests {
 
         assert!(!delete_unused(&pool, used.id).await?);
         assert!(delete_unused(&pool, unused.id).await?);
-        assert_eq!(list(&pool).await?.len(), 1);
+        assert_eq!(list(&pool, event).await?.len(), 1);
         Ok(())
     }
 }

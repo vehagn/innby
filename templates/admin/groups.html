@@ -1,13 +1,13 @@
 {% extends "admin/base.html" %}
 
-{% block title %}{{ crate::admin::lang::text().group_links }}{% endblock %}
+{% block title %}{{ crate::admin::lang::text().group_links }} · {{ event.details.title(crate::admin::lang::current()) }}{% endblock %}
 
-{% block tabs %}{% let current = crate::admin::Tab::Groups %}{% include "admin/_tabs.html" %}{% endblock %}
+{% block tabs %}{% let tabs = crate::admin::tabs(Some(event.id), crate::admin::Tab::Groups) %}{% include "admin/_event_nav.html" %}{% endblock %}
 
 {% block content %}
 {% let a = crate::admin::lang::text() %}
 {% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
-<h1>{{ a.group_links }}</h1>
+<h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
 <p class="muted small">{{ a.group_links_hint }}</p>
 {% if !accepts_answers %}<p class="notice" role="status">{{ a.closed }}</p>{% endif %}
 
@@ -37,7 +37,7 @@
 
 <section class="card">
   <h2>{{ a.new_groups }}</h2>
-  <form method="post" action="{{ crate::paths::admin(crate::paths::GROUPS) }}">
+  <form method="post" action="{{ links.groups }}">
     <label for="group-names">{{ a.names }}</label>
     <textarea id="group-names" name="names" rows="3" required placeholder="{{ a.groups_placeholder }}">{{ names }}</textarea>
     <label for="group-size">{{ a.max_per_sign_up }}</label>

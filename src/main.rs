@@ -19,7 +19,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::config::{AdminConfig, Config, MailConfig};
 
-/// RSVP service for a single event.
+/// RSVP service for a host's events.
 #[derive(Parser)]
 #[command(version, about)]
 struct Cli {
@@ -41,6 +41,10 @@ enum Command {
     Migrate,
     /// Create an invitation and print the guest's link.
     Invite {
+        /// The event's id, from its address in the admin UI. Needed when there's more
+        /// than one.
+        #[arg(long)]
+        event: Option<uuid::Uuid>,
         /// The guest or household, e.g. "Kari & Ola".
         name: String,
         /// How many people the invitation covers.
@@ -70,14 +74,21 @@ async fn main() -> anyhow::Result<()> {
         Command::Mailer => {
             mailer::run(Config::from_env()?, MailConfig::from_env()?, db::pool()?).await
         }
-        Command::Janitor => {
-            let event_start = config::event_start()?.to_utc();
-            janitor::run(&db::connect().await?, event_start, chrono::Utc::now())
-                .await
-                .map(drop)
+        Command::Janitor => janitor::run(&db::connect().await?, chrono::Utc::now())
+            .await
+            .map(drop),
+        Command::Migrate => {
+            let db = db::connect().await?;
+            db::migrate(&db).await?;
+            if let Some(details) = config::legacy_event()?
+                && db::event::adopt(&db, &details).await?
+            {
+                tracing::info!("the event from the INNBY_EVENT_* settings is in the database now");
+            }
+            Ok(())
         }
-        Command::Migrate => db::migrate(&db::connect().await?).await,
         Command::Invite {
+            event,
             name,
             max_party_size,
         } => {
@@ -85,7 +96,7 @@ async fn main() -> anyhow::Result<()> {
             let db = db::connect().await?;
             println!(
                 "{}",
-                admin::invite(&config, &db, &name, max_party_size).await?
+                admin::invite(&config, &db, event, &name, max_party_size).await?
             );
             Ok(())
         }

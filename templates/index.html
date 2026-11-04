@@ -1,21 +1,32 @@
 {% extends "base.html" %}
 
-{% block title %}{{ event.title }}{% endblock %}
+{% block title %}Innby{% endblock %}
 
 {% block content %}
-{% include "_confetti.html" %}
-{% include "_event.html" %}
-{% if let Some(welcome) = welcome %}
-<section class="card welcome" aria-labelledby="welcome-heading">
-  <h2 id="welcome-heading">{{ crate::i18n::filled(t.welcome_back, "name", welcome.name) }}</h2>
-  <p>{{ crate::i18n::bold(t.your_answer, "answer", welcome.status)|safe }}</p>
+<div class="hero">
+  <h1 class="title"><span class="title-emoji" aria-hidden="true">🎉</span> <span class="title-text">Innby<span class="glitch" aria-hidden="true">Innby</span><span class="glitch" aria-hidden="true">Innby</span></span> <span class="title-emoji" aria-hidden="true">🥂</span></h1>
+  <p class="intro">{{ t.site_intro }}</p>
+</div>
+
+{% if !remembered.is_empty() %}
+<h2>{{ t.your_invitations }}</h2>
+{% for welcome in remembered %}
+<section class="card welcome" aria-labelledby="event-{{ welcome.event_id }}">
+  <h3 class="event-title" id="event-{{ welcome.event_id }}">{{ welcome.title }}</h3>
+  <dl class="facts">
+    <div><dt>{{ t.when }}</dt><dd>{{ welcome.when }}</dd></div>
+    {% if !welcome.place.is_empty() %}<div><dt>{{ t.place }}</dt><dd>{{ welcome.place }}</dd></div>{% endif %}
+  </dl>
+  <p>{{ crate::i18n::filled(t.welcome_back, "name", welcome.name) }} {{ crate::i18n::bold(t.your_answer, "answer", welcome.status)|safe }}</p>
   <p><a class="button" href="{{ welcome.page }}">{{ t.to_your_page }}</a></p>
   <form method="post" action="{{ lang.forget() }}" class="not-you">
+    <input type="hidden" name="event" value="{{ welcome.event_id }}">
     <span class="muted small">{{ t.not_you }}</span>
     <button class="link small">{{ t.forget_device }}</button>
   </form>
 </section>
-{% else %}
-<p class="hint">{{ t.rsvp_hint }} <a href="{{ lang.lost() }}">{{ t.lost_link }}</a></p>
+{% endfor %}
 {% endif %}
+
+<p class="hint">{{ t.rsvp_hint }} <a href="{{ lang.lost() }}">{{ t.lost_link }}</a></p>
 {% endblock %}

@@ -2,7 +2,7 @@
 
 {% block title %}{{ group.name }}{% endblock %}
 
-{% block tabs %}{% let current = crate::admin::Tab::Groups %}{% include "admin/_tabs.html" %}{% endblock %}
+{% block tabs %}{% let tabs = crate::admin::tabs(Some(event.id), crate::admin::Tab::Groups) %}{% include "admin/_event_nav.html" %}{% endblock %}
 
 {% block content %}
 {% let a = crate::admin::lang::text() %}

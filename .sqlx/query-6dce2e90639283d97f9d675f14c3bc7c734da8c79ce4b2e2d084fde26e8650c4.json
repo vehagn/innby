@@ -1,0 +1,236 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update event set title = $2, title_nn = $3, title_en = $4, title_en_us = $5, title_zh_hans = $6, title_zh_hant = $7, description = $8, description_nn = $9, description_en = $10, description_en_us = $11, description_zh_hans = $12, description_zh_hant = $13, location = $14, starts_at = $15, time_zone = $16, rsvp_deadline = $17 where id = $1 returning *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "title_nn",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "title_nn"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "title_en",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "title_en"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "title_en_us",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "title_en_us"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "title_zh_hans",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "title_zh_hans"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "title_zh_hant",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "title_zh_hant"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "description_nn",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "description_nn"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "description_en",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "description_en"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "description_en_us",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "description_en_us"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "description_zh_hans",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "description_zh_hans"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "description_zh_hant",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "description_zh_hant"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "location",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "location"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "starts_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "starts_at"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "time_zone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "time_zone"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "rsvp_deadline",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "rsvp_deadline"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "6dce2e90639283d97f9d675f14c3bc7c734da8c79ce4b2e2d084fde26e8650c4"
+}

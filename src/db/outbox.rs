@@ -127,15 +127,16 @@ pub async fn mark_failed(tx: &mut PgConnection, id: i64, error: &str) -> sqlx::R
 
 /// Queues a reminder for every guest with a confirmed address who hasn't declined and
 /// hasn't had one yet. Returns how many were queued.
-pub async fn queue_reminders(db: impl PgExecutor<'_>) -> sqlx::Result<u64> {
+pub async fn queue_reminders(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<u64> {
     let result = sqlx::query!(
         r#"
         insert into outbox (rsvp_id, kind)
         select id, 'reminder'
         from rsvp
-        where email_status = 'confirmed' and response <> 'declined'
+        where event_id = $1 and email_status = 'confirmed' and response <> 'declined'
             and not exists (select from outbox where rsvp_id = rsvp.id and kind = 'reminder')
         "#,
+        event_id,
     )
     .execute(db)
     .await?;
@@ -167,7 +168,13 @@ mod tests {
 
     #[sqlx::test]
     async fn enqueue_once_skips_duplicates_while_unsent(pool: PgPool) -> sqlx::Result<()> {
-        let guest = rsvp::create_invite(&pool, "Kari", 1).await?;
+        let guest = rsvp::create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Kari",
+            1,
+        )
+        .await?;
         assert!(enqueue_once(&pool, guest.id, Kind::RsvpLink).await?);
         assert!(!enqueue_once(&pool, guest.id, Kind::RsvpLink).await?);
         assert!(enqueue_once(&pool, guest.id, Kind::Reminder).await?);
@@ -182,7 +189,13 @@ mod tests {
 
     #[sqlx::test]
     async fn claimed_jobs_are_skipped_by_others(pool: PgPool) -> sqlx::Result<()> {
-        let guest = rsvp::create_invite(&pool, "Kari", 1).await?;
+        let guest = rsvp::create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Kari",
+            1,
+        )
+        .await?;
         enqueue(&pool, guest.id, Kind::RsvpLink).await?;
         enqueue(&pool, guest.id, Kind::Reminder).await?;
 
@@ -197,7 +210,13 @@ mod tests {
 
     #[sqlx::test]
     async fn failures_back_off_and_give_up(pool: PgPool) -> sqlx::Result<()> {
-        let guest = rsvp::create_invite(&pool, "Kari", 1).await?;
+        let guest = rsvp::create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Kari",
+            1,
+        )
+        .await?;
         enqueue(&pool, guest.id, Kind::RsvpLink).await?;
         let mut tx = pool.begin().await?;
         let job = claim_due(&mut tx, 1).await?.remove(0);
@@ -220,7 +239,13 @@ mod tests {
     async fn reminders_go_to_confirmed_guests_once(pool: PgPool) -> sqlx::Result<()> {
         let mut confirmed = Vec::new();
         for (name, email) in [("Kari", "kari@example.com"), ("Ola", "ola@example.com")] {
-            let guest = rsvp::create_invite(&pool, name, 1).await?;
+            let guest = rsvp::create_invite(
+                &pool,
+                crate::db::event::tests::event(&pool).await.id,
+                name,
+                1,
+            )
+            .await?;
             rsvp::set_email(&pool, guest.id, email, Lang::Nb, PRIVACY_VERSION).await?;
             rsvp::confirm_email(&pool, guest.id, email).await?;
             confirmed.push(guest);
@@ -235,7 +260,13 @@ mod tests {
             PRIVACY_VERSION,
         )
         .await?;
-        let unconfirmed = rsvp::create_invite(&pool, "Per", 1).await?;
+        let unconfirmed = rsvp::create_invite(
+            &pool,
+            crate::db::event::tests::event(&pool).await.id,
+            "Per",
+            1,
+        )
+        .await?;
         rsvp::set_email(
             &pool,
             unconfirmed.id,
@@ -245,8 +276,14 @@ mod tests {
         )
         .await?;
 
-        assert_eq!(queue_reminders(&pool).await?, 1);
-        assert_eq!(queue_reminders(&pool).await?, 0);
+        assert_eq!(
+            queue_reminders(&pool, crate::db::event::tests::event(&pool).await.id).await?,
+            1
+        );
+        assert_eq!(
+            queue_reminders(&pool, crate::db::event::tests::event(&pool).await.id).await?,
+            0
+        );
         assert_eq!(kinds(&pool).await, [(Kind::Reminder, false)]);
 
         cancel_unsent(&pool, confirmed[0].id).await?;

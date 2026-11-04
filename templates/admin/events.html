@@ -1,0 +1,43 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ crate::admin::lang::text().events }}{% endblock %}
+
+{% block tabs %}{% let tabs = crate::admin::tabs(None, crate::admin::Tab::Events) %}{% include "admin/_tabs.html" %}{% endblock %}
+
+{% block content %}
+{% let a = crate::admin::lang::text() %}
+{% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
+<h1>{{ a.events }}</h1>
+
+<section class="card">
+  {% if events.is_empty() %}
+  <p class="muted">{{ a.no_events }}</p>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>{{ a.col_event }}</th><th>{{ a.col_when }}</th><th>{{ a.answer_attending }}</th><th>{{ a.answer_pending }}</th></tr>
+    </thead>
+    <tbody>
+      {% for event in events %}
+      <tr>
+        <td><a href="{{ event.path }}">{{ event.title }}</a></td>
+        <td>{{ event.when }}</td>
+        <td>{{ event.headcount.attending_people }}</td>
+        <td>{{ event.headcount.pending }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>{{ a.new_event }}</h2>
+  <form method="post" action="{{ crate::paths::admin(crate::paths::EVENTS) }}">
+    {% include "admin/_event_form.html" %}
+    <button>{{ a.create_event }}</button>
+  </form>
+</section>
+{% endblock %}

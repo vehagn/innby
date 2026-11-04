@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "update rsvp set response = $2, party_size = $3, name_display = coalesce($4, name_display), lang = $5, privacy_version = $6, responded_at = now() where id = $1 returning id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\" ",
+  "query": "insert into rsvp (event_id, source, name, max_party_size) values ($1, 'invite', $2, $3) returning id, event_id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\" ",
   "describe": {
     "columns": [
       {
@@ -16,6 +16,17 @@
       },
       {
         "ordinal": 1,
+        "name": "event_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "event_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
         "name": "source: Source",
         "type_info": {
           "Custom": {
@@ -36,7 +47,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "name",
         "type_info": "Text",
         "origin": {
@@ -47,7 +58,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "response: Response",
         "type_info": {
           "Custom": {
@@ -69,7 +80,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "party_size",
         "type_info": "Int4",
         "origin": {
@@ -80,7 +91,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "max_party_size",
         "type_info": "Int4",
         "origin": {
@@ -91,7 +102,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "link_nonce",
         "type_info": "Int4",
         "origin": {
@@ -102,7 +113,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "lang: Lang",
         "type_info": {
           "Custom": {
@@ -127,7 +138,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "email",
         "type_info": "Text",
         "origin": {
@@ -138,7 +149,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "email_status: EmailStatus",
         "type_info": {
           "Custom": {
@@ -160,7 +171,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "email_consent_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -171,7 +182,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "privacy_version",
         "type_info": "Text",
         "origin": {
@@ -182,7 +193,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "responded_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -193,7 +204,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -204,7 +215,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "group_id",
         "type_info": "Uuid",
         "origin": {
@@ -215,7 +226,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "name_display: NameDisplay",
         "type_info": {
           "Custom": {
@@ -240,50 +251,12 @@
     "parameters": {
       "Left": [
         "Uuid",
-        {
-          "Custom": {
-            "name": "rsvp_response",
-            "kind": {
-              "Enum": [
-                "pending",
-                "attending",
-                "declined"
-              ]
-            }
-          }
-        },
-        "Int4",
-        {
-          "Custom": {
-            "name": "name_display",
-            "kind": {
-              "Enum": [
-                "full",
-                "partial",
-                "hidden"
-              ]
-            }
-          }
-        },
-        {
-          "Custom": {
-            "name": "lang",
-            "kind": {
-              "Enum": [
-                "nb",
-                "nn",
-                "en",
-                "en-us",
-                "zh-hans",
-                "zh-hant"
-              ]
-            }
-          }
-        },
-        "Text"
+        "Text",
+        "Int4"
       ]
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -302,5 +275,5 @@
       true
     ]
   },
-  "hash": "96cf63f28dba08a207f480620f80860b1ed5c3453baa04c852589639f3800700"
+  "hash": "63e79a8528c8976a0c9fc43fd1454e44ae108612f2b843c75c0182532b0572db"
 }

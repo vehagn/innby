@@ -4,7 +4,7 @@ use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, NaiveDateTime};
 use chrono_tz::Tz;
 
-use crate::{admin::jwt, i18n::Localized, link::LinkKey};
+use crate::{admin::jwt, db::event::Details, i18n::Texts, link::LinkKey};
 
 /// Secrets that `.env.example` publishes. Anyone could sign links or log in with them,
 /// so a public site, one with an https base URL, refuses them.
@@ -25,7 +25,6 @@ pub struct Config {
     pub trust_forwarded: bool,
     /// Who is responsible for the guests' data, for the privacy notice.
     pub controller: Controller,
-    pub event: Event,
 }
 
 impl Config {
@@ -44,23 +43,6 @@ impl Config {
 pub struct Controller {
     pub name: String,
     pub email: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct Event {
-    pub title: Localized<String>,
-    pub description: Localized<String>,
-    pub location: String,
-    pub starts_at: DateTime<Tz>,
-    /// Guests can answer until then; unset means until the event.
-    pub rsvp_deadline: Option<DateTime<Tz>>,
-}
-
-impl Event {
-    /// Whether guests can still answer or change their answer.
-    pub fn accepts_answers(&self, now: DateTime<chrono::Utc>) -> bool {
-        now < self.rsvp_deadline.unwrap_or(self.starts_at)
-    }
 }
 
 /// The Postgres connection string. Kept apart from `Config` because `innby migrate`
@@ -89,23 +71,16 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
     }
 
     /// `{key}_NB`, with optional `_NN`, `_EN` (British), `_EN_US`, `_ZH_HANS` and
-    /// `_ZH_HANT`. Nynorsk and British English fall back to Bokmål, American English and
-    /// Simplified Chinese to British, and Traditional Chinese to Simplified.
-    fn localized(&self, key: &str) -> Result<Localized<String>> {
-        let nb = self.required(&format!("{key}_NB"))?;
-        let or = |suffix: &str, fallback: &String| {
-            self.optional(&format!("{key}_{suffix}"))
-                .unwrap_or_else(|| fallback.clone())
-        };
-        let en_gb = or("EN", &nb);
-        let zh_hans = or("ZH_HANS", &en_gb);
-        Ok(Localized {
-            nn: or("NN", &nb),
-            en_us: or("EN_US", &en_gb),
-            zh_hant: or("ZH_HANT", &zh_hans),
-            zh_hans,
-            en_gb,
-            nb,
+    /// `_ZH_HANT`, which fall back as `Texts` says.
+    fn texts(&self, key: &str) -> Result<Texts> {
+        let other = |suffix: &str| self.optional(&format!("{key}_{suffix}"));
+        Ok(Texts {
+            nb: self.required(&format!("{key}_NB"))?,
+            nn: other("NN"),
+            en_gb: other("EN"),
+            en_us: other("EN_US"),
+            zh_hans: other("ZH_HANS"),
+            zh_hant: other("ZH_HANT"),
         })
     }
 
@@ -139,9 +114,31 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
     }
 }
 
-/// When the event starts. `innby janitor` needs only this, besides the database.
-pub fn event_start() -> Result<DateTime<Tz>> {
-    Env(process_env).event_start()
+/// The event the `INNBY_EVENT_*` settings describe, if they're set. Before events moved
+/// into the database these settings were the event; now `innby migrate` uses them once,
+/// to fill in the event that older data was given.
+pub fn legacy_event() -> Result<Option<Details>> {
+    Env(process_env).legacy_event()
+}
+
+impl<F: Fn(&str) -> Option<String>> Env<F> {
+    fn legacy_event(&self) -> Result<Option<Details>> {
+        if self.optional("INNBY_EVENT_START").is_none() {
+            return Ok(None);
+        }
+        let starts_at = self.event_start()?;
+        let rsvp_deadline = self
+            .optional("INNBY_RSVP_DEADLINE")
+            .map(|value| self.local_time("INNBY_RSVP_DEADLINE", &value, starts_at.timezone()))
+            .transpose()?;
+        Ok(Some(Details {
+            title: self.texts("INNBY_EVENT_TITLE")?,
+            description: self.texts("INNBY_EVENT_DESCRIPTION")?,
+            location: self.required("INNBY_EVENT_LOCATION")?,
+            starts_at,
+            rsvp_deadline,
+        }))
+    }
 }
 
 impl Config {
@@ -177,12 +174,6 @@ impl Config {
             }
         };
 
-        let starts_at = env.event_start()?;
-        let rsvp_deadline = env
-            .optional("INNBY_RSVP_DEADLINE")
-            .map(|value| env.local_time("INNBY_RSVP_DEADLINE", &value, starts_at.timezone()))
-            .transpose()?;
-
         let controller_email = env.required("INNBY_CONTROLLER_EMAIL")?;
         ensure!(
             crate::db::rsvp::normalize_email(&controller_email).is_some(),
@@ -197,13 +188,6 @@ impl Config {
             controller: Controller {
                 name: env.required("INNBY_CONTROLLER_NAME")?,
                 email: controller_email,
-            },
-            event: Event {
-                title: env.localized("INNBY_EVENT_TITLE")?,
-                description: env.localized("INNBY_EVENT_DESCRIPTION")?,
-                location: env.required("INNBY_EVENT_LOCATION")?,
-                starts_at,
-                rsvp_deadline,
             },
         })
     }
@@ -305,11 +289,6 @@ pub mod tests {
     const VALID: &[(&str, &str)] = &[
         ("INNBY_BASE_URL", "https://fest.example.com"),
         ("INNBY_LINK_KEY", crate::link::tests::KEY),
-        ("INNBY_EVENT_TITLE_NB", "Julebord"),
-        ("INNBY_EVENT_TITLE_EN", "Christmas party"),
-        ("INNBY_EVENT_DESCRIPTION_NB", "Velkommen!"),
-        ("INNBY_EVENT_LOCATION", "Storgata 1, Oslo"),
-        ("INNBY_EVENT_START", "2026-12-12T19:00"),
         ("INNBY_CONTROLLER_NAME", "Kari Nordmann"),
         ("INNBY_CONTROLLER_EMAIL", "kari@example.com"),
     ];
@@ -329,45 +308,47 @@ pub mod tests {
     fn parses_valid_config_with_defaults() {
         let config = parse(&[]).unwrap();
         assert_eq!(config.listen, "0.0.0.0:8080".parse().unwrap());
-        assert_eq!(config.event.title.en_gb, "Christmas party");
-        assert_eq!(
-            config.event.starts_at.to_rfc3339(),
-            "2026-12-12T19:00:00+01:00"
-        );
+        assert_eq!(config.controller.name, "Kari Nordmann");
+    }
+
+    /// The settings that described the one event before events moved into the database.
+    const LEGACY_EVENT: &[(&str, &str)] = &[
+        ("INNBY_EVENT_TITLE_NB", "Julebord"),
+        ("INNBY_EVENT_TITLE_EN", "Christmas party"),
+        ("INNBY_EVENT_DESCRIPTION_NB", "Velkommen!"),
+        ("INNBY_EVENT_LOCATION", "Storgata 1, Oslo"),
+        ("INNBY_EVENT_START", "2026-12-12T19:00"),
+    ];
+
+    fn legacy(overrides: &[(&str, &str)]) -> Result<Option<Details>> {
+        let mut env: HashMap<&str, &str> = LEGACY_EVENT.iter().copied().collect();
+        env.extend(overrides.iter().copied());
+        Env(|key: &str| env.get(key).map(|value| value.to_string())).legacy_event()
     }
 
     #[test]
-    fn languages_fall_back_on_each_other() {
-        let event = parse(&[]).unwrap().event;
-        assert_eq!(event.description.en_gb, "Velkommen!");
-        assert_eq!(event.title.nn, "Julebord");
-        assert_eq!(event.title.en_us, "Christmas party");
-        assert_eq!(event.title.zh_hant, "Christmas party");
-
-        let event = parse(&[
-            ("INNBY_EVENT_TITLE_NN", "Juleball"),
-            ("INNBY_EVENT_TITLE_EN_US", "Holiday party"),
-        ])
-        .unwrap()
-        .event;
-        assert_eq!(
-            (event.title.nn.as_str(), event.title.en_us.as_str()),
-            ("Juleball", "Holiday party")
-        );
+    fn reads_the_old_event_settings() {
+        let event = legacy(&[("INNBY_RSVP_DEADLINE", "2026-12-01T12:00")])
+            .unwrap()
+            .unwrap();
+        assert_eq!(event, crate::db::event::tests::details_with_deadline());
+        assert!(Env(|_: &str| None).legacy_event().unwrap().is_none());
     }
 
     #[test]
     fn blank_required_value_is_an_error() {
-        let err = parse(&[("INNBY_EVENT_LOCATION", "  ")]).unwrap_err();
+        let err = legacy(&[("INNBY_EVENT_LOCATION", "  ")]).unwrap_err();
         assert_eq!(err.to_string(), "INNBY_EVENT_LOCATION must be set");
+        let err = parse(&[("INNBY_CONTROLLER_NAME", " ")]).unwrap_err();
+        assert_eq!(err.to_string(), "INNBY_CONTROLLER_NAME must be set");
     }
 
     #[test]
     fn rejects_bad_start_and_time_zone() {
-        assert!(parse(&[("INNBY_EVENT_START", "12.12.2026 19:00")]).is_err());
-        assert!(parse(&[("INNBY_EVENT_TIMEZONE", "Europe/Atlantis")]).is_err());
+        assert!(legacy(&[("INNBY_EVENT_START", "12.12.2026 19:00")]).is_err());
+        assert!(legacy(&[("INNBY_EVENT_TIMEZONE", "Europe/Atlantis")]).is_err());
         // 02:30 doesn't exist in Oslo on the night clocks spring forward.
-        assert!(parse(&[("INNBY_EVENT_START", "2026-03-29T02:30")]).is_err());
+        assert!(legacy(&[("INNBY_EVENT_START", "2026-03-29T02:30")]).is_err());
     }
 
     fn admin_with(hash: &str, jwt_secret: &str, config: &Config) -> Result<AdminConfig> {
@@ -491,23 +472,5 @@ pub mod tests {
         ] {
             assert!(parse(&[("INNBY_BASE_URL", bad)]).is_err(), "{bad}");
         }
-    }
-
-    #[test]
-    fn answers_close_at_deadline_or_event_start() {
-        let at = |value: &str| {
-            chrono::DateTime::parse_from_rfc3339(value)
-                .unwrap()
-                .to_utc()
-        };
-        let event = parse(&[]).unwrap().event;
-        assert!(event.accepts_answers(at("2026-12-12T17:59:00Z")));
-        assert!(!event.accepts_answers(at("2026-12-12T18:00:00Z")));
-
-        let event = parse(&[("INNBY_RSVP_DEADLINE", "2026-12-01T12:00")])
-            .unwrap()
-            .event;
-        assert!(event.accepts_answers(at("2026-12-01T10:59:00Z")));
-        assert!(!event.accepts_answers(at("2026-12-01T11:00:00Z")));
     }
 }

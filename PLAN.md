@@ -1,6 +1,6 @@
 # Innby: design
 
-How Innby is built and why. It's a small, GDPR-compliant site where about 100 guests say whether they're coming to one event. **Guests need no account and no e-mail address.** They respond through a personal invite link, or through a group link where they only give a name. Everyone with a link sees a guest list, with each name shown as its guest chose. E-mail is an optional extra for reminders.
+How Innby is built and why. It's a small, GDPR-compliant site where guests say whether they're coming to a host's events, about 100 guests each. **Guests need no account and no e-mail address.** They respond through a personal invite link, or through a group link where they only give a name. Everyone with a link sees a guest list, with each name shown as its guest chose. E-mail is an optional extra for reminders.
 
 ## 1. Goals and non-goals
 
@@ -13,15 +13,16 @@ How Innby is built and why. It's a small, GDPR-compliant site where about 100 gu
 - Guests can change their answer, party size and name at any time, and can export or delete their data.
 - A guest list behind every personal and group link (§5.6), showing who's coming and who hasn't answered. Each guest chooses whether others see their full name, their first name and initial, or nothing.
 - Pages in **Bokmål, Nynorsk, British English ("traditional", a touch posh), American English ("simplified", short and plain), and Simplified and Traditional Chinese**, chosen from the browser's `Accept-Language`, with a switch through `?lang=nb|nn|en|en-us|zh-hans|zh-hant` (no cookie). English is British unless the browser asks for `en-US`; Chinese is Simplified unless it's Traditional or from Taiwan, Hong Kong or Macau.
+- **Several events:** you create events in the admin UI, and every invitation and group link belongs to one. An event and everything in it is deleted 30 days after it starts.
 - An admin UI for you: create invitations and group links in batches, revoke them, see the headcount, export CSV.
-- Built for GDPR from the start: minimal data, clear retention, automatic deletion, no third-party assets, and on the public site no cookies but one a guest asks for (§4).
+- Built for GDPR from the start: minimal data, clear retention, automatic deletion, no third-party assets, and on the public site no cookies but those a guest asks for, one per invitation (§4).
 - A tiny OCI image that holds nothing but the binary, written as plain files by `just image` (no Containerfile, no build tool).
 - A **devcontainer** with every tool needed to develop, build the image and deploy, so the host needs nothing but a container runtime (§9, §10).
 - Runs on the existing Talos cluster, deployed the same way as the other apps in `vehagn/homelab` (Argo CD and Kustomize).
 
 **Non-goals**
 
-- Several events, payments or ticket QR codes.
+- Payments or ticket QR codes.
 - A capacity limit or waitlist. We just count heads.
 - Guest accounts or passwords.
 - A JavaScript front end. Pages are rendered on the server and work without JS.
@@ -67,7 +68,7 @@ For 100 guests one process would do. These were the options:
 | `innby serve` | Deployment (public) | Event page, `/join/{link}`, RSVP pages, e-mail confirm, privacy notice | DB, link key. Reachable from the **external** gateway. |
 | `innby admin` | Deployment (internal) | Invitations, group links, QR codes, headcount, CSV, reminders | DB, link key, admin password hash and JWT secret. Reachable from the **internal** gateway only. |
 | `innby mailer` | Deployment (1 replica) | Processes the outbox and sends e-mail through MailerSend | DB, link key, SMTP credentials, outbound SMTP. No ingress. |
-| `innby janitor` | CronJob (hourly) | Enforces retention and deletes expired data | DB and the event start (`INNBY_EVENT_START`, `INNBY_EVENT_TIMEZONE`) only. |
+| `innby janitor` | CronJob (hourly) | Enforces retention and deletes expired data, each event's 30 days after it starts | DB only. |
 | `innby invite`, `innby hash-password` | run by hand | Create an invitation and print its link; hash the admin password | DB and link key; nothing. |
 | `innby migrate` | init container on `innby-web` | Applies the embedded SQL migrations | DB as schema owner. |
 
@@ -98,7 +99,7 @@ Splitting this way buys real least privilege:
 
 Every guest has one **RSVP link**. Possession of the link is the authorisation; there are no logins.
 
-A guest can ask a device to remember them ("Remember me on this device" on their page). The browser then keeps their link in a cookie (`__Host-innby` with `Secure` over https, `innby` over plain http; `HttpOnly`, `SameSite=Lax`, expiring when guest data is deleted), and the front page greets them with a button to their page. The cookie authorises nothing: every page and form still takes the link from the path, so the cookie can at most show the way back. A link that stops working (revoked, or the reply deleted) is dropped from the cookie the next time the front page sees it, deleting the reply drops it at once, and "Forget this device" drops it on demand. The front page is `no-store`, since it now differs per visitor.
+The front page, `/`, is about Innby, not about any one event: event details show only on invitation, sign-up and guest list pages. A guest can ask a device to remember them ("Remember me on this device" on their page). The browser then keeps their link in a cookie for that event (`__Host-innby-{event}` with `Secure` over https, `innby-{event}` over plain http; `HttpOnly`, `SameSite=Lax`, expiring when the event's data is deleted), and the front page shows each invitation the device remembers, the soonest event first, with a button to the guest's page. A cookie from before there were several events, named just `__Host-innby`, gets its event's name the next time the front page sees it. A cookie authorises nothing: every page and form still takes the link from the path, so the cookie can at most show the way back. A link that stops working (revoked, or the reply deleted) is dropped from the cookie the next time the front page sees it, deleting the reply drops it at once, and "Forget this device" drops it on demand. The front page is `no-store`, since it now differs per visitor.
 
 ```
 /r/{id}.{sig}
@@ -129,7 +130,7 @@ A guest can ask a device to remember them ("Remember me on this device" on their
 
 ### 5.2 Group links
 
-1. `/` shows the event info, and greets a guest whose device remembers them with a button to their page. To RSVP, people need an invite link or a group link, `/join/{id}.{sig}`. You create groups in `innby admin`, one per line with a descriptive name and how many people each sign-up may cover (e.g. "Neighbours, 4"). A group's link is signed like an RSVP link, and *Make a new link* replaces it if it spreads too far.
+1. `/` is about Innby, and leads back to each invitation the device remembers. To RSVP, people need an invite link or a group link, `/join/{id}.{sig}`. You create groups in `innby admin`, one per line with a descriptive name and how many people each sign-up may cover (e.g. "Neighbours, 4"). A group's link is signed like an RSVP link, and *Make a new link* replaces it if it spreads too far.
 2. The guest sees the group's name, a form for their name, party size and how to show their name (preset to full), and a button to the guest list, then taps **I'm coming**.
    - Abuse protection: a honeypot field and a per-IP in-memory rate limit (10 sign-ups per hour, generous for a shared household connection). Behind the gateway, `INNBY_TRUST_FORWARDED=true` takes the client address from the `X-Forwarded-For` entry the gateway appends. You can also delete entries in the admin UI. A group can only be deleted while nobody has signed up through it.
 3. The guest is sent straight to their new `/r/{link}`, with a box asking them to **save this link** to change their answer later, holding the link ready to copy. From there it's identical to 5.1, e-mail and remembering the device included.
@@ -161,7 +162,9 @@ Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pendin
 
 ### 5.5 Host (`innby admin`)
 
-Four tabs under the header: **Guests**, **Invitation links**, **Group links** and **QR codes**, each a page of its own with its own form. A guest's page belongs to the Guests tab, a group's to Group links.
+Two tabs under the header: **Events** and **QR codes**. Each event has four of its own, under `/events/{id}`: **Guests**, **Invitation links**, **Group links** and **Details**, each a page with its own form, and a way back to all events. A guest's page belongs to its event's Guests tab, a group's to Group links.
+
+- **Events:** the list shows each event's date and headcount, the soonest first, with a form for a new one: a title and description in Bokmål and, if you like, in the other languages, a place, the start and its time zone, and an optional answer deadline. **Details** changes them, or deletes the event with everything in it.
 
 - **Invitations:** create them in a batch, one per line, and get a page of their links; edit them (label, maximum party size), show the link and QR code, revoke the link (bumps the nonce), delete.
 - **Groups:** create them in a batch, one per line; each has a page with its link, QR code and sign-ups, and can be renamed, given a new link, or deleted while nobody has signed up.
@@ -190,7 +193,7 @@ Until a guest chooses, their name shows as first name and initial before they an
 | Transparency | Invitation data is entered by you, not the guest, so Art. 14 information appears on their first visit to the link. Group sign-up and e-mail show the Art. 13 notice at the point where the data is collected. The notice is available in every page language. |
 | Data minimisation | Required: a name or label, the response and the party size. E-mail is optional. No free-text notes field, and **no dietary or allergy info**: it can count as health data (Art. 9) and would need explicit consent. Invitation labels should be first names or household names. |
 | IP addresses | Never stored. Rate limiting works per IP in memory only, and logs drop or truncate IPs. |
-| Cookies | **One, only when the guest asks for it** (§4): it keeps the guest's link so the front page can lead them back. Storing it is strictly necessary for a service the guest explicitly asks for, so it needs no consent and no banner; the privacy notice describes it. CSRF is handled by the `Sec-Fetch-Site`/`Origin` middleware (§2), authorisation by the signed link, and the language and colour scheme by `?lang=` and `?theme=`. The admin hostname's login cookies are the host's own and never reach guests. |
+| Cookies | **One per invitation, only when the guest asks for it** (§4): it keeps the guest's link so the front page can lead them back. Storing it is strictly necessary for a service the guest explicitly asks for, so it needs no consent and no banner; the privacy notice describes it. CSRF is handled by the `Sec-Fetch-Site`/`Origin` middleware (§2), authorisation by the signed link, and the language and colour scheme by `?lang=` and `?theme=`. The admin hostname's login cookies are the host's own and never reach guests. |
 | Third parties | Nothing loaded from a CDN, Google Fonts, analytics or reCAPTCHA. The stylesheet is embedded in the binary and uses the device's own fonts. A honeypot field and rate limiting replace a CAPTCHA. |
 | Retention | Unconfirmed e-mail addresses: cleared after 48h. Sent outbox rows: deleted after 7 days. **All RSVP data: deleted 30 days after the event.** The janitor enforces this. |
 | Backups | The CNPG backup retention must be ≤ 30 days after the event, or the backup policy must be documented. Otherwise "deleted" data lives on in backups. |
@@ -208,10 +211,11 @@ The schema lives in [`migrations/`](migrations/). In short:
 
 | Table | Columns | Constraints |
 |---|---|---|
-| `rsvp` | `id` (uuidv7), `source`, `name`, `response`, `party_size`, `max_party_size`, `link_nonce`, `lang`, `email`, `email_status`, `email_consent_at`, `privacy_version`, `responded_at`, `created_at`, `group_id`, `name_display` | name 1–100 chars; `party_size` within `1..=max_party_size` (max 20); e-mail present ⇔ status ≠ `none` ⇔ consent recorded; a confirmed e-mail is unique; `name_display` null until the guest chooses |
-| `invite_group` | `id` (uuidv7), `name`, `max_party_size`, `link_nonce`, `created_at` | can't be deleted while an RSVP references it |
+| `event` | `id` (uuidv7), `title` and `description` in Bokmål with optional `_nn`, `_en`, `_en_us`, `_zh_hans`, `_zh_hant` columns, `location`, `starts_at`, `time_zone`, `rsvp_deadline` | deleting it deletes its invitations, groups and their mail |
+| `rsvp` | `id` (uuidv7), `event_id` (cascade delete), `source`, `name`, `response`, `party_size`, `max_party_size`, `link_nonce`, `lang`, `email`, `email_status`, `email_consent_at`, `privacy_version`, `responded_at`, `created_at`, `group_id`, `name_display` | name 1–100 chars; `party_size` within `1..=max_party_size` (max 20); e-mail present ⇔ status ≠ `none` ⇔ consent recorded; a confirmed e-mail is unique within an event; `name_display` null until the guest chooses |
+| `invite_group` | `id` (uuidv7), `event_id` (cascade delete), `name`, `max_party_size`, `link_nonce`, `created_at` | can't be deleted while an RSVP references it |
 | `outbox` | `id`, `rsvp_id` (cascade delete), `kind`, `attempts`, `next_try_at`, `sent_at`, `last_error` | partial index on unsent rows |
-| `qr_style` | `shape`, `color`, `icon`, `emoji` | one row, for the whole event |
+| `qr_style` | `shape`, `color`, `icon`, `emoji` | one row, for every event |
 | `admin_refresh_token`, `admin_revoked_jwt` | keyed hashes of refresh tokens, and the `jti` of logged-out JWTs, each with an expiry | expired rows go whenever a new one is written |
 
 - **Enums are Postgres enum types** (`rsvp_source`, `rsvp_response`, `email_status`, `lang`, `outbox_kind`, `name_display`, `qr_shape`, `qr_icon`) rather than `text` + `CHECK`. sqlx maps them straight to Rust enums with `#[derive(sqlx::Type)]`.
@@ -224,7 +228,7 @@ Notes on the model:
   1. `SELECT … WHERE sent_at IS NULL AND next_try_at <= now() ORDER BY id LIMIT 10 FOR UPDATE SKIP LOCKED`
   2. Re-read the RSVP. Skip the mail if the address was removed or changed in the meantime.
   3. Render the mail with a freshly signed link, send it, and mark the row sent. A failed send gets exponential backoff (1 minute doubling to at most 6 hours) and is given up after 10 attempts. SMTP errors go to `outbox.last_error`, not the logs, since they often quote the address.
-- **Event config** (title and description per language, start and time zone, place, an optional RSVP deadline, and the controller named in the privacy notice) comes from environment variables, in the cluster from a ConfigMap. It doesn't live in the database. `.env.example` lists them all.
+- **Events** live in the database, made and changed in the admin UI. A missing language falls back: Nynorsk and British English to Bokmål, American English and Simplified Chinese to British, Traditional Chinese to Simplified. Before events moved there, the one event came from `INNBY_EVENT_*` settings; the migration gives older data a placeholder event, and `innby migrate` fills it in from those settings once. The rest of the config (the base URL, the controller named in the privacy notice, the sender address) comes from environment variables, in the cluster from a ConfigMap; `.env.example` lists them.
 
 ## 8. Repository layout
 
@@ -245,9 +249,9 @@ innby/
 │   ├── paths.rs               # every route pattern, and links built from them
 │   ├── i18n.rs                # Messages, loaded from locales/
 │   ├── theme.rs               # the colour scheme from ?theme=
-│   ├── db/                    # queries, per table, and the retention rules
+│   ├── db/                    # queries, per table (events, RSVPs, groups, outbox…), and retention
 │   ├── web/                   # public pages, CSRF middleware, rate limit, remember-me cookie
-│   ├── admin/                 # host UI: invitations, groups, QR codes, login
+│   ├── admin/                 # host UI: events, invitations, groups, QR codes, login
 │   ├── mailer/                # outbox worker and mail texts
 │   └── janitor.rs             # runs the retention rules
 ├── locales/*.toml             # texts and mails per language, compiled in
@@ -354,6 +358,8 @@ Hidden from the list, for other recipes and CI: `run`, `migrate`, `build` (cargo
 18. ✅ **Admin in every language:** the admin UI's texts in `[admin]` in each locale file, its CSV header too, and the same language menu, theme switch and header as the public site, plus a logout.
 19. ✅ **Admin login with a JWT:** a login form instead of basic auth. As in LLDAP, an HS512 JWT for a day and a refresh token for 30 days in `HttpOnly` cookies, and a logout that revokes both. Needs `INNBY_ADMIN_JWT_SECRET` in `deploy/secrets.env`.
 20. ✅ **Styled QR codes:** module shape, colour and a centre icon or emoji for every code, set once for the event, with SVG downloads.
+21. ✅ **Admin tabs and end-to-end tests:** the admin's sections as tabs, a headcount that filters the guests, and journeys through the site, the admin UI and the mailer in `src/e2e/`.
+22. ✅ **Several events:** events in the database, made in the admin UI, with everything else belonging to one; a front page about Innby that leads back to each remembered invitation, one cookie per event; retention per event.
 
 ## 14. Decisions
 
@@ -364,7 +370,8 @@ Hidden from the list, for other recipes and CI: `run`, `migrate`, `build` (cargo
 - **Capacity:** no limit and no waitlist.
 - **Group sign-up party size:** set per group, 2 by default (the guest plus one).
 - **Guest list:** the whole event's, behind every link; names as each guest chose (§5.6).
-- **Root page `/`:** event info, and a way back for a guest whose device remembers them; RSVP needs an invite link or a group link.
+- **Events:** as many as you like, made in the admin UI; one QR code style for all of them.
+- **Root page `/`:** about Innby, and a way back to each invitation the device remembers; RSVP needs an invite link or a group link.
 - **RSVP deadline:** optional, unset by default, so answers can change until the event.
 - **Retention:** all guest data is deleted 30 days after the event.
 - **Exposure:** directly through `gateway/external`.

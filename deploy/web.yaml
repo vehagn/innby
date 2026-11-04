@@ -29,6 +29,9 @@ spec:
         - name: migrate
           image: ghcr.io/vehagn/innby
           args: [ migrate ]
+          # Only for the INNBY_EVENT_* settings, which it reads once (see config.env).
+          envFrom:
+            - configMapRef: { name: innby-config }
           env:
             - name: DATABASE_URL
               valueFrom:
