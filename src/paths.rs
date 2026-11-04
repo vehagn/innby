@@ -5,7 +5,10 @@ use std::{borrow::Borrow, fmt::Display};
 
 use uuid::Uuid;
 
-use crate::{i18n::Lang, theme::Theme};
+use crate::{
+    i18n::Lang,
+    theme::{self, Theme},
+};
 
 // The public site. A `{link}` is a signed link from `crate::link`.
 pub const HOME: &str = "/";
@@ -79,6 +82,12 @@ pub fn themed(lang: impl Borrow<Lang>, theme: impl Borrow<Theme>) -> String {
     format!("?lang={}{}", lang.code(), theme.param())
 }
 
+/// The colour scheme switch on a public page in this language.
+pub fn theme_choices(lang: impl Borrow<Lang>) -> Vec<theme::Choice> {
+    let lang = *lang.borrow();
+    Theme::choices(|theme| themed(lang, theme))
+}
+
 /// An admin path under the admin UI's prefix: `/` under `/admin` is `/admin`, and
 /// `/events` is `/admin/events`.
 pub fn admin_under(prefix: &str, path: &str) -> String {
@@ -109,13 +118,12 @@ pub fn admin(path: &str) -> String {
     url + fragment
 }
 
-/// The query for this admin page in another colour scheme, keeping a picked language.
-pub fn admin_themed(theme: impl Borrow<Theme>) -> String {
-    let theme = theme.borrow().code();
-    match crate::admin::lang::picked() {
-        Some(lang) => format!("?lang={}&theme={theme}", lang.code()),
-        None => format!("?theme={theme}"),
-    }
+/// The colour scheme switch on an admin page, which keeps a picked language.
+pub fn admin_theme_choices() -> Vec<theme::Choice> {
+    Theme::choices(|theme| match crate::admin::lang::picked() {
+        Some(lang) => format!("?lang={}&theme={}", lang.code(), theme.code()),
+        None => format!("?theme={}", theme.code()),
+    })
 }
 
 /// The pages every public page can link to, in this language.

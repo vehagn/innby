@@ -76,6 +76,28 @@ impl Theme {
     }
 }
 
+/// One choice on the colour scheme switch: a scheme, and this page in it.
+pub struct Choice {
+    pub theme: Theme,
+    pub href: String,
+    pub current: bool,
+}
+
+impl Theme {
+    /// The switch's choices, with `href` giving this page in each scheme.
+    pub fn choices(href: impl Fn(Theme) -> String) -> Vec<Choice> {
+        let current = Theme::current();
+        Theme::ALL
+            .into_iter()
+            .map(|theme| Choice {
+                theme,
+                href: href(theme),
+                current: theme == current,
+            })
+            .collect()
+    }
+}
+
 /// Middleware: handles the request with the theme its `?theme=` asks for.
 pub async fn scope(request: Request, next: Next) -> Response {
     let theme = request.uri().query().map_or(Theme::Auto, Theme::from_query);
