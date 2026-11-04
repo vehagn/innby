@@ -4,12 +4,12 @@
 //! - `mod.rs`: the `Rsvp` row and the queries that make, find, change and delete one.
 //! - `names`: cleaning up names and e-mail addresses, and how a name shows on the guest
 //!   list (`NameDisplay`).
-//! - `guest_list`: the guest list and the headcount of an event.
+//! - `guest_list`: the guest list and the headcount of an event, or of them all.
 
 mod guest_list;
 mod names;
 
-pub use guest_list::{Headcount, guest_list, headcount};
+pub use guest_list::{Headcount, guest_list, headcount, headcounts};
 pub use names::{NameDisplay, NameKind, normalize_email, normalize_name};
 
 use chrono::{DateTime, Utc};

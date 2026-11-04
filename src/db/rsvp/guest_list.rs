@@ -2,12 +2,14 @@
 //! event (who's coming and who hasn't answered), and how many are coming, haven't
 //! answered, or aren't coming.
 
+use std::collections::HashMap;
+
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
 use super::{NameDisplay, Response};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Headcount {
     /// Invitations and sign-ups that answered "attending".
     pub attending_parties: i64,
@@ -59,6 +61,38 @@ pub async fn headcount(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<
     )
     .fetch_one(db)
     .await
+}
+
+/// Every event's headcount at once, for the list of events: one query rather than one
+/// an event. An event nobody is invited to yet isn't in it.
+pub async fn headcounts(db: impl PgExecutor<'_>) -> sqlx::Result<HashMap<Uuid, Headcount>> {
+    let rows = sqlx::query!(
+        r#"
+        select
+            event_id,
+            count(*) filter (where response = 'attending') as "attending_parties!",
+            coalesce(sum(party_size) filter (where response = 'attending'), 0)
+                as "attending_people!",
+            count(*) filter (where response = 'declined') as "declined!",
+            count(*) filter (where response = 'pending') as "pending!"
+        from rsvp
+        group by event_id
+        "#,
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let headcount = Headcount {
+                attending_parties: row.attending_parties,
+                attending_people: row.attending_people,
+                declined: row.declined,
+                pending: row.pending,
+            };
+            (row.event_id, headcount)
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -180,15 +214,19 @@ mod tests {
         .await?;
         sign_up(&pool, "Per", 2).await?;
 
-        assert_eq!(
-            headcount(&pool, crate::db::event::tests::event(&pool).await.id).await?,
-            Headcount {
-                attending_parties: 2,
-                attending_people: 5,
-                declined: 1,
-                pending: 1,
-            }
-        );
+        let event = crate::db::event::tests::event(&pool).await.id;
+        let expected = Headcount {
+            attending_parties: 2,
+            attending_people: 5,
+            declined: 1,
+            pending: 1,
+        };
+        assert_eq!(headcount(&pool, event).await?, expected);
+        // All the events' at once give the same, and leave out events with no guests.
+        let empty = crate::db::event::create(&pool, &crate::db::event::tests::details()).await?;
+        let all = headcounts(&pool).await?;
+        assert_eq!(all.get(&event), Some(&expected));
+        assert!(!all.contains_key(&empty.id));
         Ok(())
     }
 }

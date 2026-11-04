@@ -66,7 +66,8 @@ create table invite_group (
     unique (id, event_id)
 );
 
-create index invite_group_event on invite_group (event_id);
+-- An event's groups, in the order they were made (the ids are UUIDv7).
+create index invite_group_event on invite_group (event_id, id);
 
 create type rsvp_response as enum ('pending', 'attending', 'declined');
 create type email_status as enum ('none', 'unconfirmed', 'confirmed');
@@ -107,12 +108,14 @@ create table rsvp (
     check ((email_consent_at is null) = (email is null))
 );
 
-create index rsvp_event on rsvp (event_id);
+-- An event's guests, in the order they came (the ids are UUIDv7).
+create index rsvp_event on rsvp (event_id, id);
 create index rsvp_group on rsvp (group_id) where group_id is not null;
 -- An address is unique within an event once it's confirmed, not before. Until then
 -- several RSVPs may hold it, so adding an address never shows whether another guest
--- already has it. One guest can be invited to several events.
-create unique index rsvp_confirmed_email_uq on rsvp (event_id, email)
+-- already has it. One guest can be invited to several events. Address first, so the
+-- index also finds every event an address is confirmed for, as /lost asks.
+create unique index rsvp_confirmed_email_uq on rsvp (email, event_id)
     where email_status = 'confirmed';
 
 create type outbox_kind as enum ('confirm_email', 'email_in_use', 'rsvp_link', 'reminder');

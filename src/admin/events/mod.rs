@@ -152,15 +152,17 @@ async fn events_page(
     notice: Option<String>,
 ) -> Result<Response, PageError> {
     let lang = lang::current();
-    let mut events = Vec::new();
-    for event in event::list(&state.db).await? {
-        events.push(EventRow {
+    let (events, headcounts) =
+        tokio::try_join!(event::list(&state.db), rsvp::headcounts(&state.db))?;
+    let events = events
+        .into_iter()
+        .map(|event| EventRow {
             path: paths::admin(&paths::path(paths::EVENT, event.id)),
             title: event.details.title(lang).to_owned(),
             when: lang.format_date(event.details.starts_at),
-            headcount: rsvp::headcount(&state.db, event.id).await?,
-        });
-    }
+            headcount: headcounts.get(&event.id).copied().unwrap_or_default(),
+        })
+        .collect();
     let needs_fixing = draft.error.is_some() || draft.file_error.is_some();
     let page = EventsPage {
         events,
