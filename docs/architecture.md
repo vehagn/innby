@@ -33,7 +33,7 @@ no password, no e-mail address. On that page they:
 Someone with a **group link** (`/join/{link}`) types their name and party size, and is
 then sent to a personal link of their own, with a reminder to keep it.
 
-**The host** works in the admin UI (`innby admin`). An event has four tabs:
+**The host** works in the admin UI (`innby admin`). An event has five tabs:
 
 - **Guests:** the headcount (coming, no answer, not coming), every guest in a table,
   a CSV export, and *Send reminders*. A guest's page edits their name and party size,
@@ -41,6 +41,9 @@ then sent to a personal link of their own, with a reminder to keep it.
 - **Invitation links:** many invitations at once, one per line (`Kari & Ola, 2`), with
   their links to copy.
 - **Group links:** the same for groups, each with its link, QR code and sign-ups.
+- **QR codes:** the style every QR code of the event is drawn in: the module shape, a
+  colour, and a heart, star or emoji in the middle. Each event has its own, so each
+  party's printed invitations and posters look its own; a new event starts plain.
 - **Details:** the event's title and description (in Bokmål, and optionally in each other
   language), place, start, time zone and answer deadline; the event as a file; or
   deleting the event.
@@ -77,9 +80,6 @@ kind, is refused by name rather than misread. A change to the format gets a new 
 read alongside the old one. `innby event list`, `export` and `import` do the same from the
 command line.
 
-Besides the events, there's one QR code style for every code: the module shape, a colour,
-and a heart, star or emoji in the middle.
-
 **Languages:** every page is in Bokmål, Nynorsk, British English (formal), American
 English (plain), and Simplified and Traditional Chinese, from the browser's languages or
 `?lang=`. [translating.md](translating.md) has the details.
@@ -110,7 +110,7 @@ own network policy.
               │ answers, and mail to send                    │ events, invitations
               ▼                                               ▼
       ┌──────────────────────────── Postgres ───────────────────────────────┐
-      │  event · rsvp · invite_group · outbox · qr_style · admin logins     │
+      │  event · rsvp · invite_group · outbox · admin logins              │
       └──────────────▲────────────────────────────────────▲────────────────┘
                      │ takes mail jobs                     │ deletes what's due
               ┌──────┴───────┐                     ┌───────┴───────┐
@@ -226,9 +226,9 @@ allowed.
 
 **Roles:** a *viewer* sees events, headcounts and who's coming, but not links, e-mail
 status or the guest export, since those let you act as a guest. An *editor* also runs
-events: invitations, group links, guests, reminders, the guest export, the details and the
-event file. An *admin* also creates (by hand, by copying or from a file) and deletes
-events, and styles the QR codes. Pages check the role, and only show
+events: invitations, group links, guests, reminders, the guest export, the details, the
+QR codes' style and the event file. An *admin* also creates (by hand, by copying or from
+a file) and deletes events. Pages check the role, and only show
 what it allows.
 
 ## Data and retention
@@ -237,11 +237,10 @@ The schema is in [`migrations/`](../migrations/). In short:
 
 | Table | Holds |
 |---|---|
-| `event` | title and description (Bokmål, plus optional columns per language), place, start, time zone, answer deadline |
+| `event` | title and description (Bokmål, plus optional columns per language), place, start, time zone, answer deadline, the style of its QR codes |
 | `rsvp` | each invitation or sign-up: name, answer, party size and its maximum, link nonce, language, optional e-mail and its status and consent time, privacy notice version, how the name shows, the group it came through |
 | `invite_group` | group links: name, maximum party size, link nonce |
 | `outbox` | mail to send: kind, attempts, next try, when sent, last error |
-| `qr_style` | the one QR code style |
 | `admin_refresh_token`, `admin_revoked_jwt` | keyed hashes of refresh tokens, and logged-out JWTs, until they'd expire |
 
 Deleting an event deletes everything in it, and deleting an answer deletes its mail. Enums

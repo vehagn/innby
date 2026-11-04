@@ -57,10 +57,10 @@ impl FromRequestParts<AdminState> for ClientIp {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Events,
-    Qr,
     Guests,
     Invitations,
     Groups,
+    Qr,
     Details,
 }
 
@@ -75,15 +75,7 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
     let text = lang::text();
     // Only the tabs the host's role may open.
     let tabs = match event {
-        None => vec![
-            (Tab::Events, paths::admin(paths::HOME), &text.events, true),
-            (
-                Tab::Qr,
-                paths::admin(paths::QR_STYLE),
-                &text.qr_heading,
-                Role::is_admin(),
-            ),
-        ],
+        None => vec![(Tab::Events, paths::admin(paths::HOME), &text.events, true)],
         Some(&id) => {
             let links = EventLinks::new(id);
             let edit = Role::can_edit();
@@ -96,6 +88,7 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
                     edit,
                 ),
                 (Tab::Groups, links.groups, &text.group_links, edit),
+                (Tab::Qr, links.qr_style, &text.qr_heading, edit),
                 (Tab::Details, links.details, &text.details, edit),
             ]
         }

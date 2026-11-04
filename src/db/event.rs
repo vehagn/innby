@@ -47,7 +47,8 @@ impl Event {
     }
 }
 
-/// A row as stored, with each language in a column of its own.
+/// A row as stored, with each language in a column of its own. The QR code style is in
+/// the same row, but `db::qr` reads and writes it.
 struct Row {
     id: Uuid,
     title: String,
@@ -137,7 +138,10 @@ pub async fn create(db: impl PgExecutor<'_>, details: &Details) -> sqlx::Result<
             rsvp_deadline) \
          values (coalesce($1, uuidv7()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, \
             $14, $15, $16, $17) \
-         returning *",
+         returning id, title, title_nn, title_en, title_en_us, title_zh_hans, title_zh_hant, \
+            description, description_nn, description_en, description_en_us, \
+            description_zh_hans, description_zh_hant, location, starts_at, time_zone, \
+            rsvp_deadline",
         None::<Uuid>,
         details
     )
@@ -158,7 +162,10 @@ pub async fn update(
             description_en = $10, description_en_us = $11, description_zh_hans = $12, \
             description_zh_hant = $13, location = $14, starts_at = $15, time_zone = $16, \
             rsvp_deadline = $17 \
-         where id = $1 returning *",
+         where id = $1 returning id, title, title_nn, title_en, title_en_us, title_zh_hans, title_zh_hant, \
+            description, description_nn, description_en, description_en_us, \
+            description_zh_hans, description_zh_hant, location, starts_at, time_zone, \
+            rsvp_deadline",
         id,
         details
     )
@@ -168,18 +175,31 @@ pub async fn update(
 }
 
 pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Event>> {
-    sqlx::query_as!(Row, "select * from event where id = $1", id)
-        .fetch_optional(db)
-        .await
-        .map(|row| row.map(Event::from))
+    sqlx::query_as!(
+        Row,
+        "select id, title, title_nn, title_en, title_en_us, title_zh_hans, title_zh_hant, \
+            description, description_nn, description_en, description_en_us, \
+            description_zh_hans, description_zh_hant, location, starts_at, time_zone, \
+            rsvp_deadline from event where id = $1",
+        id
+    )
+    .fetch_optional(db)
+    .await
+    .map(|row| row.map(Event::from))
 }
 
 /// Every event, the soonest first.
 pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Event>> {
-    sqlx::query_as!(Row, "select * from event order by starts_at, id")
-        .fetch_all(db)
-        .await
-        .map(|rows| rows.into_iter().map(Event::from).collect())
+    sqlx::query_as!(
+        Row,
+        "select id, title, title_nn, title_en, title_en_us, title_zh_hans, title_zh_hant, \
+            description, description_nn, description_en, description_en_us, \
+            description_zh_hans, description_zh_hant, location, starts_at, time_zone, \
+            rsvp_deadline from event order by starts_at, id"
+    )
+    .fetch_all(db)
+    .await
+    .map(|rows| rows.into_iter().map(Event::from).collect())
 }
 
 /// Deletes the event and, through the cascades, its invitations, groups and mail.

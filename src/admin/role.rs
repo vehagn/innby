@@ -4,8 +4,9 @@
 //! - **viewer** sees the events, their headcounts and who's coming. Not the personal
 //!   links, e-mail addresses or the guest export: those let you act as a guest.
 //! - **editor** runs events that exist: invites guests, makes group links, sends
-//!   reminders, downloads the guest list and changes an event's details.
-//! - **admin** also creates and deletes events, and styles the QR codes.
+//!   reminders, downloads the guest list, and changes an event's details and the style
+//!   of its QR codes.
+//! - **admin** also creates and deletes events.
 //!
 //! Routes are grouped by the role they need (see `admin::router`), and pages read the
 //! role of the request from here to show only what it may use.
@@ -54,7 +55,7 @@ impl Role {
         Role::current() >= Role::Editor
     }
 
-    /// Whether the request may create and delete events and change the QR style.
+    /// Whether the request may create and delete events.
     pub fn is_admin() -> bool {
         Role::current() >= Role::Admin
     }

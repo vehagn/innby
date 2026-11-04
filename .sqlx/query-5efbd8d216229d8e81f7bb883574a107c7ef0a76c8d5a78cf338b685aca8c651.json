@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "update event set title = $2, title_nn = $3, title_en = $4, title_en_us = $5, title_zh_hans = $6, title_zh_hant = $7, description = $8, description_nn = $9, description_en = $10, description_en_us = $11, description_zh_hans = $12, description_zh_hant = $13, location = $14, starts_at = $15, time_zone = $16, rsvp_deadline = $17 where id = $1 returning *",
+  "query": "insert into event (id, title, title_nn, title_en, title_en_us, title_zh_hans, title_zh_hant, description, description_nn, description_en, description_en_us, description_zh_hans, description_zh_hant, location, starts_at, time_zone, rsvp_deadline) values (coalesce($1, uuidv7()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) returning id, title, title_nn, title_en, title_en_us, title_zh_hans, title_zh_hant, description, description_nn, description_en, description_en_us, description_zh_hans, description_zh_hant, location, starts_at, time_zone, rsvp_deadline",
   "describe": {
     "columns": [
       {
@@ -232,5 +232,5 @@
       true
     ]
   },
-  "hash": "6dce2e90639283d97f9d675f14c3bc7c734da8c79ce4b2e2d084fde26e8650c4"
+  "hash": "5efbd8d216229d8e81f7bb883574a107c7ef0a76c8d5a78cf338b685aca8c651"
 }

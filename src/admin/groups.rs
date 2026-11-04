@@ -174,8 +174,10 @@ impl GroupPage {
             .await?
             .ok_or(PageError::Missing)?;
         let event = load_event(state, group.event_id).await?;
-        let (rsvps, style) =
-            tokio::try_join!(rsvp::list(&state.db, group.event_id), qr::style(&state.db),)?;
+        let (rsvps, style) = tokio::try_join!(
+            rsvp::list(&state.db, group.event_id),
+            qr::style(&state.db, group.event_id)
+        )?;
         let tz = event.details.starts_at.timezone();
         let url = group_url(&state.config, &group);
         Ok(Self {
@@ -228,8 +230,10 @@ pub(super) async fn qr(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, PageError> {
-    let (group, style) = tokio::try_join!(group::find(&state.db, id), qr::style(&state.db))?;
-    let group = group.ok_or(PageError::Missing)?;
+    let group = group::find(&state.db, id)
+        .await?
+        .ok_or(PageError::Missing)?;
+    let style = qr::style(&state.db, group.event_id).await?;
     Ok(qr_file(
         &group_url(&state.config, &group),
         &style,

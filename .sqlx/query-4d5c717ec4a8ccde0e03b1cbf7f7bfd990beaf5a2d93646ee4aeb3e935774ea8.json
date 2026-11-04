@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select shape as \"shape: Shape\", color, icon as \"icon: Icon\", emoji from qr_style",
+  "query": "select qr_shape as \"shape: Shape\", qr_color as color, qr_icon as \"icon: Icon\",\n               qr_emoji as emoji\n           from event where id = $1",
   "describe": {
     "columns": [
       {
@@ -20,8 +20,8 @@
         },
         "origin": {
           "Table": {
-            "table": "qr_style",
-            "name": "shape"
+            "table": "event",
+            "name": "qr_shape"
           }
         }
       },
@@ -31,8 +31,8 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "qr_style",
-            "name": "color"
+            "table": "event",
+            "name": "qr_color"
           }
         }
       },
@@ -54,8 +54,8 @@
         },
         "origin": {
           "Table": {
-            "table": "qr_style",
-            "name": "icon"
+            "table": "event",
+            "name": "qr_icon"
           }
         }
       },
@@ -65,14 +65,16 @@
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "qr_style",
-            "name": "emoji"
+            "table": "event",
+            "name": "qr_emoji"
           }
         }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -81,5 +83,5 @@
       false
     ]
   },
-  "hash": "0996efe42872a8a564e125a1816b3cbcd6b9dc31c1fae5dcb9ec3a7ccaf14ebd"
+  "hash": "4d5c717ec4a8ccde0e03b1cbf7f7bfd990beaf5a2d93646ee4aeb3e935774ea8"
 }

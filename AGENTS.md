@@ -54,7 +54,7 @@ src/
     guests.rs        an event's Guests tab, a guest's page, CSV export, reminders
     invitations.rs   the Invitation links tab: invitations in a batch
     groups.rs        the Group links tab, and each group's page
-    qr/              the QR code style page and SVG downloads; draw.rs draws them
+    qr/              an event's QR code style tab and the SVG downloads; draw.rs draws them
     role.rs          viewer < editor < admin, and what each may do
     lang.rs          the admin page's language
     auth/            logging in: sessions (mod.rs), login.rs, password.rs (argon2), jwt.rs

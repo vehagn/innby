@@ -45,6 +45,7 @@ pub const EVENT_CSV: &str = "/events/{id}/guests.csv";
 pub const EVENT_EXPORT: &str = "/events/{id}/event.toml";
 pub const EVENTS_IMPORT: &str = "/events/import";
 pub const EVENT_REMINDERS: &str = "/events/{id}/reminders";
+pub const EVENT_QR: &str = "/events/{id}/qr-style";
 pub const GUEST: &str = "/guests/{id}";
 pub const GUEST_REVOKE: &str = "/guests/{id}/revoke";
 pub const GUEST_DELETE: &str = "/guests/{id}/delete";
@@ -53,7 +54,6 @@ pub const GROUP: &str = "/groups/{id}";
 pub const GROUP_REVOKE: &str = "/groups/{id}/revoke";
 pub const GROUP_DELETE: &str = "/groups/{id}/delete";
 pub const GROUP_QR: &str = "/groups/{id}/qr.svg";
-pub const QR_STYLE: &str = "/qr-style";
 pub const LOGIN: &str = "/login";
 /// Logging in through the OpenID Connect provider, and coming back from it.
 pub const LOGIN_OIDC: &str = "/login/oidc";
@@ -212,6 +212,8 @@ pub struct EventLinks {
     pub invitations: String,
     pub groups: String,
     pub details: String,
+    /// The QR code style.
+    pub qr_style: String,
     pub delete: String,
     pub csv: String,
     pub reminders: String,
@@ -229,6 +231,7 @@ impl EventLinks {
             invitations: at(EVENT_INVITATIONS),
             groups: at(EVENT_GROUPS),
             details: at(EVENT_DETAILS),
+            qr_style: at(EVENT_QR),
             delete: at(EVENT_DELETE),
             csv: at(EVENT_CSV),
             reminders: at(EVENT_REMINDERS),

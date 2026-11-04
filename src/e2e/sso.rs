@@ -21,13 +21,12 @@ async fn a_host_logs_in_through_the_provider_with_their_role(db: PgPool) {
         .await
         .expect(&a.events)
         .expect("Christmas party");
-    // An editor runs events, but doesn't make them.
-    kari.page()
-        .expect_not(&a.new_event)
-        .expect_not(&a.qr_heading);
+    // An editor runs events, styling their QR codes too, but doesn't make them.
+    kari.page().expect_not(&a.new_event);
     kari.click("Christmas party")
         .await
-        .expect(&a.invitation_links);
+        .expect(&a.invitation_links)
+        .expect(&a.qr_heading);
     kari.click(&a.invitation_links)
         .await
         .expect(&a.create_invitations);
@@ -115,5 +114,5 @@ async fn the_built_in_user_and_the_provider_can_both_log_in(db: PgPool) {
 
     // The built-in user is an admin.
     let host = world.admin().await;
-    host.page().expect(&a.new_event).expect(&a.qr_heading);
+    host.page().expect(&a.new_event);
 }

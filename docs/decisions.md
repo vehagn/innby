@@ -29,7 +29,7 @@ accounts, a JavaScript front end, and a public list of who's coming.
 | Capacity | No limit, no waitlist | It's a party: count heads, no locking needed. |
 | Party size for group sign-up | Set per group, 2 by default | The guest plus one, unless the host says otherwise. |
 | Answer deadline | Optional, unset by default | Answers can change until the event. |
-| Events | As many as the host likes, made in the admin UI | One QR code style for all of them. |
+| Events | As many as the host likes, made in the admin UI | Each with its own QR code style, so each party's printed invitations look its own. |
 | Front page | About Innby, plus a way back to remembered invitations | Event details only on link pages, so the front page says nothing about anyone's party. |
 | Retention | 30 days after each event | Long enough for afterthoughts, and then gone. No backups, on purpose. |
 | Languages | Six, in TOML files with fallbacks | Plain strings don't need Fluent; each language is a file that names its fallbacks. |
@@ -70,5 +70,6 @@ main steps, oldest first:
 17. A third pentest: a cap on the remembered links the front page reads, control
     characters refused in event texts, a stricter QR colour, and tests dated years
     ahead.
+18. QR code styles per event.
 
 `git log` has the details.

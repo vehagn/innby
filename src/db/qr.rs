@@ -1,7 +1,9 @@
-//! The event's QR code style, one row the host edits in the admin UI.
+//! Each event's QR code style, which the host sets on the event's QR codes tab: the
+//! modules' shape and colour, and what sits in the middle. It holds no guest data.
 
 use serde::Deserialize;
 use sqlx::PgExecutor;
+use uuid::Uuid;
 
 /// How the modules of a QR code are drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, sqlx::Type)]
@@ -62,18 +64,25 @@ pub struct Style {
     pub emoji: String,
 }
 
-pub async fn style(db: impl PgExecutor<'_>) -> sqlx::Result<Style> {
+/// The event's style.
+pub async fn style(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<Style> {
     sqlx::query_as!(
         Style,
-        r#"select shape as "shape: Shape", color, icon as "icon: Icon", emoji from qr_style"#
+        r#"select qr_shape as "shape: Shape", qr_color as color, qr_icon as "icon: Icon",
+               qr_emoji as emoji
+           from event where id = $1"#,
+        event_id,
     )
     .fetch_one(db)
     .await
 }
 
-pub async fn save(db: impl PgExecutor<'_>, style: &Style) -> sqlx::Result<()> {
-    sqlx::query!(
-        "update qr_style set shape = $1, color = $2, icon = $3, emoji = $4",
+/// Gives the event this style; false if there's no such event.
+pub async fn save(db: impl PgExecutor<'_>, event_id: Uuid, style: &Style) -> sqlx::Result<bool> {
+    let result = sqlx::query!(
+        "update event set qr_shape = $2, qr_color = $3, qr_icon = $4, qr_emoji = $5 \
+         where id = $1",
+        event_id,
         style.shape as Shape,
         style.color,
         style.icon as Icon,
@@ -81,5 +90,5 @@ pub async fn save(db: impl PgExecutor<'_>, style: &Style) -> sqlx::Result<()> {
     )
     .execute(db)
     .await?;
-    Ok(())
+    Ok(result.rows_affected() == 1)
 }

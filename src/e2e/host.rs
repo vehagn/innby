@@ -58,10 +58,10 @@ async fn the_host_edits_a_guest_and_replaces_a_leaked_link(db: PgPool) {
 }
 
 #[sqlx::test]
-async fn the_host_styles_the_qr_codes(db: PgPool) {
+async fn the_host_styles_each_events_qr_codes(db: PgPool) {
     let world = World::new(db);
     let a = admin();
-    let mut host = world.admin().await;
+    let mut host = world.host().await;
     host.click(&a.qr_heading).await;
 
     // A colour too light to scan is refused.
@@ -76,6 +76,14 @@ async fn the_host_styles_the_qr_codes(db: PgPool) {
     let svg = &host.page().body;
     assert!(svg.contains(r##"fill="#1a237e""##), "{svg}");
     assert!(svg.contains("🥂</text>"));
+
+    // The summer party's codes keep their own style.
+    world.summer_party().await;
+    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click("Summer party").await;
+    host.click(&a.qr_heading).await;
+    let svg = &host.page().body;
+    assert!(!svg.contains("🥂") && !svg.contains("#1a237e"), "{svg}");
 }
 
 #[sqlx::test]

@@ -1,5 +1,5 @@
-//! QR codes: the one style every code is drawn in (the QR codes tab), and the SVG files
-//! a guest's or a group's page downloads. `draw` draws them.
+//! QR codes: each event's style, which all its codes are drawn in (the event's QR codes
+//! tab), and the SVG files a guest's or a group's page downloads. `draw` draws them.
 
 mod draw;
 
@@ -8,7 +8,7 @@ pub use draw::svg;
 use askama::Template;
 use axum::{
     Form,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
@@ -16,18 +16,21 @@ use axum::{
 use super::{
     forms::SavedQuery,
     lang,
-    page::{AdminState, PageError, redirect},
+    page::{AdminState, PageError, load_event, redirect},
 };
 use crate::{
     config::Config,
-    db,
+    db::{self, event::Event},
     http::{render, render_with},
-    paths,
+    paths::{self, EventLinks},
 };
+use uuid::Uuid;
 
 #[derive(Template)]
 #[template(path = "admin/qr.html")]
 pub(super) struct QrPage {
+    pub(super) event: Event,
+    pub(super) links: EventLinks,
     pub(super) qr_style: db::qr::Style,
     /// A code for the event page, in that style.
     pub(super) qr_preview: String,
@@ -36,8 +39,10 @@ pub(super) struct QrPage {
 }
 
 impl QrPage {
-    pub(super) fn new(config: &Config, qr_style: db::qr::Style) -> Self {
+    pub(super) fn new(config: &Config, event: Event, qr_style: db::qr::Style) -> Self {
         Self {
+            links: EventLinks::new(event.id),
+            event,
             qr_preview: draw::svg(&config.url(paths::HOME), &qr_style, None),
             qr_style,
             saved: false,
@@ -46,37 +51,46 @@ impl QrPage {
     }
 }
 
-/// The QR code style, with an example.
+/// The event's QR code style, with an example.
 pub(super) async fn show(
     State(state): State<AdminState>,
+    Path(id): Path<Uuid>,
     Query(query): Query<SavedQuery>,
 ) -> Result<Response, PageError> {
-    let style = db::qr::style(&state.db).await?;
+    let event = load_event(&state, id).await?;
+    let style = db::qr::style(&state.db, id).await?;
     Ok(render(QrPage {
         saved: query.saved.is_some(),
-        ..QrPage::new(&state.config, style)
+        ..QrPage::new(&state.config, event, style)
     }))
 }
 
-/// Saves the QR code style that every code on these pages uses.
+/// Saves the style every QR code of the event is drawn in.
 pub(super) async fn save(
     State(state): State<AdminState>,
+    Path(id): Path<Uuid>,
     Form(form): Form<draw::StyleForm>,
 ) -> Result<Response, PageError> {
+    let event = load_event(&state, id).await?;
     let style = match form.validate() {
         Ok(style) => style,
         Err(error) => {
-            let saved = db::qr::style(&state.db).await?;
+            let saved = db::qr::style(&state.db, id).await?;
             let page = QrPage {
                 error: Some(error),
-                ..QrPage::new(&state.config, saved)
+                ..QrPage::new(&state.config, event, saved)
             };
             return Ok(render_with(StatusCode::UNPROCESSABLE_ENTITY, page));
         }
     };
-    db::qr::save(&state.db, &style).await?;
-    tracing::info!("qr style saved");
-    Ok(redirect(&format!("{}?saved", paths::QR_STYLE)))
+    if !db::qr::save(&state.db, id, &style).await? {
+        return Err(PageError::Missing);
+    }
+    tracing::info!(event = %id, "qr style saved");
+    Ok(redirect(&format!(
+        "{}?saved",
+        paths::path(paths::EVENT_QR, id)
+    )))
 }
 
 /// A QR code as an SVG file to save, named after what it's for.
@@ -123,28 +137,29 @@ mod tests {
     async fn styles_and_downloads_qr_codes(db: PgPool) {
         let admin = Admin::new(db);
         let e = admin.event().await;
-        let html = body(admin.get("/qr-style").await).await;
+        let page = format!("{e}/qr-style");
+        let html = body(admin.get(&page).await).await;
         assert!(html.contains(r#"value="rounded" checked"#), "{html}");
 
         // A colour phones can't read on white is refused.
         let response = admin
-            .post("/qr-style", "shape=dots&color=%23ffeb3b&icon=none")
+            .post(&page, "shape=dots&color=%23ffeb3b&icon=none")
             .await;
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
         assert!(body(response).await.contains("Pick a darker colour"));
         let response = admin
-            .post("/qr-style", "shape=dots&color=%23000000&icon=emoji&emoji=")
+            .post(&page, "shape=dots&color=%23000000&icon=emoji&emoji=")
             .await;
         assert!(body(response).await.contains("Enter one emoji"));
 
         let response = admin
             .post(
-                "/qr-style",
+                &page,
                 "shape=dots&color=%23000000&icon=emoji&emoji=%F0%9F%8E%89",
             )
             .await;
-        assert_eq!(location(&response), "/qr-style?saved");
-        let html = body(admin.get("/qr-style?saved").await).await;
+        assert_eq!(location(&response), format!("{page}?saved"));
+        let html = body(admin.get(&format!("{page}?saved")).await).await;
         assert!(html.contains("QR code style saved."), "{html}");
         assert!(html.contains(r#"value="dots" checked"#), "{html}");
         assert!(html.contains("🎉</text>"), "{html}");
@@ -169,5 +184,18 @@ mod tests {
         assert!(svg.starts_with("<?xml"));
         assert!(svg.contains(r##"fill="#000000""##));
         assert!(svg.contains(r#"width="1024""#));
+
+        // Another event keeps its own style: the default, until its host picks one.
+        let summer = crate::db::event::create(&admin.db, &crate::db::event::tests::details())
+            .await
+            .unwrap();
+        let invite = crate::db::rsvp::create_invite(&admin.db, summer.id, "Ola", 1)
+            .await
+            .unwrap();
+        let svg = body(admin.get(&format!("/guests/{}/qr.svg", invite.id)).await).await;
+        assert!(svg.contains(r##"fill="#00695c""##), "{svg}");
+        assert!(!svg.contains("🎉"));
+        let html = body(admin.get(&format!("/events/{}/qr-style", summer.id)).await).await;
+        assert!(html.contains(r#"value="rounded" checked"#), "{html}");
     }
 }

@@ -52,8 +52,8 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
         (Method::POST, on(paths::EVENT_DELETE, e), Role::Admin),
         (Method::GET, on(paths::EVENT_EXPORT, e), Role::Editor),
         (Method::POST, paths::EVENTS_IMPORT.to_owned(), Role::Admin),
-        (Method::GET, paths::QR_STYLE.to_owned(), Role::Admin),
-        (Method::POST, paths::QR_STYLE.to_owned(), Role::Admin),
+        (Method::GET, on(paths::EVENT_QR, e), Role::Editor),
+        (Method::POST, on(paths::EVENT_QR, e), Role::Editor),
     ];
     for role in Role::ALL {
         let host = Admin::as_role(db.clone(), role);
@@ -77,25 +77,32 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
     let viewer = Admin::as_role(db.clone(), Role::Viewer);
     let html = body(viewer.get(&on(paths::EVENT, e)).await).await;
     assert!(html.contains("Kari") && !html.contains(&on(paths::GUEST, i)));
-    for hidden in ["guests.csv", "/reminders\"", "/invitations\"", "/details\""] {
+    for hidden in [
+        "guests.csv",
+        "/reminders\"",
+        "/invitations\"",
+        "/details\"",
+        "/qr-style\"",
+    ] {
         assert!(!html.contains(hidden), "{hidden}");
     }
     let html = body(viewer.get(paths::HOME).await).await;
-    assert!(!html.contains(paths::QR_STYLE) && !html.contains(r#"action="/events#"#));
+    assert!(!html.contains(r#"action="/events#"#));
 
     let editor = Admin::as_role(db.clone(), Role::Editor);
     let html = body(editor.get(&on(paths::EVENT, e)).await).await;
     assert!(html.contains(&on(paths::GUEST, i)) && html.contains("guests.csv"));
+    assert!(html.contains(&on(paths::EVENT_QR, e)));
     let html = body(editor.get(&on(paths::EVENT_DETAILS, e)).await).await;
     assert!(!html.contains("/delete"));
     let html = body(editor.get(paths::HOME).await).await;
-    assert!(!html.contains(paths::QR_STYLE) && !html.contains(r#"action="/events#"#));
+    assert!(!html.contains(r#"action="/events#"#));
 
     let admin = Admin::new(db);
     let html = body(admin.get(&on(paths::EVENT_DETAILS, e)).await).await;
     assert!(html.contains("/delete"));
     let html = body(admin.get(paths::HOME).await).await;
-    assert!(html.contains(paths::QR_STYLE) && html.contains(r#"action="/events#"#));
+    assert!(html.contains(r#"action="/events#"#));
 }
 
 #[sqlx::test]
@@ -127,7 +134,14 @@ async fn serves_under_a_path_with_the_probes_at_the_root(db: PgPool) {
     let response = admin.get("/admin").await;
     assert_eq!(response.status(), StatusCode::OK);
     let html = body(response).await;
-    assert!(html.contains(r#"href="/admin/qr-style""#), "{html}");
+    assert!(
+        html.contains(r#"<a class="brand" href="/admin">"#),
+        "{html}"
+    );
+    assert!(
+        html.contains(r#"action="/admin/events#new-event""#),
+        "{html}"
+    );
 }
 
 #[sqlx::test]

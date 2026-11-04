@@ -92,12 +92,12 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route(paths::GUEST_DELETE, post(guests::delete))
         .route(paths::GUEST_QR, get(guests::qr))
         .route(paths::GROUP_QR, get(groups::qr))
+        .route(paths::EVENT_QR, get(qr::show).post(qr::save))
         .route_layer(middleware::from_fn(role::editor));
     let admin = Router::new()
         .route(paths::EVENTS, post(events::create))
         .route(paths::EVENTS_IMPORT, post(events::import))
         .route(paths::EVENT_DELETE, post(events::details::delete))
-        .route(paths::QR_STYLE, get(qr::show).post(qr::save))
         .route_layer(middleware::from_fn(role::admin));
     let mut pages = viewer
         .merge(editor)

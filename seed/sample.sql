@@ -55,6 +55,12 @@ insert into event (
     '', pg_temp.oslo(-10, '18:00'), 'Europe/Oslo', null
 );
 
+-- Each event's QR codes look their own.
+update event set qr_shape = 'dots', qr_color = '#b71c1c', qr_icon = 'star'
+where id = '00000000-5eed-7000-8000-000000000001';
+update event set qr_shape = 'rounded', qr_color = '#1565c0', qr_icon = 'emoji', qr_emoji = '☀️'
+where id = '00000000-5eed-7000-8000-000000000002';
+
 insert into invite_group (id, event_id, name, max_party_size, created_at) values
     ('00000000-5eed-7000-8000-000000000101', '00000000-5eed-7000-8000-000000000001', 'Klatreklubben', 2, now() - interval '20 days'),
     ('00000000-5eed-7000-8000-000000000102', '00000000-5eed-7000-8000-000000000001', 'Naboer i Storgata', 3, now() - interval '20 days'),

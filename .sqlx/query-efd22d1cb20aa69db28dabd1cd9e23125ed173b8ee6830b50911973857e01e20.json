@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select * from event where id = $1",
+  "query": "select id, title, title_nn, title_en, title_en_us, title_zh_hans, title_zh_hant, description, description_nn, description_en, description_en_us, description_zh_hans, description_zh_hant, location, starts_at, time_zone, rsvp_deadline from event order by starts_at, id",
   "describe": {
     "columns": [
       {
@@ -192,9 +192,7 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -216,5 +214,5 @@
       true
     ]
   },
-  "hash": "07ebdbb041151b3eff8743baec68a137e69e0b4ce0ecc637658b7ebf646cd7a2"
+  "hash": "efd22d1cb20aa69db28dabd1cd9e23125ed173b8ee6830b50911973857e01e20"
 }

@@ -218,7 +218,7 @@ impl GuestPage {
         let (event, groups, style) = tokio::try_join!(
             load_event(state, rsvp.event_id),
             async { Ok::<_, PageError>(group::list(&state.db, rsvp.event_id).await?) },
-            async { Ok::<_, PageError>(db::qr::style(&state.db).await?) },
+            async { Ok::<_, PageError>(db::qr::style(&state.db, rsvp.event_id).await?) },
         )?;
         Ok(Self::new(&state.config, event, rsvp, &groups, &style))
     }
@@ -246,8 +246,8 @@ pub(super) async fn qr(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, PageError> {
-    let (rsvp, style) = tokio::try_join!(rsvp::find(&state.db, id), db::qr::style(&state.db))?;
-    let rsvp = rsvp.ok_or(PageError::Missing)?;
+    let rsvp = rsvp::find(&state.db, id).await?.ok_or(PageError::Missing)?;
+    let style = db::qr::style(&state.db, rsvp.event_id).await?;
     Ok(qr_file(
         &guest_url(&state.config, &rsvp),
         &style,

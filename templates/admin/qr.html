@@ -1,18 +1,18 @@
 {% extends "admin/base.html" %}
 
-{% block title %}{{ crate::admin::lang::text().qr_heading }}{% endblock %}
+{% block title %}{{ crate::admin::lang::text().qr_heading }} · {{ event.details.title(crate::admin::lang::current()) }}{% endblock %}
 
-{% block tabs %}{% let tabs = crate::admin::tabs(None, crate::admin::Tab::Qr) %}{% include "admin/_tabs.html" %}{% endblock %}
+{% block tabs %}{% let tabs = crate::admin::tabs(Some(event.id), crate::admin::Tab::Qr) %}{% include "admin/_event_nav.html" %}{% endblock %}
 
 {% block content %}
 {% let a = crate::admin::lang::text() %}
 {% if saved %}<p class="notice success" role="status">{{ a.qr_saved }}</p>{% endif %}
-<h1>{{ a.qr_heading }}</h1>
+<h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
 <p class="hint">{{ a.qr_hint }}</p>
 
 <section class="card">
   <div class="qr-style">
-    <form method="post" action="{{ crate::paths::admin(crate::paths::QR_STYLE) }}">
+    <form method="post" action="{{ links.qr_style }}">
       <fieldset>
         <legend>{{ a.qr_shape }}</legend>
         {% for shape in crate::db::qr::Shape::ALL %}
