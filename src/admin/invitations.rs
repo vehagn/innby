@@ -1,5 +1,5 @@
-//! Invitations: making them in a batch on the Invitation links tab, and from the CLI
-//! with `innby invite`.
+//! Invitations: the Invitation links tab, which lists every invitation's link and makes
+//! new ones in a batch, a line each.
 
 use askama::Template;
 use axum::{
@@ -9,7 +9,6 @@ use axum::{
     response::Response,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::guests::{Row, guest_url};
@@ -18,9 +17,8 @@ use super::{
     page::{AdminState, PageError, load_event, redirect},
 };
 use crate::{
-    config::Config,
     db::{
-        event::{self, Event},
+        event::Event,
         rsvp::{self, MAX_PARTY_SIZE, NameKind, Source},
     },
     http::render_with,
@@ -189,49 +187,6 @@ pub(super) async fn invitations_page(
             error,
         },
     ))
-}
-
-/// `innby invite`: creates an invitation to the event, or to the only one there is, and
-/// returns the guest's link.
-pub async fn invite(
-    config: &Config,
-    db: &PgPool,
-    event: Option<Uuid>,
-    name: &str,
-    max_party_size: i32,
-) -> anyhow::Result<String> {
-    let form = InviteForm {
-        name: name.to_owned(),
-        max_party_size,
-    };
-    let name = form
-        .validate(NameKind::Person)
-        .map_err(anyhow::Error::msg)?;
-    let event = match event {
-        Some(id) => event::find(db, id)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("there's no event {id}"))?,
-        None => {
-            let mut events = event::list(db).await?;
-            match events.len() {
-                1 => events.remove(0),
-                0 => anyhow::bail!("there are no events yet: create one in the admin UI"),
-                _ => {
-                    let list: Vec<String> = events
-                        .iter()
-                        .map(|event| format!("{} {}", event.id, event.details.title.nb))
-                        .collect();
-                    anyhow::bail!(
-                        "which event? Pass --event with one of:\n{}",
-                        list.join("\n")
-                    )
-                }
-            }
-        }
-    };
-    let invite = rsvp::create_invite(db, event.id, &name, max_party_size).await?;
-    tracing::info!(rsvp = %invite.id, "invitation created");
-    Ok(guest_url(config, &invite))
 }
 
 #[cfg(test)]

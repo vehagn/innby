@@ -119,15 +119,17 @@ async fn main() -> anyhow::Result<()> {
             let db = db::connect().await?;
             println!(
                 "{}",
-                admin::invite(&config, &db, event, &name, max_party_size).await?
+                admin::cli::invite(&config, &db, event, &name, max_party_size).await?
             );
             Ok(())
         }
         Command::Event { command } => {
             let db = db::connect().await?;
             match command {
-                EventCommand::List => print!("{}", admin::event_list(&db).await?),
-                EventCommand::Export { id } => print!("{}", admin::export_event(&db, id).await?),
+                EventCommand::List => print!("{}", admin::cli::event_list(&db).await?),
+                EventCommand::Export { id } => {
+                    print!("{}", admin::cli::export_event(&db, id).await?)
+                }
                 EventCommand::Import { file } => {
                     let text = if file.as_os_str() == "-" {
                         let mut text = String::new();
@@ -137,7 +139,7 @@ async fn main() -> anyhow::Result<()> {
                         std::fs::read_to_string(&file)
                             .with_context(|| format!("reading {}", file.display()))?
                     };
-                    println!("{}", admin::import_event(&db, &text).await?);
+                    println!("{}", admin::cli::import_event(&db, &text).await?);
                 }
             }
             Ok(())

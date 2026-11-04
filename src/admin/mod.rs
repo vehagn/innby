@@ -4,13 +4,13 @@
 //!
 //! - `mod.rs`: `router`, which lists every page and the role it needs.
 //! - `page`: what pages share: state, tabs, errors.
-//! - `events`, `guests`, `invitations`, `groups`, `qr`: the pages, one module per tab;
-//!   `event_file` is an event as a TOML file, to export and import.
+//! - `events`, `guests`, `invitations`, `groups`, `qr`: the pages, one module per tab.
+//! - `cli`: the host's commands: `innby invite` and `innby event`.
 //! - `auth`: logging in, as the built-in user or through an OIDC provider, and sessions.
 //! - `role`: what each role may do. `lang`: the page's language.
 
 pub mod auth;
-mod event_file;
+pub mod cli;
 mod events;
 mod groups;
 mod guests;
@@ -22,8 +22,6 @@ pub mod role;
 #[cfg(test)]
 pub(crate) mod testing;
 
-pub use events::{event_list, export_event, import_event};
-pub use invitations::invite;
 pub use page::{Tab, tabs};
 
 use std::sync::Arc;
@@ -79,10 +77,10 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route(paths::EVENT_GROUPS, get(groups::list).post(groups::create))
         .route(
             paths::EVENT_DETAILS,
-            get(events::details).post(events::edit),
+            get(events::details::show).post(events::details::edit),
         )
         .route(paths::EVENT_CSV, get(guests::export_csv))
-        .route(paths::EVENT_EXPORT, get(events::export))
+        .route(paths::EVENT_EXPORT, get(events::details::export))
         .route(paths::EVENT_REMINDERS, post(guests::queue_reminders))
         .route(paths::GROUP, get(groups::show).post(groups::edit))
         .route(paths::GROUP_REVOKE, post(groups::revoke))
@@ -96,7 +94,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
     let admin = Router::new()
         .route(paths::EVENTS, post(events::create))
         .route(paths::EVENTS_IMPORT, post(events::import))
-        .route(paths::EVENT_DELETE, post(events::delete))
+        .route(paths::EVENT_DELETE, post(events::details::delete))
         .route(paths::QR_STYLE, get(qr::qr_style).post(qr::save_qr_style))
         .route_layer(middleware::from_fn(role::admin));
     let mut pages = viewer

@@ -45,16 +45,19 @@ src/
     views.rs         what personal and group pages show alike (event, guest list, choices)
   admin/             the host's UI; mod.rs has the router, grouped by the role each page needs
     page.rs          shared: AdminState, tabs, PageError, load_event, redirect
-    events.rs        the events list, a new event (typed, copied or imported), an event's details and export
-    event_file.rs    an event as a versioned TOML file (apiVersion innby/v1, kind Event)
+    events/          the events page: the list, and a new event (typed, copied or imported)
+      details.rs     an event's Details tab: change it, download its file, delete it
+      form.rs        the event form, checked into an event's details
+      file.rs        an event as a versioned TOML file (apiVersion innby/v1, kind Event)
     guests.rs        an event's Guests tab, a guest's page, CSV export, reminders
-    invitations.rs   invitations in a batch, and `innby invite`
+    invitations.rs   the Invitation links tab: invitations in a batch
     groups.rs        group sign-up links
     qr/              the QR code style page and SVG downloads; draw.rs draws them
     role.rs          viewer < editor < admin, and what each may do
     lang.rs          the admin page's language
     auth/            logging in: sessions (mod.rs), login.rs, password.rs (argon2), jwt.rs
       oidc/          single sign-on: routes.rs, provider.rs, jws.rs (ID tokens), http.rs, fake.rs (tests)
+    cli.rs           the host's commands: `innby invite`, `innby event list|export|import`
     testing.rs       a logged-in test host of any role
   db/                queries per table; rsvp/ splits into the row, names.rs and guest_list.rs
   mailer/            the outbox worker; compose.rs writes the mails

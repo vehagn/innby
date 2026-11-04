@@ -3,7 +3,6 @@ use sqlx::PgPool;
 use super::*;
 use crate::{
     admin::testing::{Admin, links},
-    config::tests::config,
     link::{IdLink, Purpose},
     testing::{body, escape, location},
 };
@@ -113,39 +112,5 @@ async fn rejects_a_batch_with_an_invalid_line(db: PgPool) {
         .await
         .unwrap()
         .is_empty()
-    );
-}
-
-#[sqlx::test]
-async fn invite_command_prints_a_working_link(db: PgPool) {
-    let config = config();
-    // With no event yet there's nothing to invite to; with one, it's that one.
-    assert!(invite(&config, &db, None, "Per", 2).await.is_err());
-    let event = crate::db::event::tests::event(&db).await;
-    let url = invite(&config, &db, None, "  Per  ", 2).await.unwrap();
-    let link: IdLink = url
-        .strip_prefix("https://fest.example.com/r/")
-        .unwrap()
-        .parse()
-        .unwrap();
-    let invite = rsvp::find(&db, link.id).await.unwrap().unwrap();
-    assert_eq!(invite.name, "Per");
-    assert!(
-        config
-            .link_key
-            .verify(Purpose::Rsvp, &link, invite.link_nonce)
-    );
-
-    assert_eq!(invite.event_id, event.id);
-    assert!(super::invite(&config, &db, None, "Per", 0).await.is_err());
-    // With two, it has to be told which.
-    crate::db::event::create(&db, &crate::db::event::tests::details())
-        .await
-        .unwrap();
-    assert!(super::invite(&config, &db, None, "Ola", 1).await.is_err());
-    assert!(
-        super::invite(&config, &db, Some(event.id), "Ola", 1)
-            .await
-            .is_ok()
     );
 }

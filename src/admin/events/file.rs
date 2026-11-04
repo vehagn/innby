@@ -30,10 +30,11 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::events::{EventForm, LOCAL_TIME};
+use super::form::{EventForm, LOCAL_TIME};
 use crate::{
+    admin::lang,
     db::{event::Details, group::Group},
-    i18n::{Lang, Texts},
+    i18n::{Lang, Texts, fill, filled},
 };
 
 /// The largest event file read, far more than any event needs.
@@ -116,13 +117,44 @@ pub enum FileError {
     Kind(String),
 }
 
+impl FileError {
+    /// What's wrong, in the admin page's language.
+    pub fn message(&self) -> String {
+        let text = lang::text();
+        match self {
+            Self::Syntax(error) => filled(&text.error_event_file, "error", error),
+            Self::Unversioned => fill(
+                &text.error_file_unversioned,
+                &[("api", &API_VERSION), ("kind", &KIND)],
+            ),
+            Self::Version(found) => fill(
+                &text.error_file_version,
+                &[("found", found), ("api", &API_VERSION)],
+            ),
+            Self::Kind(found) => filled(&text.error_file_kind, "found", found),
+            Self::Language { field, code } => {
+                let codes: Vec<&str> = Lang::ALL.iter().map(|lang| lang.code()).collect();
+                fill(
+                    &text.error_file_language,
+                    &[
+                        ("field", field),
+                        ("code", code),
+                        ("codes", &codes.join(", ")),
+                    ],
+                )
+            }
+        }
+    }
+}
+
 const HEADER: &str = "\
 # An Innby event: its details and group links, but none of its guests. Import it on the
 # admin's Events page, or with `innby event import`, to make a new event from it.
 #
-# apiVersion and kind say what this file is; leave them as they are. starts and answer_by are local times in time_zone, as 2026-12-12T19:00. The title and
-# description are by language: nb (which every event needs), nn, en, en-us, zh-hans,
-# zh-hant. A group's max_party_size is how many each sign-up may cover.
+# apiVersion and kind say what this file is; leave them as they are. starts and
+# answer_by are local times in time_zone, as 2026-12-12T19:00. The title and description
+# are by language: nb (which every event needs), nn, en, en-us, zh-hans, zh-hant. A
+# group's max_party_size is how many each sign-up may cover.
 
 ";
 
