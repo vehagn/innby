@@ -1,5 +1,19 @@
+//! Guests' answers: invitations the host makes and sign-ups through group links, one
+//! row each in `rsvp`.
+//!
+//! - `mod.rs`: the `Rsvp` row and the queries that make, find, change and delete one.
+//! - `names`: cleaning up names and e-mail addresses, and how a name shows on the guest
+//!   list (`NameDisplay`).
+//! - `guest_list`: the guest list and the headcount of an event.
+
+mod guest_list;
+mod names;
+
+pub use guest_list::{Headcount, guest_list, headcount};
+pub use names::{NameDisplay, normalize_email, normalize_name};
+
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
@@ -33,69 +47,6 @@ pub enum EmailStatus {
 }
 
 /// How a guest's name shows in the guest list other guests see.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
-#[serde(rename_all = "lowercase")]
-#[sqlx(type_name = "name_display", rename_all = "lowercase")]
-pub enum NameDisplay {
-    Full,
-    /// First name and an initial: "Kari N.".
-    Partial,
-    Hidden,
-}
-
-impl NameDisplay {
-    pub const ALL: [Self; 3] = [Self::Full, Self::Partial, Self::Hidden];
-
-    /// The form value.
-    pub fn code(self) -> &'static str {
-        match self {
-            Self::Full => "full",
-            Self::Partial => "partial",
-            Self::Hidden => "hidden",
-        }
-    }
-
-    /// How a name shows in the list. Until the guest chooses, it's their first name and
-    /// an initial, or their full name once they're coming. Declined guests aren't listed.
-    pub fn listed(response: Response, chosen: Option<Self>) -> Self {
-        match (response, chosen) {
-            (Response::Declined, _) => Self::Hidden,
-            (_, Some(chosen)) => chosen,
-            (Response::Attending, None) => Self::Full,
-            (Response::Pending, None) => Self::Partial,
-        }
-    }
-
-    /// The name as this choice shows it, or `None` for hidden.
-    pub fn apply(self, name: &str) -> Option<String> {
-        match self {
-            Self::Full => Some(name.to_owned()),
-            Self::Partial => Some(partial_name(name)),
-            Self::Hidden => None,
-        }
-    }
-}
-
-/// The first word and the initial of the last: "Kari Nordmann" becomes "Kari N.". Chinese,
-/// Japanese and Korean names come family name first and without spaces, so they keep
-/// only the family name: "王小明" becomes "王**".
-fn partial_name(name: &str) -> String {
-    let chars: Vec<char> = name.chars().collect();
-    if let [family, given @ ..] = chars.as_slice()
-        && is_cjk(*family)
-        && !given.is_empty()
-        && !given.iter().any(|c| c.is_whitespace())
-    {
-        return format!("{family}{}", "*".repeat(given.len()));
-    }
-    let mut words = name.split_whitespace();
-    let first = words.next().unwrap_or_default();
-    match words.next_back().and_then(|last| last.chars().next()) {
-        Some(initial) => format!("{first} {}.", initial.to_uppercase()),
-        None => first.to_owned(),
-    }
-}
-
 #[derive(Debug, Clone, Serialize)]
 pub struct Rsvp {
     pub id: Uuid,
@@ -124,16 +75,6 @@ impl Rsvp {
     pub fn listed(&self) -> NameDisplay {
         NameDisplay::listed(self.response, self.name_display)
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Headcount {
-    /// Invitations and sign-ups that answered "attending".
-    pub attending_parties: i64,
-    /// The sum of their party sizes: the number of people coming.
-    pub attending_people: i64,
-    pub declined: i64,
-    pub pending: i64,
 }
 
 /// `query_as!` for whole `Rsvp` rows. The query macros only take string literals (or
@@ -296,94 +237,7 @@ pub async fn set_name_display(
     Ok(result.rows_affected() == 1)
 }
 
-/// What the guest list needs about one guest.
-pub struct Listing {
-    pub id: Uuid,
-    pub name: String,
-    pub response: Response,
-    pub party_size: i32,
-    pub name_display: Option<NameDisplay>,
-}
-
-/// Everyone invited to the event who hasn't declined, for its guest list.
-pub async fn guest_list(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<Vec<Listing>> {
-    sqlx::query_as!(
-        Listing,
-        r#"
-        select id, name, response as "response: Response", party_size,
-            name_display as "name_display: NameDisplay"
-        from rsvp
-        where event_id = $1 and response <> 'declined'
-        "#,
-        event_id,
-    )
-    .fetch_all(db)
-    .await
-}
-
-/// Collapses whitespace, drops invisible characters and checks the length the database
-/// allows. A name needs a letter or digit, so one can't be blank to the eye. Control and
-/// bidirectional characters, which could make a name show as someone else's, are refused
-/// rather than stripped, since no keyboard produces them.
-pub fn normalize_name(name: &str) -> Option<String> {
-    let name: String = name.chars().filter(|&c| !is_invisible(c)).collect();
-    let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
-    let length = name.chars().count();
-    let valid = (1..=100).contains(&length)
-        && name.chars().any(char::is_alphanumeric)
-        && !name.chars().any(|c| c.is_control() || is_bidi_control(c));
-    valid.then_some(name)
-}
-
-/// Han, kana and Hangul characters.
-fn is_cjk(c: char) -> bool {
-    matches!(
-        c,
-        '\u{3040}'..='\u{30FF}'
-            | '\u{3400}'..='\u{4DBF}'
-            | '\u{4E00}'..='\u{9FFF}'
-            | '\u{AC00}'..='\u{D7AF}'
-            | '\u{F900}'..='\u{FAFF}'
-            | '\u{20000}'..='\u{2A6DF}'
-    )
-}
-
-/// Characters that take up no space, which a pasted name can carry along. The joiners
-/// stay, since emoji and some scripts need them.
-fn is_invisible(c: char) -> bool {
-    matches!(
-        c,
-        '\u{AD}' | '\u{180E}' | '\u{200B}' | '\u{2060}'..='\u{2064}' | '\u{FEFF}'
-    )
-}
-
-/// Characters that reorder the text around them.
-fn is_bidi_control(c: char) -> bool {
-    matches!(
-        c,
-        '\u{61C}' | '\u{200E}' | '\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}'
-    )
-}
-
 pub const MAX_PARTY_SIZE: i32 = 20;
-
-/// Trims and lower-cases an address and checks that it looks deliverable. Lower-casing
-/// the local part is technically wrong, but no real mailbox depends on it, and it keeps
-/// one address from being registered twice.
-pub fn normalize_email(email: &str) -> Option<String> {
-    let email = email.trim().to_lowercase();
-    let (local, domain) = email.split_once('@')?;
-    let valid = email.len() <= 254
-        && (1..=64).contains(&local.len())
-        && !domain.contains('@')
-        && domain.contains('.')
-        && !domain.starts_with(['.', '-'])
-        && !domain.ends_with(['.', '-'])
-        && !email
-            .chars()
-            .any(|c| c.is_whitespace() || c.is_control() || "<>(),;:\\\"[]".contains(c));
-    valid.then_some(email)
-}
 
 pub async fn rename(db: impl PgExecutor<'_>, id: Uuid, name: &str) -> sqlx::Result<bool> {
     let result = sqlx::query!("update rsvp set name = $2 where id = $1", id, name)
@@ -488,25 +342,6 @@ pub async fn delete(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<bool> {
         .execute(db)
         .await?;
     Ok(result.rows_affected() == 1)
-}
-
-pub async fn headcount(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<Headcount> {
-    sqlx::query_as!(
-        Headcount,
-        r#"
-        select
-            count(*) filter (where response = 'attending') as "attending_parties!",
-            coalesce(sum(party_size) filter (where response = 'attending'), 0)
-                as "attending_people!",
-            count(*) filter (where response = 'declined') as "declined!",
-            count(*) filter (where response = 'pending') as "pending!"
-        from rsvp
-        where event_id = $1
-        "#,
-        event_id,
-    )
-    .fetch_one(db)
-    .await
 }
 
 #[cfg(test)]
@@ -651,59 +486,6 @@ pub(crate) mod tests {
     }
 
     #[sqlx::test]
-    async fn guest_list_leaves_out_declined_guests(pool: PgPool) -> sqlx::Result<()> {
-        let kari = create_invite(
-            &pool,
-            crate::db::event::tests::event(&pool).await.id,
-            "Kari Nordmann",
-            1,
-        )
-        .await?;
-        let ola = create_invite(
-            &pool,
-            crate::db::event::tests::event(&pool).await.id,
-            "Ola",
-            1,
-        )
-        .await?;
-        respond(
-            &pool,
-            ola.id,
-            Response::Declined,
-            1,
-            Some(NameDisplay::Full),
-            Lang::Nb,
-            PRIVACY_VERSION,
-        )
-        .await?;
-        assert!(set_name_display(&pool, kari.id, NameDisplay::Hidden).await?);
-
-        let [listed] = guest_list(&pool, crate::db::event::tests::event(&pool).await.id)
-            .await?
-            .try_into()
-            .ok()
-            .unwrap();
-        assert_eq!(
-            (listed.id, listed.name_display),
-            (kari.id, Some(NameDisplay::Hidden))
-        );
-        // Answering without a choice keeps the one made before.
-        let answered = respond(
-            &pool,
-            kari.id,
-            Response::Attending,
-            1,
-            None,
-            Lang::Nb,
-            PRIVACY_VERSION,
-        )
-        .await?
-        .unwrap();
-        assert_eq!(answered.listed(), NameDisplay::Hidden);
-        Ok(())
-    }
-
-    #[sqlx::test]
     async fn rename_enforces_name_length(pool: PgPool) -> sqlx::Result<()> {
         let invite = create_invite(
             &pool,
@@ -718,84 +500,6 @@ pub(crate) mod tests {
         let err = rename(&pool, invite.id, "").await.unwrap_err();
         assert!(is_check_violation(&err), "{err}");
         Ok(())
-    }
-
-    #[test]
-    fn normalizes_names() {
-        assert_eq!(
-            normalize_name("  Kari \t Nordmann ").unwrap(),
-            "Kari Nordmann"
-        );
-        assert_eq!(
-            normalize_name(&"ø".repeat(100)).unwrap().chars().count(),
-            100
-        );
-        assert!(normalize_name("   ").is_none());
-        assert!(normalize_name(&"a".repeat(101)).is_none());
-        assert!(normalize_name("Kari\u{0}").is_none());
-
-        assert_eq!(normalize_name("\u{feff}Ka\u{200b}ri").unwrap(), "Kari");
-        assert_eq!(
-            normalize_name("Kari 👨\u{200d}👩").unwrap(),
-            "Kari 👨\u{200d}👩"
-        );
-        for blank in ["\u{200b}", "\u{200d}\u{200d}", "- . -"] {
-            assert!(normalize_name(blank).is_none(), "{blank:?}");
-        }
-        for reordering in ["Bob\u{202e}gnp.exe", "\u{2067}Kari"] {
-            assert!(normalize_name(reordering).is_none(), "{reordering:?}");
-        }
-    }
-
-    #[test]
-    fn partial_names_keep_the_first_name_and_an_initial() {
-        assert_eq!(partial_name("Kari Nordmann"), "Kari N.");
-        assert_eq!(partial_name("Kari & Ola  Østby"), "Kari Ø.");
-        assert_eq!(partial_name("Per"), "Per");
-        assert_eq!(partial_name("anne van der berg"), "anne B.");
-        assert_eq!(partial_name("王小明"), "王**");
-        assert_eq!(partial_name("김민준"), "김**");
-        assert_eq!(partial_name("王"), "王");
-    }
-
-    #[test]
-    fn lists_names_by_answer_and_choice() {
-        use NameDisplay::{Full, Hidden, Partial};
-        use Response::{Attending, Declined, Pending};
-        assert_eq!(NameDisplay::listed(Pending, None), Partial);
-        assert_eq!(NameDisplay::listed(Attending, None), Full);
-        assert_eq!(NameDisplay::listed(Pending, Some(Full)), Full);
-        assert_eq!(NameDisplay::listed(Attending, Some(Hidden)), Hidden);
-        assert_eq!(NameDisplay::listed(Declined, Some(Full)), Hidden);
-        assert_eq!(Partial.apply("Kari Nordmann").as_deref(), Some("Kari N."));
-        assert_eq!(Hidden.apply("Kari Nordmann"), None);
-    }
-
-    #[test]
-    fn normalizes_emails() {
-        assert_eq!(
-            normalize_email("  Kari@Example.COM ").unwrap(),
-            "kari@example.com"
-        );
-        assert_eq!(
-            normalize_email("ola+fest@sub.example.no").unwrap(),
-            "ola+fest@sub.example.no"
-        );
-        for bad in [
-            "",
-            "kari",
-            "kari@",
-            "@example.com",
-            "kari@example",
-            "kari@@example.com",
-            "kari@exa mple.com",
-            "kari@.example.com",
-            "kari@example.com.",
-            "<kari@example.com>",
-        ] {
-            assert!(normalize_email(bad).is_none(), "{bad:?}");
-        }
-        assert!(normalize_email(&format!("{}@example.com", "a".repeat(65))).is_none());
     }
 
     #[sqlx::test]
@@ -961,73 +665,6 @@ pub(crate) mod tests {
         .await?;
         let rsvp = find(&pool, rsvp.id).await?.unwrap();
         assert_eq!(rsvp.email_status, EmailStatus::Unconfirmed);
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn headcount_sums_attending_parties(pool: PgPool) -> sqlx::Result<()> {
-        assert_eq!(
-            headcount(&pool, crate::db::event::tests::event(&pool).await.id).await?,
-            Headcount {
-                attending_parties: 0,
-                attending_people: 0,
-                declined: 0,
-                pending: 0,
-            }
-        );
-
-        let family = create_invite(
-            &pool,
-            crate::db::event::tests::event(&pool).await.id,
-            "Familien Hansen",
-            4,
-        )
-        .await?;
-        respond(
-            &pool,
-            family.id,
-            Response::Attending,
-            3,
-            None,
-            Lang::Nb,
-            PRIVACY_VERSION,
-        )
-        .await?;
-        let busy = create_invite(
-            &pool,
-            crate::db::event::tests::event(&pool).await.id,
-            "Ola",
-            1,
-        )
-        .await?;
-        respond(
-            &pool,
-            busy.id,
-            Response::Declined,
-            1,
-            None,
-            Lang::Nb,
-            PRIVACY_VERSION,
-        )
-        .await?;
-        create_invite(
-            &pool,
-            crate::db::event::tests::event(&pool).await.id,
-            "Kari",
-            1,
-        )
-        .await?;
-        sign_up(&pool, "Per", 2).await?;
-
-        assert_eq!(
-            headcount(&pool, crate::db::event::tests::event(&pool).await.id).await?,
-            Headcount {
-                attending_parties: 2,
-                attending_people: 5,
-                declined: 1,
-                pending: 1,
-            }
-        );
         Ok(())
     }
 }
