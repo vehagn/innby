@@ -5,10 +5,12 @@
       <dt>{{ t.when }}</dt>
       <dd><time datetime="{{ event.starts_at_iso }}">{{ event.starts_at }}</time></dd>
     </div>
+    {% if !event.location.is_empty() %}
     <div>
       <dt>{{ t.place }}</dt>
       <dd>{{ event.location }}</dd>
     </div>
+    {% endif %}
   </dl>
 </div>
 <p class="description">{{ event.description }}</p>
