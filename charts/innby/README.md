@@ -11,7 +11,8 @@ runs its four workloads on your own Postgres:
 | `janitor` | CronJob, hourly | Deletes what the retention rules say is due |
 
 It needs no CRDs. With the Gateway API installed it can make HTTPRoutes, or else
-Ingresses, and it can add NetworkPolicies, or CiliumNetworkPolicies with Cilium. Pods run as non-root with a read-only root
+Ingresses; it can add NetworkPolicies, or CiliumNetworkPolicies with Cilium; and with
+the CloudNativePG operator it can make the database too. Pods run as non-root with a read-only root
 filesystem and no API token, so they fit the `restricted` Pod Security Standard.
 
 ## Install
@@ -27,7 +28,7 @@ The least a working install needs, here with the admin UI at `https://fest.examp
 siteUrl: https://fest.example.com
 controller: { name: Kari Nordmann, email: kari@example.com }
 database:
-  existingSecret: innby-db        # a Secret with a postgres:// URL under `uri`
+  cnpg: { create: true }          # needs the CloudNativePG operator
 secrets:
   existingSecret: innby           # INNBY_LINK_KEY, INNBY_ADMIN_JWT_SECRET, …
 mailer:
@@ -56,8 +57,26 @@ secret`), with these keys, and name it in `secrets.existingSecret`:
 | `INNBY_SMTP_USER`, `INNBY_SMTP_PASSWORD` | If the SMTP server wants them |
 
 Or give them under `secrets` and the chart makes the Secret, though they then sit in
-Helm's release history. The database URL goes in `database.existingSecret`, such as the
-`{cluster}-app` Secret CloudNativePG makes, or in `database.url`.
+Helm's release history. The database's URL has a section of its own, below.
+
+## The database
+
+Innby needs a database of its own on Postgres 18 or later, for `uuidv7()`, in one of
+three ways:
+
+- `database.cnpg.create: true` makes a CloudNativePG `Cluster`, `{release}-postgres`,
+  with the operator's `{cluster}-app` Secret as the URL. `instances`, `imageName`,
+  `storage`, `parameters` and `resources` shape it, and `spec` adds anything else. It
+  has no backups: Innby keeps nothing past 30 days after an event. Deleting the release
+  deletes it and its data, unless `annotations` has `helm.sh/resource-policy: keep`.
+- `database.cnpg.cluster: <name>` uses a CloudNativePG cluster you already have, in the
+  release's namespace, through its `{name}-app` Secret.
+- `database.existingSecret` names a Secret with a `postgres://` URL (key `uri`, or
+  `existingSecretKey`), or `database.url` gives the URL itself.
+
+With CloudNativePG, the network policies below let Innby's pods reach the cluster's, and
+the chart's own cluster accepts only Innby, its own instances, and the operator from
+`database.cnpg.operatorNamespace`.
 
 ## The admin UI
 
@@ -102,7 +121,7 @@ one kind, not both.
   Ingress proxy; `ingressFromEntities` and `ingressFromEndpoints` change that, and
   `admin.*` gives the admin UI its own. `databaseEndpoints` narrows Postgres.
 
-Neither covers Postgres's own ingress, since the chart doesn't run it.
+Neither covers Postgres's own ingress unless the chart makes the CloudNativePG cluster.
 
 ## Upgrades
 

@@ -21,9 +21,38 @@ controller:
   name: ""
   email: ""
 
+# Postgres, in one of three ways: a CloudNativePG cluster (the chart's or yours), a Secret
+# holding a postgres:// URL, or the URL itself.
 database:
-  # A Secret holding a postgres:// URL, such as the `{cluster}-app` Secret CloudNativePG
-  # makes (key `uri`).
+  cnpg:
+    # Makes a CloudNativePG Cluster for Innby, named {release}-postgres unless `cluster`
+    # names it. Needs the CloudNativePG operator and its CRDs. Deleting the release
+    # deletes the Cluster and its data, unless annotations keep it; Innby keeps nothing
+    # past 30 days after an event, so it has no backups.
+    create: false
+    # Or the name of a CloudNativePG Cluster in the release's namespace to use. Either
+    # way Innby reads the {cluster}-app Secret the operator makes, and the network
+    # policies let the workloads reach the Cluster's pods.
+    cluster: ""
+    # The rest is for the Cluster the chart makes.
+    instances: 1
+    # The operator's default image when empty, e.g.
+    # ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie.
+    imageName: ""
+    storage:
+      size: 1Gi
+      # The cluster's default when empty.
+      storageClass: ""
+    # postgresql.parameters, e.g. { timezone: Europe/Oslo }.
+    parameters: {}
+    resources: {}
+    # e.g. { helm.sh/resource-policy: keep }
+    annotations: {}
+    # Anything else for the Cluster's spec, merged over the chart's.
+    spec: {}
+    # Where the operator runs, which the network policies let reach the Cluster.
+    operatorNamespace: cnpg-system
+  # A Secret holding a postgres:// URL.
   existingSecret: ""
   existingSecretKey: uri
   # Or the URL itself, which goes into the chart's Secret.

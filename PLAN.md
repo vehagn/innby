@@ -314,7 +314,8 @@ A **Helm chart** in `charts/innby`, published with each release as an OCI artifa
 |---|---|
 | Deployments | `{release}-web` (`serve`, 2 replicas), `{release}-admin` (`admin`, 1 replica), `{release}-mailer` (`mailer`, 1 replica, `Recreate`). `innby migrate` runs as an **init container** on `web`. Each can be turned off but `web`. |
 | CronJob | `{release}-janitor`: hourly, with `concurrencyPolicy: Forbid` and an optional time zone. |
-| Settings | A ConfigMap of `INNBY_*` from the values, and a Secret, the chart's or one you made (`secrets.existingSecret`), with the link key, the admin's JWT secret, password hash and OIDC client secret, and the SMTP credentials. Each workload references only the keys it needs. The database URL comes from a Secret of its own, such as CloudNativePG's `{cluster}-app`. Pods roll when either changes. |
+| Settings | A ConfigMap of `INNBY_*` from the values, and a Secret, the chart's or one you made (`secrets.existingSecret`), with the link key, the admin's JWT secret, password hash and OIDC client secret, and the SMTP credentials. Each workload references only the keys it needs. Pods roll when either changes. |
+| Postgres | One of three: a **CloudNativePG `Cluster`** the chart makes (`database.cnpg.create`, needing the operator: `bootstrap.initdb` with database and owner `innby`, no superuser, the read-only Services off, and storage, image, parameters and anything else in the spec from the values), an existing CloudNativePG cluster by name (`database.cnpg.cluster`), or a Secret with a `postgres://` URL, or the URL itself. With CloudNativePG, Innby reads the operator's `{cluster}-app` Secret, and the network policies let the workloads reach the cluster's pods; the chart's own cluster also gets a policy letting in only Innby, its own instances and the operator. Deleting the release deletes the chart's cluster, unless its annotations say `helm.sh/resource-policy: keep`. |
 | Routing | Optional: two HTTPRoutes (Gateway API, the one CRD the chart can use) or two Ingresses, one for the site's hostname and one for the admin UI. The admin UI is under `/admin` on the site's hostname by default, where the longer path wins, or on a hostname of its own, and then can attach to another gateway or ingress class. |
 | NetworkPolicies | Optional, of either kind: standard NetworkPolicies, or CiliumNetworkPolicies (a CRD, so off by default like the routes). The site and admin UI accept traffic on their ports, the mailer and janitor nothing, and each workload may reach DNS and Postgres, the mailer SMTP and the admin UI the OIDC provider. Standard policies can't name hosts, so those are open on their ports; Cilium's name the SMTP host and the provider, taken from `mailer.smtpUrl` and `oidc.issuer`, and read DNS answers to learn their addresses. |
 | Pod security | `runAsNonRoot`, `readOnlyRootFilesystem`, `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault`, no service account token: the `restricted` Pod Security Standard. |
@@ -325,10 +326,10 @@ A **Helm chart** in `charts/innby`, published with each release as an OCI artifa
 | Resource | Notes |
 |---|---|
 | Namespace | `innby`, labelled `pod-security.kubernetes.io/enforce: restricted`. |
-| Postgres | A **CNPG `Cluster`** `innby-postgres`: 1 instance, image `postgresql:18.6-minimal-trixie` (same as dev), 1 Gi on `proxmox-csi`, created with `bootstrap.initdb` (database `innby`, owner `innby`). The CNPG-generated `innby-postgres-app` secret provides `uri`. No backups, on purpose. |
+| Postgres | The chart's **CNPG `Cluster`** `innby-postgres`: 1 instance, image `postgresql:18.6-minimal-trixie` (same as dev), 1 Gi on `proxmox-csi`, time zone `Europe/Oslo`. No backups, on purpose. |
 | Routes | The site on `gateway/external` and `gateway/internal`; the admin UI on `fest-admin.stonegarden.dev`, on `gateway/internal` only. TLS comes from the existing cert-manager setup. |
 | Secrets (SealedSecrets) | The `innby` secret, sealed by `just seal` from the gitignored `deploy/secrets.env`. |
-| NetworkPolicies (Cilium) | The chart's Cilium policies: `web` and `admin` accept traffic from the gateways (`fromEntities: ingress`). `mailer` has no ingress and egress to `smtp.mailersend.net:587` only, and `admin` to `authelia.stonegarden.dev:443` once single sign-on is on. `janitor` has egress to the DB only. `deploy/network-policies.yaml` adds Postgres's: ingress from the Innby pods and the CNPG operator. |
+| NetworkPolicies (Cilium) | The chart's Cilium policies: `web` and `admin` accept traffic from the gateways (`fromEntities: ingress`). `mailer` has no ingress and egress to `smtp.mailersend.net:587` only, and `admin` to `authelia.stonegarden.dev:443` once single sign-on is on. `janitor` has egress to the DB only. Postgres accepts ingress from the Innby pods and the CNPG operator. |
 
 - Observability: JSON logs. `/metrics` (responses, headcount, rate-limit hits, outbox lag, mail failures) is left for hardening.
 
@@ -377,7 +378,7 @@ Hidden from the list, for other recipes and CI: `run`, `migrate`, `build` (cargo
 21. ✅ **Admin tabs and end-to-end tests:** the admin's sections as tabs, a headcount that filters the guests, and journeys through the site, the admin UI and the mailer in `src/e2e/`.
 22. ✅ **Several events:** events in the database, made in the admin UI, with everything else belonging to one; a front page about Innby that leads back to each remembered invitation, one cookie per event; retention per event.
 23. ✅ **Single sign-on and roles:** optional OpenID Connect login (Authelia), the built-in user optional, and viewer, editor and admin roles from an `innby` claim.
-24. ✅ **Helm chart:** `charts/innby`, general purpose and without CRDs, with optional HTTPRoutes, Ingresses, and standard or Cilium NetworkPolicies, published to GHCR as an OCI artifact with each release. The admin UI can live under `/admin` on the site's hostname. `deploy/` is now the homelab's values for it.
+24. ✅ **Helm chart:** `charts/innby`, general purpose and without CRDs, with optional HTTPRoutes, Ingresses, standard or Cilium NetworkPolicies, and a CloudNativePG cluster, its own or an existing one, published to GHCR as an OCI artifact with each release. The admin UI can live under `/admin` on the site's hostname. `deploy/` is now the homelab's values for it.
 
 ## 14. Decisions
 

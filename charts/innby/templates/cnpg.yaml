@@ -1,0 +1,30 @@
+{{- $cnpg := .Values.database.cnpg }}
+{{- if $cnpg.create }}
+{{- $ctx := dict "root" . "component" "postgres" }}
+{{- $cluster := include "innby.cnpgCluster" . }}
+{{- $spec := dict
+  "instances" $cnpg.instances
+  "enableSuperuserAccess" false
+  "bootstrap" (dict "initdb" (dict "database" "innby" "owner" "innby"))
+  "storage" (dict "size" $cnpg.storage.size)
+  "managed" (dict "services" (dict "disabledDefaultServices" (list "ro" "r")))
+}}
+{{- with $cnpg.imageName }}{{ $_ := set $spec "imageName" . }}{{ end }}
+{{- with $cnpg.storage.storageClass }}{{ $_ := set $spec.storage "storageClass" . }}{{ end }}
+{{- with $cnpg.parameters }}{{ $_ := set $spec "postgresql" (dict "parameters" .) }}{{ end }}
+{{- with $cnpg.resources }}{{ $_ := set $spec "resources" . }}{{ end }}
+# Innby's database. The operator makes {{ $cluster }}-app with its URL, and the
+# {{ $cluster }}-rw Service; Innby only writes, so the read-only Services are off.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ $cluster }}
+  labels:
+    {{- include "innby.labels" $ctx | nindent 4 }}
+  {{- with $cnpg.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- toYaml (mergeOverwrite $spec $cnpg.spec) | nindent 2 }}
+{{- end }}

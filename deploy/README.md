@@ -3,8 +3,8 @@
 This is how `vehagn/homelab` installs [the chart](../charts/innby/README.md): one
 directory per app under `k8s/apps/<group>/`, picked up by that group's Argo CD
 ApplicationSet, which renders it with `kustomize build --enable-helm`. The chart comes
-from `oci://ghcr.io/vehagn/charts` with [`values.yaml`](values.yaml); the rest is what
-the chart leaves to the cluster.
+from `oci://ghcr.io/vehagn/charts` with [`values.yaml`](values.yaml), and makes
+everything but the namespace and the sealed Secret.
 
 | Workload | Kind | Reachable from |
 |---|---|---|
@@ -12,11 +12,9 @@ the chart leaves to the cluster.
 | `innby-admin` (`admin`) | Deployment | `fest-admin.stonegarden.dev` on the internal gateway only |
 | `innby-mailer` (`mailer`) | Deployment | nothing; may only reach Postgres and `smtp.mailersend.net:587` |
 | `innby-janitor` (`janitor`) | CronJob, hourly | nothing; may only reach Postgres |
-| `innby-postgres` | CloudNativePG `Cluster` ([`cnpg-db.yaml`](cnpg-db.yaml)), 1 instance, 1 Gi | the Innby pods and the CNPG operator |
+| `innby-postgres` | CloudNativePG `Cluster`, 1 instance, 1 Gi | the Innby pods and the CNPG operator |
 
-The chart makes the workloads' Cilium network policies (`ciliumNetworkPolicy` in
-`values.yaml`), which can name MailerSend and Authelia by hostname;
-[`network-policies.yaml`](network-policies.yaml) adds Postgres's.
+Each has a Cilium network policy, which can name MailerSend and Authelia by hostname.
 
 ## Steps
 

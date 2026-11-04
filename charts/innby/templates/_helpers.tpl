@@ -80,19 +80,39 @@ app.kubernetes.io/managed-by: {{ .root.Release.Service }}
       {{- end }}
 {{- end }}
 
+{{/* The CloudNativePG Cluster Innby uses, the chart's or one named; empty without. */}}
+{{- define "innby.cnpgCluster" -}}
+{{- $cnpg := .Values.database.cnpg }}
+{{- if $cnpg.create }}
+{{- default (printf "%s-postgres" (include "innby.fullname" .)) $cnpg.cluster | trunc 50 | trimSuffix "-" }}
+{{- else }}
+{{- $cnpg.cluster }}
+{{- end }}
+{{- end }}
+
 {{- define "innby.databaseEnv" -}}
 {{- $db := .Values.database }}
+{{- $cluster := include "innby.cnpgCluster" . }}
+{{- $ways := 0 }}
+{{- range (list $cluster $db.existingSecret $db.url) }}{{ if . }}{{ $ways = add1 $ways }}{{ end }}{{ end }}
+{{- if gt $ways 1 }}
+{{- fail "database: use one of cnpg, existingSecret and url" }}
+{{- end }}
 - name: DATABASE_URL
   valueFrom:
     secretKeyRef:
-      {{- if $db.existingSecret }}
+      {{- if $cluster }}
+      # Made by the CloudNativePG operator.
+      name: {{ $cluster }}-app
+      key: uri
+      {{- else if $db.existingSecret }}
       name: {{ $db.existingSecret }}
       key: {{ $db.existingSecretKey }}
       {{- else if $db.url }}
       name: {{ include "innby.fullname" . }}
       key: DATABASE_URL
       {{- else }}
-      {{- fail "database: set existingSecret (a Secret with a postgres:// URL) or url" }}
+      {{- fail "database: set cnpg.create, cnpg.cluster, existingSecret (a Secret with a postgres:// URL) or url" }}
       {{- end }}
 {{- end }}
 
@@ -150,9 +170,14 @@ securityContext:
 - ports:
     - { port: 53, protocol: UDP }
     - { port: 53, protocol: TCP }
-- {{- with .Values.networkPolicy.databasePeers }}
+{{- $cluster := include "innby.cnpgCluster" . }}
+- {{- if .Values.networkPolicy.databasePeers }}
   to:
-    {{- toYaml . | nindent 4 }}
+    {{- toYaml .Values.networkPolicy.databasePeers | nindent 4 }}
+  {{- else if $cluster }}
+  to:
+    - podSelector:
+        matchLabels: { cnpg.io/cluster: {{ $cluster }} }
   {{- end }}
   ports:
     - { port: {{ .Values.networkPolicy.databasePort }}, protocol: TCP }
@@ -178,9 +203,13 @@ securityContext:
   toPorts:
     - ports: [{ port: "53", protocol: ANY }]
       rules: { dns: [{ matchPattern: "*" }] }
-- {{- with $policy.databaseEndpoints }}
+{{- $cluster := include "innby.cnpgCluster" . }}
+- {{- if $policy.databaseEndpoints }}
   toEndpoints:
-    {{- toYaml . | nindent 4 }}
+    {{- toYaml $policy.databaseEndpoints | nindent 4 }}
+  {{- else if $cluster }}
+  toEndpoints:
+    - matchLabels: { cnpg.io/cluster: {{ $cluster }} }
   {{- end }}
   toPorts:
     - ports: [{ port: {{ $policy.databasePort | quote }}, protocol: TCP }]
