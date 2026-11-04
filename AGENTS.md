@@ -89,8 +89,13 @@ into a module.
 
 ## Tests
 
-- Unit and database tests sit in a `tests` module at the bottom of the file they test;
-  `#[sqlx::test]` gives each a fresh database.
+- Unit and database tests are a `tests` child module of the code they test, so they
+  can reach private items; `#[sqlx::test]` gives each a fresh database. A short one sits
+  at the bottom of the file. One past about 150 lines goes in a sibling file, so reading
+  the code doesn't mean reading its tests: `foo.rs` ends with `#[cfg(test)] mod tests;`
+  and the tests are in `foo/tests.rs` (beside a `mod.rs`, in `tests.rs`).
+- There's no `tests/` directory: integration tests there only see a library's public
+  API, and Innby is a binary whose journeys need its internals.
 - Router-level tests: `web::testing::Site` for the public site, `admin::testing::Admin`
   for a logged-in host. Generic helpers are in `crate::testing`.
 - Journeys go in `src/e2e/`, one file per area; `src/e2e/mod.rs` says how to add one.

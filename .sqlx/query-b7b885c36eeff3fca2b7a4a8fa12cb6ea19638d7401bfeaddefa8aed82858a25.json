@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        update outbox set\n            sent_at = case when kind = 'rsvp_link' then now() - interval '8 days' end,\n            attempts = case when kind = 'reminder' then $1 else 0 end,\n            created_at = now() - interval '8 days'\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b7b885c36eeff3fca2b7a4a8fa12cb6ea19638d7401bfeaddefa8aed82858a25"
+}
