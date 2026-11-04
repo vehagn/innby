@@ -7,7 +7,7 @@
 {% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
 
 {% if let Some(new_link) = new_link %}
-<section class="notice save-link" aria-labelledby="save-link-heading">
+<section class="notice success" aria-labelledby="save-link-heading">
   <h2 id="save-link-heading">{{ t.save_link_title }}</h2>
   <p>{{ t.save_link_text }}</p>
   <input type="text" readonly value="{{ new_link }}" aria-labelledby="save-link-heading">
@@ -43,19 +43,19 @@
   {% else %}
   <p class="muted">{{ t.answers_closed }}</p>
   {% endif %}
-  <p class="muted small">{{ t.keep_link }}</p>
+  <p class="hint">{{ t.keep_link }}</p>
 </section>
 
 <section class="remember">
   {% if remembered %}
   <form method="post" action="{{ links.forget }}">
-    <p class="muted small">{{ t.remembered_text }}</p>
+    <p class="hint">{{ t.remembered_text }}</p>
     <button class="secondary">{{ t.forget_device }}</button>
   </form>
   {% else %}
   <form method="post" action="{{ links.remember }}">
     <button class="secondary">{{ t.remember_device }}</button>
-    <p class="muted small">{{ t.remember_hint }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
+    <p class="hint">{{ t.remember_hint }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
   </form>
   {% endif %}
 </section>

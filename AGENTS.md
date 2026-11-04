@@ -67,6 +67,7 @@ src/
   testing.rs         HTTP helpers for tests (body, location, escape, form posts, Set-Cookie)
   e2e/               end-to-end journeys through both sites and the mailer, by a test Browser
 locales/*.toml       one file per language: what it is, its fallbacks, its texts; templates/ askama pages
+static/style.css     the one stylesheet: tokens first, then base, layout, components, pages
 migrations/*.sql     the schema, applied by `innby migrate`
 charts/innby/        the Helm chart; deploy/ is one homelab's install of it
 docs/                the guides for people, and ropa.md, the GDPR record of processing
@@ -91,6 +92,8 @@ into a module.
   `tests.rs` past about 150 lines (`foo.rs` → `foo/tests.rs`). Journeys go in
   `src/e2e/`. There's no `tests/` directory: integration tests there only see a
   library's public API, and Innby is a binary.
+- Style with the components in `static/style.css`; change the look through its tokens.
+  No inline styles, and no class without a rule (a test checks both ways).
 - No JavaScript. Say Containerfile and Compose, not Dockerfile and Docker Compose. Docs
   and comments are plain British English and say why rather than what. One change per
   commit, imperative subject, a body that says why.

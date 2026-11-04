@@ -278,12 +278,12 @@ async fn guest_list_shows_who_brings_others(db: PgPool) {
     let html = body(site.get(&format!("/r/{kari}/guests?lang=en")).await).await;
     let t = en();
     assert!(html.contains(&format!(
-        "<h3>{} · {}</h3>",
+        r#"<h3 class="overline">{} · {}</h3>"#,
         t.guest_list_coming,
         t.people_count(6)
     )));
     assert!(html.contains(&format!(
-        "<h3>{} · {}</h3>",
+        r#"<h3 class="overline">{} · {}</h3>"#,
         t.guest_list_pending,
         t.invitation_count(2)
     )));

@@ -8,7 +8,7 @@
 {% let a = crate::admin::lang::text() %}
 {% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
 <h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
-<p class="muted small">{{ a.group_links_hint }}</p>
+<p class="hint">{{ a.group_links_hint }}</p>
 {% if !accepts_answers %}<p class="notice" role="status">{{ a.closed }}</p>{% endif %}
 
 <section class="card">

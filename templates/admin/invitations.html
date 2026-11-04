@@ -8,7 +8,7 @@
 {% let a = crate::admin::lang::text() %}
 {% if new %}<p class="notice success" role="status">{{ crate::i18n::count(invitations.len(), a.invitations_created_one, a.invitations_created_other) }}</p>{% endif %}
 <h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
-<p class="muted small">{{ a.invitation_links_hint }}
+<p class="hint">{{ a.invitation_links_hint }}
   <a href="{{ links.csv }}" download>{{ a.download_csv }}</a></p>
 
 <section class="card">
@@ -39,7 +39,7 @@
 
 <section class="card">
   <h2>{{ a.new_invitations }}</h2>
-  <p class="muted small">{{ a.new_invitations_hint }}</p>
+  <p class="hint">{{ a.new_invitations_hint }}</p>
   <form method="post" action="{{ links.invitations }}">
     <label for="names">{{ a.names }}</label>
     <textarea id="names" name="names" rows="5" required placeholder="{{ a.names_placeholder }}">{{ names }}</textarea>

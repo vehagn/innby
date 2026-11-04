@@ -13,7 +13,7 @@
 <div class="tiles">
   <a class="tile attending" href="{{ self.show_link("attending") }}"{% if self.showing("attending") %} aria-current="true"{% endif %}>
     <span>{{ crate::i18n::bold_count(headcount.attending_people, a.coming_one, a.coming_other)|safe }}</span>
-    <span class="muted small">{{ crate::i18n::count(headcount.attending_parties, a.parties_one, a.parties_other) }}</span>
+    <span class="hint">{{ crate::i18n::count(headcount.attending_parties, a.parties_one, a.parties_other) }}</span>
   </a>
   <a class="tile pending" href="{{ self.show_link("pending") }}"{% if self.showing("pending") %} aria-current="true"{% endif %}>
     <span>{{ crate::i18n::bold_count(headcount.pending, a.no_answer, a.no_answer)|safe }}</span>

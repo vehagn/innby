@@ -20,14 +20,14 @@
 
 <section class="card">
   <h2>{{ a.link }}</h2>
-  <p class="muted small">{{ a.guest_link_hint }}</p>
+  <p class="hint">{{ a.guest_link_hint }}</p>
   <label for="url">{{ a.guest_link }}</label>
   <input id="url" type="text" readonly value="{{ url }}">
   <div class="qr">{{ qr|safe }}</div>
   <p><a href="{{ links.qr }}" download>{{ a.qr_download }}</a></p>
   <form method="post" action="{{ links.revoke }}">
     <button class="secondary">{{ a.new_link }}</button>
-    <span class="muted small">{{ a.new_link_hint }}</span>
+    <span class="hint">{{ a.new_link_hint }}</span>
   </form>
 </section>
 

@@ -11,8 +11,8 @@
 {% if !remembered.is_empty() %}
 <h2>{{ t.your_invitations }}</h2>
 {% for welcome in remembered %}
-<section class="card welcome" aria-labelledby="event-{{ welcome.event_id }}">
-  <h3 class="event-title" id="event-{{ welcome.event_id }}">{{ welcome.title }}</h3>
+<section class="card" aria-labelledby="event-{{ welcome.event_id }}">
+  <h3 id="event-{{ welcome.event_id }}">{{ welcome.title }}</h3>
   <dl class="facts">
     <div><dt>{{ t.when }}</dt><dd>{{ welcome.when }}</dd></div>
     {% if !welcome.place.is_empty() %}<div><dt>{{ t.place }}</dt><dd>{{ welcome.place }}</dd></div>{% endif %}
@@ -21,12 +21,12 @@
   <p><a class="button" href="{{ welcome.page }}">{{ t.to_your_page }}</a></p>
   <form method="post" action="{{ lang.forget() }}" class="not-you">
     <input type="hidden" name="event" value="{{ welcome.event_id }}">
-    <span class="muted small">{{ t.not_you }}</span>
+    <span class="hint">{{ t.not_you }}</span>
     <button class="link small">{{ t.forget_device }}</button>
   </form>
 </section>
 {% endfor %}
 {% endif %}
 
-<p class="hint">{{ t.rsvp_hint }} <a href="{{ lang.lost() }}">{{ t.lost_link }}</a></p>
+<p class="footnote">{{ t.rsvp_hint }} <a href="{{ lang.lost() }}">{{ t.lost_link }}</a></p>
 {% endblock %}

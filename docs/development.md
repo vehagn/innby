@@ -79,6 +79,15 @@ agents, but it's the quickest tour for people too. In short:
 - **Add a text:** a field in `src/i18n/messages.rs`, the text in `locales/nb.toml`, and
   its translations; see [translating.md](translating.md). Fill in placeholders with
   `i18n::fill` or `filled`.
+- **Change the look:** change the tokens at the top of `static/style.css`: colours
+  (each with its light and dark value side by side), type, spacing, corners, widths
+  and motion. Nothing else in the stylesheet names a colour or a size of its own.
+- **Style a page:** build it from the components in `static/style.css` (a `card`, a
+  `notice`, `facts`, a table in a `table-wrap`, buttons with `secondary` or `danger`,
+  a `hint` under a field) and plain elements, which are styled already. A new kind of
+  thing gets one class and one rule there, with variants that set its custom
+  properties. No inline styles: a test checks that every class a page uses has a rule,
+  and that every rule is used.
 - **Change the schema:** add a migration in `migrations/` (never edit one that's been
   released), run `just db prepare`, and commit `.sqlx/`.
 - **Add a setting:** read it in `src/config/`, describe it in `.env.example`, and, if the

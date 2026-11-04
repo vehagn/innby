@@ -15,7 +15,7 @@
 
 <section class="card">
   <h2>{{ a.sign_up_link }}</h2>
-  <p class="muted small">{{ crate::i18n::count(group.max_party_size, a.group_link_hint_one, a.group_link_hint_other) }}</p>
+  <p class="hint">{{ crate::i18n::count(group.max_party_size, a.group_link_hint_one, a.group_link_hint_other) }}</p>
   {% if !accepts_answers %}<p class="notice" role="status">{{ a.closed }}</p>{% endif %}
   <label for="url">{{ a.group_link }}</label>
   <input id="url" type="text" readonly value="{{ url }}">
@@ -23,7 +23,7 @@
   <p><a href="{{ links.qr }}" download>{{ a.qr_download }}</a></p>
   <form method="post" action="{{ links.revoke }}">
     <button class="secondary">{{ a.new_link }}</button>
-    <span class="muted small">{{ a.group_new_link_hint }}</span>
+    <span class="hint">{{ a.group_new_link_hint }}</span>
   </form>
 </section>
 
@@ -72,7 +72,7 @@
     <button class="danger">{{ a.delete }}</button>
   </form>
   {% else %}
-  <p class="muted small">{{ a.group_in_use_hint }}</p>
+  <p class="hint">{{ a.group_in_use_hint }}</p>
   {% endif %}
 </details>
 {% endblock %}

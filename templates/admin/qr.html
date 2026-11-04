@@ -8,7 +8,7 @@
 {% let a = crate::admin::lang::text() %}
 {% if saved %}<p class="notice success" role="status">{{ a.qr_saved }}</p>{% endif %}
 <h1>{{ a.qr_heading }}</h1>
-<p class="muted small">{{ a.qr_hint }}</p>
+<p class="hint">{{ a.qr_hint }}</p>
 
 <section class="card">
   <div class="qr-style">
@@ -32,7 +32,7 @@
     </form>
     <figure class="qr">
       {{ qr_preview|safe }}
-      <figcaption class="muted small">{{ a.qr_preview }}</figcaption>
+      <figcaption class="hint">{{ a.qr_preview }}</figcaption>
     </figure>
   </div>
 </section>

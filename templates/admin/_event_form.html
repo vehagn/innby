@@ -12,10 +12,10 @@
 <input id="time_zone" name="time_zone" required value="{{ form.time_zone() }}">
 <label for="rsvp_deadline">{{ a.event_deadline }}</label>
 <input id="rsvp_deadline" name="rsvp_deadline" type="datetime-local" value="{{ form.rsvp_deadline() }}">
-<p class="muted small">{{ a.event_deadline_hint }}</p>
-<details class="translations">
+<p class="hint">{{ a.event_deadline_hint }}</p>
+<details>
   <summary>{{ a.event_languages }}</summary>
-  <p class="muted small">{{ a.event_languages_hint }}</p>
+  <p class="hint">{{ a.event_languages_hint }}</p>
   {% for translation in form.translations() %}
   <fieldset>
     <legend>{{ translation.language }}</legend>

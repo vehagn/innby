@@ -39,7 +39,7 @@
   <h2>{{ a.import_event }}</h2>
   {% if let Some(notice) = draft.file_notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
   {% if let Some(error) = draft.file_error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
-  <p class="muted small">{{ a.import_hint }}</p>
+  <p class="hint">{{ a.import_hint }}</p>
   <form method="post" enctype="multipart/form-data" action="{{ crate::paths::admin(crate::paths::EVENTS_IMPORT) }}#import">
     <label for="event-file">{{ a.event_file_upload }}</label>
     <input id="event-file" name="file" type="file" accept=".toml,text/plain,application/toml">
@@ -57,7 +57,7 @@
     {% include "admin/_event_form.html" %}
     <label for="groups">{{ a.event_groups }}</label>
     <textarea id="groups" name="groups" rows="3" placeholder="{{ a.groups_placeholder }}">{{ draft.groups() }}</textarea>
-    <p class="muted small">{{ a.event_groups_hint }}</p>
+    <p class="hint">{{ a.event_groups_hint }}</p>
     <button>{{ a.create_event }}</button>
   </form>
 </section>

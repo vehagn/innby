@@ -18,7 +18,7 @@
 
 <section class="card">
   <h2>{{ a.event_file }}</h2>
-  <p class="muted small">{{ a.export_hint }}</p>
+  <p class="hint">{{ a.export_hint }}</p>
   <p><a class="button secondary" href="{{ links.export }}" download>{{ a.export_event }}</a>
   {% if crate::admin::role::Role::is_admin() %} <a class="button secondary" href="{{ links.copy }}">{{ a.copy_event }}</a>{% endif %}</p>
 </section>
@@ -26,7 +26,7 @@
 {% if crate::admin::role::Role::is_admin() %}
 <details>
   <summary>{{ a.delete }}</summary>
-  <p class="muted small">{{ crate::i18n::filled(a.event_retention_hint, "days", keep_after_event_days) }}</p>
+  <p class="hint">{{ crate::i18n::filled(a.event_retention_hint, "days", keep_after_event_days) }}</p>
   <form method="post" action="{{ links.delete }}">
     <label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> {{ crate::i18n::filled(a.delete_event, "title", event.details.title(crate::admin::lang::current())) }}</label>
     <button class="danger">{{ a.delete }}</button>

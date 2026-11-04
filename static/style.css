@@ -1,58 +1,111 @@
+/* Innby's stylesheet, for the guests' site and the admin UI alike.
+ *
+ * To change the look, change the tokens in section 1: colours, type, spacing,
+ * corners, widths and motion. Nothing below names a colour or a size of its own.
+ *
+ *   1. Tokens       what the look is made of
+ *   2. Base         the page, text, headings, links
+ *   3. Layout       header, main and footer
+ *   4. Components   button, field, card, notice, disclosure, facts, table, tabs,
+ *                   tiles, status, QR code, icon, header controls
+ *   5. Guests       the event's title, confetti, the guest list, the front page
+ *   6. Admin        the QR style form
+ *   7. Utilities    hint, muted, small, visually hidden, honeypot
+ *   8. Less motion
+ *
+ * A component is one class. A variant, such as a secondary button or an answer's
+ * colour, sets the component's own custom properties (--button-bg, --tone) instead
+ * of restyling it, so each component is styled in one place. Templates use these
+ * classes and nothing else: no inline styles, and no new class without a rule here
+ * (a test checks both ways).
+ */
+
+/* 1. Tokens */
+
 :root {
-  --bg: #212121;
-  --raised: #282828;
-  --fg: #ffffff;
-  /* Lighter than s9n's #757575, so small grey text keeps a 4.5:1 contrast. */
-  --muted: #9e9e9e;
-  --line: #333333;
-  /* Borders of fields, which need a 3:1 contrast to be seen. */
-  --field: #757575;
-  --teal-bright: #00796b;
-  /* Teal for text and links on the background. */
-  --link: #4db6ac;
-  --danger: #ef9a9a;
-  --success: #81c784;
-  /* Confetti. */
-  --amber: #ffca28;
-  --pink: #f06292;
-  --violet: #9575cd;
-  --mono: ui-monospace, "Cascadia Code", "Fira Code", monospace;
-  color-scheme: dark light;
+  /* Colours, each written once: its light value, then its dark one. --light is
+     100% in the light theme and 0% in the dark (set below), so color-mix() picks
+     one. It does what light-dark() does, which older iPhones lack. */
+  --light: 0%;
+  --bg: color-mix(in srgb, #fafafa var(--light), #212121);
+  --surface: color-mix(in srgb, #ffffff var(--light), #282828);
+  --text: color-mix(in srgb, #212121 var(--light), #ffffff);
+  /* 4.5:1 against the background, for small grey text. */
+  --text-muted: color-mix(in srgb, #616161 var(--light), #9e9e9e);
+  --border: color-mix(in srgb, #e0e0e0 var(--light), #333333);
+  /* 3:1 against the background, so fields can be seen. */
+  --border-field: color-mix(in srgb, #8a8a8a var(--light), #757575);
+  /* The accent fills buttons; --accent-text is the accent for text and links. */
+  --accent: #00796b;
+  --accent-text: color-mix(in srgb, #00695c var(--light), #4db6ac);
+  --on-accent: #ffffff;
+  --success: color-mix(in srgb, #2e7d32 var(--light), #81c784);
+  --warning: color-mix(in srgb, #ffb300 var(--light), #ffca28);
+  --danger: color-mix(in srgb, #c62828 var(--light), #ef9a9a);
+  /* Party colours: confetti, the title's glitch, the guest list's stars. */
+  --festive-1: var(--accent);
+  --festive-2: var(--warning);
+  --festive-3: #f06292;
+  --festive-4: #9575cd;
+
+  /* Type */
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  --text-xs: 0.8125rem;
+  --text-s: 0.9375rem;
+  --text-m: 1.0625rem;
+  --text-l: 1.375rem;
+  --text-xl: 2.25rem;
+  --text-display: clamp(2rem, 6vw, 3rem);
+  --line-height: 1.6;
+
+  /* Space, in steps */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 2rem;
+  --space-8: 3rem;
+
+  /* Shape */
+  --rule: 1px;
+  --rule-thick: 3px;
+  --radius-s: 0.375rem;
+  --radius-m: 0.5rem;
+  --radius-l: 0.75rem;
+  --radius-round: 999px;
+  --shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.3);
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+  --icon-size: 1.125rem;
+
+  /* Widths */
+  --page: 40rem;
+  --page-wide: 64rem;
+  --field: 24rem;
+
+  /* Motion */
+  --duration: 0.2s;
+  --lift: translateY(-2px);
+
+  color-scheme: dark;
 }
 
-/* Light: the device's choice, unless the guest picked dark with the switch. */
+/* Light: the device's choice, unless the switch says dark; or the switch says light. */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --bg: #fafafa;
-    --raised: #ffffff;
-    --fg: #212121;
-    --muted: #616161;
-    --line: #e0e0e0;
-    --field: #8a8a8a;
-    --link: #00695c;
-    --danger: #c62828;
-    --success: #2e7d32;
-    --amber: #ffb300;
+    --light: 100%;
+    color-scheme: light;
   }
 }
 
 :root[data-theme="light"] {
-  --bg: #fafafa;
-  --raised: #ffffff;
-  --fg: #212121;
-  --muted: #616161;
-  --line: #e0e0e0;
-  --field: #8a8a8a;
-  --link: #00695c;
-  --danger: #c62828;
-  --success: #2e7d32;
-  --amber: #ffb300;
+  --light: 100%;
   color-scheme: light;
 }
 
-:root[data-theme="dark"] {
-  color-scheme: dark;
-}
+/* 2. Base */
 
 * {
   box-sizing: border-box;
@@ -61,63 +114,567 @@
 body {
   margin: 0;
   background: var(--bg);
-  color: var(--fg);
-  font: 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+  font: var(--text-m) / var(--line-height) var(--font);
   -webkit-font-smoothing: antialiased;
 }
+
+a {
+  color: var(--accent-text);
+  text-underline-offset: 0.2em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+h1 {
+  margin: var(--space-4) 0 var(--space-6);
+  font: 500 var(--text-display) / 1.15 var(--font-mono);
+}
+
+h2,
+h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-l);
+  font-weight: 500;
+}
+
+/* Small grey capitals for what labels other things: table headings, the names of
+   facts, the guest list's headings. */
+th,
+.facts dt,
+.overline {
+  font: var(--text-xs) var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+h3.overline {
+  margin: var(--space-5) 0 var(--space-2);
+}
+
+/* Long texts, such as the privacy notice. */
+.prose h2 {
+  margin-top: var(--space-7);
+}
+
+.prose li {
+  margin: var(--space-1) 0;
+}
+
+/* 3. Layout */
 
 header,
 main,
 footer {
-  max-width: 40rem;
+  max-width: var(--page);
   margin: 0 auto;
+}
+
+/* The admin UI has tables, so it gets more room. */
+body.admin {
+  --page: var(--page-wide);
 }
 
 header {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1rem;
+  gap: var(--space-3);
+  padding: var(--space-4);
 }
 
 main {
-  padding: 0 1rem 3rem;
+  padding: 0 var(--space-4) var(--space-8);
 }
 
-a {
-  color: var(--link);
+footer {
+  padding: 0 var(--space-4) var(--space-7);
+  font-size: var(--text-s);
+}
+
+footer a {
+  color: var(--text-muted);
+}
+
+/* 4. Components */
+
+/* Button: a <button>, or a link that looks like one (.button). Variants set the
+   --button-* properties. */
+button,
+.button {
+  --button-bg: var(--accent);
+  --button-fg: var(--on-accent);
+  --button-border: var(--accent);
+  --button-glow: color-mix(in srgb, var(--accent) 35%, transparent);
+  display: inline-block;
+  padding: var(--space-2) var(--space-4);
+  border: var(--rule) solid var(--button-border);
+  border-radius: var(--radius-m);
+  background: var(--button-bg);
+  color: var(--button-fg);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform var(--duration), box-shadow var(--duration);
+}
+
+button:hover,
+.button:hover {
+  transform: var(--lift);
+  box-shadow: 0 0.375rem 1rem var(--button-glow);
+}
+
+button:active,
+.button:active {
+  transform: scale(0.97);
+}
+
+.secondary {
+  --button-bg: transparent;
+  --button-fg: var(--accent-text);
+  --button-border: var(--accent-text);
+}
+
+/* Something that can't be undone: dashed, and red. */
+.danger {
+  --button-bg: transparent;
+  --button-fg: var(--danger);
+  --button-border: var(--danger);
+  --button-glow: transparent;
+  border-style: dashed;
+}
+
+/* A button that reads as a link, for a quiet way out. */
+button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font-weight: inherit;
+  text-decoration: underline;
   text-underline-offset: 0.2em;
 }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
+button.link:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* A link that looks like a button goes somewhere, so it gets a sliding arrow. */
+a.button::after {
+  content: "›";
+  display: inline-block;
+  margin-left: var(--space-2);
+  font-family: var(--font-mono);
+  transition: transform var(--duration);
+}
+
+a.button:hover::after {
+  transform: translateX(3px);
+}
+
+/* Buttons side by side. */
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Field: a label above its input. Fields stack, each with room below. */
+label {
+  display: block;
+  margin: 0 0 var(--space-1);
+}
+
+input:not([type]),
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="password"],
+input[type="datetime-local"],
+input[type="file"],
+select,
+textarea {
+  display: block;
+  width: 100%;
+  max-width: var(--field);
+  padding: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
+  border: var(--rule) solid var(--border-field);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  transition: border-color var(--duration), box-shadow var(--duration);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+input[type="number"] {
+  width: 6rem;
+}
+
+/* A link to copy, which may be long. */
+input[readonly] {
+  max-width: none;
+}
+
+td input[readonly] {
+  margin: 0;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+/* A checkbox before its words. */
+label.checkbox {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+/* Radio buttons in a row. */
+label.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 var(--space-4) var(--space-2) 0;
+}
+
+fieldset {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  border: 0;
+}
+
+legend {
+  margin: 0 0 var(--space-1);
+  padding: 0;
+}
+
+input[type="color"] {
+  display: block;
+  width: 4rem;
+  height: 2.5rem;
+  padding: var(--space-1);
+  margin: 0 0 var(--space-4);
+  border: var(--rule) solid var(--border-field);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  cursor: pointer;
+}
+
+/* Card: a raised box with an accent rule along its top, which shimmers on the
+   guests' site. */
+.card {
+  position: relative;
+  margin: 0 0 var(--space-6);
+  padding: var(--space-5);
   overflow: hidden;
-  clip-path: inset(50%);
+  background: var(--surface);
+  border: var(--rule) solid var(--border);
+  border-radius: var(--radius-l);
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--rule-thick);
+  background: linear-gradient(90deg, var(--accent), var(--accent-text), var(--accent));
+  background-size: 200% 100%;
+  animation: shimmer 6s linear infinite;
+}
+
+.admin .card::before {
+  animation: none;
+}
+
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* Notice: a message with a coloured rule on its left. --tone is its colour. */
+.notice {
+  --tone: var(--text-muted);
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: var(--rule-thick) solid var(--tone);
+  border-radius: var(--radius-s);
+  background: color-mix(in srgb, var(--tone) 10%, transparent);
+}
+
+.notice.success {
+  --tone: var(--success);
+  animation: pop 0.4s ease-out;
+}
+
+.notice.error {
+  --tone: var(--danger);
+}
+
+.notice > :last-child {
+  margin-bottom: 0;
+}
+
+@keyframes pop {
+  0% { transform: scale(0.96); opacity: 0; }
+  60% { transform: scale(1.01); opacity: 1; }
+}
+
+/* Disclosure: a <details> in the page, between thin rules, for what's needed now
+   and then. */
+main details {
+  padding: var(--space-3) 0;
+  border-top: var(--rule) solid var(--border);
+}
+
+main details:last-child {
+  border-bottom: var(--rule) solid var(--border);
+}
+
+main summary {
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+}
+
+main summary::-webkit-details-marker {
+  display: none;
+}
+
+main summary::before {
+  content: "›";
+  display: inline-block;
+  width: var(--space-5);
+  font-family: var(--font-mono);
+  color: var(--accent-text);
+  transition: transform var(--duration);
+}
+
+main details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+main details > :not(summary) {
+  margin-top: var(--space-3);
+}
+
+/* Facts: name and value in rows between thin rules, such as when and where. */
+.facts {
+  max-width: 26rem;
+  margin: 0 0 var(--space-6);
+}
+
+.facts div {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: var(--rule) solid var(--border);
+}
+
+.facts div:first-child {
+  border-top: var(--rule) solid var(--border);
+}
+
+.facts dt {
+  align-self: baseline;
+}
+
+.facts dd {
+  margin: 0;
+}
+
+/* Table, in a .table-wrap that scrolls sideways on a phone. */
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-s);
+}
+
+th,
+td {
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  border-bottom: var(--rule) solid var(--border);
+  text-align: left;
   white-space: nowrap;
 }
 
-/* The admin site's name, on the left. */
+/* Tabs: the admin's sections, along a rule. */
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-6);
+  overflow-x: auto;
+  border-bottom: var(--rule) solid var(--border);
+}
+
+.tabs a {
+  padding: var(--space-2) var(--space-4);
+  margin-bottom: calc(-1 * var(--rule));
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--duration), border-color var(--duration);
+}
+
+.tabs a:hover {
+  color: var(--text);
+}
+
+.tabs a[aria-current] {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--accent-text);
+}
+
+/* The way from an event's pages back to the list of events. */
+.crumb {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-s);
+}
+
+.crumb a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.crumb a:hover {
+  color: var(--text);
+}
+
+/* An answer's colour, for tiles and statuses. */
+.attending { --tone: var(--success); }
+.pending { --tone: var(--warning); }
+.declined { --tone: var(--danger); }
+
+/* Tiles: the headcount, one per answer; each shows only those guests. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: var(--space-3);
+  margin: 0 0 var(--space-6);
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: var(--rule) solid var(--border);
+  border-top: var(--rule-thick) solid var(--tone);
+  border-radius: var(--radius-l);
+  color: var(--text);
+  text-decoration: none;
+  transition: transform var(--duration), box-shadow var(--duration);
+}
+
+.tile strong {
+  display: block;
+  font: 500 var(--text-xl) / 1.1 var(--font-mono);
+}
+
+.tile:hover {
+  transform: var(--lift);
+  box-shadow: 0 0.375rem 1rem color-mix(in srgb, var(--tone) 25%, transparent);
+}
+
+.tile[aria-current] {
+  border-color: var(--tone);
+  box-shadow: inset 0 0 0 var(--rule) var(--tone);
+}
+
+/* Status: an answer in a table, a coloured dot before the words. */
+.status {
+  white-space: nowrap;
+}
+
+.status::before {
+  content: "";
+  display: inline-block;
+  width: var(--space-2);
+  height: var(--space-2);
+  margin-right: var(--space-2);
+  border-radius: 50%;
+  background: var(--tone);
+}
+
+/* QR code: dark on white whatever the theme, since scanners want that. The code
+   brings its own white margin; a ring and a shadow lift it off the page. */
+.qr {
+  margin: 0;
+}
+
+.qr svg {
+  display: block;
+  width: 14rem;
+  max-width: 100%;
+  height: auto;
+  margin: var(--space-2) 0 var(--space-3);
+  background: #ffffff;
+  border-radius: var(--radius-l);
+  box-shadow:
+    0 0 0 var(--rule-thick) color-mix(in srgb, var(--accent) 55%, transparent),
+    var(--shadow);
+  transition: transform var(--duration), box-shadow var(--duration);
+}
+
+.qr svg:hover {
+  transform: rotate(-1.5deg) scale(1.03);
+  box-shadow: 0 0 0 var(--rule-thick) var(--accent), var(--shadow);
+}
+
+/* Icon: a line drawing in the text's colour. */
+.icon {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Header controls: the admin's name, the colour scheme switch, the language menu
+   and logging out. */
 .brand {
   margin-right: auto;
-  font: 600 1rem var(--mono);
-  color: var(--fg);
+  font: 600 var(--text-m) var(--font-mono);
+  color: var(--text);
   text-decoration: none;
 }
 
 .brand span {
-  color: var(--link);
+  color: var(--accent-text);
 }
 
-/* Colour scheme switch: three small icons in a pill. */
-
 .theme-switch {
+  --icon-size: 1rem;
   display: flex;
-  padding: 0.125rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  padding: 2px;
+  border: var(--rule) solid var(--border);
+  border-radius: var(--radius-round);
 }
 
 .theme-switch a {
@@ -125,30 +682,21 @@ a {
   place-items: center;
   width: 1.75rem;
   height: 1.5rem;
-  border-radius: 999px;
-  color: var(--muted);
-  transition: color 0.2s, background-color 0.2s;
+  border-radius: var(--radius-round);
+  color: var(--text-muted);
+  transition: color var(--duration), background-color var(--duration);
 }
 
-.theme-switch a:hover {
-  color: var(--fg);
+.theme-switch a:hover,
+.theme-switch a[aria-current] {
+  color: var(--text);
 }
 
 .theme-switch a[aria-current] {
-  color: var(--fg);
-  background: color-mix(in srgb, var(--teal-bright) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
-.theme-switch svg {
-  width: 1rem;
-  height: 1rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.75;
-  stroke-linecap: round;
-}
-
-.theme-switch a:hover svg {
+.theme-switch a:hover .icon {
   animation: wiggle-once 0.5s ease-in-out;
 }
 
@@ -157,45 +705,35 @@ a {
   66% { transform: rotate(15deg); }
 }
 
-/* Language menu: a small globe that opens a list. */
-
-.lang-menu {
-  position: relative;
-}
-
-/* The control next to the theme switch: the language menu, or logging out. */
-.lang-menu summary,
-button.pill {
+/* A quiet round control: the language menu's button, and logging out. */
+.pill,
+.lang-menu summary {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.5rem;
-  border: 1px solid transparent;
-  border-radius: 999px;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: var(--rule) solid transparent;
+  border-radius: var(--radius-round);
   background: none;
-  color: var(--muted);
+  color: var(--text-muted);
   font: inherit;
-  font-size: 0.875rem;
-  cursor: pointer;
+  font-size: var(--text-s);
   list-style: none;
-  transition: color 0.2s, border-color 0.2s;
+  cursor: pointer;
+  transition: color var(--duration), border-color var(--duration);
 }
 
-button.pill:hover {
-  color: var(--fg);
-  border-color: var(--line);
+.pill:hover,
+.lang-menu summary:hover,
+.lang-menu details[open] summary {
   transform: none;
   box-shadow: none;
+  color: var(--text);
+  border-color: var(--border);
 }
 
-button.pill svg {
-  width: 1.125rem;
-  height: 1.125rem;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.75;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.lang-menu summary::-webkit-details-marker {
+  display: none;
 }
 
 .logout {
@@ -204,7 +742,7 @@ button.pill svg {
 
 /* On a phone, the admin header has room for the logout icon only. */
 @media (max-width: 30rem) {
-  button.pill .label {
+  .pill .label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -214,21 +752,11 @@ button.pill svg {
   }
 }
 
-.lang-menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.lang-menu summary:hover,
-.lang-menu details[open] summary {
-  color: var(--fg);
-  border-color: var(--line);
+.lang-menu {
+  position: relative;
 }
 
 .globe {
-  width: 1.125rem;
-  height: 1.125rem;
-  fill: none;
-  stroke: currentColor;
   stroke-width: 1.5;
   transition: transform 0.6s ease;
 }
@@ -237,57 +765,64 @@ button.pill svg {
   transform: rotate(180deg);
 }
 
+/* A language's short name, such as GB. */
 .badge {
   display: inline-block;
   min-width: 1.75rem;
-  font: 0.75rem/1.5 var(--mono);
+  font: var(--text-xs) / 1.5 var(--font-mono);
   letter-spacing: 0.04em;
   text-align: center;
 }
 
 .lang-menu ul {
   position: absolute;
+  top: calc(100% + var(--space-2));
   right: 0;
-  top: calc(100% + 0.375rem);
   z-index: 10;
   margin: 0;
-  padding: 0.375rem 0;
+  padding: var(--space-2) 0;
   list-style: none;
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.3);
+  background: var(--surface);
+  border: var(--rule) solid var(--border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow);
   animation: drop-in 0.15s ease-out;
 }
 
 .lang-menu li a {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.375rem 1rem;
-  white-space: nowrap;
-  color: var(--fg);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  color: var(--text);
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .lang-menu li a:hover,
 .lang-menu li a:focus-visible {
-  background: color-mix(in srgb, var(--teal-bright) 25%, transparent);
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 .lang-menu li .badge {
-  color: var(--link);
+  color: var(--accent-text);
 }
 
 @keyframes drop-in {
   from { opacity: 0; transform: translateY(-0.25rem); }
 }
 
-/* Event */
+/* 5. Guests */
 
+/* The event's title and facts, centred at the top of its pages. */
 .hero {
+  margin: var(--space-6) 0 var(--space-7);
   text-align: center;
-  margin: 1.5rem 0 2rem;
+}
+
+.hero .facts {
+  margin: 0 auto;
+  text-align: left;
 }
 
 .title {
@@ -295,18 +830,18 @@ button.pill svg {
   align-items: center;
   justify-content: center;
   gap: 0.5em;
+  margin: 0 0 var(--space-7);
   font-size: clamp(2rem, 7vw, 3.25rem);
   font-weight: 500;
   line-height: 1.15;
   letter-spacing: 0.01em;
-  margin: 0 0 2rem;
   overflow-wrap: anywhere;
 }
 
 .title-emoji {
   display: inline-block;
-  font-size: 0.6em;
   flex: none;
+  font-size: 0.6em;
   animation: wiggle 4s ease-in-out infinite;
 }
 
@@ -324,10 +859,10 @@ button.pill svg {
 .title-text {
   position: relative;
   display: inline-block;
-  font-family: var(--mono);
+  font-family: var(--font-mono);
 }
 
-/* Two offset copies flash over the title now and then, as on s9n.no. */
+/* Two offset copies of the title flash over it now and then. */
 .glitch {
   position: absolute;
   inset: 0;
@@ -336,13 +871,13 @@ button.pill svg {
 }
 
 .glitch:nth-child(1) {
-  color: var(--teal-bright);
+  color: var(--festive-1);
   clip-path: polygon(0 15%, 100% 15%, 100% 40%, 0 40%);
   animation: glitch-a 6s infinite;
 }
 
 .glitch:nth-child(2) {
-  color: var(--pink);
+  color: var(--festive-3);
   clip-path: polygon(0 60%, 100% 60%, 100% 85%, 0 85%);
   animation: glitch-b 6s infinite;
 }
@@ -361,48 +896,19 @@ button.pill svg {
   92% { opacity: 0; transform: none; }
 }
 
-/* Facts as rows between thin rules: when and where, or a guest's answer. */
-.facts {
-  max-width: 26rem;
-  margin: 0 0 1.5rem;
-  text-align: left;
-}
-
-.hero .facts {
-  margin: 0 auto;
-}
-
-.facts div {
-  display: grid;
-  grid-template-columns: 6rem 1fr;
-  gap: 1rem;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.facts div:first-child {
-  border-top: 1px solid var(--line);
-}
-
-.facts dt {
-  align-self: baseline;
-}
-
-.facts dd {
-  margin: 0;
-}
-
+/* The host's description keeps its line breaks. */
 .description {
   white-space: pre-line;
 }
 
-/* Confetti falls once when the event page opens. */
+/* Confetti falls once when the event page opens. Each piece has its place (--x),
+   delay (--d), duration (--t) and direction (--s). */
 .confetti {
   position: fixed;
   inset: 0;
+  z-index: 20;
   overflow: hidden;
   pointer-events: none;
-  z-index: 20;
 }
 
 .confetti i {
@@ -412,15 +918,15 @@ button.pill svg {
   width: 0.5rem;
   height: 0.875rem;
   border-radius: 1px;
-  background: var(--c);
+  background: var(--tone);
   opacity: 0;
   animation: fall var(--t, 2.6s) cubic-bezier(0.3, 0.6, 0.6, 1) var(--d, 0s) forwards;
 }
 
-.confetti i:nth-child(4n + 1) { --c: var(--teal-bright); }
-.confetti i:nth-child(4n + 2) { --c: var(--amber); }
-.confetti i:nth-child(4n + 3) { --c: var(--pink); }
-.confetti i:nth-child(4n + 4) { --c: var(--violet); }
+.confetti i:nth-child(4n + 1) { --tone: var(--festive-1); }
+.confetti i:nth-child(4n + 2) { --tone: var(--festive-2); }
+.confetti i:nth-child(4n + 3) { --tone: var(--festive-3); }
+.confetti i:nth-child(4n + 4) { --tone: var(--festive-4); }
 .confetti i:nth-child(1) { --x: 4%; --d: 0.1s; }
 .confetti i:nth-child(2) { --x: 11%; --d: 0.5s; --t: 3s; }
 .confetti i:nth-child(3) { --x: 17%; --d: 0.2s; --s: -1; }
@@ -446,574 +952,110 @@ button.pill svg {
   100% { opacity: 0; transform: translate(calc(var(--s, 1) * 1rem), 100vh) rotate(calc(var(--s, 1) * 720deg)); }
 }
 
-/* Text */
-
-h1 {
-  font-size: clamp(2rem, 6vw, 3rem);
-  font-weight: 500;
-  font-family: var(--mono);
-  line-height: 1.15;
-  margin: 1rem 0 1.5rem;
-}
-
-h2 {
-  font-size: 1.375rem;
-  font-weight: 500;
-  margin: 0 0 0.75rem;
-}
-
-h3 {
-  margin: 1.25rem 0 0.5rem;
-}
-
-/* Small grey capitals for what labels other things: list headings, the names of
-   facts, table headings. */
-h3,
-.facts dt,
-th {
-  font: 0.8125rem var(--mono);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.hint {
-  color: var(--muted);
-  border-top: 1px solid var(--line);
-  padding-top: 1rem;
-}
-
-footer {
-  padding: 0 1rem 2rem;
-  font-size: 0.875rem;
-}
-
-footer a {
-  color: var(--muted);
-}
-
-.muted {
-  color: var(--muted);
-}
-
-.small {
-  font-size: 0.9375rem;
-}
-
-/* Boxes */
-
-.card {
-  position: relative;
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: 0.75rem;
-  padding: 1.25rem;
-  margin: 0 0 1.5rem;
-  overflow: hidden;
-}
-
-/* A teal rule along the top of each card. */
-.card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto;
-  height: 3px;
-  background: linear-gradient(90deg, var(--teal-bright), var(--link), var(--teal-bright));
-  background-size: 200% 100%;
-  animation: shimmer 6s linear infinite;
-}
-
-@keyframes shimmer {
-  to { background-position: -200% 0; }
-}
-
-.notice {
-  border-left: 3px solid var(--muted);
-  background: color-mix(in srgb, var(--muted) 10%, transparent);
-  padding: 0.75rem 1rem;
-  border-radius: 0.25rem;
-}
-
-.notice.success {
-  border-color: var(--success);
-  animation: pop 0.4s ease-out;
-}
-
-.notice.error {
-  border-color: var(--danger);
-}
-
-@keyframes pop {
-  0% { transform: scale(0.96); opacity: 0; }
-  60% { transform: scale(1.01); opacity: 1; }
-}
-
-.save-link {
-  border-color: var(--success);
-  margin: 0 0 1.5rem;
-}
-
-.save-link input {
+/* The guest list: names in two columns, each after a star. */
+.names {
   margin: 0;
-}
-
-/* Forms */
-
-label {
-  display: block;
-  margin: 0 0 0.25rem;
-}
-
-label.checkbox {
-  display: flex;
-  gap: 0.5rem;
-  align-items: baseline;
-  margin: 0.75rem 0;
-}
-
-input[type="checkbox"] {
-  accent-color: var(--teal-bright);
-}
-
-input:not([type]),
-input[type="text"],
-input[type="email"],
-input[type="number"],
-input[type="password"],
-input[type="datetime-local"],
-select,
-textarea {
-  display: block;
-  font: inherit;
-  width: 100%;
-  max-width: 24rem;
-  padding: 0.5rem 0.625rem;
-  margin: 0 0 0.75rem;
-  border: 1px solid var(--field);
-  border-radius: 0.375rem;
-  background: var(--bg);
-  color: var(--fg);
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-  border-color: var(--teal-bright);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal-bright) 35%, transparent);
-}
-
-input[type="number"] {
-  width: 6rem;
-}
-
-input[readonly] {
-  max-width: none;
-}
-
-td input[readonly] {
-  margin: 0;
-}
-
-.buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-button,
-a.button {
-  display: inline-block;
-  font: inherit;
-  font-weight: 600;
-  padding: 0.625rem 1.125rem;
-  border: 1px solid var(--teal-bright);
-  border-radius: 0.5rem;
-  background: var(--teal-bright);
-  color: #ffffff;
-  text-decoration: none;
-  cursor: pointer;
-  transition: transform 0.15s, background-color 0.2s, box-shadow 0.2s;
-}
-
-button:hover,
-a.button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0.375rem 1rem color-mix(in srgb, var(--teal-bright) 35%, transparent);
-}
-
-button:active,
-a.button:active {
-  transform: translateY(0) scale(0.97);
-}
-
-:focus-visible {
-  outline: 2px solid var(--link);
-  outline-offset: 2px;
-}
-
-button.secondary,
-a.button.secondary {
-  background: transparent;
-  border-color: var(--link);
-  color: var(--link);
-}
-
-/* A link that looks like a button goes somewhere, so it gets s9n's sliding arrow. */
-a.button::after {
-  content: "›";
-  display: inline-block;
-  margin-left: 0.5rem;
-  font-family: var(--mono);
-  transition: transform 0.2s;
-}
-
-a.button:hover::after {
-  transform: translateX(3px);
-}
-
-/* A button that reads as a link, for a quiet way out. */
-button.link {
   padding: 0;
-  border: 0;
-  background: none;
-  color: var(--link);
-  font-weight: inherit;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
+  list-style: none;
+  columns: 2 12rem;
 }
 
-button.link:hover {
-  transform: none;
-  box-shadow: none;
+.names li {
+  --tone: var(--festive-1);
+  padding: 2px 0;
+  break-inside: avoid;
+  overflow-wrap: anywhere;
 }
 
-/* The front page: what Innby is, then a card per invitation this device remembers. */
+.names li::before {
+  content: "✦";
+  margin-right: var(--space-2);
+  font-size: 0.75em;
+  color: var(--tone);
+}
+
+.names li:nth-child(3n + 2) { --tone: var(--festive-2); }
+.names li:nth-child(3n + 3) { --tone: var(--festive-3); }
+.names li.muted::before { content: none; }
+
+/* "+1": the rest of a guest's party. */
+.plus {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Remembering this device, under the answer's card. */
+.remember {
+  margin: 0 0 var(--space-6);
+}
+
+/* The front page: what Innby is, a card per remembered invitation, and a note
+   at the foot. */
 .intro {
   max-width: 32rem;
   margin: 0 auto;
-  color: var(--muted);
-  font-size: 1.125rem;
-}
-
-.welcome {
-  margin-top: 1rem;
-}
-
-/* An event's name on its card: a heading in the page's own type, not a small label. */
-.event-title {
-  font: inherit;
-  font-size: 1.375rem;
-  font-weight: 500;
-  letter-spacing: normal;
-  text-transform: none;
-  color: var(--fg);
-  margin: 0 0 0.75rem;
+  color: var(--text-muted);
 }
 
 .not-you {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem;
   align-items: baseline;
+  gap: var(--space-2);
 }
 
-.remember {
-  margin: 0 0 1.5rem;
+.footnote {
+  padding-top: var(--space-4);
+  border-top: var(--rule) solid var(--border);
+  color: var(--text-muted);
 }
 
-.remember p {
-  margin: 0.5rem 0 0;
-}
-
-button.danger {
-  background: transparent;
-  color: var(--danger);
-  border-color: var(--danger);
-  border-style: dashed;
-}
-
-button.danger:hover {
-  box-shadow: none;
-}
-
-main details {
-  border-top: 1px solid var(--line);
-  padding: 0.75rem 0;
-}
-
-main details:last-child {
-  border-bottom: 1px solid var(--line);
-}
-
-main summary {
-  cursor: pointer;
-  font-weight: 500;
-  list-style: none;
-}
-
-main summary::-webkit-details-marker {
-  display: none;
-}
-
-main summary::before {
-  content: "›";
-  display: inline-block;
-  width: 1.25rem;
-  font-family: var(--mono);
-  color: var(--link);
-  transition: transform 0.2s;
-}
-
-main details[open] > summary::before {
-  transform: rotate(90deg);
-}
-
-main details > :not(summary) {
-  margin-top: 0.75rem;
-}
-
-/* Guest list */
-
-.names {
-  columns: 2 12rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.names li {
-  break-inside: avoid;
-  overflow-wrap: anywhere;
-  padding: 0.125rem 0;
-}
-
-.names li::before {
-  content: "✦";
-  margin-right: 0.5rem;
-  font-size: 0.75em;
-  color: var(--teal-bright);
-}
-
-.names li:nth-child(3n + 2)::before { color: var(--amber); }
-.names li:nth-child(3n + 3)::before { color: var(--pink); }
-.names li.muted::before { content: none; }
-
-.names .plus {
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-/* Admin */
-
-body.admin header,
-body.admin main {
-  max-width: 64rem;
-}
-
-body.admin .card::before {
-  animation: none;
-}
-
-/* The way from an event's pages back to the list of events. */
-.crumb {
-  margin: 0 0 0.5rem;
-}
-
-.crumb a {
-  color: var(--muted);
-  text-decoration: none;
-}
-
-.crumb a:hover {
-  color: var(--fg);
-}
-
-/* The admin's sections, as tabs along a rule. */
-.tabs {
-  display: flex;
-  gap: 0.25rem;
-  margin: 0 0 1.5rem;
-  border-bottom: 1px solid var(--line);
-  overflow-x: auto;
-}
-
-.tabs a {
-  padding: 0.5rem 0.875rem;
-  margin-bottom: -1px;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.2s, border-color 0.2s;
-}
-
-.tabs a:hover {
-  color: var(--fg);
-}
-
-.tabs a[aria-current] {
-  color: var(--fg);
-  font-weight: 600;
-  border-bottom-color: var(--link);
-}
-
-/* An answer's colour: on the headcount's tiles and in the guest tables. */
-.attending { --c: var(--success); }
-.pending { --c: var(--amber); }
-.declined { --c: var(--danger); }
-
-/* The headcount, one tile per answer; each shows only those guests in the table. */
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
-  gap: 0.75rem;
-  margin: 0 0 1.5rem;
-}
-
-.tile {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.875rem 1rem;
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-top: 3px solid var(--c);
-  border-radius: 0.75rem;
-  color: var(--fg);
-  text-decoration: none;
-  transition: transform 0.15s, box-shadow 0.2s;
-}
-
-.tile strong {
-  display: block;
-  font: 500 2.25rem/1.1 var(--mono);
-}
-
-.tile:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0.375rem 1rem color-mix(in srgb, var(--c) 25%, transparent);
-}
-
-.tile[aria-current] {
-  border-color: var(--c);
-  box-shadow: inset 0 0 0 1px var(--c);
-}
-
-/* An answer in a table: a coloured dot before the words. */
-.status {
-  white-space: nowrap;
-}
-
-.status::before {
-  content: "";
-  display: inline-block;
-  width: 0.5rem;
-  height: 0.5rem;
-  margin-right: 0.4rem;
-  border-radius: 50%;
-  background: var(--c);
-}
-
-.table-wrap {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9375rem;
-}
-
-th,
-td {
-  text-align: left;
-  padding: 0.5rem 0.75rem 0.5rem 0;
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
-}
-
-/* Scanners want dark modules on light, whatever the theme. The code brings its own
-   white margin; a teal ring and a shadow lift it off the page. */
-.qr {
-  margin: 0;
-}
-
-.qr svg {
-  width: 14rem;
-  max-width: 100%;
-  height: auto;
-  display: block;
-  margin: 0.5rem 0 0.75rem;
-  background: #ffffff;
-  border-radius: 1rem;
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--teal-bright) 55%, transparent),
-    0 0.75rem 2rem rgb(0 0 0 / 0.3);
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-
-.qr svg:hover {
-  transform: rotate(-1.5deg) scale(1.03);
-  box-shadow:
-    0 0 0 3px var(--teal-bright),
-    0 1rem 2.5rem rgb(0 0 0 / 0.35);
-}
+/* 6. Admin */
 
 /* The QR style form, with its example beside it on wide screens. */
 .qr-style {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem 2rem;
   align-items: flex-start;
+  gap: var(--space-4) var(--space-7);
 }
 
 .qr-style form {
   flex: 1 1 16rem;
 }
 
-fieldset {
-  margin: 0 0 1rem;
-  padding: 0;
-  border: 0;
-}
-
-legend {
-  margin: 0 0 0.25rem;
-  padding: 0;
-}
-
-label.choice {
-  display: inline-flex;
-  gap: 0.375rem;
-  align-items: center;
-  margin: 0 1rem 0.5rem 0;
-}
-
-input[type="radio"] {
-  accent-color: var(--teal-bright);
-}
-
-input[type="color"] {
-  display: block;
-  width: 4rem;
-  height: 2.5rem;
-  padding: 0.25rem;
-  margin: 0 0 1rem;
-  border: 1px solid var(--field);
-  border-radius: 0.375rem;
-  background: var(--bg);
-  cursor: pointer;
-}
-
-/* Beside the "Emoji" choice. */
+/* The emoji field, beside the "Emoji" choice. */
 input.emoji {
   display: inline-block;
   width: 4.5rem;
   margin: 0;
+  font-size: var(--text-l);
   text-align: center;
-  font-size: 1.25rem;
+}
+
+/* 7. Utilities */
+
+/* A short explanation: small and grey. */
+.hint {
+  color: var(--text-muted);
+  font-size: var(--text-s);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.small {
+  font-size: var(--text-s);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* Honeypot: invisible to people, tempting to bots. */
@@ -1025,13 +1067,7 @@ input.emoji {
   overflow: hidden;
 }
 
-.prose h2 {
-  margin-top: 2rem;
-}
-
-.prose li {
-  margin: 0.25rem 0;
-}
+/* 8. Less motion */
 
 @media (prefers-reduced-motion: reduce) {
   *,
