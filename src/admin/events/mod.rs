@@ -20,6 +20,7 @@ use axum::{
     extract::{Multipart, Query, State},
     response::Response,
 };
+use chrono::Utc;
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -175,7 +176,7 @@ pub(super) async fn create(
     );
     let checked = draft
         .form
-        .details()
+        .details(Utc::now())
         .and_then(|details| Ok((details, group_lines(&draft.groups)?)));
     let (details, groups) = match checked {
         Ok(checked) => checked,
@@ -266,7 +267,7 @@ pub(super) async fn import(
     };
     // Filled in even when something needs fixing, which the form then says.
     let error = form
-        .details()
+        .details(Utc::now())
         .and_then(|_| group_lines(&groups).map(drop))
         .err();
     let file_notice = filled(&text.imported_notice, "title", form.title());

@@ -4,13 +4,14 @@
 
 use std::collections::HashMap;
 
-use chrono::{DateTime, NaiveDateTime};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use chrono_tz::Tz;
 
 use crate::{
     admin::lang,
     db::event::Details,
-    i18n::{Lang, Texts},
+    i18n::{Lang, Texts, filled},
+    janitor::KEEP_AFTER_EVENT,
 };
 
 /// The longest title, description and place the form takes.
@@ -156,8 +157,8 @@ impl EventForm {
     }
 
     /// The details the form describes, or what's wrong with them, in the page's
-    /// language.
-    pub(in crate::admin) fn details(&self) -> Result<Details, String> {
+    /// language, `now` being when the host asks.
+    pub(in crate::admin) fn details(&self, now: DateTime<Utc>) -> Result<Details, String> {
         let text = lang::text();
         let fits = |value: &str, max: usize| value.chars().count() <= max;
         let title_ok = Lang::ALL
@@ -194,6 +195,13 @@ impl EventForm {
             .map_err(|_| text.error_time_zone.clone())?;
         let starts_at =
             local_time(&self.starts_at, tz).ok_or_else(|| text.error_event_time.clone())?;
+        // The janitor deletes an event this long after it starts, so one that started
+        // longer ago would go at its next run, with everything made in it meanwhile: an
+        // old event file imported without a new date, say.
+        if starts_at.with_timezone(&Utc) <= now - KEEP_AFTER_EVENT {
+            let days = KEEP_AFTER_EVENT.num_days();
+            return Err(filled(&text.error_event_past, "days", days));
+        }
         let rsvp_deadline = match self.rsvp_deadline.as_str() {
             "" => None,
             deadline => {
@@ -243,9 +251,12 @@ mod tests {
             ("time_zone", "Europe/Oslo"),
             ("rsvp_deadline", ""),
         ]));
-        assert_eq!(form.details().unwrap(), crate::db::event::tests::details());
+        assert_eq!(
+            form.details(Utc::now()).unwrap(),
+            crate::db::event::tests::details()
+        );
         // And back into the form it came from.
-        let again = EventForm::from_details(&form.details().unwrap());
+        let again = EventForm::from_details(&form.details(Utc::now()).unwrap());
         assert_eq!(again.starts_at(), "2054-12-12T19:00");
         assert_eq!(again.translations()[1].title, "Christmas party");
 
@@ -265,7 +276,10 @@ mod tests {
                 ("time_zone", "Europe/Oslo"),
             ]);
             bad.insert(field.into(), value.into());
-            assert!(EventForm::from_fields(&bad).details().is_err(), "{field}");
+            assert!(
+                EventForm::from_fields(&bad).details(Utc::now()).is_err(),
+                "{field}"
+            );
         }
         // A description keeps its line breaks and tabs.
         let lines = EventForm::from_fields(&fields(&[
@@ -274,6 +288,21 @@ mod tests {
             ("starts_at", "2054-12-12T19:00"),
             ("time_zone", "Europe/Oslo"),
         ]));
-        assert!(lines.details().is_ok());
+        assert!(lines.details(Utc::now()).is_ok());
+    }
+
+    #[test]
+    fn refuses_a_start_the_janitor_would_delete_at_once() {
+        let event = EventForm::from_fields(&fields(&[
+            ("title", "Julebord"),
+            ("starts_at", "2054-12-12T19:00"),
+            ("time_zone", "Europe/Oslo"),
+        ]));
+        let at = |at: &str| at.parse::<DateTime<Utc>>().unwrap();
+        // 19:00 in Oslo is 18:00 UTC; the janitor deletes it 30 days on.
+        assert!(event.details(at("2054-12-01T12:00:00Z")).is_ok());
+        assert!(event.details(at("2055-01-11T17:59:00Z")).is_ok());
+        let error = event.details(at("2055-01-11T18:00:00Z")).unwrap_err();
+        assert!(error.contains("30"), "{error}");
     }
 }

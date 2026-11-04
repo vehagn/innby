@@ -316,7 +316,7 @@ mod tests {
 
         let (form, lines) = EventFile::parse(&toml).unwrap().into_form().unwrap();
         assert_eq!(lines, "Climbing club, 2\nNaboer, 4");
-        assert_eq!(form.details().unwrap(), details);
+        assert_eq!(form.details(chrono::Utc::now()).unwrap(), details);
     }
 
     #[test]
@@ -329,7 +329,10 @@ mod tests {
         .unwrap();
         assert_eq!(file.groups[0].max_party_size, 2);
         let (form, lines) = file.into_form().unwrap();
-        assert_eq!(form.details().unwrap().title.nb, "Sommerfest");
+        assert_eq!(
+            form.details(chrono::Utc::now()).unwrap().title.nb,
+            "Sommerfest"
+        );
         assert_eq!(lines, "Naboer, 2");
     }
 

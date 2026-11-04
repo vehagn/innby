@@ -219,6 +219,7 @@ error_event_text = "The description can be up to 5000 characters, and the place 
 error_event_control = "The title, description and place can't contain control characters."
 error_event_time = "Enter when the event starts, as a date and a time."
 error_event_deadline = "Enter when answers close as a date and a time, or leave it empty."
+error_event_past = "An event is deleted {days} days after it starts, so this one would be deleted at once. Kindly check the date."
 error_time_zone = "Enter a time zone such as Europe/Oslo."
 col_event = "Event"
 col_when = "When"

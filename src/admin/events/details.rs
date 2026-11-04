@@ -10,6 +10,7 @@ use axum::{
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
+use chrono::Utc;
 use uuid::Uuid;
 
 use super::{
@@ -81,7 +82,7 @@ pub(in crate::admin) async fn edit(
 ) -> Result<Response, PageError> {
     let event = load_event(&state, id).await?;
     let form = EventForm::from_fields(&fields);
-    let details = match form.details() {
+    let details = match form.details(Utc::now()) {
         Ok(details) => details,
         Err(error) => return Ok(DetailsPage::new(event, form).render_error(error)),
     };

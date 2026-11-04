@@ -2,6 +2,7 @@
 //! `innby event list`, `export` and `import`. Each checks what it's given as the admin
 //! UI's forms do, says what's wrong in English, and returns what to print.
 
+use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -65,7 +66,7 @@ pub async fn import_event(db: &PgPool, file: &str) -> anyhow::Result<String> {
         let (form, groups) = EventFile::parse(file)
             .and_then(EventFile::into_form)
             .map_err(|err| anyhow::Error::msg(err.message()))?;
-        let details = form.details().map_err(anyhow::Error::msg)?;
+        let details = form.details(Utc::now()).map_err(anyhow::Error::msg)?;
         let groups = group_lines(&groups).map_err(anyhow::Error::msg)?;
         let event = create_event(db, &details, &groups).await?;
         tracing::info!(event = %event.id, groups = groups.len(), "event imported");
@@ -184,6 +185,10 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.to_string().starts_with("Group links: Line 1"), "{err}");
+        // Nor from a file kept from long ago: the janitor would delete it at once.
+        let long_ago = file.replace("2054-12-12T19:00", "2020-12-12T19:00");
+        let err = import_event(&db, &long_ago).await.unwrap_err();
+        assert!(err.to_string().contains("30 days after it starts"), "{err}");
         assert!(export_event(&db, Uuid::nil()).await.is_err());
         assert_eq!(event::list(&db).await.unwrap().len(), 2);
     }

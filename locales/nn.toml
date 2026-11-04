@@ -216,6 +216,7 @@ error_event_text = "Skildringa kan vere opptil 5000 teikn, og staden opptil 200.
 error_event_control = "Tittel, skildring og stad kan ikkje innehalde kontrollteikn."
 error_event_time = "Skriv når arrangementet startar, som dato og klokkeslett."
 error_event_deadline = "Skriv svarfristen som dato og klokkeslett, eller la feltet stå tomt."
+error_event_past = "Eit arrangement blir sletta {days} dagar etter at det startar, så dette ville blitt sletta med ein gong. Sjekk datoen."
 error_time_zone = "Skriv ei tidssone, til dømes Europe/Oslo."
 col_event = "Arrangement"
 col_when = "Når"

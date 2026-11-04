@@ -325,6 +325,20 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
     );
     host.press(&a.read_file).await.expect(&version);
 
+    // A file kept from long ago reads in, but its date is refused until it's changed:
+    // the janitor would delete the event at once, with everything made in it.
+    let past = filled(
+        &a.error_event_past,
+        "days",
+        crate::janitor::KEEP_AFTER_EVENT.num_days(),
+    );
+    host.fill(
+        &a.event_file,
+        &file.replace("2054-12-12T19:00", "2020-12-12T19:00"),
+    );
+    host.press(&a.read_file).await.expect(&past);
+    host.press(&a.create_event).await.expect(&past);
+
     // Next year's: the file, uploaded with a new date, fills in the new event's form.
     let next_year = file.replace("2054-12-12T19:00", "2055-12-11T19:00");
     host.fill(&a.event_file, "")
