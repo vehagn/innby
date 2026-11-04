@@ -21,6 +21,25 @@ fn rejects_unusable_recipients() {
     assert!(message(&from(), mail("not an address")).is_err());
 }
 
+#[test]
+fn a_subject_cant_add_headers() {
+    // An editor writes the event's title, which goes into the subject; a line break in
+    // it mustn't start a header of its own, such as a Bcc to the editor.
+    let mail = Mail {
+        to: "kari@example.com".into(),
+        subject: "Julebord\r\nBcc: editor@example.com\nX-Evil: 1".into(),
+        body: "Hei".into(),
+    };
+    let sent = String::from_utf8(message(&from(), mail).unwrap().formatted()).unwrap();
+    let headers = sent.split("\r\n\r\n").next().unwrap();
+    for line in headers.split("\r\n") {
+        assert!(
+            !line.starts_with("Bcc:") && !line.starts_with("X-Evil:"),
+            "{headers}"
+        );
+    }
+}
+
 /// Collects mails instead of sending them, or fails every send.
 #[derive(Default)]
 struct Outbox {
