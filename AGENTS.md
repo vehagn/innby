@@ -35,7 +35,7 @@ src/
     cookie.rs        reading Cookie headers, writing Set-Cookie
     csrf.rs          refuses cross-site form posts (Sec-Fetch-Site / Origin)
     rate_limit.rs    in-memory limits per client or for everyone
-    render.rs        askama templates to responses, the stylesheet
+    render.rs        askama templates to responses (render_form: 422 for a form to fix), the stylesheet
   web/               the public site; mod.rs has the router and every route
     rsvp.rs          a guest's personal page /r/{link}: answer, rename, export, delete
     join.rs          group sign-up /join/{link}
@@ -43,7 +43,8 @@ src/
     remember.rs      "remember me on this device": one cookie per event
     pages.rs         front page, privacy notice, message pages
     views.rs         what personal and group pages show alike (event, guest list, choices)
-  admin/             the host's UI; mod.rs has the router, grouped by the role each page needs
+  admin/             the host's UI; mod.rs has the router, grouped by the role each page needs;
+                     a module per tab or page, its handlers named list, show, create, edit, revoke, delete
     page.rs          shared: AdminState, tabs, PageError, load_event, redirect
     forms.rs         shared forms: a name and party size, a batch a line each, delete, ?saved
     events/          the events page: the list, and a new event (typed, copied or imported)
@@ -52,7 +53,7 @@ src/
       file.rs        an event as a versioned TOML file (apiVersion innby/v1, kind Event)
     guests.rs        an event's Guests tab, a guest's page, CSV export, reminders
     invitations.rs   the Invitation links tab: invitations in a batch
-    groups.rs        group sign-up links
+    groups.rs        the Group links tab, and each group's page
     qr/              the QR code style page and SVG downloads; draw.rs draws them
     role.rs          viewer < editor < admin, and what each may do
     lang.rs          the admin page's language
@@ -71,15 +72,16 @@ src/
   random.rs          tokens from the OS
   testing.rs         HTTP helpers for tests (body, location, escape, form posts, Set-Cookie)
   e2e/               end-to-end journeys through both sites and the mailer, by a test Browser
-locales/*.toml       one file per language: what it is, its fallbacks, its texts; templates/ askama pages
+locales/*.toml       one file per language: what it is, its fallbacks, its texts
+templates/           askama pages: base.html and admin/base.html, partials named _*.html
 static/style.css     the one stylesheet: tokens first, then base, layout, components, pages
 migrations/*.sql     the schema, applied by `innby migrate`; seed/sample.sql is sample data for dev
 charts/innby/        the Helm chart; deploy/ is one homelab's install of it
 docs/                the guides for people, and ropa.md, the GDPR record of processing
 ```
 
-Every `mod.rs` starts with a `//!` comment listing its parts, so reading it is the way
-into a module.
+Every module starts with a `//!` comment saying what it holds, and a `mod.rs` lists its
+parts too, so the top of a file is the way into it.
 
 ## Rules
 
@@ -90,10 +92,13 @@ into a module.
 - A new text goes in `src/i18n/messages.rs` and `locales/nb.toml` at least; placeholders
   must match Bokmål's. Fill them with `i18n::fill` or `filled`, never `format!`.
 - Admin routes go in the router group of the role they need (`admin/mod.rs`), and
-  templates hide what `Role::can_edit()` / `Role::is_admin()` rule out.
+  templates hide what `Role::can_edit()` / `Role::is_admin()` rule out. Handlers are
+  named for what they do (`list`, `show`, `create`, `edit`, `revoke`, `delete`), in a
+  module named after their tab or page.
 - Keep personal data out of logs (route patterns and ids only). New personal data needs
   a retention rule in `db/retention.rs`, and updates to `docs/ropa.md`, the privacy
   notices in `templates/privacy/` and `web::PRIVACY_VERSION`.
+- Every module starts with a `//!` comment saying what it holds.
 - Tests go in a `tests` module beside the code: inline when short, in a sibling
   `tests.rs` past about 150 lines (`foo.rs` → `foo/tests.rs`). Journeys go in
   `src/e2e/`. There's no `tests/` directory: integration tests there only see a

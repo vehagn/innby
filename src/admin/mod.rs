@@ -2,7 +2,8 @@
 //! headcount, in the site's languages. Served on its own listener, at the root of its
 //! own hostname or under a path of the site's (`INNBY_ADMIN_URL`), behind a login.
 //!
-//! - `mod.rs`: `router`, which lists every page and the role it needs.
+//! - `mod.rs`: `router`, which lists every page and the role it needs. Handlers are
+//!   named for what they do: `list`, `show`, `create`, `edit`, `revoke`, `delete`.
 //! - `page`: what pages share: state, tabs, errors. `forms`: what their forms share.
 //! - `events`, `guests`, `invitations`, `groups`, `qr`: the pages, one module per tab.
 //! - `cli`: the host's commands: `innby invite` and `innby event`.

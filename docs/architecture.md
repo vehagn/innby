@@ -118,7 +118,9 @@ own network policy.
 
 Pages are rendered on the server from [askama](https://github.com/askama-rs/askama)
 templates, with no JavaScript, and the stylesheet, templates, texts and migrations are all
-compiled into the binary. The container image holds nothing but that binary.
+compiled into the binary. The container image holds nothing but that binary. One
+stylesheet styles both sites, built from tokens (colours, type, spacing) and a handful
+of components, so the look changes there alone.
 
 ## Links are the keys
 

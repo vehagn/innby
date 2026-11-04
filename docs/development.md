@@ -76,11 +76,15 @@ agents, but it's the quickest tour for people too. In short:
 
 - `src/web/` is the public site and `src/admin/` the admin UI; each has a `router` that
   lists every page. `src/http/` is what both share.
+- In the admin, each tab or page has a module named after it (`events/`, `guests.rs`,
+  `invitations.rs`, `groups.rs`, `qr/`), `forms.rs` has what their forms share, and
+  `cli.rs` has the host's commands, `innby invite` and `innby event`.
 - `src/db/` has the queries, one module per table. `src/mailer/` and `src/janitor.rs`
   are the other two workloads.
 - `templates/` has the pages, `locales/` the texts, `static/style.css` the one
   stylesheet, `migrations/` the schema.
-- Every `mod.rs` starts with a comment listing its parts.
+- Every module starts with a `//!` comment saying what it holds, and a `mod.rs` lists
+  its parts too: the top of a file is the way into it.
 
 ## How to…
 
@@ -132,7 +136,8 @@ agents, but it's the quickest tour for people too. In short:
   provider. `src/e2e/mod.rs` explains how to add a journey.
 
 Router-level helpers: `web::testing::Site` for the public site, `admin::testing::Admin`
-for a logged-in host of any role, and `crate::testing` for reading responses.
+for a logged-in host of any role (with `event()`, `invite()` and `guests()` for the
+tests' event), and `crate::testing` for reading responses.
 
 ## Releases, images and CI
 

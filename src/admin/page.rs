@@ -1,5 +1,5 @@
 //! What the admin's pages share: their state, the tabs under the header, loading the
-//! event a path names, and the error a page can end in.
+//! event a path names, how a moment shows in a table, and the error a page can end in.
 
 use std::sync::Arc;
 
