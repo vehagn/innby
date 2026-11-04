@@ -1,0 +1,134 @@
+-- Innby's schema. Events hold everything else: their guests' answers, the group links
+-- guests sign up through, and the mail queued for those guests; deleting an event
+-- deletes all of it. The admin's login tables stand apart and hold no personal data.
+--
+-- Released versions after this one change the schema in migrations of their own, beside
+-- this file; this one is never edited once released.
+
+create type lang as enum ('nb', 'nn', 'en', 'en-us', 'zh-hans', 'zh-hant');
+create type qr_shape as enum ('square', 'rounded', 'dots');
+create type qr_icon as enum ('none', 'heart', 'star', 'emoji');
+
+-- One party, as the host describes it, with the style its QR codes are drawn in.
+create table event (
+    id                  uuid primary key default uuidv7(),
+    -- In Bokmål; the other languages fall back to it.
+    title               text not null check (length(title) <= 200),
+    title_nn            text,
+    title_en            text,
+    title_en_us         text,
+    title_zh_hans       text,
+    title_zh_hant       text,
+    description         text not null default '',
+    description_nn      text,
+    description_en      text,
+    description_en_us   text,
+    description_zh_hans text,
+    description_zh_hant text,
+    location            text not null default '',
+    starts_at           timestamptz not null,
+    -- Dates show in the event's time zone, wherever the guest is.
+    time_zone           text not null default 'Europe/Oslo',
+    -- Guests can answer until then; null means until the event starts.
+    rsvp_deadline       timestamptz,
+    qr_shape            qr_shape not null default 'rounded',
+    -- The dark modules' colour, as #rrggbb. The light ones are always white.
+    qr_color            text not null default '#00695c' check (qr_color ~ '^#[0-9a-f]{6}$'),
+    qr_icon             qr_icon not null default 'none',
+    -- The emoji in the middle, when qr_icon is 'emoji'.
+    qr_emoji            text not null default '' check (length(qr_emoji) <= 8)
+);
+
+-- Sign-up links the host makes, one per group of people, e.g. "Climbing club". Anyone
+-- with a group's link can sign up with a name and gets their own RSVP link back.
+create table invite_group (
+    id             uuid primary key default uuidv7(),
+    event_id       uuid not null references event on delete cascade,
+    name           text not null check (length(name) between 1 and 100),
+    -- How many people each sign-up may cover.
+    max_party_size int not null default 2 check (max_party_size between 1 and 20),
+    -- Bumped to revoke the group's link; part of the HMAC input.
+    link_nonce     int not null default 0,
+    created_at     timestamptz not null default now()
+);
+
+create index invite_group_event on invite_group (event_id);
+
+create type rsvp_source as enum ('invite', 'open');
+create type rsvp_response as enum ('pending', 'attending', 'declined');
+create type email_status as enum ('none', 'unconfirmed', 'confirmed');
+-- How the guest's name shows in the guest list that every link shows. Null until the
+-- guest chooses: their first name and an initial before they answer, and their full name
+-- once they're coming. Declined guests are never listed.
+create type name_display as enum ('full', 'partial', 'hidden');
+
+-- One row per invitation or group sign-up: a single guest or a household.
+create table rsvp (
+    id               uuid primary key default uuidv7(),
+    event_id         uuid not null references event on delete cascade,
+    source           rsvp_source not null,
+    -- The group link a sign-up came through. A group with sign-ups can't be deleted.
+    group_id         uuid references invite_group,
+    -- Label for invitations, self-given name for sign-ups.
+    name             text not null check (length(name) between 1 and 100),
+    response         rsvp_response not null default 'pending',
+    party_size       int not null default 1,
+    max_party_size   int not null default 1 check (max_party_size between 1 and 20),
+    name_display     name_display,
+    -- Bumped to revoke the guest's link; part of the HMAC input.
+    link_nonce       int not null default 0,
+    -- The guest's language, for their mail.
+    lang             lang not null default 'nb',
+    -- Optional, normalised (trimmed, lower-case), only kept with consent.
+    email            text,
+    email_status     email_status not null default 'none',
+    email_consent_at timestamptz,
+    -- Version of the privacy notice the guest saw when they last acted.
+    privacy_version  text,
+    responded_at     timestamptz,
+    created_at       timestamptz not null default now(),
+    check (party_size between 1 and max_party_size),
+    check ((email is null) = (email_status = 'none')),
+    check ((email_consent_at is null) = (email is null))
+);
+
+create index rsvp_event on rsvp (event_id);
+create index rsvp_group on rsvp (group_id) where group_id is not null;
+-- An address is unique within an event once it's confirmed, not before. Until then
+-- several RSVPs may hold it, so adding an address never shows whether another guest
+-- already has it. One guest can be invited to several events.
+create unique index rsvp_confirmed_email_uq on rsvp (event_id, email)
+    where email_status = 'confirmed';
+
+create type outbox_kind as enum ('confirm_email', 'email_in_use', 'rsvp_link', 'reminder');
+
+-- Mail jobs for `innby mailer`, written in the same transaction as the change that
+-- causes them.
+create table outbox (
+    id          bigint generated always as identity primary key,
+    rsvp_id     uuid not null references rsvp on delete cascade,
+    kind        outbox_kind not null,
+    created_at  timestamptz not null default now(),
+    attempts    int not null default 0,
+    next_try_at timestamptz not null default now(),
+    sent_at     timestamptz,
+    last_error  text
+);
+
+create index outbox_due on outbox (next_try_at) where sent_at is null;
+create index outbox_rsvp on outbox (rsvp_id);
+
+-- The host's logins, kept as LLDAP keeps them. A login gets a JWT that lasts a day and a
+-- refresh token that gets new JWTs for a month.
+
+-- Refresh tokens, by their keyed hash.
+create table admin_refresh_token (
+    digest     bytea primary key,
+    expires_at timestamptz not null
+);
+
+-- JWTs logged out before they expired.
+create table admin_revoked_jwt (
+    jti        uuid primary key,
+    expires_at timestamptz not null
+);
