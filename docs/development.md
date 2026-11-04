@@ -33,7 +33,18 @@ Ctrl-C stops it. `just dev down`, on your machine, stops the dev container; its 
 and build cache are kept for next time.
 
 To try it, log in to the admin UI, create an event, make an invitation on its
-*Invitation links* tab, and open the link it gives you.
+*Invitation links* tab, and open the link it gives you. Or start with sample data:
+
+```bash
+just db seed
+```
+
+That loads [`seed/sample.sql`](../seed/sample.sql): a Christmas party in five weeks
+with guests in every state (coming, not coming, no answer, with and without e-mail, in
+several languages, listed every way) and three group links; a summer party just begun;
+and a birthday party that's over. Dates are relative to today, so it never goes stale.
+Loading it again replaces it, and leaves anything else you made alone. A guest's link
+is on their page in the admin UI.
 
 VS Code, RustRover and the `devcontainer` CLI open the same container
 (`.devcontainer/`). The shell is zsh with completion for `just`, `cargo` and `kubectl`;
@@ -53,6 +64,7 @@ settings read-only if you have them.
 | `just db` | psql on the dev database |
 | `just db prepare` | Regenerates `.sqlx/` after you change a query (commit it) |
 | `just db reset` | Drops the dev database and rebuilds it from `migrations/` |
+| `just db seed` | Loads the sample data in `seed/sample.sql`; `just db fresh` resets first |
 | `just innby …` | Runs an `innby` command, e.g. `just innby invite "Kari & Ola" 2` or `just innby hash-password` |
 
 `just test`, `just lint` and `just chart` are what CI runs; all three must pass.
@@ -89,7 +101,8 @@ agents, but it's the quickest tour for people too. In short:
   properties. No inline styles: a test checks that every class a page uses has a rule,
   and that every rule is used.
 - **Change the schema:** add a migration in `migrations/` (never edit one that's been
-  released), run `just db prepare`, and commit `.sqlx/`.
+  released), run `just db prepare`, and commit `.sqlx/`. Update `seed/sample.sql` to
+  match; `src/e2e/sample.rs` loads it, so the tests say when it's out of date.
 - **Add a setting:** read it in `src/config/`, describe it in `.env.example`, and, if the
   cluster needs it, add it to the chart (`values.yaml`, `values.schema.json` and
   `templates/configmap.yaml`).

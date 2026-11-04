@@ -15,7 +15,8 @@
 //! ([`World::with_sso`]), which the browsers visit as they would Authelia.
 //!
 //! To add a journey, add a `#[sqlx::test]` to the file for its area: events, guests,
-//! groups, e-mail, the host, names, languages or single sign-on.
+//! groups, e-mail, the host, names, languages or single sign-on. `sample.rs` checks the
+//! sample data that `just db seed` loads.
 
 mod browser;
 mod email;
@@ -26,6 +27,7 @@ mod host;
 mod html;
 mod languages;
 mod names;
+mod sample;
 mod sso;
 
 use std::{

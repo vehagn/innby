@@ -20,6 +20,7 @@ Run these in the dev container (`just dev` on the host opens a shell in it).
 | `just chart` | Lints and renders the Helm chart, checks it with kubeconform |
 | `just db prepare` | Regenerates `.sqlx/` after a query changes (commit it) |
 | `just db reset` | Rebuilds the dev database from `migrations/` |
+| `just db seed` | Loads the sample data in `seed/sample.sql` (`just db fresh`: reset, then seed) |
 | `just up` | Serves this checkout: site on :8080, admin on :8081 (`admin`/`innby`), Mailpit on :8025 |
 
 `just test`, `just lint` and `just chart` are what CI runs; all three must pass.
@@ -68,7 +69,7 @@ src/
   e2e/               end-to-end journeys through both sites and the mailer, by a test Browser
 locales/*.toml       one file per language: what it is, its fallbacks, its texts; templates/ askama pages
 static/style.css     the one stylesheet: tokens first, then base, layout, components, pages
-migrations/*.sql     the schema, applied by `innby migrate`
+migrations/*.sql     the schema, applied by `innby migrate`; seed/sample.sql is sample data for dev
 charts/innby/        the Helm chart; deploy/ is one homelab's install of it
 docs/                the guides for people, and ropa.md, the GDPR record of processing
 ```
@@ -80,7 +81,8 @@ into a module.
 
 - `just test`, `just lint` and `just chart` must pass; CI runs them.
 - After changing a query, run `just db prepare` and commit `.sqlx/`.
-- Never edit a migration that has been released; add a new one.
+- Never edit a migration that has been released; add a new one. Keep
+  `seed/sample.sql` in step with the schema (`src/e2e/sample.rs` loads it).
 - A new text goes in `src/i18n/messages.rs` and `locales/nb.toml` at least; placeholders
   must match Bokmål's. Fill them with `i18n::fill` or `filled`, never `format!`.
 - Admin routes go in the router group of the role they need (`admin/mod.rs`), and
