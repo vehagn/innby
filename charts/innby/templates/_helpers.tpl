@@ -80,14 +80,9 @@ app.kubernetes.io/managed-by: {{ .root.Release.Service }}
       {{- end }}
 {{- end }}
 
-{{/* The CloudNativePG Cluster Innby uses, the chart's or one named; empty without. */}}
+{{/* The CloudNativePG cluster Innby uses; empty without one. */}}
 {{- define "innby.cnpgCluster" -}}
-{{- $cnpg := .Values.database.cnpg }}
-{{- if $cnpg.create }}
-{{- default (printf "%s-postgres" (include "innby.fullname" .)) $cnpg.cluster | trunc 50 | trimSuffix "-" }}
-{{- else }}
-{{- $cnpg.cluster }}
-{{- end }}
+{{- .Values.database.cnpg.cluster }}
 {{- end }}
 
 {{- define "innby.databaseEnv" -}}
@@ -112,7 +107,7 @@ app.kubernetes.io/managed-by: {{ .root.Release.Service }}
       name: {{ include "innby.fullname" . }}
       key: DATABASE_URL
       {{- else }}
-      {{- fail "database: set cnpg.create, cnpg.cluster, existingSecret (a Secret with a postgres:// URL) or url" }}
+      {{- fail "database: set cnpg.cluster, existingSecret (a Secret with a postgres:// URL) or url" }}
       {{- end }}
 {{- end }}
 

@@ -1,0 +1,19 @@
+# The chart makes the Innby workloads' Cilium policies (ciliumNetworkPolicy in
+# values.yaml), which let them reach the cluster in cnpg-db.yaml; this is the
+# cluster's own.
+# Postgres accepts the Innby workloads and the CloudNativePG operator. Its own egress
+# (to the API server) is left alone.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: innby-postgres
+spec:
+  endpointSelector:
+    matchLabels: { cnpg.io/cluster: innby-postgres }
+  ingress:
+    - fromEndpoints: [ { matchLabels: { app.kubernetes.io/name: innby } } ]
+      toPorts: [ { ports: [ { port: "5432", protocol: TCP } ] } ]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: cnpg-system }
+      toPorts:
+        - ports: [ { port: "8000", protocol: TCP }, { port: "5432", protocol: TCP } ]

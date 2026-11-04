@@ -121,7 +121,7 @@ chart:
     fails --set extraConfig.HOME=/tmp
     fails --set adminn.enabled=false
     fails --set ciliumNetworkPolicy.enabled=true --set ciliumNetworkPolicy.ingressFromEntities=null
-    fails --set database.cnpg.create=true
+    fails --set database.cnpg.cluster=innby-postgres
     fails --set database.cnpg.cluster=innby-postgres --set database.existingSecret=db
     echo "The chart refuses the settings that can't work."
 

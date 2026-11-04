@@ -7,18 +7,10 @@ controller:
   name: Vegard Hagen
   email: fest@stonegarden.dev
 
-# A CloudNativePG Cluster, innby-postgres: one instance, the devcontainer's Postgres,
-# and no backups, on purpose, since nothing here should outlive the 30 days after the
-# event.
+# The CloudNativePG cluster in cnpg-db.yaml.
 database:
   cnpg:
-    create: true
-    imageName: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie
-    storage:
-      size: 1Gi
-      storageClass: proxmox-csi
-    parameters:
-      timezone: Europe/Oslo
+    cluster: innby-postgres
 
 # The `innby` Secret that `just seal` makes from secrets.env.
 secrets:
@@ -58,7 +50,7 @@ httpRoute:
       - { name: internal, namespace: gateway }
 
 # Each workload may reach only what it needs: the gateways reach the site and the admin
-# UI, the mailer only MailerSend, the admin UI only Authelia once oidc is set, and
-# Postgres only Innby and the CloudNativePG operator.
+# UI, the mailer only MailerSend, and the admin UI only Authelia once oidc is set.
+# network-policies.yaml has Postgres's.
 ciliumNetworkPolicy:
   enabled: true

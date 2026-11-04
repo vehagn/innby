@@ -3,8 +3,9 @@
 This is how `vehagn/homelab` installs [the chart](../charts/innby/README.md): one
 directory per app under `k8s/apps/<group>/`, picked up by that group's Argo CD
 ApplicationSet, which renders it with `kustomize build --enable-helm`. The chart comes
-from `oci://ghcr.io/vehagn/charts` with [`values.yaml`](values.yaml), and makes
-everything but the namespace and the sealed Secret.
+from `oci://ghcr.io/vehagn/charts` with [`values.yaml`](values.yaml); beside it are the
+namespace, the sealed Secret, and the CloudNativePG cluster
+([`cnpg-db.yaml`](cnpg-db.yaml)) that the chart uses by name.
 
 | Workload | Kind | Reachable from |
 |---|---|---|
@@ -14,7 +15,9 @@ everything but the namespace and the sealed Secret.
 | `innby-janitor` (`janitor`) | CronJob, hourly | nothing; may only reach Postgres |
 | `innby-postgres` | CloudNativePG `Cluster`, 1 instance, 1 Gi | the Innby pods and the CNPG operator |
 
-Each has a Cilium network policy, which can name MailerSend and Authelia by hostname.
+Each has a Cilium network policy: the chart makes the workloads', which can name
+MailerSend and Authelia by hostname, and [`network-policies.yaml`](network-policies.yaml)
+has Postgres's.
 
 ## Steps
 
