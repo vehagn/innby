@@ -8,7 +8,6 @@ use axum::{
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
-use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -16,7 +15,7 @@ use uuid::Uuid;
 use super::{
     forms::{DeleteForm, NameForm, SavedQuery},
     lang,
-    page::{AdminState, PageError, load_event, redirect},
+    page::{AdminState, PageError, load_event, redirect, timestamp},
     qr::qr_file,
 };
 use crate::{
@@ -35,7 +34,7 @@ use crate::{
 };
 
 /// One guest as the admin tables show it.
-pub(super) struct Row {
+pub(super) struct GuestRow {
     /// The guest's admin page.
     pub(super) path: String,
     pub(super) name: String,
@@ -54,7 +53,7 @@ pub(super) struct Row {
     pub(super) created: String,
 }
 
-impl Row {
+impl GuestRow {
     pub(super) fn new(rsvp: &Rsvp, tz: Tz, groups: &[Group]) -> Self {
         let group = groups.iter().find(|group| Some(group.id) == rsvp.group_id);
         let text = lang::text();
@@ -74,7 +73,7 @@ impl Row {
                 rsvp::Response::Attending => &text.answer_attending,
                 rsvp::Response::Declined => &text.answer_declined,
             },
-            status: response_code(rsvp.response),
+            status: rsvp.response.code(),
             party: format!("{} / {}", rsvp.party_size, rsvp.max_party_size),
             email: match rsvp.email_status {
                 EmailStatus::None => "",
@@ -88,23 +87,11 @@ impl Row {
             },
             responded: rsvp
                 .responded_at
-                .map(|at| local(at, tz))
+                .map(|at| timestamp(at, tz))
                 .unwrap_or_default(),
-            created: local(rsvp.created_at, tz),
+            created: timestamp(rsvp.created_at, tz),
         }
     }
-}
-
-pub(super) fn response_code(response: rsvp::Response) -> &'static str {
-    match response {
-        rsvp::Response::Pending => "pending",
-        rsvp::Response::Attending => "attending",
-        rsvp::Response::Declined => "declined",
-    }
-}
-
-pub(super) fn local(at: DateTime<Utc>, tz: Tz) -> String {
-    at.with_timezone(&tz).format("%Y-%m-%d %H:%M").to_string()
 }
 
 #[derive(Template)]
@@ -116,7 +103,7 @@ pub(super) struct GuestsTab {
     /// Guests with a confirmed address.
     pub(super) subscribers: usize,
     /// The guests the table shows: everyone, or those with one answer.
-    pub(super) rows: Vec<Row>,
+    pub(super) rows: Vec<GuestRow>,
     /// The answer the table is filtered to, as in `?show=`.
     pub(super) show: Option<&'static str>,
     pub(super) notice: Option<String>,
@@ -146,7 +133,7 @@ pub(super) struct GuestsQuery {
 }
 
 /// The event's guests, with the headcount on top; its figures filter the table.
-pub(super) async fn event_guests(
+pub(super) async fn list(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
     Query(query): Query<GuestsQuery>,
@@ -157,13 +144,9 @@ pub(super) async fn event_guests(
         rsvp::headcount(&state.db, id),
         group::list(&state.db, id),
     )?;
-    let show = [
-        rsvp::Response::Pending,
-        rsvp::Response::Attending,
-        rsvp::Response::Declined,
-    ]
-    .into_iter()
-    .find(|response| query.show.as_deref() == Some(response_code(*response)));
+    let show = rsvp::Response::ALL
+        .into_iter()
+        .find(|response| query.show.as_deref() == Some(response.code()));
     let tz = event.details.starts_at.timezone();
     let text = lang::text();
     Ok(render(GuestsTab {
@@ -177,9 +160,9 @@ pub(super) async fn event_guests(
         rows: rsvps
             .iter()
             .filter(|rsvp| show.is_none_or(|show| rsvp.response == show))
-            .map(|rsvp| Row::new(rsvp, tz, &groups))
+            .map(|rsvp| GuestRow::new(rsvp, tz, &groups))
             .collect(),
-        show: show.map(response_code),
+        show: show.map(rsvp::Response::code),
         notice: match (query.reminders, query.created) {
             (Some(n), _) => Some(count(
                 n,
@@ -198,7 +181,7 @@ pub(super) async fn event_guests(
 pub(super) struct GuestPage {
     pub(super) event: Event,
     pub(super) rsvp: Rsvp,
-    pub(super) row: Row,
+    pub(super) row: GuestRow,
     pub(super) links: AdminLinks,
     pub(super) url: String,
     pub(super) qr: String,
@@ -217,7 +200,7 @@ impl GuestPage {
     ) -> Self {
         let url = guest_url(config, &rsvp);
         Self {
-            row: Row::new(&rsvp, event.details.starts_at.timezone(), groups),
+            row: GuestRow::new(&rsvp, event.details.starts_at.timezone(), groups),
             event,
             links: AdminLinks::guest(rsvp.id),
             qr: super::qr::svg(&url, style, None),
@@ -259,7 +242,7 @@ pub(super) fn guest_url(config: &Config, rsvp: &Rsvp) -> String {
 }
 
 /// The guest's QR code as a file, for printing.
-pub(super) async fn guest_qr(
+pub(super) async fn qr(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, PageError> {
@@ -330,7 +313,7 @@ pub(super) async fn delete(
 }
 
 /// The event's guests as CSV, with each guest's link for a mail merge.
-pub(super) async fn export_csv(
+pub(super) async fn csv(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, PageError> {
@@ -355,7 +338,7 @@ pub(super) async fn export_csv(
         ],
     );
     for rsvp in &rsvps {
-        let row = Row::new(rsvp, tz, &groups);
+        let row = GuestRow::new(rsvp, tz, &groups);
         csv_line(
             &mut csv,
             &[
@@ -403,7 +386,7 @@ pub(super) fn csv_line(out: &mut String, fields: &[&str]) {
 
 /// Queues a reminder for everyone with a confirmed address who hasn't declined. Each
 /// guest gets at most one.
-pub(super) async fn queue_reminders(
+pub(super) async fn remind(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, PageError> {

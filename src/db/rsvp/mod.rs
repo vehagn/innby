@@ -37,6 +37,20 @@ pub enum Response {
     Declined,
 }
 
+impl Response {
+    pub const ALL: [Self; 3] = [Self::Pending, Self::Attending, Self::Declined];
+
+    /// Its name in the database, in the admin's `?show=`, and as the CSS class for its
+    /// colour.
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Attending => "attending",
+            Self::Declined => "declined",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "email_status", rename_all = "lowercase")]
@@ -46,7 +60,8 @@ pub enum EmailStatus {
     Confirmed,
 }
 
-/// How a guest's name shows in the guest list other guests see.
+/// One invitation, or one sign-up through a group link: a guest or a household, and
+/// their answer.
 #[derive(Debug, Clone, Serialize)]
 pub struct Rsvp {
     pub id: Uuid,

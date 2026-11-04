@@ -8,6 +8,8 @@ use axum::{
     http::{StatusCode, request::Parts},
     response::{IntoResponse, Redirect, Response},
 };
+use chrono::{DateTime, Utc};
+use chrono_tz::Tz;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -107,6 +109,11 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
             current: tab == current,
         })
         .collect()
+}
+
+/// A moment as the admin's tables show it, in the event's time zone: `2026-12-12 19:00`.
+pub(super) fn timestamp(at: DateTime<Utc>, tz: Tz) -> String {
+    at.with_timezone(&tz).format("%Y-%m-%d %H:%M").to_string()
 }
 
 /// The event behind an admin path's `{id}`.

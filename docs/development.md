@@ -88,6 +88,9 @@ agents, but it's the quickest tour for people too. In short:
   a template in `templates/` (`templates/admin/` for the admin), its path in
   `src/paths.rs`, and a route in that site's `router`. An admin page goes in the router
   group of the role it needs, and its template hides what the host's role can't use.
+  Handlers are named for what they do, so the router reads as a list of them: `list`,
+  `show`, `create`, `edit`, `revoke`, `delete`, `qr`, as in `guests::edit`. A page that
+  shows a form again to fix answers 422 (`http::render_form`).
 - **Add a text:** a field in `src/i18n/messages.rs`, the text in `locales/nb.toml`, and
   its translations; see [translating.md](translating.md). Fill in placeholders with
   `i18n::fill` or `filled`.

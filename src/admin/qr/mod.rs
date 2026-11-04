@@ -16,13 +16,13 @@ use axum::{
 use super::{
     forms::SavedQuery,
     lang,
-    page::{AdminState, redirect},
+    page::{AdminState, PageError, redirect},
 };
 use crate::{
     config::Config,
-    db::{self},
-    http::{render, render_with, server_error},
-    paths::{self},
+    db,
+    http::{render, render_with},
+    paths,
 };
 
 #[derive(Template)]
@@ -47,43 +47,36 @@ impl QrPage {
 }
 
 /// The QR code style, with an example.
-pub(super) async fn qr_style(
+pub(super) async fn show(
     State(state): State<AdminState>,
     Query(query): Query<SavedQuery>,
-) -> Response {
-    match db::qr::style(&state.db).await {
-        Ok(style) => render(QrPage {
-            saved: query.saved.is_some(),
-            ..QrPage::new(&state.config, style)
-        }),
-        Err(err) => server_error(err),
-    }
+) -> Result<Response, PageError> {
+    let style = db::qr::style(&state.db).await?;
+    Ok(render(QrPage {
+        saved: query.saved.is_some(),
+        ..QrPage::new(&state.config, style)
+    }))
 }
 
 /// Saves the QR code style that every code on these pages uses.
-pub(super) async fn save_qr_style(
+pub(super) async fn save(
     State(state): State<AdminState>,
     Form(form): Form<draw::StyleForm>,
-) -> Response {
+) -> Result<Response, PageError> {
     let style = match form.validate() {
         Ok(style) => style,
         Err(error) => {
-            let saved = match db::qr::style(&state.db).await {
-                Ok(saved) => saved,
-                Err(err) => return server_error(err),
-            };
+            let saved = db::qr::style(&state.db).await?;
             let page = QrPage {
                 error: Some(error),
                 ..QrPage::new(&state.config, saved)
             };
-            return render_with(StatusCode::UNPROCESSABLE_ENTITY, page);
+            return Ok(render_with(StatusCode::UNPROCESSABLE_ENTITY, page));
         }
     };
-    if let Err(err) = db::qr::save(&state.db, &style).await {
-        return server_error(err);
-    }
+    db::qr::save(&state.db, &style).await?;
     tracing::info!("qr style saved");
-    redirect(&format!("{}?saved", paths::QR_STYLE))
+    Ok(redirect(&format!("{}?saved", paths::QR_STYLE)))
 }
 
 /// A QR code as an SVG file to save, named after what it's for.

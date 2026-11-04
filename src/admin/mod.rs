@@ -69,34 +69,34 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
     // Each path needs one role for all its methods; see `role` for what each may do.
     let viewer = Router::new()
         .route(paths::HOME, get(events::list))
-        .route(paths::EVENT, get(guests::event_guests));
+        .route(paths::EVENT, get(guests::list));
     let editor = Router::new()
         .route(
             paths::EVENT_INVITATIONS,
-            get(invitations::invitations).post(invitations::create_invitations),
+            get(invitations::list).post(invitations::create),
         )
         .route(paths::EVENT_GROUPS, get(groups::list).post(groups::create))
         .route(
             paths::EVENT_DETAILS,
             get(events::details::show).post(events::details::edit),
         )
-        .route(paths::EVENT_CSV, get(guests::export_csv))
+        .route(paths::EVENT_CSV, get(guests::csv))
         .route(paths::EVENT_EXPORT, get(events::details::export))
-        .route(paths::EVENT_REMINDERS, post(guests::queue_reminders))
+        .route(paths::EVENT_REMINDERS, post(guests::remind))
         .route(paths::GROUP, get(groups::show).post(groups::edit))
         .route(paths::GROUP_REVOKE, post(groups::revoke))
         .route(paths::GROUP_DELETE, post(groups::delete))
         .route(paths::GUEST, get(guests::show).post(guests::edit))
         .route(paths::GUEST_REVOKE, post(guests::revoke))
         .route(paths::GUEST_DELETE, post(guests::delete))
-        .route(paths::GUEST_QR, get(guests::guest_qr))
+        .route(paths::GUEST_QR, get(guests::qr))
         .route(paths::GROUP_QR, get(groups::qr))
         .route_layer(middleware::from_fn(role::editor));
     let admin = Router::new()
         .route(paths::EVENTS, post(events::create))
         .route(paths::EVENTS_IMPORT, post(events::import))
         .route(paths::EVENT_DELETE, post(events::details::delete))
-        .route(paths::QR_STYLE, get(qr::qr_style).post(qr::save_qr_style))
+        .route(paths::QR_STYLE, get(qr::show).post(qr::save))
         .route_layer(middleware::from_fn(role::admin));
     let mut pages = viewer
         .merge(editor)

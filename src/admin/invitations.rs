@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use super::{
     forms::BatchForm,
-    guests::{Row, guest_url},
+    guests::{GuestRow, guest_url},
     page::{AdminState, PageError, load_event, redirect},
 };
 use crate::{
@@ -25,7 +25,7 @@ use crate::{
 };
 
 /// Creates an invitation per line, all or none, then shows their links.
-pub(super) async fn create_invitations(
+pub(super) async fn create(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
     Form(form): Form<BatchForm>,
@@ -72,7 +72,7 @@ pub(super) struct InvitationsPage {
 }
 
 pub(super) struct Invitation {
-    pub(super) row: Row,
+    pub(super) row: GuestRow,
     pub(super) url: String,
 }
 
@@ -82,7 +82,7 @@ pub(super) struct InvitationsQuery {
 }
 
 /// Every invitation's link, for sending them out, and the form for new ones.
-pub(super) async fn invitations(
+pub(super) async fn list(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
     Query(query): Query<InvitationsQuery>,
@@ -92,7 +92,7 @@ pub(super) async fn invitations(
 }
 
 /// The event's invitations from `from` on, or all of them.
-pub(super) async fn invitations_page(
+async fn invitations_page(
     state: &AdminState,
     event: Event,
     from: Option<Uuid>,
@@ -106,7 +106,7 @@ pub(super) async fn invitations_page(
         .filter(|rsvp| rsvp.source == Source::Invite)
         .filter(|rsvp| from.is_none_or(|from| rsvp.id >= from))
         .map(|rsvp| Invitation {
-            row: Row::new(rsvp, tz, &[]),
+            row: GuestRow::new(rsvp, tz, &[]),
             url: guest_url(&state.config, rsvp),
         })
         .collect();

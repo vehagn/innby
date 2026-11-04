@@ -12,9 +12,9 @@ use uuid::Uuid;
 
 use super::{
     forms::{BatchForm, DeleteForm, NameForm, SavedQuery},
-    guests::{Row, local},
+    guests::GuestRow,
     lang,
-    page::{AdminState, PageError, load_event, redirect},
+    page::{AdminState, PageError, load_event, redirect, timestamp},
     qr::{self as admin_qr, qr_file},
 };
 use crate::{
@@ -161,7 +161,7 @@ struct GroupPage {
     url: String,
     qr: String,
     /// Who signed up through the link.
-    members: Vec<Row>,
+    members: Vec<GuestRow>,
     max_party_size: i32,
     accepts_answers: bool,
     saved: bool,
@@ -182,12 +182,12 @@ impl GroupPage {
             members: rsvps
                 .iter()
                 .filter(|rsvp| rsvp.group_id == Some(id))
-                .map(|rsvp| Row::new(rsvp, tz, std::slice::from_ref(&group)))
+                .map(|rsvp| GuestRow::new(rsvp, tz, std::slice::from_ref(&group)))
                 .collect(),
             qr: admin_qr::svg(&url, &style, None),
             url,
             links: AdminLinks::group(group.id),
-            created: local(group.created_at, tz),
+            created: timestamp(group.created_at, tz),
             group,
             max_party_size: MAX_PARTY_SIZE,
             accepts_answers: event.details.accepts_answers(Utc::now()),
