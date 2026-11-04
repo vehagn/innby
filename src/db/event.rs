@@ -221,6 +221,43 @@ pub(crate) mod tests {
     }
 
     #[sqlx::test]
+    async fn the_database_refuses_what_the_form_would(db: PgPool) {
+        let event = event(&db).await;
+        for (column, value) in [
+            ("title", r#"{"nb": ""}"#),
+            ("title", r#"{"en": "Christmas party"}"#),
+            ("title", r#"{"nb": "Julebord", "de": "Weihnachtsfeier"}"#),
+            ("title", "{\"nb\": \"Jule\\u0001bord\"}"),
+            ("title", "{\"nb\": \"Jule\\nbord\"}"),
+            ("description", "{\"nb\": \"Velkommen\\u0007\"}"),
+            ("description", r#"{"nb": 5}"#),
+        ] {
+            let result = sqlx::query(sqlx::AssertSqlSafe(format!(
+                // The column names are the test's own.
+                "update event set {column} = $1::jsonb where id = $2"
+            )))
+            .bind(value)
+            .bind(event.id)
+            .execute(&db)
+            .await;
+            assert!(result.is_err(), "{column} = {value}");
+        }
+        // A description keeps its line breaks and tabs.
+        sqlx::query("update event set description = $1::jsonb where id = $2")
+            .bind("{\"nb\": \"Velkommen!\\r\\n\\tKl. 19\"}")
+            .bind(event.id)
+            .execute(&db)
+            .await
+            .unwrap();
+        let place = sqlx::query("update event set location = $1 where id = $2")
+            .bind("Storgata\n1")
+            .bind(event.id)
+            .execute(&db)
+            .await;
+        assert!(place.is_err());
+    }
+
+    #[sqlx::test]
     async fn stores_texts_per_language_and_times_in_the_events_zone(db: PgPool) {
         let mut details = details();
         details.title.set(Lang::ZhHans, "圣诞晚会");

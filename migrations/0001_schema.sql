@@ -7,6 +7,22 @@
 
 -- A guest's language, for their mail.
 create type lang as enum ('nb', 'nn', 'en', 'en-us', 'zh-hans', 'zh-hant');
+-- Whether a map of texts by language code holds only the site's languages, each a text
+-- of at most `longest` characters with no control characters, but for line breaks and
+-- tabs when `lines` allows them. The app checks the same; this keeps a stray query or
+-- a crafted import from storing what the pages can't show.
+create function texts_ok(texts jsonb, longest int, lines boolean) returns boolean
+language sql immutable as $$
+    select jsonb_typeof(texts) = 'object' and coalesce(bool_and(
+        key in ('nb', 'nn', 'en', 'en-us', 'zh-hans', 'zh-hant')
+        and jsonb_typeof(value) = 'string'
+        and length(value #>> '{}') <= longest
+        and (value #>> '{}') !~ case
+            when lines then '[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]' else '[[:cntrl:]]' end
+    ), true)
+    from jsonb_each(case jsonb_typeof(texts) when 'object' then texts else '{}' end)
+$$;
+
 create type qr_shape as enum ('square', 'rounded', 'dots');
 create type qr_icon as enum ('none', 'heart', 'star', 'emoji');
 
@@ -16,9 +32,11 @@ create table event (
     -- Each by language code: 'nb', 'nn', 'en', 'en-us', 'zh-hans', 'zh-hant'. Every
     -- event has a Bokmål title, which the other languages fall back to, so a new
     -- language needs no new column.
-    title               jsonb not null check (title ? 'nb'),
-    description         jsonb not null default '{}',
-    location            text not null default '',
+    title               jsonb not null
+        check (coalesce(title ->> 'nb', '') <> '' and texts_ok(title, 200, false)),
+    description         jsonb not null default '{}' check (texts_ok(description, 5000, true)),
+    location            text not null default ''
+        check (length(location) <= 200 and location !~ '[[:cntrl:]]'),
     starts_at           timestamptz not null,
     -- Dates show in the event's time zone, wherever the guest is.
     time_zone           text not null default 'Europe/Oslo',
@@ -37,7 +55,8 @@ create table event (
 create table invite_group (
     id             uuid primary key default uuidv7(),
     event_id       uuid not null references event on delete cascade,
-    name           text not null check (length(name) between 1 and 100),
+    name           text not null
+        check (length(name) between 1 and 100 and name !~ '[[:cntrl:]]'),
     -- How many people each sign-up may cover.
     max_party_size int not null default 2 check (max_party_size between 1 and 20),
     -- Bumped to revoke the group's link; part of the HMAC input.
@@ -64,7 +83,8 @@ create table rsvp (
     -- invitation. A group with sign-ups can't be deleted.
     group_id         uuid,
     -- Label for invitations, self-given name for sign-ups.
-    name             text not null check (length(name) between 1 and 100),
+    name             text not null
+        check (length(name) between 1 and 100 and name !~ '[[:cntrl:]]'),
     response         rsvp_response not null default 'pending',
     party_size       int not null default 1,
     max_party_size   int not null default 1 check (max_party_size between 1 and 20),
@@ -74,7 +94,7 @@ create table rsvp (
     -- The guest's language, for their mail.
     lang             lang not null default 'nb',
     -- Optional, normalised (trimmed, lower-case), only kept with consent.
-    email            text,
+    email            text check (email = lower(email) and length(email) <= 254),
     email_status     email_status not null default 'none',
     email_consent_at timestamptz,
     -- Version of the privacy notice the guest saw when they last acted.
