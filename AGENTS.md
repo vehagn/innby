@@ -75,7 +75,8 @@ src/
 locales/*.toml       one file per language: what it is, its fallbacks, its texts
 templates/           askama pages: base.html and admin/base.html, partials named _*.html
 static/style.css     the one stylesheet: tokens first, then base, layout, components, pages
-migrations/*.sql     the schema, applied by `innby migrate`; seed/sample.sql is sample data for dev
+migrations/          the schema, applied by `innby migrate`: 0001_schema.sql, and those after it;
+                     seed/sample.sql is sample data for dev
 charts/innby/        the Helm chart; deploy/ is one homelab's install of it
 docs/                the guides for people, and ropa.md, the GDPR record of processing
 ```

@@ -71,5 +71,7 @@ main steps, oldest first:
     characters refused in event texts, a stricter QR colour, and tests dated years
     ahead.
 18. QR code styles per event.
+19. Before going live: the migrations squashed into one schema, event texts as maps by
+    language, and the database checking what the app checks.
 
 `git log` has the details.

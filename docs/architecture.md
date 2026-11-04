@@ -239,7 +239,8 @@ what it allows.
 
 ## Data and retention
 
-The schema is in [`migrations/`](../migrations/). In short:
+The schema is one commented file,
+[`migrations/0001_schema.sql`](../migrations/0001_schema.sql). In short:
 
 | Table | Holds |
 |---|---|
@@ -251,7 +252,9 @@ The schema is in [`migrations/`](../migrations/). In short:
 
 Deleting an event deletes everything in it, and deleting an answer deletes its mail. Enums
 such as the answer are Postgres enum types, and queries are checked against the schema at
-compile time (`sqlx`).
+compile time (`sqlx`). The database checks what the app checks, too: a title in Bokmål,
+texts only in the site's languages and within their lengths, no control characters, a
+lower-case address, and a sign-up's group in the sign-up's own event.
 
 **Retention**, enforced hourly by `innby janitor`:
 
