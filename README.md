@@ -36,9 +36,10 @@ http://localhost:8025, all in your own browser. Ctrl-C stops it, and `just dev d
 the host stops the devcontainer, keeping its database and build cache. `just dev` makes a
 `.env` from `.env.example` if there is none.
 
-`just` lists the other recipes. `just test` and `just lint` are what CI runs, `just db`
-opens psql, `just db prepare` updates the offline query data in `.sqlx/` after a query
-changes, and `just innby` runs the binary's commands, e.g.
+`just` lists the other recipes. `just test` and `just lint` are what CI runs; the tests
+include end-to-end journeys in [`src/e2e/`](src/e2e/mod.rs), which say how to add one.
+`just db` opens psql, `just db prepare` updates the offline query data in `.sqlx/` after
+a query changes, and `just innby` runs the binary's commands, e.g.
 `just innby invite "Kari & Ola" 2`.
 
 The shell is zsh with oh-my-zsh and the devcontainers prompt, which shows the git

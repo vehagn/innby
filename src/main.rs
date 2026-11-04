@@ -1,6 +1,8 @@
 mod admin;
 mod config;
 mod db;
+#[cfg(test)]
+mod e2e;
 mod i18n;
 mod janitor;
 mod link;

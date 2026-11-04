@@ -63,7 +63,7 @@ pub async fn serve(config: Config, admin: AdminConfig, db: PgPool) -> anyhow::Re
     web::listen(address, router(config, &admin, db)).await
 }
 
-fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
+pub(crate) fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
     // The admin hostname is served the same way as the public one.
     let https = config.is_https();
     let auth = Arc::new(auth::Auth::new(admin, https, db.clone()));

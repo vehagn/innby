@@ -812,6 +812,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "html5gum"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbae3133814a10216af5242a254420a74cb0d2f7715646924f5a8e7720cd188b"
+
+[[package]]
 name = "http"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1051,6 +1057,7 @@ dependencies = [
  "clap",
  "getrandom 0.4.3",
  "hmac 0.12.1",
+ "html5gum",
  "http-body-util",
  "hyper",
  "hyper-util",

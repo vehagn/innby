@@ -161,10 +161,12 @@ Deletion is a hard `DELETE`. `ON DELETE CASCADE` also removes the guest's pendin
 
 ### 5.5 Host (`innby admin`)
 
+Four tabs under the header: **Guests**, **Invitation links**, **Group links** and **QR codes**, each a page of its own with its own form. A guest's page belongs to the Guests tab, a group's to Group links.
+
 - **Invitations:** create them in a batch, one per line, and get a page of their links; edit them (label, maximum party size), show the link and QR code, revoke the link (bumps the nonce), delete.
 - **Groups:** create them in a batch, one per line; each has a page with its link, QR code and sign-ups, and can be renamed, given a new link, or deleted while nobody has signed up.
 - **QR codes:** one style for the whole event, in the one-row `qr_style` table: square, rounded or dotted modules, a colour dark enough to scan on white (4.5:1), and a heart, a star or an emoji in the middle. A code with something in the middle uses error correction level H and hides about a quarter of its width. Each guest's and group's code downloads as an SVG for printing.
-- **Overview:** people and parties coming, declined and no-answer counts, every guest in a table, and a CSV export.
+- **Overview:** the Guests tab's headcount is three tiles, coming (people and parties), no answer and not coming; each tile filters the table below to those guests (`?show=attending`). Every guest is in that table, with a CSV export.
 - **Reminders:** *Send reminders* queues one mail per guest with a confirmed address who hasn't declined.
 - **Authentication:** reachable only through the internal gateway (LAN or VPN), plus a login form checked against an argon2 hash from a SealedSecret, since the admin can change data. As in LLDAP, a login sets two `HttpOnly` cookies: `token`, an HS512 JWT that lasts a day, and `refresh_token`, which gets a new JWT for 30 days and is kept in Postgres by its keyed hash. *Log out* revokes both (the JWT's `jti` goes on a list until it would have expired), so copies of the cookies stop working too. The JWT key is `INNBY_ADMIN_JWT_SECRET` bound to the user name and password hash, so a new password logs every browser out. Each argon2 check needs 19 MiB, so checks run one at a time, and after 10 checks in 15 minutes logins get 429 (browsers that are logged in keep working). Later, for fun: OIDC login against Authelia.
 
@@ -276,9 +278,7 @@ The devcontainer is a Compose project with three services:
 - **Tests:**
   - Unit tests for link signing (tampering, nonce bump, expiry), validation, i18n completeness and retention.
   - Integration tests with `#[sqlx::test]`, which creates a throwaway database per test against `db`.
-  - End-to-end tests over axum's `Router` with `tower::ServiceExt::oneshot`:
-    - create invite → respond → change → delete.
-    - group link → link shown → add e-mail → confirm in Mailpit → `/lost`.
+  - End-to-end journeys in `src/e2e/`, over the real routers of the public site and the admin UI and the real mailer, on a throwaway database. A test `Browser` opens pages, fills in fields by their labels, presses buttons by their text, follows redirects and keeps cookies; mail lands in an inbox the test reads. Labels and texts come from the British locale file, so rewording a text doesn't break a test. Each file covers an area: `guests.rs`, `groups.rs`, `email.rs`, `host.rs`.
 
 ## 10. Container image (binary only, no build tool)
 
