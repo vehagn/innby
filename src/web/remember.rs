@@ -10,6 +10,8 @@ use axum::{
     http::{HeaderMap, HeaderValue},
     response::{IntoResponse, Redirect, Response},
 };
+use std::collections::HashMap;
+
 use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -18,11 +20,19 @@ use super::{
     AppState,
     rsvp::{Guest, Notice, redirect},
 };
-use crate::{http::cookie, i18n::Lang};
+use crate::{
+    db::{
+        event::Event,
+        rsvp::{self, Rsvp},
+    },
+    http::cookie,
+    i18n::Lang,
+    link::IdLink,
+};
 
-/// The most remembered links the front page reads. Each costs a lookup, and a guest is
-/// rarely invited to more than a few events at once; a request with more is someone
-/// making the site look up links for nothing.
+/// The most remembered links the front page reads. A guest is rarely invited to more
+/// than a few events at once; a request with more is someone making the site check
+/// links for nothing. They're looked up together, in one query.
 const MOST_REMEMBERED: usize = 10;
 
 /// The start of every cookie's name. On https, the `__Host-` prefix makes browsers
@@ -112,8 +122,31 @@ impl Remembered {
             guests: Vec::new(),
             cookies: Vec::new(),
         };
-        for (cookie_name, link) in links(headers, https).into_iter().take(MOST_REMEMBERED) {
-            let Some(guest) = Guest::find(state, link).await? else {
+        let read: Vec<(&str, &str, Option<IdLink>)> = links(headers, https)
+            .into_iter()
+            .take(MOST_REMEMBERED)
+            .map(|(cookie_name, link)| (cookie_name, link, link.parse().ok()))
+            .collect();
+        // One query for them all, whatever the cookies say.
+        let ids: Vec<Uuid> = read
+            .iter()
+            .filter_map(|(_, _, parsed)| Some(parsed.as_ref()?.id))
+            .collect();
+        let mut found: HashMap<Uuid, (Rsvp, Event)> = if ids.is_empty() {
+            HashMap::new()
+        } else {
+            rsvp::find_with_events(&state.db, &ids)
+                .await?
+                .into_iter()
+                .map(|(rsvp, event)| (rsvp.id, (rsvp, event)))
+                .collect()
+        };
+        for (cookie_name, link, parsed) in read {
+            let guest = parsed.and_then(|parsed| {
+                let (rsvp, event) = found.remove(&parsed.id)?;
+                Guest::checked(state, link, &parsed, rsvp, event)
+            });
+            let Some(guest) = guest else {
                 remembered
                     .cookies
                     .push(cookie::set(cookie_name, "", "/", 0, https));

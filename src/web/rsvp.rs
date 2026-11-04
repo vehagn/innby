@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     db::{
-        event::{self, Event},
+        event::Event,
         rsvp::{self, NameDisplay, Rsvp},
     },
     http::{render, render_with, server_error},
@@ -58,22 +58,31 @@ impl Guest {
         let Ok(parsed) = link.parse::<IdLink>() else {
             return Ok(None);
         };
-        let rsvp = rsvp::find(&state.db, parsed.id).await?.filter(|rsvp| {
-            state
-                .config
-                .link_key
-                .verify(Purpose::Rsvp, &parsed, rsvp.link_nonce)
-        });
-        let Some(rsvp) = rsvp else {
-            return Ok(None);
-        };
-        // The event can't be gone while its guests are there: they go with it.
-        let event = event::find(&state.db, rsvp.event_id).await?;
-        Ok(event.map(|event| Self {
+        let found = rsvp::find_with_events(&state.db, &[parsed.id]).await?;
+        Ok(found
+            .into_iter()
+            .next()
+            .and_then(|(rsvp, event)| Self::checked(state, link, &parsed, rsvp, event)))
+    }
+
+    /// The guest, if the link's signature is the one their RSVP has now: not forged, and
+    /// not replaced by a new one.
+    pub(super) fn checked(
+        state: &AppState,
+        link: &str,
+        parsed: &IdLink,
+        rsvp: Rsvp,
+        event: Event,
+    ) -> Option<Self> {
+        let genuine = state
+            .config
+            .link_key
+            .verify(Purpose::Rsvp, parsed, rsvp.link_nonce);
+        genuine.then(|| Self {
             link: link.to_owned(),
             rsvp,
             event,
-        }))
+        })
     }
 }
 

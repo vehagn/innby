@@ -188,7 +188,7 @@ event's data is deleted). The front page then lists each remembered invitation, 
 soonest event first, with a button back. The cookie gives no access by itself: pages
 still read the link from the URL. A link that stops working is dropped from the cookie
 the next time the front page sees it, and *Forget this device* drops it on demand. The
-front page reads ten such cookies at most, since each is a lookup. These are the public
+front page reads ten such cookies at most, and looks them all up in one query. These are the public
 site's only cookies; language and colour scheme travel in `?lang=` and
 `?theme=`.
 

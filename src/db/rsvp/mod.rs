@@ -17,8 +17,13 @@ use serde::Serialize;
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
-use super::group::Group;
-use crate::i18n::Lang;
+use sqlx::types::Json;
+
+use super::{
+    event::{self, Event},
+    group::Group,
+};
+use crate::i18n::{Lang, Texts};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
@@ -169,6 +174,64 @@ pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Rsvp
     query_rsvp!(select "from rsvp where id = $1", id)
         .fetch_optional(db)
         .await
+}
+
+/// RSVPs by id, each with its event, in one query: what a link leads to, before its
+/// signature is checked. The front page asks for all its remembered links at once, so
+/// made-up ones cost a single round trip however many there are.
+pub async fn find_with_events(
+    db: impl PgExecutor<'_>,
+    ids: &[Uuid],
+) -> sqlx::Result<Vec<(Rsvp, Event)>> {
+    let rows = sqlx::query!(
+        r#"
+        select r.id, r.event_id, r.name, r.response as "response: Response", r.party_size,
+            r.max_party_size, r.link_nonce, r.lang as "lang: Lang", r.email,
+            r.email_status as "email_status: EmailStatus", r.email_consent_at,
+            r.privacy_version, r.responded_at, r.created_at, r.group_id,
+            r.name_display as "name_display: NameDisplay",
+            e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
+            e.location, e.starts_at, e.time_zone, e.rsvp_deadline
+        from rsvp r join event e on e.id = r.event_id
+        where r.id = any($1)
+        "#,
+        ids,
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let event = Event::from(event::Row {
+                id: row.event_id,
+                title: row.title,
+                description: row.description,
+                location: row.location,
+                starts_at: row.starts_at,
+                time_zone: row.time_zone,
+                rsvp_deadline: row.rsvp_deadline,
+            });
+            let rsvp = Rsvp {
+                id: row.id,
+                event_id: row.event_id,
+                name: row.name,
+                response: row.response,
+                party_size: row.party_size,
+                max_party_size: row.max_party_size,
+                link_nonce: row.link_nonce,
+                lang: row.lang,
+                email: row.email,
+                email_status: row.email_status,
+                email_consent_at: row.email_consent_at,
+                privacy_version: row.privacy_version,
+                responded_at: row.responded_at,
+                created_at: row.created_at,
+                group_id: row.group_id,
+                name_display: row.name_display,
+            };
+            (rsvp, event)
+        })
+        .collect())
 }
 
 /// The RSVP to this event that has confirmed the address. Others may hold it

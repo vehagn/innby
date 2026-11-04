@@ -49,14 +49,14 @@ impl Event {
 
 /// A row as stored, with the texts as maps by language code. The QR code style is in the
 /// same row, but `db::qr` reads and writes it.
-struct Row {
-    id: Uuid,
-    title: Json<Texts>,
-    description: Json<Texts>,
-    location: String,
-    starts_at: DateTime<Utc>,
-    time_zone: String,
-    rsvp_deadline: Option<DateTime<Utc>>,
+pub(super) struct Row {
+    pub(super) id: Uuid,
+    pub(super) title: Json<Texts>,
+    pub(super) description: Json<Texts>,
+    pub(super) location: String,
+    pub(super) starts_at: DateTime<Utc>,
+    pub(super) time_zone: String,
+    pub(super) rsvp_deadline: Option<DateTime<Utc>>,
 }
 
 impl From<Row> for Event {
