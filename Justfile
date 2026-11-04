@@ -91,6 +91,23 @@ lint:
 # Lints the chart and renders it with each values file in charts/innby/ci, checking the
 # manifests against the Kubernetes schemas (and the Gateway API's, from the CRDs
 # catalog). Settings that can't work must stop the render.
+# Benchmarks the static musl release binary the images ship, built for this machine, or
+# the one given: every page under load against an event of 1500 guests, failing if a
+# page answers wrongly or a process passes its memory budget. See bench/run.sh; CI runs
+# it on every release.
+[doc("Benchmark a release build; results in target/bench/results.md")]
+[group("dev")]
+bench binary="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    binary="{{ binary }}"
+    if [[ -z "$binary" ]]; then
+      target="$(uname -m)-unknown-linux-musl"
+      SQLX_OFFLINE=true cargo zigbuild --locked --release --target "$target"
+      binary="{{ target_dir }}/$target/release/innby"
+    fi
+    bench/run.sh "$binary"
+
 [doc("Lint and render the Helm chart, and check its manifests")]
 [group("dev")]
 chart:

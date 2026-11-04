@@ -22,8 +22,10 @@ Run these in the dev container (`just dev` on the host opens a shell in it).
 | `just db reset` | Rebuilds the dev database from `migrations/` |
 | `just db seed` | Loads the sample data in `seed/sample.sql` (`just db fresh`: reset, then seed) |
 | `just up` | Serves this checkout: site on :8080, admin on :8081 (`admin`/`innby`), Mailpit on :8025 |
+| `just bench` | Benchmarks a release build under load, with a memory budget (`bench/run.sh`) |
 
-`just test`, `just lint` and `just chart` are what CI runs; all three must pass.
+`just test`, `just lint` and `just chart` are what CI runs; all three must pass. CI also
+runs `just bench` on every release.
 
 ## Map
 
@@ -80,6 +82,7 @@ templates/           askama pages: base.html and admin/base.html, partials named
 static/style.css     the one stylesheet: tokens first, then base, layout, components, pages
 migrations/          the schema, applied by `innby migrate`: 0001_schema.sql, and those after it;
                      seed/sample.sql is sample data for dev
+bench/               `just bench`: run.sh, and data.sql, an event of 1500 guests
 charts/innby/        the Helm chart; deploy/ is one homelab's install of it
 docs/                the guides for people, and ropa.md, the GDPR record of processing
 ```

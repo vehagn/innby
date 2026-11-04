@@ -66,8 +66,21 @@ settings read-only if you have them.
 | `just db reset` | Drops the dev database and rebuilds it from `migrations/` |
 | `just db seed` | Loads the sample data in `seed/sample.sql`; `just db fresh` resets first |
 | `just innby …` | Runs an `innby` command, e.g. `just innby invite "Kari & Ola" 2` or `just innby hash-password` |
+| `just bench` | Benchmarks a release build; see below |
 
 `just test`, `just lint` and `just chart` are what CI runs; all three must pass.
+
+**The benchmark.** `just bench` builds the static musl binary the images ship (for this
+machine) and runs it, site and admin UI, against a database of its own, `innby_bench`:
+the sample data plus [`bench/data.sql`](../bench/data.sql), a wedding of 1500 guests,
+fifteen times what Innby is made for. [`oha`](https://github.com/hatoo/oha) sends each
+page requests for 10 seconds (`BENCH_DURATION`): 32 at once on the site, where a link
+shared in a big chat can send a crowd (`BENCH_CONCURRENCY`), and 4 on the admin UI, which
+a few hosts use (`BENCH_ADMIN_CONCURRENCY`). It fails if a page answers anything but
+what it should, or if `innby serve` or `innby admin` ever holds more than 56 MiB
+(`BENCH_MEMORY_BUDGET_MIB`), the chart's 64 MiB limit less some room; the peak includes
+a login's 19 MiB password check. Speed is reported, not checked, since it depends on the machine. The table is in
+`target/bench/results.md`; `just bench path/to/innby` benchmarks another binary.
 
 ## Find your way in the code
 
@@ -145,7 +158,8 @@ responses.
 ## Releases, images and CI
 
 - **CI** (`.github/workflows/ci.yaml`) runs `just test` and `just lint` against Postgres,
-  and `just chart`, on every push and pull request.
+  and `just chart`, on every push and pull request. On a release it also runs `just
+  bench` on the amd64 binary the image holds, with the results in the run's summary.
 - **Images:** on every push, CI builds static binaries for amd64 and arm64
   (`cargo zigbuild`) and `just image` packs each into an image holding nothing else: no
   shell, no CA bundle, no tzdata, all of which are compiled in. They're pushed to

@@ -1,6 +1,6 @@
 # Development container for Innby: the Rust toolchain, cross-compilation to static
-# amd64 and arm64 musl binaries, clients for Postgres and Kubernetes, and a zsh with
-# oh-my-zsh. Bump the pinned versions below and rebuild to upgrade.
+# amd64 and arm64 musl binaries, clients for Postgres and Kubernetes, oha for `just
+# bench`, and a zsh with oh-my-zsh. Bump the pinned versions below and rebuild to upgrade.
 FROM docker.io/library/rust:1.99.1-trixie
 
 ARG USERNAME=dev
@@ -21,6 +21,7 @@ ARG JUST_VERSION=1.59.0
 ARG CARGO_ZIGBUILD_VERSION=0.24.0
 ARG CARGO_DENY_VERSION=0.20.2
 ARG SQLX_CLI_VERSION=0.9.0
+ARG OHA_VERSION=1.16.0
 # oh-my-zsh, and the devcontainers prompt and shell snippets, pinned to a commit.
 ARG OH_MY_ZSH_COMMIT=b509b1c6ed0c1ba37de12cbd37f30b2b2f61193a
 ARG DEVCONTAINERS_FEATURES_COMMIT=ad7094ecdc1d5d3b28e5b727591a12bf104fa853
@@ -126,7 +127,8 @@ RUN curl -fsSL "https://github.com/cargo-bins/cargo-binstall/releases/download/v
     cargo binstall --no-confirm --locked --disable-strategies compile \
       "just@${JUST_VERSION}" \
       "cargo-zigbuild@${CARGO_ZIGBUILD_VERSION}" \
-      "cargo-deny@${CARGO_DENY_VERSION}"; \
+      "cargo-deny@${CARGO_DENY_VERSION}" \
+      "oha@${OHA_VERSION}"; \
     cargo install --locked --no-default-features --features rustls,postgres "sqlx-cli@${SQLX_CLI_VERSION}"; \
     rm -rf "${CARGO_HOME}/registry/"* "${CARGO_HOME}/git"
 
