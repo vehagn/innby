@@ -31,16 +31,16 @@
   </form>
 </section>
 
-<details>
-  <summary>{{ a.edit }}</summary>
+<section class="card">
+  <h2>{{ a.edit }}</h2>
   <form method="post" action="{{ links.page }}">
     <label for="name">{{ a.name_or_household }}</label>
     <input id="name" name="name" required maxlength="100" value="{{ rsvp.name }}">
     <label for="max_party_size">{{ a.max_people }}</label>
     <input id="max_party_size" name="max_party_size" type="number" min="1" max="{{ max_party_size }}" value="{{ rsvp.max_party_size }}" required>
-    <button class="secondary">{{ a.save }}</button>
+    <button>{{ a.save }}</button>
   </form>
-</details>
+</section>
 
 <details>
   <summary>{{ a.delete }}</summary>

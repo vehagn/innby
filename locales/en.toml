@@ -326,7 +326,7 @@ qr_emoji = "Emoji"
 qr_save = "Save style"
 qr_saved = "QR code style saved."
 # Under the example code on the QR codes page.
-qr_preview = "An example, for the event page."
+qr_preview = "The saved style, as on the event page. Save to see a change."
 qr_download = "Download the QR code (SVG)"
 
 # Guests

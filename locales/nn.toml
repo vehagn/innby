@@ -324,7 +324,7 @@ qr_emoji = "Emoji"
 qr_save = "Lagre stilen"
 qr_saved = "Stilen for QR-kodane er lagra."
 # Under the example code on the QR codes page.
-qr_preview = "Eit døme, til festsida."
+qr_preview = "Den lagra stilen, slik han blir på festsida. Lagre for å sjå ei endring."
 qr_download = "Last ned QR-koden (SVG)"
 
 # Guests

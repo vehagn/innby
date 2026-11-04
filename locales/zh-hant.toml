@@ -292,7 +292,7 @@ qr_emoji = "表情符號"
 qr_save = "儲存樣式"
 qr_saved = "QR 碼樣式已儲存。"
 # Under the example code on the QR codes page.
-qr_preview = "範例：活動頁面。"
+qr_preview = "已儲存的樣式，即活動頁面上的樣子。儲存後即可看到變更。"
 qr_download = "下載 QR 碼（SVG）"
 
 # Guests
