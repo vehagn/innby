@@ -6,7 +6,7 @@ use axum::{
     Form,
     extract::{Path, Query, State},
     http::{StatusCode, header},
-    response::{IntoResponse, Redirect, Response},
+    response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
@@ -16,7 +16,7 @@ use uuid::Uuid;
 use super::{
     invitations::InviteForm,
     lang,
-    page::{AdminState, DeleteForm, PageError, SavedQuery, load_event},
+    page::{AdminState, DeleteForm, PageError, SavedQuery, load_event, redirect},
     qr::qr_file,
 };
 use crate::{
@@ -108,8 +108,8 @@ pub(super) fn local(at: DateTime<Utc>, tz: Tz) -> String {
 }
 
 #[derive(Template)]
-#[template(path = "admin/index.html")]
-pub(super) struct IndexPage {
+#[template(path = "admin/guests.html")]
+pub(super) struct GuestsTab {
     pub(super) event: Event,
     pub(super) links: EventLinks,
     pub(super) headcount: Headcount,
@@ -123,7 +123,7 @@ pub(super) struct IndexPage {
     pub(super) error: Option<String>,
 }
 
-impl IndexPage {
+impl GuestsTab {
     /// Whether the table shows only the guests with this answer.
     pub(super) fn showing(&self, code: &str) -> bool {
         self.show == Some(code)
@@ -137,7 +137,7 @@ impl IndexPage {
 }
 
 #[derive(Deserialize)]
-pub(super) struct IndexQuery {
+pub(super) struct GuestsQuery {
     /// `pending`, `attending` or `declined`.
     pub(super) show: Option<String>,
     pub(super) reminders: Option<usize>,
@@ -149,7 +149,7 @@ pub(super) struct IndexQuery {
 pub(super) async fn event_guests(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
-    Query(query): Query<IndexQuery>,
+    Query(query): Query<GuestsQuery>,
 ) -> Result<Response, PageError> {
     let event = load_event(&state, id).await?;
     let (rsvps, headcount, groups) = tokio::try_join!(
@@ -166,7 +166,7 @@ pub(super) async fn event_guests(
     .find(|response| query.show.as_deref() == Some(response_code(*response)));
     let tz = event.details.starts_at.timezone();
     let text = lang::text();
-    Ok(render(IndexPage {
+    Ok(render(GuestsTab {
         links: EventLinks::new(id),
         event,
         headcount,
@@ -284,7 +284,7 @@ pub(super) async fn show(
 
 pub(super) fn saved_redirect(id: Uuid) -> Response {
     let page = format!("{}?saved", paths::path(paths::GUEST, id));
-    Redirect::to(&paths::admin(&page)).into_response()
+    redirect(&page)
 }
 
 pub(super) async fn edit(
@@ -326,7 +326,7 @@ pub(super) async fn delete(
     rsvp::delete(&state.db, id).await?;
     tracing::info!(rsvp = %id, "rsvp deleted by host");
     let event = paths::path(paths::EVENT, rsvp.event_id);
-    Ok(Redirect::to(&paths::admin(&event)).into_response())
+    Ok(redirect(&event))
 }
 
 /// The event's guests as CSV, with each guest's link for a mail merge.
@@ -411,7 +411,7 @@ pub(super) async fn queue_reminders(
     let count = outbox::queue_reminders(&state.db, event.id).await?;
     tracing::info!(count, event = %id, "reminders queued");
     let page = format!("{}?reminders={count}", paths::path(paths::EVENT, id));
-    Ok(Redirect::to(&paths::admin(&page)).into_response())
+    Ok(redirect(&page))
 }
 
 #[cfg(test)]

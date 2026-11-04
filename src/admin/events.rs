@@ -7,7 +7,7 @@ use axum::{
     Form,
     extract::{Path, Query, State},
     http::StatusCode,
-    response::{IntoResponse, Redirect, Response},
+    response::Response,
 };
 use chrono::{DateTime, NaiveDateTime};
 use chrono_tz::Tz;
@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use super::{
     lang,
-    page::{AdminState, DeleteForm, PageError, SavedQuery, load_event},
+    page::{AdminState, DeleteForm, PageError, SavedQuery, load_event, redirect},
 };
 use crate::{
     db::{
@@ -112,7 +112,7 @@ pub(super) async fn create(
     let event = event::create(&state.db, &details).await?;
     tracing::info!(event = %event.id, "event created");
     let page = format!("{}?created", paths::path(paths::EVENT, event.id));
-    Ok(Redirect::to(&paths::admin(&page)).into_response())
+    Ok(redirect(&page))
 }
 
 #[derive(Template)]
@@ -174,7 +174,7 @@ pub(super) async fn edit(
         .ok_or(PageError::Missing)?;
     tracing::info!(event = %id, "event changed");
     let page = format!("{}?saved", paths::path(paths::EVENT_DETAILS, id));
-    Ok(Redirect::to(&paths::admin(&page)).into_response())
+    Ok(redirect(&page))
 }
 
 /// Deletes the event with everything in it.
@@ -190,7 +190,7 @@ pub(super) async fn delete(
     }
     event::delete(&state.db, id).await?;
     tracing::info!(event = %id, "event deleted");
-    Ok(Redirect::to(&paths::admin(&format!("{}?deleted", paths::HOME))).into_response())
+    Ok(redirect(&format!("{}?deleted", paths::HOME)))
 }
 
 /// The event form as typed, so it can be shown again when something needs fixing.

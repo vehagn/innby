@@ -1,3 +1,13 @@
+//! Innby: an RSVP site that keeps as little about its guests as it can. One binary, run
+//! as several workloads (`innby serve`, `admin`, `mailer`, `janitor`, `migrate`), linked
+//! only by Postgres. AGENTS.md has the map of the whole repository.
+//!
+//! - `web`: the public site. `admin`: the host's UI. `http`: what both listeners share.
+//! - `mailer`: sends the outbox's mail. `janitor`: the retention rules.
+//! - `db`: the queries, per table. `config`: the settings. `i18n`: languages and texts.
+//! - `link`: signed links. `paths`: every route and link. `theme`: the colour scheme.
+//! - `random`: tokens. `testing` and `e2e`: test helpers and end-to-end journeys.
+
 mod admin;
 mod config;
 mod db;

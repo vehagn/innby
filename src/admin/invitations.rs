@@ -6,7 +6,7 @@ use axum::{
     Form,
     extract::{Path, Query, State},
     http::StatusCode,
-    response::{IntoResponse, Redirect, Response},
+    response::Response,
 };
 use serde::Deserialize;
 use sqlx::PgPool;
@@ -15,7 +15,7 @@ use uuid::Uuid;
 use super::guests::{Row, guest_url};
 use super::{
     lang,
-    page::{AdminState, PageError, load_event},
+    page::{AdminState, PageError, load_event, redirect},
 };
 use crate::{
     config::Config,
@@ -113,7 +113,7 @@ pub(super) async fn create_invitations(
         paths::path(paths::EVENT_INVITATIONS, id),
         ids[0]
     );
-    Ok(Redirect::to(&paths::admin(&page)).into_response())
+    Ok(redirect(&page))
 }
 
 #[derive(Template)]

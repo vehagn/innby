@@ -44,7 +44,7 @@ The devcontainer takes away Go's main advantage, that it's usually installed alr
 | CLI | `clap` (derive) for the subcommands |
 | Logging | `tracing` + `tracing-subscriber` (JSON output) |
 | Rate limiting | A small fixed-window counter per IP (IPv6 per /64), in memory; no crate needed |
-| Admin | `argon2` (password hash), HS512 JWTs with `hmac`, `qrcode` (the module grid, drawn as SVG by `admin/qr.rs`). The CSV is written by hand. |
+| Admin | `argon2` (password hash), HS512 JWTs with `hmac`, `qrcode` (the module grid, drawn as SVG by `admin/qr/draw.rs`). The CSV is written by hand. |
 | Single sign-on | `ring` (ID token signatures), `hyper` client with `tokio-rustls`, `url`, `subtle`: all already in the build through sqlx and lettre, rather than an OIDC crate and reqwest |
 | TLS roots | `rustls` with `webpki-roots`, through sqlx's and lettre's features: CA roots compiled in, so the image needs no `/etc/ssl` |
 
@@ -173,7 +173,7 @@ Two tabs under the header: **Events** and **QR codes**. Each event has four of i
 - **Overview:** the Guests tab's headcount is three tiles, coming (people and parties), no answer and not coming; each tile filters the table below to those guests (`?show=attending`). Every guest is in that table, with a CSV export.
 - **Reminders:** *Send reminders* queues one mail per guest with a confirmed address who hasn't declined.
 - **Authentication:** reachable only through the internal gateway (LAN or VPN), plus a login form checked against an argon2 hash from a SealedSecret, since the admin can change data. As in LLDAP, a login sets two `HttpOnly` cookies: `token`, an HS512 JWT that lasts a day, and `refresh_token`, which gets a new JWT for 30 days and is kept in Postgres by its keyed hash. *Log out* revokes both (the JWT's `jti` goes on a list until it would have expired), so copies of the cookies stop working too. The JWT key is `INNBY_ADMIN_JWT_SECRET` bound to how the host logs in (the user name and password hash, the provider and client), so a new password logs every browser out. Each argon2 check needs 19 MiB, so checks run one at a time, and after 10 checks in 15 minutes logins get 429 (browsers that are logged in keep working).
-- **Single sign-on:** optionally, an OpenID Connect provider such as Authelia logs hosts in too, or instead (leaving out the password hash turns the built-in user off, and the login page then goes straight to the provider). It's the authorization code flow for a confidential client, in `admin/oidc/`: PKCE (S256), `state` and `nonce` kept in a short-lived cookie signed with the JWT key, `client_secret_basic` with both halves form-encoded, and the RFC 9207 `iss` parameter when the provider sends it. The discovery document's `issuer` must be the configured one exactly. The ID token's signature is checked with the keys at `jwks_uri` only (fetched again, at most once a minute, when a token names a new one), with asymmetric algorithms only and the key's type and curve matching; then `iss`, `aud` (Innby alone), `azp`, `exp`, `iat`, `nonce` and `at_hash`. Userinfo must be about the ID token's `sub`. The login's JWT lasts 12 hours, without a refresh token, so a role taken away at the provider is gone by the next day. The HTTP client is hyper with rustls (ring and the Mozilla roots), with a timeout, a size limit and no redirects; plain HTTP only reaches this machine.
+- **Single sign-on:** optionally, an OpenID Connect provider such as Authelia logs hosts in too, or instead (leaving out the password hash turns the built-in user off, and the login page then goes straight to the provider). It's the authorization code flow for a confidential client, in `admin/auth/oidc/`: PKCE (S256), `state` and `nonce` kept in a short-lived cookie signed with the JWT key, `client_secret_basic` with both halves form-encoded, and the RFC 9207 `iss` parameter when the provider sends it. The discovery document's `issuer` must be the configured one exactly. The ID token's signature is checked with the keys at `jwks_uri` only (fetched again, at most once a minute, when a token names a new one), with asymmetric algorithms only and the key's type and curve matching; then `iss`, `aud` (Innby alone), `azp`, `exp`, `iat`, `nonce` and `at_hash`. Userinfo must be about the ID token's `sub`. The login's JWT lasts 12 hours, without a refresh token, so a role taken away at the provider is gone by the next day. The HTTP client is hyper with rustls (ring and the Mozilla roots), with a timeout, a size limit and no redirects; plain HTTP only reaches this machine.
 - **Roles:** the provider lists a host's roles in a claim named after the app, `innby: [editor]`, as the homelab's Grafana and Argo CD clients have theirs. **viewer** sees the events, headcounts and who's coming, but not the personal links, e-mail status or the CSV, since those let you act as a guest. **editor** also runs events: invitations, group links, guests, reminders, the CSV and the details. **admin** also creates and deletes events and styles the QR codes; the built-in user is one. The highest role listed counts; without one there's no login. Routes are grouped by the role they need, so a page can't be reached by typing its address, and pages show only what the role may use.
 
 ### 5.6 Guest list
@@ -241,22 +241,11 @@ innby/
 │   ├── devcontainer.json      # VS Code / RustRover / devcontainer CLI entry point
 │   ├── compose.yaml           # dev + db (postgres:18) + mail (mailpit)
 │   ├── compose.ports.yaml     # the ports `just dev` publishes on the host
-│   └── Containerfile          # Rust, zig, cargo-zigbuild, sqlx-cli, just, psql, kubectl, kubeseal, zsh, Vim, Neovim
+│   └── Containerfile          # Rust, zig, cargo-zigbuild, sqlx-cli, just, psql, kubectl, kubeseal, Helm, kubeconform, zsh, Vim, Neovim
 ├── .github/workflows/ci.yaml  # test, lint, then build and push the image
 ├── Cargo.toml / Cargo.lock
 ├── rust-toolchain.toml        # pins the toolchain and both musl targets
-├── src/
-│   ├── main.rs                # clap: serve | admin | mailer | janitor | migrate | invite | hash-password
-│   ├── config.rs              # env parsing and validation
-│   ├── link.rs                # HMAC signing for RSVP, group and e-mail links
-│   ├── paths.rs               # every route pattern, and links built from them
-│   ├── i18n.rs                # Messages, loaded from locales/
-│   ├── theme.rs               # the colour scheme from ?theme=
-│   ├── db/                    # queries, per table (events, RSVPs, groups, outbox…), and retention
-│   ├── web/                   # public pages, CSRF middleware, rate limit, remember-me cookie
-│   ├── admin/                 # host UI: events, invitations, groups, QR codes, login
-│   ├── mailer/                # outbox worker and mail texts
-│   └── janitor.rs             # runs the retention rules
+├── src/                       # the binary; AGENTS.md maps every module, and each mod.rs lists its parts
 ├── locales/*.toml             # texts and mails per language, compiled in
 ├── templates/                 # askama, compiled in; privacy/ has the notice per language
 ├── static/style.css           # the one stylesheet, compiled in
@@ -266,6 +255,7 @@ innby/
 ├── charts/innby/              # the Helm chart, published as an OCI artifact
 ├── deploy/                    # the homelab's install of it, mirrored into vehagn/homelab
 ├── docs/ropa.md               # GDPR record of processing
+├── AGENTS.md                  # the map of the repository and its conventions, for coding agents (CLAUDE.md points here)
 ├── Justfile
 └── PLAN.md
 ```
@@ -286,7 +276,7 @@ The devcontainer is a Compose project with three services:
 - **Tests:**
   - Unit tests for link signing (tampering, nonce bump, expiry), validation, i18n completeness and retention.
   - Integration tests with `#[sqlx::test]`, which creates a throwaway database per test against `db`.
-  - End-to-end journeys in `src/e2e/`, over the real routers of the public site and the admin UI and the real mailer, on a throwaway database. A test `Browser` opens pages, fills in fields by their labels, presses buttons by their text, follows redirects and keeps cookies; mail lands in an inbox the test reads. Labels and texts come from the British locale file, so rewording a text doesn't break a test. Each file covers an area: `guests.rs`, `groups.rs`, `email.rs`, `host.rs`, `events.rs`, `sso.rs`. Single sign-on runs against a fake provider in `admin/oidc/fake.rs`, on a local port, which checks what a real one would and can be made to misbehave.
+  - End-to-end journeys in `src/e2e/`, over the real routers of the public site and the admin UI and the real mailer, on a throwaway database. A test `Browser` opens pages, fills in fields by their labels, presses buttons by their text, follows redirects and keeps cookies; mail lands in an inbox the test reads. Labels and texts come from the British locale file, so rewording a text doesn't break a test. Each file covers an area: `guests.rs`, `groups.rs`, `email.rs`, `host.rs`, `events.rs`, `sso.rs`. Single sign-on runs against a fake provider in `admin/auth/oidc/fake.rs`, on a local port, which checks what a real one would and can be made to misbehave.
 
 ## 10. Container image (binary only, no build tool)
 
@@ -379,6 +369,7 @@ Hidden from the list, for other recipes and CI: `run`, `migrate`, `build` (cargo
 22. ✅ **Several events:** events in the database, made in the admin UI, with everything else belonging to one; a front page about Innby that leads back to each remembered invitation, one cookie per event; retention per event.
 23. ✅ **Single sign-on and roles:** optional OpenID Connect login (Authelia), the built-in user optional, and viewer, editor and admin roles from an `innby` claim.
 24. ✅ **Helm chart:** `charts/innby`, general purpose and without CRDs, with optional HTTPRoutes, Ingresses, standard or Cilium NetworkPolicies, and a CloudNativePG cluster by name, published to GHCR as an OCI artifact with each release. The admin UI can live under `/admin` on the site's hostname. `deploy/` is now the homelab's values for it.
+25. ✅ **Structure:** shared listener plumbing in `http/`; `admin/` split by tab with logging in under `auth/`; `config/`, `i18n/` and `db/rsvp/` split into parts; tests beside the code they cover, with shared helpers; a `//!` map atop every module and AGENTS.md for the whole.
 
 ## 14. Decisions
 

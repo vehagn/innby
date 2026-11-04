@@ -10,12 +10,12 @@ use axum::{
     Form,
     extract::{Query, State},
     http::{StatusCode, header},
-    response::{IntoResponse, Redirect, Response},
+    response::{IntoResponse, Response},
 };
 
 use super::{
     lang,
-    page::{AdminState, SavedQuery},
+    page::{AdminState, SavedQuery, redirect},
 };
 use crate::{
     config::Config,
@@ -82,7 +82,7 @@ pub(super) async fn save_qr_style(
         return server_error(err);
     }
     tracing::info!("qr style saved");
-    Redirect::to(&paths::admin(&format!("{}?saved", paths::QR_STYLE))).into_response()
+    redirect(&format!("{}?saved", paths::QR_STYLE))
 }
 
 /// A QR code as an SVG file to save, named after what it's for.

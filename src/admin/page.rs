@@ -6,7 +6,7 @@ use std::sync::Arc;
 use axum::{
     extract::FromRef,
     http::StatusCode,
-    response::{IntoResponse, Response},
+    response::{IntoResponse, Redirect, Response},
 };
 use serde::Deserialize;
 use sqlx::PgPool;
@@ -134,4 +134,10 @@ impl IntoResponse for PageError {
             Self::Database(err) => server_error(err),
         }
     }
+}
+
+/// Sends the browser on to an admin page, under the admin's path and in the host's
+/// language and colour scheme.
+pub(super) fn redirect(page: &str) -> Response {
+    Redirect::to(&paths::admin(page)).into_response()
 }

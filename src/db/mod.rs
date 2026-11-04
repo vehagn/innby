@@ -1,3 +1,12 @@
+//! Postgres: the pool, the migrations in `migrations/`, and the queries, one module per
+//! table. Queries are `sqlx::query!` macros, checked against the schema at compile time
+//! with the offline data in `.sqlx/` (`just db prepare` after changing one).
+//!
+//! - `event`: events, and deleting each one with everything in it.
+//! - `rsvp`: guests' answers. `group`: group sign-up links. `outbox`: mail jobs.
+//! - `qr`: the QR code style. `admin_login`: refresh tokens and revoked JWTs.
+//! - `retention`: deleting what's no longer needed.
+
 pub mod admin_login;
 pub mod event;
 pub mod group;

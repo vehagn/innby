@@ -5,7 +5,7 @@ use axum::{
     Form,
     extract::{Path, Query, State},
     http::StatusCode,
-    response::{IntoResponse, Redirect, Response},
+    response::Response,
 };
 use chrono::Utc;
 use uuid::Uuid;
@@ -14,7 +14,7 @@ use super::{
     guests::{Row, local},
     invitations::{BatchForm, InviteForm},
     lang,
-    page::{AdminState, DeleteForm, PageError, SavedQuery, load_event},
+    page::{AdminState, DeleteForm, PageError, SavedQuery, load_event, redirect},
     qr::{self as admin_qr, qr_file},
 };
 use crate::{
@@ -151,7 +151,7 @@ pub(super) async fn create(
         paths::path(paths::EVENT_GROUPS, id),
         entries.len()
     );
-    Ok(Redirect::to(&paths::admin(&page)).into_response())
+    Ok(redirect(&page))
 }
 
 #[derive(Template)]
@@ -213,7 +213,7 @@ impl GroupPage {
 
 fn saved_redirect(id: Uuid) -> Response {
     let page = format!("{}?saved", paths::path(paths::GROUP, id));
-    Redirect::to(&paths::admin(&page)).into_response()
+    redirect(&page)
 }
 
 pub(super) async fn show(
@@ -288,7 +288,7 @@ pub(super) async fn delete(
     }
     tracing::info!(group = %id, "group deleted");
     let groups = paths::path(paths::EVENT_GROUPS, group.event_id);
-    Ok(Redirect::to(&paths::admin(&groups)).into_response())
+    Ok(redirect(&groups))
 }
 
 #[cfg(test)]
