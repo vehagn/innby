@@ -142,15 +142,7 @@ async fn requires_login_except_for_probes(db: PgPool) {
     // A form posted without a login doesn't run either.
     let response = admin.send(Request::post("/events"), "title=Fest").await;
     assert_eq!(location(&response), "/login");
-    assert!(
-        rsvp::list(
-            &admin.db,
-            crate::db::event::tests::event(&admin.db).await.id
-        )
-        .await
-        .unwrap()
-        .is_empty()
-    );
+    assert!(admin.guests().await.is_empty());
 
     let response = admin.send(Request::get("/healthz"), "").await;
     assert_eq!(response.status(), StatusCode::OK);

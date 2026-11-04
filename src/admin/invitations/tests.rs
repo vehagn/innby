@@ -1,7 +1,6 @@
 use axum::http::StatusCode;
 use sqlx::PgPool;
 
-use super::*;
 use crate::{
     admin::testing::{Admin, links},
     link::{IdLink, Purpose},
@@ -27,12 +26,7 @@ async fn creates_invitations_in_a_batch(db: PgPool) {
 
     let html = body(admin.get(&page).await).await;
     assert!(html.contains("3 invitations created."), "{html}");
-    let invites = rsvp::list(
-        &admin.db,
-        crate::db::event::tests::event(&admin.db).await.id,
-    )
-    .await
-    .unwrap();
+    let invites = admin.guests().await;
     let sizes: Vec<_> = invites
         .iter()
         .map(|invite| (invite.name.as_str(), invite.max_party_size))
@@ -105,13 +99,5 @@ async fn rejects_a_batch_with_an_invalid_line(db: PgPool) {
     )
     .await;
     assert!(html.contains(">Kari\r\nOla, 21</textarea>"), "{html}");
-    assert!(
-        rsvp::list(
-            &admin.db,
-            crate::db::event::tests::event(&admin.db).await.id
-        )
-        .await
-        .unwrap()
-        .is_empty()
-    );
+    assert!(admin.guests().await.is_empty());
 }

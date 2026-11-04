@@ -412,14 +412,7 @@ mod tests {
     async fn edits_revokes_and_deletes(db: PgPool) {
         let admin = Admin::new(db);
         let e = admin.event().await;
-        let invite = rsvp::create_invite(
-            &admin.db,
-            crate::db::event::tests::event(&admin.db).await.id,
-            "Kari",
-            1,
-        )
-        .await
-        .unwrap();
+        let invite = admin.invite("Kari", 1).await;
         let path = format!("/guests/{}", invite.id);
 
         let response = admin
@@ -448,22 +441,8 @@ mod tests {
     async fn the_headcount_filters_the_guests(db: PgPool) {
         let admin = Admin::new(db);
         let e = admin.event().await;
-        let kari = rsvp::create_invite(
-            &admin.db,
-            crate::db::event::tests::event(&admin.db).await.id,
-            "Kari",
-            3,
-        )
-        .await
-        .unwrap();
-        rsvp::create_invite(
-            &admin.db,
-            crate::db::event::tests::event(&admin.db).await.id,
-            "Ola",
-            1,
-        )
-        .await
-        .unwrap();
+        let kari = admin.invite("Kari", 3).await;
+        admin.invite("Ola", 1).await;
         rsvp::respond(
             &admin.db,
             kari.id,
@@ -506,22 +485,8 @@ mod tests {
     async fn exports_csv_with_links(db: PgPool) {
         let admin = Admin::new(db);
         let e = admin.event().await;
-        rsvp::create_invite(
-            &admin.db,
-            crate::db::event::tests::event(&admin.db).await.id,
-            "=cmd|' /C calc'!A0",
-            1,
-        )
-        .await
-        .unwrap();
-        rsvp::create_invite(
-            &admin.db,
-            crate::db::event::tests::event(&admin.db).await.id,
-            "Kari \"K\" Ø",
-            2,
-        )
-        .await
-        .unwrap();
+        admin.invite("=cmd|' /C calc'!A0", 1).await;
+        admin.invite("Kari \"K\" Ø", 2).await;
 
         let response = admin.get(&format!("{e}/guests.csv")).await;
         assert_eq!(

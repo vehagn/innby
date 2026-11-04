@@ -116,7 +116,6 @@ mod tests {
     use super::*;
     use crate::{
         admin::testing::Admin,
-        db::rsvp,
         testing::{body, location},
     };
 
@@ -156,13 +155,7 @@ mod tests {
                 "names=Kari+Nordmann&max_party_size=1",
             )
             .await;
-        let id = rsvp::list(
-            &admin.db,
-            crate::db::event::tests::event(&admin.db).await.id,
-        )
-        .await
-        .unwrap()[0]
-            .id;
+        let id = admin.guests().await[0].id;
         let html = body(admin.get(&format!("/guests/{id}")).await).await;
         assert!(html.contains(&format!(r#"href="/guests/{id}/qr.svg" download"#)));
         let response = admin.get(&format!("/guests/{id}/qr.svg")).await;

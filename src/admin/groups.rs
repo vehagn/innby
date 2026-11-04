@@ -312,14 +312,11 @@ mod tests {
         assert_eq!(location(&response), format!("{e}/groups?created=2"));
         let html = body(admin.get(&format!("{e}/groups?created=2")).await).await;
         assert!(html.contains("2 groups created."));
-        let [climbing, neighbours] = group::list(
-            &admin.db,
-            crate::db::event::tests::event(&admin.db).await.id,
-        )
-        .await
-        .unwrap()
-        .try_into()
-        .unwrap();
+        let [climbing, neighbours] = group::list(&admin.db, admin.event_id().await)
+            .await
+            .unwrap()
+            .try_into()
+            .unwrap();
         assert_eq!(
             (neighbours.name.as_str(), neighbours.max_party_size),
             ("Neighbours", 4)
