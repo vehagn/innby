@@ -656,8 +656,10 @@ td {
   stroke-linejoin: round;
 }
 
-/* Header controls: the admin's name, the colour scheme switch, the language menu
-   and logging out. */
+/* Header controls: Innby's name, the colour scheme switch, the language menu and
+   logging out. */
+
+/* The banner on every page: Innby, back to the front page, or "Innby admin". */
 .brand {
   margin-right: auto;
   font: 600 var(--text-m) var(--font-mono);

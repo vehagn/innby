@@ -9,6 +9,7 @@
 </head>
 <body>
   <header>
+    <a class="brand" href="{{ lang.home() }}">Innby</a>
     <nav class="theme-switch" aria-label="{{ t.theme }}">
       {% for option in crate::theme::Theme::ALL %}
       <a href="{{ crate::paths::themed(lang, option) }}" title="{{ option.label(t) }}"{% if option == theme %} aria-current="true"{% endif %}>{{ option.icon()|safe }}<span class="visually-hidden">{{ option.label(t) }}</span></a>

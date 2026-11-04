@@ -69,6 +69,16 @@ async fn index_is_about_innby_in_norwegian() {
 }
 
 #[tokio::test]
+async fn every_page_has_the_banner_home() {
+    // In the page's language and colour scheme.
+    let html = body(get("/privacy?lang=nn&theme=dark", None).await).await;
+    assert!(
+        html.contains(r#"<a class="brand" href="/?lang=nn&#38;theme=dark">Innby</a>"#),
+        "{html}"
+    );
+}
+
+#[tokio::test]
 async fn index_follows_accept_language() {
     let html = body(get("/", Some("en-GB,en;q=0.9")).await).await;
     assert!(html.contains(r#"<html lang="en-GB" "#));
