@@ -1,6 +1,10 @@
 //! Texts the host writes, such as an event's title and description: in Bokmål, and in
 //! any other language the host gives, falling back as the site's own texts do.
 
+use std::collections::BTreeMap;
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
 use super::Lang;
 
 /// A text the host writes, such as an event's title: in Bokmål, and in other languages
@@ -50,5 +54,31 @@ impl Texts {
             Lang::ZhHans => self.zh_hans = other,
             Lang::ZhHant => self.zh_hant = other,
         }
+    }
+}
+
+/// Texts as a map by language code, `{"nb": "Julebord", "en": "Christmas party"}`, as the
+/// database keeps them: only the languages that have one, and unknown codes left out.
+impl Serialize for Texts {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_map(
+            Lang::ALL
+                .into_iter()
+                .map(|lang| (lang.code(), self.own(lang)))
+                .filter(|(_, text)| !text.is_empty()),
+        )
+    }
+}
+
+impl<'de> Deserialize<'de> for Texts {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let by_code = BTreeMap::<String, String>::deserialize(deserializer)?;
+        let mut texts = Texts::default();
+        for (code, text) in &by_code {
+            if let Some(lang) = Lang::from_code(code) {
+                texts.set(lang, text);
+            }
+        }
+        Ok(texts)
     }
 }

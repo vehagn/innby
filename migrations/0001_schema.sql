@@ -5,6 +5,7 @@
 -- Released versions after this one change the schema in migrations of their own, beside
 -- this file; this one is never edited once released.
 
+-- A guest's language, for their mail.
 create type lang as enum ('nb', 'nn', 'en', 'en-us', 'zh-hans', 'zh-hant');
 create type qr_shape as enum ('square', 'rounded', 'dots');
 create type qr_icon as enum ('none', 'heart', 'star', 'emoji');
@@ -12,19 +13,11 @@ create type qr_icon as enum ('none', 'heart', 'star', 'emoji');
 -- One party, as the host describes it, with the style its QR codes are drawn in.
 create table event (
     id                  uuid primary key default uuidv7(),
-    -- In Bokmål; the other languages fall back to it.
-    title               text not null check (length(title) <= 200),
-    title_nn            text,
-    title_en            text,
-    title_en_us         text,
-    title_zh_hans       text,
-    title_zh_hant       text,
-    description         text not null default '',
-    description_nn      text,
-    description_en      text,
-    description_en_us   text,
-    description_zh_hans text,
-    description_zh_hant text,
+    -- Each by language code: 'nb', 'nn', 'en', 'en-us', 'zh-hans', 'zh-hant'. Every
+    -- event has a Bokmål title, which the other languages fall back to, so a new
+    -- language needs no new column.
+    title               jsonb not null check (title ? 'nb'),
+    description         jsonb not null default '{}',
     location            text not null default '',
     starts_at           timestamptz not null,
     -- Dates show in the event's time zone, wherever the guest is.

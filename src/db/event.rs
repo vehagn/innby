@@ -3,7 +3,7 @@
 
 use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
-use sqlx::PgExecutor;
+use sqlx::{PgExecutor, types::Json};
 use uuid::Uuid;
 
 use crate::{
@@ -47,22 +47,12 @@ impl Event {
     }
 }
 
-/// A row as stored, with each language in a column of its own. The QR code style is in
-/// the same row, but `db::qr` reads and writes it.
+/// A row as stored, with the texts as maps by language code. The QR code style is in the
+/// same row, but `db::qr` reads and writes it.
 struct Row {
     id: Uuid,
-    title: String,
-    title_nn: Option<String>,
-    title_en: Option<String>,
-    title_en_us: Option<String>,
-    title_zh_hans: Option<String>,
-    title_zh_hant: Option<String>,
-    description: String,
-    description_nn: Option<String>,
-    description_en: Option<String>,
-    description_en_us: Option<String>,
-    description_zh_hans: Option<String>,
-    description_zh_hant: Option<String>,
+    title: Json<Texts>,
+    description: Json<Texts>,
     location: String,
     starts_at: DateTime<Utc>,
     time_zone: String,
@@ -76,22 +66,8 @@ impl From<Row> for Event {
         Self {
             id: row.id,
             details: Details {
-                title: Texts {
-                    nb: row.title,
-                    nn: row.title_nn,
-                    en_gb: row.title_en,
-                    en_us: row.title_en_us,
-                    zh_hans: row.title_zh_hans,
-                    zh_hant: row.title_zh_hant,
-                },
-                description: Texts {
-                    nb: row.description,
-                    nn: row.description_nn,
-                    en_gb: row.description_en,
-                    en_us: row.description_en_us,
-                    zh_hans: row.description_zh_hans,
-                    zh_hant: row.description_zh_hant,
-                },
+                title: row.title.0,
+                description: row.description.0,
                 location: row.location,
                 starts_at: row.starts_at.with_timezone(&tz),
                 rsvp_deadline: row.rsvp_deadline.map(|at| at.with_timezone(&tz)),
@@ -100,50 +76,19 @@ impl From<Row> for Event {
     }
 }
 
-/// `query_as!` for whole events, with the details as parameters `$2` to `$17` in the
-/// order `bind_details!` gives them.
-macro_rules! bind_details {
-    ($query:literal, $id:expr, $details:expr) => {{
-        let details: &Details = $details;
-        let (title, description) = (&details.title, &details.description);
-        sqlx::query_as!(
-            Row,
-            $query,
-            $id,
-            title.nb,
-            title.nn,
-            title.en_gb,
-            title.en_us,
-            title.zh_hans,
-            title.zh_hant,
-            description.nb,
-            description.nn,
-            description.en_gb,
-            description.en_us,
-            description.zh_hans,
-            description.zh_hant,
-            details.location,
-            details.starts_at.to_utc(),
-            details.starts_at.timezone().name(),
-            details.rsvp_deadline.map(|at| at.to_utc()),
-        )
-    }};
-}
-
 pub async fn create(db: impl PgExecutor<'_>, details: &Details) -> sqlx::Result<Event> {
-    bind_details!(
-        "insert into event (id, title, title_nn, title_en, title_en_us, title_zh_hans, \
-            title_zh_hant, description, description_nn, description_en, description_en_us, \
-            description_zh_hans, description_zh_hant, location, starts_at, time_zone, \
-            rsvp_deadline) \
-         values (coalesce($1, uuidv7()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, \
-            $14, $15, $16, $17) \
-         returning id, title, title_nn, title_en, title_en_us, title_zh_hans, title_zh_hant, \
-            description, description_nn, description_en, description_en_us, \
-            description_zh_hans, description_zh_hant, location, starts_at, time_zone, \
-            rsvp_deadline",
-        None::<Uuid>,
-        details
+    sqlx::query_as!(
+        Row,
+        r#"insert into event (title, description, location, starts_at, time_zone, rsvp_deadline)
+         values ($1, $2, $3, $4, $5, $6)
+         returning id, title as "title: Json<Texts>", description as "description: Json<Texts>",
+            location, starts_at, time_zone, rsvp_deadline"#,
+        Json(&details.title) as _,
+        Json(&details.description) as _,
+        details.location,
+        details.starts_at.to_utc(),
+        details.starts_at.timezone().name(),
+        details.rsvp_deadline.map(|at| at.to_utc()),
     )
     .fetch_one(db)
     .await
@@ -156,18 +101,20 @@ pub async fn update(
     id: Uuid,
     details: &Details,
 ) -> sqlx::Result<Option<Event>> {
-    bind_details!(
-        "update event set title = $2, title_nn = $3, title_en = $4, title_en_us = $5, \
-            title_zh_hans = $6, title_zh_hant = $7, description = $8, description_nn = $9, \
-            description_en = $10, description_en_us = $11, description_zh_hans = $12, \
-            description_zh_hant = $13, location = $14, starts_at = $15, time_zone = $16, \
-            rsvp_deadline = $17 \
-         where id = $1 returning id, title, title_nn, title_en, title_en_us, title_zh_hans, title_zh_hant, \
-            description, description_nn, description_en, description_en_us, \
-            description_zh_hans, description_zh_hant, location, starts_at, time_zone, \
-            rsvp_deadline",
+    sqlx::query_as!(
+        Row,
+        r#"update event set title = $2, description = $3, location = $4, starts_at = $5,
+            time_zone = $6, rsvp_deadline = $7
+         where id = $1
+         returning id, title as "title: Json<Texts>", description as "description: Json<Texts>",
+            location, starts_at, time_zone, rsvp_deadline"#,
         id,
-        details
+        Json(&details.title) as _,
+        Json(&details.description) as _,
+        details.location,
+        details.starts_at.to_utc(),
+        details.starts_at.timezone().name(),
+        details.rsvp_deadline.map(|at| at.to_utc()),
     )
     .fetch_optional(db)
     .await
@@ -177,10 +124,8 @@ pub async fn update(
 pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Event>> {
     sqlx::query_as!(
         Row,
-        "select id, title, title_nn, title_en, title_en_us, title_zh_hans, title_zh_hant, \
-            description, description_nn, description_en, description_en_us, \
-            description_zh_hans, description_zh_hant, location, starts_at, time_zone, \
-            rsvp_deadline from event where id = $1",
+        r#"select id, title as "title: Json<Texts>", description as "description: Json<Texts>",
+            location, starts_at, time_zone, rsvp_deadline from event where id = $1"#,
         id
     )
     .fetch_optional(db)
@@ -192,10 +137,8 @@ pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Even
 pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Event>> {
     sqlx::query_as!(
         Row,
-        "select id, title, title_nn, title_en, title_en_us, title_zh_hans, title_zh_hant, \
-            description, description_nn, description_en, description_en_us, \
-            description_zh_hans, description_zh_hant, location, starts_at, time_zone, \
-            rsvp_deadline from event order by starts_at, id"
+        r#"select id, title as "title: Json<Texts>", description as "description: Json<Texts>",
+            location, starts_at, time_zone, rsvp_deadline from event order by starts_at, id"#
     )
     .fetch_all(db)
     .await

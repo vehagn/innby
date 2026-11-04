@@ -26,32 +26,29 @@ delete from event where id in (
     '00000000-5eed-7000-8000-000000000003'
 );
 
-insert into event (
-    id, title, title_nn, title_en, title_en_us, title_zh_hans, title_zh_hant,
-    description, description_nn, description_en, description_en_us,
-    description_zh_hans, description_zh_hant,
-    location, starts_at, time_zone, rsvp_deadline
-) values (
+insert into event (id, title, description, location, starts_at, time_zone, rsvp_deadline)
+values (
     '00000000-5eed-7000-8000-000000000001',
-    'Julebord', 'Julebord', 'Christmas party', 'Holiday party', '圣诞晚会', '聖誕晚會',
-    E'Velkommen til årets julebord!\n\nVi starter med gløgg klokka sju, og middagen serveres halv åtte. Pent antrekk.',
-    E'Velkomen til årets julebord!\n\nVi startar med gløgg klokka sju, og middagen blir servert halv åtte. Pent antrekk.',
-    E'Welcome to this year''s Christmas party!\n\nMulled wine at seven, and dinner at half past. Dress smartly.',
-    E'Welcome to this year''s holiday party!\n\nMulled wine at seven, and dinner at seven thirty. Dress up.',
-    E'欢迎参加今年的圣诞晚会！\n\n七点供应热红酒，七点半开席。请着正装。',
-    E'歡迎參加今年的聖誕晚會！\n\n七點供應熱紅酒，七點半開席。請著正裝。',
+    '{"nb": "Julebord", "nn": "Julebord", "en": "Christmas party", "en-us": "Holiday party",
+      "zh-hans": "圣诞晚会", "zh-hant": "聖誕晚會"}',
+    '{"nb": "Velkommen til årets julebord!\n\nVi starter med gløgg klokka sju, og middagen serveres halv åtte. Pent antrekk.",
+      "nn": "Velkomen til årets julebord!\n\nVi startar med gløgg klokka sju, og middagen blir servert halv åtte. Pent antrekk.",
+      "en": "Welcome to this year''s Christmas party!\n\nMulled wine at seven, and dinner at half past. Dress smartly.",
+      "en-us": "Welcome to this year''s holiday party!\n\nMulled wine at seven, and dinner at seven thirty. Dress up.",
+      "zh-hans": "欢迎参加今年的圣诞晚会！\n\n七点供应热红酒，七点半开席。请着正装。",
+      "zh-hant": "歡迎參加今年的聖誕晚會！\n\n七點供應熱紅酒，七點半開席。請著正裝。"}',
     'Storgata 1, 0155 Oslo', pg_temp.oslo(35, '19:00'), 'Europe/Oslo', pg_temp.oslo(28, '23:59')
 ), (
     '00000000-5eed-7000-8000-000000000002',
-    'Sommerfest', null, 'Summer party', null, null, null,
-    'Grill, bading og lange kvelder. Ta med badetøy!', null,
-    'Barbecue, swimming and long evenings. Bring your swimwear!', null, null, null,
+    '{"nb": "Sommerfest", "en": "Summer party"}',
+    '{"nb": "Grill, bading og lange kvelder. Ta med badetøy!",
+      "en": "Barbecue, swimming and long evenings. Bring your swimwear!"}',
     'Huk, Bygdøy', pg_temp.oslo(182, '15:00'), 'Europe/Oslo', null
 ), (
     '00000000-5eed-7000-8000-000000000003',
-    'Bursdag', null, 'Birthday party', null, null, null,
-    'Kake og kaffe, og leker for de minste.', null,
-    'Cake and coffee, and games for the little ones.', null, null, null,
+    '{"nb": "Bursdag", "en": "Birthday party"}',
+    '{"nb": "Kake og kaffe, og leker for de minste.",
+      "en": "Cake and coffee, and games for the little ones."}',
     '', pg_temp.oslo(-10, '18:00'), 'Europe/Oslo', null
 );
 

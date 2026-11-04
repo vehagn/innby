@@ -243,7 +243,7 @@ The schema is in [`migrations/`](../migrations/). In short:
 
 | Table | Holds |
 |---|---|
-| `event` | title and description (Bokmål, plus optional columns per language), place, start, time zone, answer deadline, the style of its QR codes |
+| `event` | title and description (maps by language code, Bokmål always there), place, start, time zone, answer deadline, the style of its QR codes |
 | `rsvp` | each invitation or sign-up: name, answer, party size and its maximum, link nonce, language, optional e-mail and its status and consent time, privacy notice version, how the name shows, the group it came through |
 | `invite_group` | group links: name, maximum party size, link nonce |
 | `outbox` | mail to send: kind, attempts, next try, when sent, last error |

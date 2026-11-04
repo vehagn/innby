@@ -62,11 +62,10 @@ Most of a language lives in its file, but a few places in the code list the lang
 2. Add it to `Lang` in [`src/i18n/mod.rs`](../src/i18n/mod.rs): a variant (with the
    code as its `serde` and `sqlx` name), its code, and its file.
 3. Add a migration that adds it to the database's `lang` type, since a guest's language
-   is stored for their mail, and gives the `event` table its `title_…` and
-   `description_…` columns.
-4. Add the event title and description in that language: a field in `Texts`
-   ([`src/i18n/texts.rs`](../src/i18n/texts.rs)) and the columns in
-   [`src/db/event.rs`](../src/db/event.rs). The admin's event form then offers it.
+   is stored for their mail. An event's title and description are kept as maps by
+   language code, so they need no new columns.
+4. Add a field for it in `Texts` ([`src/i18n/texts.rs`](../src/i18n/texts.rs)), for the
+   event title and description in that language. The admin's event form then offers it.
 5. Add its privacy notice in `templates/privacy/`, and a line for it in
    `templates/privacy.html`.
 
