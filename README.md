@@ -40,7 +40,7 @@ the host stops the devcontainer, keeping its database and build cache. `just dev
 `just` lists the other recipes. `just test` and `just lint` are what CI runs; the tests
 include end-to-end journeys in [`src/e2e/`](src/e2e/mod.rs), which say how to add one.
 `just db` opens psql, `just db prepare` updates the offline query data in `.sqlx/` after
-a query changes, and `just innby` runs the binary's commands, e.g.
+a query changes, `just db reset` rebuilds the dev database from the migrations, and `just innby` runs the binary's commands, e.g.
 `just innby invite "Kari & Ola" 2`.
 
 The shell is zsh with oh-my-zsh and the devcontainers prompt, which shows the git

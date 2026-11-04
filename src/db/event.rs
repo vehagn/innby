@@ -3,7 +3,7 @@
 
 use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
-use sqlx::{PgExecutor, PgPool};
+use sqlx::PgExecutor;
 use uuid::Uuid;
 
 use crate::{
@@ -167,18 +167,6 @@ pub async fn update(
     .map(|row| row.map(Event::from))
 }
 
-/// Fills in the event that older data was given when events moved into the database,
-/// from the settings that used to describe it. Returns whether there was one to fill.
-pub async fn adopt(db: &PgPool, details: &Details) -> sqlx::Result<bool> {
-    let placeholder = sqlx::query_scalar!("select id from event where title = ''")
-        .fetch_optional(db)
-        .await?;
-    match placeholder {
-        Some(id) => Ok(update(db, id, details).await?.is_some()),
-        None => Ok(false),
-    }
-}
-
 pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Event>> {
     sqlx::query_as!(Row, "select * from event where id = $1", id)
         .fetch_optional(db)
@@ -223,6 +211,7 @@ pub async fn delete_started_by(
 #[cfg(test)]
 pub(crate) mod tests {
     use chrono::TimeZone;
+    use sqlx::PgPool;
 
     use super::*;
 
@@ -296,18 +285,6 @@ pub(crate) mod tests {
         let details = details_with_deadline();
         assert!(details.accepts_answers(at("2026-12-01T10:59:00Z")));
         assert!(!details.accepts_answers(at("2026-12-01T11:00:00Z")));
-    }
-
-    #[sqlx::test]
-    async fn the_placeholder_for_older_data_is_adopted_once(db: PgPool) {
-        assert!(!adopt(&db, &details()).await.unwrap());
-        sqlx::query!("insert into event (title, starts_at) values ('', now())")
-            .execute(&db)
-            .await
-            .unwrap();
-        assert!(adopt(&db, &details()).await.unwrap());
-        assert_eq!(event(&db).await.details, details());
-        assert!(!adopt(&db, &details()).await.unwrap());
     }
 
     #[sqlx::test]

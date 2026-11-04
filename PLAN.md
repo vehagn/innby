@@ -228,7 +228,7 @@ Notes on the model:
   1. `SELECT … WHERE sent_at IS NULL AND next_try_at <= now() ORDER BY id LIMIT 10 FOR UPDATE SKIP LOCKED`
   2. Re-read the RSVP. Skip the mail if the address was removed or changed in the meantime.
   3. Render the mail with a freshly signed link, send it, and mark the row sent. A failed send gets exponential backoff (1 minute doubling to at most 6 hours) and is given up after 10 attempts. SMTP errors go to `outbox.last_error`, not the logs, since they often quote the address.
-- **Events** live in the database, made and changed in the admin UI. A missing language falls back: Nynorsk and British English to Bokmål, American English and Simplified Chinese to British, Traditional Chinese to Simplified. Before events moved there, the one event came from `INNBY_EVENT_*` settings; the migration gives older data a placeholder event, and `innby migrate` fills it in from those settings once. The rest of the config (the base URL, the controller named in the privacy notice, the sender address) comes from environment variables, in the cluster from a ConfigMap; `.env.example` lists them.
+- **Events** live in the database, made and changed in the admin UI. A missing language falls back: Nynorsk and British English to Bokmål, American English and Simplified Chinese to British, Traditional Chinese to Simplified. The rest of the config (the base URL, the controller named in the privacy notice, the sender address) comes from environment variables, in the cluster from a ConfigMap; `.env.example` lists them.
 
 ## 8. Repository layout
 

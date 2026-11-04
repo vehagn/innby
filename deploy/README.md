@@ -17,10 +17,7 @@ These manifests follow the `vehagn/homelab` conventions: one directory per app u
    `ghcr.io/vehagn/innby:v<version>`. New GHCR packages are private: make it public, or
    add an image pull secret. Pin `newTag` in `kustomization.yaml` to that tag.
 2. **Config.** Edit `config.env`: your name and contact address for the privacy notice,
-   and the sender address. Events are made in the admin UI once it runs. Upgrading from
-   a version with one event in the settings? Keep its `INNBY_EVENT_*` settings for the
-   first deploy: the web pods' `migrate` step reads them into the database once, after
-   which they can go.
+   and the sender address. Events are made in the admin UI once it runs.
 3. **Secrets.** `cp secrets.example.env secrets.env` and fill it in: the link key, the
    admin password hash (`just innby hash-password`) and JWT secret, and the SMTP
    credentials from step 4. Then from the repository root run `just seal` and uncomment

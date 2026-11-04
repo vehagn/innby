@@ -77,16 +77,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Janitor => janitor::run(&db::connect().await?, chrono::Utc::now())
             .await
             .map(drop),
-        Command::Migrate => {
-            let db = db::connect().await?;
-            db::migrate(&db).await?;
-            if let Some(details) = config::legacy_event()?
-                && db::event::adopt(&db, &details).await?
-            {
-                tracing::info!("the event from the INNBY_EVENT_* settings is in the database now");
-            }
-            Ok(())
-        }
+        Command::Migrate => db::migrate(&db::connect().await?).await,
         Command::Invite {
             event,
             name,

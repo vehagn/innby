@@ -21,15 +21,14 @@ use super::{
 use crate::i18n::Lang;
 
 /// The start of every cookie's name. On https, the `__Host-` prefix makes browsers
-/// refuse one that another host or path tries to set. Before there were several events,
-/// the one cookie had just this name.
+/// refuse one that another host or path tries to set.
 fn prefix(https: bool) -> &'static str {
-    if https { "__Host-innby" } else { "innby" }
+    if https { "__Host-innby-" } else { "innby-" }
 }
 
 /// The cookie for one event.
 fn name(https: bool, event: Uuid) -> String {
-    format!("{}-{}", prefix(https), event.simple())
+    format!("{}{}", prefix(https), event.simple())
 }
 
 /// The links this browser remembers, with the name of the cookie each is in.
@@ -41,12 +40,7 @@ fn links(headers: &HeaderMap, https: bool) -> Vec<(&str, &str)> {
         .filter_map(|value| value.to_str().ok())
         .flat_map(|value| value.split(';'))
         .filter_map(|pair| pair.trim().split_once('='))
-        .filter(|(name, link)| {
-            let ours = name
-                .strip_prefix(prefix)
-                .is_some_and(|rest| rest.is_empty() || rest.starts_with('-'));
-            ours && !link.is_empty()
-        })
+        .filter(|(name, link)| name.starts_with(prefix) && !link.is_empty())
         .collect()
 }
 
@@ -113,9 +107,7 @@ pub async fn forget(
 pub(super) struct Remembered {
     /// One per event.
     pub guests: Vec<Guest>,
-    /// Cookies to change: links that no longer work (revoked, or their reply deleted)
-    /// are dropped, and the cookie from before there were several events gets its
-    /// event's name.
+    /// Cookies to drop: links that no longer work, revoked or their reply deleted.
     pub cookies: Vec<HeaderValue>,
 }
 
@@ -127,17 +119,10 @@ impl Remembered {
             cookies: Vec::new(),
         };
         for (cookie_name, link) in links(headers, https) {
-            let old = cookie_name == prefix(https);
-            let guest = Guest::find(state, link).await?;
-            if old || guest.is_none() {
+            let Some(guest) = Guest::find(state, link).await? else {
                 remembered.cookies.push(cookie(https, cookie_name, "", 0));
-            }
-            let Some(guest) = guest else {
                 continue;
             };
-            if old {
-                remembered.cookies.push(remember_cookie(https, &guest));
-            }
             if !remembered
                 .guests
                 .iter()
@@ -294,24 +279,6 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn the_cookie_from_before_events_gets_its_events_name(db: PgPool) {
-        let site = Site::new(db);
-        let (_, link) = site.invite("Kari", 1).await;
-        let party = site.event().await;
-        let response = site
-            .send(get("/?lang=en", &format!("__Host-innby={link}")))
-            .await;
-        let cookies = set_cookies(&response);
-        assert!(cookies[0].starts_with("__Host-innby=; Path=/; Max-Age=0;"));
-        let renamed = format!(
-            "__Host-innby-{}={link}; Path=/; Max-Age=",
-            party.id.simple()
-        );
-        assert!(cookies[1].starts_with(&renamed), "{cookies:?}");
-        assert!(body(response).await.contains("Christmas party"));
-    }
-
-    #[sqlx::test]
     async fn deleting_the_reply_forgets_the_device(db: PgPool) {
         let site = Site::new(db);
         let (_, link) = site.invite("Kari", 1).await;
@@ -330,20 +297,18 @@ mod tests {
             headers
         };
         let id = Uuid::nil().simple().to_string();
+        let ours = format!("__Host-innby-{id}");
         assert_eq!(
-            links(
-                &headers(&format!("__Host-innby=a.b; __Host-innby-{id}=c.d")),
-                true
-            ),
-            [
-                ("__Host-innby", "a.b"),
-                (format!("__Host-innby-{id}").as_str(), "c.d")
-            ]
+            links(&headers(&format!("__Host-innby=a.b; {ours}=c.d")), true),
+            [(ours.as_str(), "c.d")]
         );
-        assert_eq!(links(&headers("x=1;innby=a.b"), false), [("innby", "a.b")]);
-        assert!(links(&headers("innby=a.b"), true).is_empty());
+        assert_eq!(
+            links(&headers("x=1;innby-e=a.b"), false),
+            [("innby-e", "a.b")]
+        );
+        assert!(links(&headers("innby-e=a.b"), true).is_empty());
         assert!(links(&headers("innbyx=a.b"), false).is_empty());
-        assert!(links(&headers("innby="), false).is_empty());
+        assert!(links(&headers("innby-e="), false).is_empty());
         assert!(links(&HeaderMap::new(), false).is_empty());
     }
 }

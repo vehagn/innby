@@ -1,10 +1,8 @@
 use std::net::SocketAddr;
 
 use anyhow::{Context, Result, anyhow, ensure};
-use chrono::{DateTime, NaiveDateTime};
-use chrono_tz::Tz;
 
-use crate::{admin::jwt, db::event::Details, i18n::Texts, link::LinkKey};
+use crate::{admin::jwt, link::LinkKey};
 
 /// Secrets that `.env.example` publishes. Anyone could sign links or log in with them,
 /// so a public site, one with an https base URL, refuses them.
@@ -70,74 +68,11 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
             .ok_or_else(|| anyhow!("{key} must be set"))
     }
 
-    /// `{key}_NB`, with optional `_NN`, `_EN` (British), `_EN_US`, `_ZH_HANS` and
-    /// `_ZH_HANT`, which fall back as `Texts` says.
-    fn texts(&self, key: &str) -> Result<Texts> {
-        let other = |suffix: &str| self.optional(&format!("{key}_{suffix}"));
-        Ok(Texts {
-            nb: self.required(&format!("{key}_NB"))?,
-            nn: other("NN"),
-            en_gb: other("EN"),
-            en_us: other("EN_US"),
-            zh_hans: other("ZH_HANS"),
-            zh_hant: other("ZH_HANT"),
-        })
-    }
-
-    fn time_zone(&self) -> Result<Tz> {
-        let name = self
-            .optional("INNBY_EVENT_TIMEZONE")
-            .unwrap_or_else(|| "Europe/Oslo".into());
-        name.parse()
-            .map_err(|_| anyhow!("INNBY_EVENT_TIMEZONE: unknown time zone {name:?}"))
-    }
-
-    /// A local time like `2026-12-12T19:00` in the event's time zone.
-    fn local_time(&self, key: &str, value: &str, tz: Tz) -> Result<DateTime<Tz>> {
-        NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M")
-            .with_context(|| format!("{key}: expected YYYY-MM-DDTHH:MM, got {value:?}"))?
-            .and_local_timezone(tz)
-            .single()
-            .ok_or_else(|| anyhow!("{key}: {value} is ambiguous or skipped in {tz}"))
-    }
-
-    fn event_start(&self) -> Result<DateTime<Tz>> {
-        let start = self.required("INNBY_EVENT_START")?;
-        self.local_time("INNBY_EVENT_START", &start, self.time_zone()?)
-    }
-
     fn socket_address(&self, key: &str, default: &str) -> Result<SocketAddr> {
         let value = self.optional(key).unwrap_or_else(|| default.into());
         value
             .parse()
             .with_context(|| format!("{key}: invalid socket address {value:?}"))
-    }
-}
-
-/// The event the `INNBY_EVENT_*` settings describe, if they're set. Before events moved
-/// into the database these settings were the event; now `innby migrate` uses them once,
-/// to fill in the event that older data was given.
-pub fn legacy_event() -> Result<Option<Details>> {
-    Env(process_env).legacy_event()
-}
-
-impl<F: Fn(&str) -> Option<String>> Env<F> {
-    fn legacy_event(&self) -> Result<Option<Details>> {
-        if self.optional("INNBY_EVENT_START").is_none() {
-            return Ok(None);
-        }
-        let starts_at = self.event_start()?;
-        let rsvp_deadline = self
-            .optional("INNBY_RSVP_DEADLINE")
-            .map(|value| self.local_time("INNBY_RSVP_DEADLINE", &value, starts_at.timezone()))
-            .transpose()?;
-        Ok(Some(Details {
-            title: self.texts("INNBY_EVENT_TITLE")?,
-            description: self.texts("INNBY_EVENT_DESCRIPTION")?,
-            location: self.required("INNBY_EVENT_LOCATION")?,
-            starts_at,
-            rsvp_deadline,
-        }))
     }
 }
 
@@ -311,44 +246,10 @@ pub mod tests {
         assert_eq!(config.controller.name, "Kari Nordmann");
     }
 
-    /// The settings that described the one event before events moved into the database.
-    const LEGACY_EVENT: &[(&str, &str)] = &[
-        ("INNBY_EVENT_TITLE_NB", "Julebord"),
-        ("INNBY_EVENT_TITLE_EN", "Christmas party"),
-        ("INNBY_EVENT_DESCRIPTION_NB", "Velkommen!"),
-        ("INNBY_EVENT_LOCATION", "Storgata 1, Oslo"),
-        ("INNBY_EVENT_START", "2026-12-12T19:00"),
-    ];
-
-    fn legacy(overrides: &[(&str, &str)]) -> Result<Option<Details>> {
-        let mut env: HashMap<&str, &str> = LEGACY_EVENT.iter().copied().collect();
-        env.extend(overrides.iter().copied());
-        Env(|key: &str| env.get(key).map(|value| value.to_string())).legacy_event()
-    }
-
-    #[test]
-    fn reads_the_old_event_settings() {
-        let event = legacy(&[("INNBY_RSVP_DEADLINE", "2026-12-01T12:00")])
-            .unwrap()
-            .unwrap();
-        assert_eq!(event, crate::db::event::tests::details_with_deadline());
-        assert!(Env(|_: &str| None).legacy_event().unwrap().is_none());
-    }
-
     #[test]
     fn blank_required_value_is_an_error() {
-        let err = legacy(&[("INNBY_EVENT_LOCATION", "  ")]).unwrap_err();
-        assert_eq!(err.to_string(), "INNBY_EVENT_LOCATION must be set");
         let err = parse(&[("INNBY_CONTROLLER_NAME", " ")]).unwrap_err();
         assert_eq!(err.to_string(), "INNBY_CONTROLLER_NAME must be set");
-    }
-
-    #[test]
-    fn rejects_bad_start_and_time_zone() {
-        assert!(legacy(&[("INNBY_EVENT_START", "12.12.2026 19:00")]).is_err());
-        assert!(legacy(&[("INNBY_EVENT_TIMEZONE", "Europe/Atlantis")]).is_err());
-        // 02:30 doesn't exist in Oslo on the night clocks spring forward.
-        assert!(legacy(&[("INNBY_EVENT_START", "2026-03-29T02:30")]).is_err());
     }
 
     fn admin_with(hash: &str, jwt_secret: &str, config: &Config) -> Result<AdminConfig> {

@@ -89,15 +89,17 @@ lint:
     cargo deny check
 
 # `just db prepare` regenerates the offline query data in .sqlx/, which is committed.
-[doc("Open psql on the dev database; `just db prepare` updates .sqlx/")]
+# `just db reset` drops the dev database and builds it again from the migrations.
+[doc("Open psql on the dev database; `just db prepare` updates .sqlx/, `just db reset` rebuilds it")]
 [group("dev")]
-db command="psql": migrate
+db command="psql":
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{ command }}" in
-      psql) exec psql "$DATABASE_URL" ;;
-      prepare) exec cargo sqlx prepare -- --all-targets ;;
-      *) echo "just db [psql|prepare]" >&2; exit 1 ;;
+      psql) sqlx migrate run; exec psql "$DATABASE_URL" ;;
+      prepare) sqlx migrate run; exec cargo sqlx prepare -- --all-targets ;;
+      reset) exec sqlx database reset -y ;;
+      *) echo "just db [psql|prepare|reset]" >&2; exit 1 ;;
     esac
 
 # E.g. `just innby invite "Kari & Ola" 2`, `just innby janitor`, or `just innby
