@@ -10,13 +10,13 @@ use super::{
     events::{create_event, file::EventFile, group_lines},
     forms::validate,
     guests::guest_url,
-    lang,
+    lang, qr as admin_qr,
 };
 use crate::{
     config::Config,
     db::{
         event::{self, Event},
-        group,
+        group, qr,
         rsvp::{self, NameKind},
     },
     i18n::Lang,
@@ -56,19 +56,24 @@ pub async fn event_list(db: &PgPool) -> anyhow::Result<String> {
 pub async fn export_event(db: &PgPool, id: Uuid) -> anyhow::Result<String> {
     let event = find_event(db, id).await?;
     let groups = group::list(db, id).await?;
-    Ok(EventFile::new(&event.details, &groups).to_toml())
+    let style = qr::style(db, id).await?;
+    Ok(EventFile::new(&event.details, &groups, &style).to_toml())
 }
 
 /// `innby event import`: a new event and its group links, from a file. Returns what it
 /// made.
 pub async fn import_event(db: &PgPool, file: &str) -> anyhow::Result<String> {
     lang::within(LANG, async {
-        let (form, groups) = EventFile::parse(file)
+        let (form, groups, style) = EventFile::parse(file)
             .and_then(EventFile::into_form)
             .map_err(|err| anyhow::Error::msg(err.message()))?;
         let details = form.details(Utc::now()).map_err(anyhow::Error::msg)?;
         let groups = group_lines(&groups).map_err(anyhow::Error::msg)?;
-        let event = create_event(db, &details, &groups).await?;
+        let style = style
+            .map(admin_qr::check)
+            .transpose()
+            .map_err(anyhow::Error::msg)?;
+        let event = create_event(db, &details, &groups, style.as_ref()).await?;
         tracing::info!(event = %event.id, groups = groups.len(), "event imported");
         Ok(format!(
             "Made {} ({}) on {}, with {} group link(s).",
@@ -161,6 +166,13 @@ mod tests {
     async fn lists_exports_and_imports_events(db: PgPool) {
         let event = test_event(&db).await;
         group::create(&db, event.id, "Naboer", 4).await.unwrap();
+        let style = qr::Style {
+            shape: qr::Shape::Dots,
+            color: "#b71c1c".into(),
+            icon: qr::Icon::Star,
+            emoji: String::new(),
+        };
+        qr::save(&db, event.id, &style).await.unwrap();
         assert!(
             event_list(&db)
                 .await
@@ -179,6 +191,7 @@ mod tests {
             group::list(&db, events[1].id).await.unwrap()[0].name,
             "Naboer"
         );
+        assert_eq!(qr::style(&db, events[1].id).await.unwrap(), style);
 
         // Mistakes come back in English, and make nothing.
         let err = import_event(&db, &file.replace("Naboer", "<b>"))

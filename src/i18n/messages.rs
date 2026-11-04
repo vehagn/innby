@@ -293,6 +293,7 @@ pub struct AdminMessages {
     pub qr_emoji: String,
     pub qr_save: String,
     pub qr_saved: String,
+    pub qr_carried: String,
     /// Under the example code on the index page.
     pub qr_preview: String,
     pub qr_download: String,

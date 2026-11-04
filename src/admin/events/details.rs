@@ -25,7 +25,7 @@ use crate::{
     },
     db::{
         event::{self, Event},
-        group,
+        group, qr,
     },
     http::{render, render_with},
     janitor::KEEP_AFTER_EVENT,
@@ -101,7 +101,8 @@ pub(in crate::admin) async fn export(
 ) -> Result<Response, PageError> {
     let event = load_event(&state, id).await?;
     let groups = group::list(&state.db, id).await?;
-    let file = EventFile::new(&event.details, &groups).to_toml();
+    let style = qr::style(&state.db, id).await?;
+    let file = EventFile::new(&event.details, &groups, &style).to_toml();
     let disposition = format!(r#"attachment; filename="{}""#, file_name(&event.details));
     let headers = [
         (

@@ -291,6 +291,7 @@ qr_star = "星星"
 qr_emoji = "表情符号"
 qr_save = "保存样式"
 qr_saved = "二维码样式已保存。"
+qr_carried = "二维码保留原来的样式。"
 # Under the example code on the QR codes page.
 qr_preview = "已保存的样式，即活动页面上的样子。保存后即可看到更改。"
 qr_download = "下载二维码（SVG）"

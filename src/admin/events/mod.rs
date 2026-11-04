@@ -29,12 +29,14 @@ use super::{
     forms::BatchForm,
     lang,
     page::{AdminState, PageError, load_event, redirect},
+    qr as admin_qr,
     role::Role,
 };
 use crate::{
     db::{
         event::{self, Details, Event},
         group,
+        qr::{self, Icon, Shape, Style},
         rsvp::{self, Headcount, NameKind},
     },
     http::render_form,
@@ -75,6 +77,8 @@ struct Draft {
     /// About reading an event file.
     file_notice: Option<String>,
     file_error: Option<String>,
+    /// The QR codes' style of the event it came from, carried in hidden fields.
+    qr: Option<Style>,
 }
 
 impl Draft {
@@ -91,6 +95,7 @@ impl Draft {
             error: None,
             file_notice: None,
             file_error: None,
+            qr: None,
         }
     }
 
@@ -125,12 +130,14 @@ pub(super) async fn list(
     if let Some(id) = query.copy.filter(|_| Role::is_admin()) {
         let event = load_event(&state, id).await?;
         let groups = group::list(&state.db, id).await?;
+        let style = qr::style(&state.db, id).await?;
         let title = event.details.title(lang::current()).to_owned();
-        let (form, groups) = EventFile::new(&event.details, &groups)
+        let (form, groups, style) = EventFile::new(&event.details, &groups, &style)
             .into_form()
             .expect("an event's own file reads back");
         let draft = Draft {
             notice: Some(filled(&text.copied_notice, "title", title)),
+            qr: style,
             ..Draft::new(form, groups)
         };
         return events_page(&state, draft, None).await;
@@ -170,25 +177,39 @@ pub(super) async fn create(
     State(state): State<AdminState>,
     Form(fields): Form<HashMap<String, String>>,
 ) -> Result<Response, PageError> {
-    let mut draft = Draft::new(
-        EventForm::from_fields(&fields),
-        fields.get("groups").cloned().unwrap_or_default(),
-    );
-    let checked = draft
-        .form
-        .details(Utc::now())
-        .and_then(|details| Ok((details, group_lines(&draft.groups)?)));
-    let (details, groups) = match checked {
+    let mut draft = Draft {
+        qr: carried_style(&fields),
+        ..Draft::new(
+            EventForm::from_fields(&fields),
+            fields.get("groups").cloned().unwrap_or_default(),
+        )
+    };
+    let checked = draft.form.details(Utc::now()).and_then(|details| {
+        let style = draft.qr.clone().map(admin_qr::check).transpose()?;
+        Ok((details, group_lines(&draft.groups)?, style))
+    });
+    let (details, groups, style) = match checked {
         Ok(checked) => checked,
         Err(error) => {
             draft.error = Some(error);
             return events_page(&state, draft, None).await;
         }
     };
-    let event = create_event(&state.db, &details, &groups).await?;
+    let event = create_event(&state.db, &details, &groups, style.as_ref()).await?;
     tracing::info!(event = %event.id, groups = groups.len(), "event created");
     let page = format!("{}?created", paths::path(paths::EVENT, event.id));
     Ok(redirect(&page))
+}
+
+/// The QR codes' style the form carries from the event it came from, if any.
+fn carried_style(fields: &HashMap<String, String>) -> Option<Style> {
+    let get = |name: &str| fields.get(name).map(String::as_str);
+    Some(Style {
+        shape: Shape::from_code(get("qr_shape")?)?,
+        color: get("qr_color")?.to_owned(),
+        icon: Icon::from_code(get("qr_icon").unwrap_or("none"))?,
+        emoji: get("qr_emoji").unwrap_or_default().to_owned(),
+    })
 }
 
 /// The group links in the new event's box, a line each: `Climbing club, 2`, or a name
@@ -206,14 +227,19 @@ pub(super) fn group_lines(lines: &str) -> Result<Vec<(String, i32)>, String> {
         .map_err(|error| filled(&lang::text().error_event_groups, "error", error))
 }
 
-/// Makes an event and its group links, all or none.
+/// Makes an event, its group links, and its QR codes' style if it has one other than
+/// the plain one, all or none.
 pub(super) async fn create_event(
     db: &PgPool,
     details: &Details,
     groups: &[(String, i32)],
+    style: Option<&Style>,
 ) -> sqlx::Result<Event> {
     let mut tx = db.begin().await?;
     let event = event::create(&mut *tx, details).await?;
+    if let Some(style) = style {
+        qr::save(&mut *tx, event.id, style).await?;
+    }
     for (name, max_party_size) in groups {
         group::create(&mut *tx, event.id, name, *max_party_size).await?;
     }
@@ -261,7 +287,7 @@ pub(super) async fn import(
         return file_error(&state, file, text.error_no_file.clone()).await;
     }
     let read = EventFile::parse(&file).and_then(EventFile::into_form);
-    let (form, groups) = match read {
+    let (form, groups, style) = match read {
         Ok(read) => read,
         Err(err) => return file_error(&state, file, err.message()).await,
     };
@@ -269,11 +295,13 @@ pub(super) async fn import(
     let error = form
         .details(Utc::now())
         .and_then(|_| group_lines(&groups).map(drop))
+        .and_then(|()| style.clone().map(admin_qr::check).transpose().map(drop))
         .err();
     let file_notice = filled(&text.imported_notice, "title", form.title());
     let draft = Draft {
         error,
         file_notice: Some(file_notice),
+        qr: style,
         ..Draft::new(form, groups)
     };
     events_page(&state, draft, None).await

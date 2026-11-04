@@ -1,12 +1,12 @@
 //! Each event's QR code style, which the host sets on the event's QR codes tab: the
 //! modules' shape and colour, and what sits in the middle. It holds no guest data.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
 /// How the modules of a QR code are drawn.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "qr_shape", rename_all = "lowercase")]
 pub enum Shape {
@@ -17,6 +17,11 @@ pub enum Shape {
 }
 
 impl Shape {
+    /// The one with this form value.
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|it| it.code() == code)
+    }
+
     pub const ALL: [Self; 3] = [Self::Square, Self::Rounded, Self::Dots];
 
     /// The form value.
@@ -30,10 +35,11 @@ impl Shape {
 }
 
 /// What sits in the middle of the code.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, sqlx::Type)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "qr_icon", rename_all = "lowercase")]
 pub enum Icon {
+    #[default]
     None,
     Heart,
     Star,
@@ -42,6 +48,11 @@ pub enum Icon {
 }
 
 impl Icon {
+    /// The one with this form value.
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|it| it.code() == code)
+    }
+
     pub const ALL: [Self; 4] = [Self::None, Self::Heart, Self::Star, Self::Emoji];
 
     /// The form value.

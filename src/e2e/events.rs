@@ -296,8 +296,15 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
     host.fill(&a.names, "Climbing club, 3");
     host.press(&a.create_groups).await;
     let old_link = host.value(&filled(&a.link_for, "name", "Climbing club"));
+    // Its QR codes are dots with a glass in the middle.
+    host.click(&a.qr_heading).await;
+    host.check(&a.qr_dots)
+        .check(&a.qr_emoji)
+        .fill(&a.qr_emoji, "🥂");
+    host.press(&a.qr_save).await.expect(&a.qr_saved);
 
-    // Its file has the details and the group, versioned, and none of the guests.
+    // Its file has the details, the group and the QR style, versioned, and none of
+    // the guests.
     host.click(&a.details).await;
     let file = host.download(&a.export_event).await;
     assert_eq!(
@@ -311,6 +318,8 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
         "starts = \"2054-12-12T19:00\"",
         "en = \"Christmas party\"",
         "name = \"Climbing club\"",
+        "shape = \"dots\"",
+        "emoji = \"🥂\"",
     ] {
         assert!(file.contains(expected), "{expected} in {file}");
     }
@@ -345,12 +354,15 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
         .attach(&a.event_file_upload, "julebord-2054.toml", &next_year);
     host.press(&a.read_file)
         .await
-        .expect(&filled(&a.imported_notice, "title", "Julebord"));
+        .expect(&filled(&a.imported_notice, "title", "Julebord"))
+        .expect(&a.qr_carried);
     assert_eq!(host.value(&a.event_starts), "2055-12-11T19:00");
     assert_eq!(host.value(&a.event_groups), "Climbing club, 3");
     host.press(&a.create_event).await.expect(&a.event_created);
 
-    // It has the climbing club, with a link of its own.
+    // It has the climbing club, with a link of its own, and last year's QR codes.
+    host.click(&a.qr_heading).await;
+    assert!(host.page().body.contains("🥂</text>"));
     host.click(&a.group_links).await.expect("Climbing club");
     let new_link = host.value(&filled(&a.link_for, "name", "Climbing club"));
     assert_ne!(new_link, old_link);
@@ -363,6 +375,7 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
     host.click(&a.details).await;
     host.click(&a.copy_event)
         .await
-        .expect(&filled(&a.copied_notice, "title", "Christmas party"));
+        .expect(&filled(&a.copied_notice, "title", "Christmas party"))
+        .expect(&a.qr_carried);
     assert_eq!(host.value(&a.event_groups), "Climbing club, 3");
 }

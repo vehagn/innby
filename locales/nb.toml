@@ -324,6 +324,7 @@ qr_star = "Stjerne"
 qr_emoji = "Emoji"
 qr_save = "Lagre stilen"
 qr_saved = "Stilen for QR-kodene er lagret."
+qr_carried = "QR-kodene får samme stil som de hadde."
 # Under the example code on the QR codes page.
 qr_preview = "Den lagrede stilen, slik den blir på festsiden. Lagre for å se en endring."
 qr_download = "Last ned QR-koden (SVG)"

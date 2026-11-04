@@ -50,12 +50,13 @@ then sent to a personal link of their own, with a reminder to keep it.
 
 **New events** are typed into a form on the events page, which also takes group links, a
 line each. The form can be filled in for you: from an **event file** (below), or by
-*Copy to a new event* on another event's Details tab, for next year's party. A start
+*Copy to a new event* on another event's Details tab, for next year's party. Either way
+the new event's QR codes keep the style they had. A start
 more than 30 days ago is refused, new or changed, since the janitor would delete the
 event at once: an old event file imported without a new date, say.
 
-**Event files** hold an event's details and its group links, in TOML, but never its
-guests. *Download as a file* on the Details tab saves one; *Import an event* on the
+**Event files** hold an event's details, its group links and its QR codes' style, in
+TOML, but never its guests. *Download as a file* on the Details tab saves one; *Import an event* on the
 events page reads one, uploaded or pasted, into the new event's form, to check and
 change before creating it. Like a Kubernetes manifest, a file says what it is:
 
@@ -69,6 +70,11 @@ location = "Storgata 1, Oslo"
 [title]
 nb = "Julebord"
 en = "Christmas party"
+
+[qr]
+shape = "dots"
+color = "#b71c1c"
+icon = "star"
 
 [[groups]]
 name = "Climbing club"

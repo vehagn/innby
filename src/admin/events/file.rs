@@ -1,6 +1,6 @@
-//! An event as a file: its details and its group links, in TOML, to keep, copy or share,
-//! and to import as a new event. Never its guests: their names stay in Innby, and go
-//! when the event does.
+//! An event as a file: its details, its group links and its QR codes' style, in TOML, to
+//! keep, copy or share, and to import as a new event. Never its guests: their names stay
+//! in Innby, and go when the event does.
 //!
 //! ```toml
 //! apiVersion = "innby/v1"
@@ -12,6 +12,11 @@
 //! [title]
 //! nb = "Julebord"
 //! en = "Christmas party"
+//!
+//! [qr]
+//! shape = "dots"
+//! color = "#b71c1c"
+//! icon = "star"
 //!
 //! [[groups]]
 //! name = "Climbing club"
@@ -33,7 +38,11 @@ use serde::{Deserialize, Serialize};
 use super::form::{EventForm, LOCAL_TIME};
 use crate::{
     admin::lang,
-    db::{event::Details, group::Group},
+    db::{
+        event::Details,
+        group::Group,
+        qr::{Icon, Shape, Style},
+    },
     i18n::{Lang, Texts, fill, filled},
 };
 
@@ -75,8 +84,24 @@ pub struct EventFile {
         serialize_with = "in_language_order"
     )]
     pub description: BTreeMap<String, String>,
+    /// The style of the event's QR codes, for the new event's codes to look the same.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub qr: Option<QrEntry>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub groups: Vec<GroupEntry>,
+}
+
+/// A QR code style, as on the event's QR codes tab.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct QrEntry {
+    pub shape: Shape,
+    /// `#rrggbb`, dark enough to scan on white.
+    pub color: String,
+    #[serde(default)]
+    pub icon: Icon,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub emoji: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -154,13 +179,14 @@ const HEADER: &str = "\
 # apiVersion and kind say what this file is; leave them as they are. starts and
 # answer_by are local times in time_zone, as 2026-12-12T19:00. The title and description
 # are by language: nb (which every event needs), nn, en, en-us, zh-hans, zh-hant. A
-# group's max_party_size is how many each sign-up may cover.
+# group's max_party_size is how many each sign-up may cover. qr is the style of the QR
+# codes: shape (square, rounded, dots), color, and icon (none, heart, star, emoji).
 
 ";
 
 impl EventFile {
-    /// The file of an event and its group links.
-    pub fn new(details: &Details, groups: &[Group]) -> Self {
+    /// The file of an event, its group links and its QR codes' style.
+    pub fn new(details: &Details, groups: &[Group], qr: &Style) -> Self {
         let texts = |texts: &Texts| {
             Lang::ALL
                 .into_iter()
@@ -180,6 +206,12 @@ impl EventFile {
             location: details.location.clone(),
             title: texts(&details.title),
             description: texts(&details.description),
+            qr: Some(QrEntry {
+                shape: qr.shape,
+                color: qr.color.clone(),
+                icon: qr.icon,
+                emoji: qr.emoji.clone(),
+            }),
             groups: groups
                 .iter()
                 .map(|group| GroupEntry {
@@ -209,9 +241,9 @@ impl EventFile {
         toml::from_str(text).map_err(|err| syntax(text, &err))
     }
 
-    /// The form for a new event, filled in from the file, and its group links as lines
-    /// for the form's box: `Climbing club, 2`.
-    pub fn into_form(self) -> Result<(EventForm, String), FileError> {
+    /// The form for a new event, filled in from the file, its group links as lines for
+    /// the form's box (`Climbing club, 2`), and its QR codes' style, not yet checked.
+    pub fn into_form(self) -> Result<(EventForm, String, Option<Style>), FileError> {
         let texts = |field: &'static str, by_code: BTreeMap<String, String>| {
             let mut texts = Texts::default();
             for (code, text) in by_code {
@@ -237,7 +269,13 @@ impl EventFile {
             .map(|group| format!("{}, {}", group.name, group.max_party_size))
             .collect::<Vec<_>>()
             .join("\n");
-        Ok((form, groups))
+        let qr = self.qr.map(|qr| Style {
+            shape: qr.shape,
+            color: qr.color,
+            icon: qr.icon,
+            emoji: qr.emoji,
+        });
+        Ok((form, groups, qr))
     }
 }
 
@@ -297,7 +335,13 @@ mod tests {
             .description
             .set(Lang::EnUs, "Come one,\ncome all \"friends\"!");
         let groups = [group("Climbing club", 2), group("Naboer", 4)];
-        let file = EventFile::new(&details, &groups);
+        let style = Style {
+            shape: Shape::Dots,
+            color: "#b71c1c".into(),
+            icon: Icon::Emoji,
+            emoji: "🥂".into(),
+        };
+        let file = EventFile::new(&details, &groups, &style);
         let toml = file.to_toml();
         assert!(toml.starts_with("# An Innby event"), "{toml}");
         assert!(
@@ -312,10 +356,15 @@ mod tests {
             toml.contains("[[groups]]\nname = \"Climbing club\""),
             "{toml}"
         );
+        assert!(
+            toml.contains("[qr]\nshape = \"dots\"\ncolor = \"#b71c1c\"\nicon = \"emoji\""),
+            "{toml}"
+        );
         assert_eq!(EventFile::parse(&toml).unwrap(), file);
 
-        let (form, lines) = EventFile::parse(&toml).unwrap().into_form().unwrap();
+        let (form, lines, qr) = EventFile::parse(&toml).unwrap().into_form().unwrap();
         assert_eq!(lines, "Climbing club, 2\nNaboer, 4");
+        assert_eq!(qr, Some(style));
         assert_eq!(form.details(chrono::Utc::now()).unwrap(), details);
     }
 
@@ -328,7 +377,8 @@ mod tests {
         )
         .unwrap();
         assert_eq!(file.groups[0].max_party_size, 2);
-        let (form, lines) = file.into_form().unwrap();
+        let (form, lines, qr) = file.into_form().unwrap();
+        assert_eq!(qr, None);
         assert_eq!(
             form.details(chrono::Utc::now()).unwrap().title.nb,
             "Sommerfest"

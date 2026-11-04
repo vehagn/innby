@@ -3,7 +3,7 @@
 
 mod draw;
 
-pub use draw::svg;
+pub use draw::{check, svg};
 
 use askama::Template;
 use axum::{

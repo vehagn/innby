@@ -58,6 +58,13 @@
     <label for="groups">{{ a.event_groups }}</label>
     <textarea id="groups" name="groups" rows="3" placeholder="{{ a.groups_placeholder }}">{{ draft.groups() }}</textarea>
     <p class="hint">{{ a.event_groups_hint }}</p>
+    {% if let Some(qr) = draft.qr %}
+    <input type="hidden" name="qr_shape" value="{{ qr.shape.code() }}">
+    <input type="hidden" name="qr_color" value="{{ qr.color }}">
+    <input type="hidden" name="qr_icon" value="{{ qr.icon.code() }}">
+    <input type="hidden" name="qr_emoji" value="{{ qr.emoji }}">
+    <p class="hint">{{ a.qr_carried }}</p>
+    {% endif %}
     <button>{{ a.create_event }}</button>
   </form>
 </section>

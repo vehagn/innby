@@ -193,24 +193,35 @@ pub struct StyleForm {
 
 impl StyleForm {
     pub fn validate(self) -> Result<Style, String> {
-        let text = lang::text();
-        let color = self.color.trim().to_ascii_lowercase();
-        if !is_dark_enough(&color) {
-            return Err(text.error_qr_color.clone());
-        }
-        let emoji = self.emoji.trim().to_owned();
-        let emoji_ok = is_emoji(&emoji);
-        if self.icon == Icon::Emoji && !emoji_ok {
-            return Err(text.error_qr_emoji.clone());
-        }
-        Ok(Style {
+        check(Style {
             shape: self.shape,
-            color,
+            color: self.color,
             icon: self.icon,
-            // Kept for next time, if it would do.
-            emoji: if emoji_ok { emoji } else { String::new() },
+            emoji: self.emoji,
         })
     }
+}
+
+/// A style as typed or carried from another event, checked: a colour phones can scan,
+/// and an emoji if one goes in the middle. What's wrong is in the page's language.
+pub fn check(style: Style) -> Result<Style, String> {
+    let text = lang::text();
+    let color = style.color.trim().to_ascii_lowercase();
+    if !is_dark_enough(&color) {
+        return Err(text.error_qr_color.clone());
+    }
+    let emoji = style.emoji.trim().to_owned();
+    let emoji_ok = is_emoji(&emoji);
+    if style.icon == Icon::Emoji && !emoji_ok {
+        return Err(text.error_qr_emoji.clone());
+    }
+    Ok(Style {
+        shape: style.shape,
+        color,
+        icon: style.icon,
+        // Kept for next time, if it would do.
+        emoji: if emoji_ok { emoji } else { String::new() },
+    })
 }
 
 /// Whether a `#rrggbb` colour has a contrast of at least 4.5:1 on white, as phones need
