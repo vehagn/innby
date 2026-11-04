@@ -34,26 +34,29 @@ pub const JOIN_GUESTS: &str = "/join/{link}/guests";
 pub const CONFIRM_EMAIL: &str = "/e/{link}";
 
 // The admin site. `HOME` lists the events; each event's pages are under `EVENT`, and its
-// guests and groups have pages of their own.
+// guests and groups have pages of their own. Each parameter is named for what it is,
+// which `admin::role::for_event` reads to find the event a page is about.
 pub const EVENTS: &str = "/events";
-pub const EVENT: &str = "/events/{id}";
-pub const EVENT_INVITATIONS: &str = "/events/{id}/invitations";
-pub const EVENT_GROUPS: &str = "/events/{id}/groups";
-pub const EVENT_DETAILS: &str = "/events/{id}/details";
-pub const EVENT_DELETE: &str = "/events/{id}/delete";
-pub const EVENT_CSV: &str = "/events/{id}/guests.csv";
-pub const EVENT_EXPORT: &str = "/events/{id}/event.toml";
+pub const EVENT: &str = "/events/{event}";
+pub const EVENT_INVITATIONS: &str = "/events/{event}/invitations";
+pub const EVENT_GROUPS: &str = "/events/{event}/groups";
+pub const EVENT_DETAILS: &str = "/events/{event}/details";
+pub const EVENT_DELETE: &str = "/events/{event}/delete";
+pub const EVENT_CSV: &str = "/events/{event}/guests.csv";
+pub const EVENT_EXPORT: &str = "/events/{event}/event.toml";
 pub const EVENTS_IMPORT: &str = "/events/import";
-pub const EVENT_REMINDERS: &str = "/events/{id}/reminders";
-pub const EVENT_QR: &str = "/events/{id}/qr-style";
-pub const GUEST: &str = "/guests/{id}";
-pub const GUEST_REVOKE: &str = "/guests/{id}/revoke";
-pub const GUEST_DELETE: &str = "/guests/{id}/delete";
-pub const GUEST_QR: &str = "/guests/{id}/qr.svg";
-pub const GROUP: &str = "/groups/{id}";
-pub const GROUP_REVOKE: &str = "/groups/{id}/revoke";
-pub const GROUP_DELETE: &str = "/groups/{id}/delete";
-pub const GROUP_QR: &str = "/groups/{id}/qr.svg";
+pub const EVENT_REMINDERS: &str = "/events/{event}/reminders";
+pub const EVENT_QR: &str = "/events/{event}/qr-style";
+pub const EVENT_ACCESS: &str = "/events/{event}/access";
+pub const EVENT_ACCESS_REMOVE: &str = "/events/{event}/access/remove";
+pub const GUEST: &str = "/guests/{guest}";
+pub const GUEST_REVOKE: &str = "/guests/{guest}/revoke";
+pub const GUEST_DELETE: &str = "/guests/{guest}/delete";
+pub const GUEST_QR: &str = "/guests/{guest}/qr.svg";
+pub const GROUP: &str = "/groups/{group}";
+pub const GROUP_REVOKE: &str = "/groups/{group}/revoke";
+pub const GROUP_DELETE: &str = "/groups/{group}/delete";
+pub const GROUP_QR: &str = "/groups/{group}/qr.svg";
 pub const LOGIN: &str = "/login";
 /// Logging in through the OpenID Connect provider, and coming back from it.
 pub const LOGIN_OIDC: &str = "/login/oidc";
@@ -214,6 +217,9 @@ pub struct EventLinks {
     pub details: String,
     /// The QR code style.
     pub qr_style: String,
+    /// Who else may see or run the event.
+    pub access: String,
+    pub access_remove: String,
     pub delete: String,
     pub csv: String,
     pub reminders: String,
@@ -232,6 +238,8 @@ impl EventLinks {
             groups: at(EVENT_GROUPS),
             details: at(EVENT_DETAILS),
             qr_style: at(EVENT_QR),
+            access: at(EVENT_ACCESS),
+            access_remove: at(EVENT_ACCESS_REMOVE),
             delete: at(EVENT_DELETE),
             csv: at(EVENT_CSV),
             reminders: at(EVENT_REMINDERS),

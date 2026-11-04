@@ -15,6 +15,7 @@ use crate::{
     admin::{
         auth::{self, Auth},
         lang,
+        role::Role,
     },
     http::cookie,
     i18n::fill,
@@ -71,13 +72,23 @@ pub async fn callback(
         Some(flow) => provider.finish(flow, &callback, Utc::now()).await,
         None => Err(LoginError::Expired),
     };
+    // The provider may know many people Innby doesn't: one with no role there gets in
+    // only if an event gives them one.
+    let result = match result {
+        Ok(login) => match auth.admits(&login.user, login.role).await {
+            Ok(true) => Ok(login),
+            Ok(false) => Err(LoginError::NoRole { user: login.user }),
+            Err(err) => Err(LoginError::Failed(err.into())),
+        },
+        Err(err) => Err(err),
+    };
     let text = lang::text();
     let mut response = match result {
         Ok(login) => {
             let cookie = auth.start_oidc_session(&login);
             tracing::info!(
                 user = login.user,
-                role = login.role.name(),
+                role = login.role.map_or("none", Role::name),
                 "host logged in through OIDC"
             );
             let home = Redirect::to(&paths::admin(paths::HOME));

@@ -145,6 +145,22 @@ pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Event>> {
     .map(|rows| rows.into_iter().map(Event::from).collect())
 }
 
+/// The events the user has a role for, the soonest first: all they see without a role
+/// of their own.
+pub async fn list_given(db: impl PgExecutor<'_>, user: &str) -> sqlx::Result<Vec<Event>> {
+    sqlx::query_as!(
+        Row,
+        r#"select e.id, e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
+            e.location, e.starts_at, e.time_zone, e.rsvp_deadline
+         from event e join event_access a on a.event_id = e.id
+         where a.user_name = $1 order by e.starts_at, e.id"#,
+        user
+    )
+    .fetch_all(db)
+    .await
+    .map(|rows| rows.into_iter().map(Event::from).collect())
+}
+
 /// Deletes the event and, through the cascades, its invitations, groups and mail.
 pub async fn delete(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<bool> {
     let result = sqlx::query!("delete from event where id = $1", id)

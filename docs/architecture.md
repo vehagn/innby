@@ -33,7 +33,7 @@ no password, no e-mail address. On that page they:
 Someone with a **group link** (`/join/{link}`) types their name and party size, and is
 then sent to a personal link of their own, with a reminder to keep it.
 
-**The host** works in the admin UI (`innby admin`). An event has five tabs:
+**The host** works in the admin UI (`innby admin`). An event has six tabs:
 
 - **Guests:** the headcount (coming, no answer, not coming), every guest in a table,
   a CSV export, and *Send reminders*. A guest's page edits their name and party size,
@@ -47,6 +47,8 @@ then sent to a personal link of their own, with a reminder to keep it.
 - **Details:** the event's title and description (in Bokmål, and optionally in each other
   language), place, start, time zone and answer deadline; the event as a file; or
   deleting the event.
+- **Access**, for admins: who else may see or run this event alone, by the name they log
+  in with, as a viewer or an editor.
 
 **New events** are typed into a form on the events page, which also takes group links, a
 line each. The form can be filled in for you: from an **event file** (below), or by
@@ -223,7 +225,7 @@ allowed.
 - **A user name and password**, checked against an argon2 hash. The users are the
   built-in admin (`INNBY_ADMIN_USER` and `INNBY_ADMIN_PASSWORD_HASH`; leave the hash out
   to turn it off) and any in `INNBY_ADMIN_USERS`, each `name:role:hash`, as
-  `ola:editor:$argon2id$…`, apart by spaces or lines. A login sets an HS512 JWT good
+  `ola:editor:$argon2id$…`, apart by spaces or lines; the role may be `none`. A login sets an HS512 JWT good
   for a day and a refresh token good for 30 days, both `HttpOnly` cookies; logging out
   revokes both. Changing a user, their role or their password logs every browser out.
   Ten attempts in 15 minutes from one address lock that address out for the rest of the
@@ -237,8 +239,17 @@ allowed.
 status or the guest export, since those let you act as a guest. An *editor* also runs
 events: invitations, group links, guests, reminders, the guest export, the details, the
 QR codes' style and the event file. An *admin* also creates (by hand, by copying or from
-a file) and deletes events. Pages check the role, and only show
-what it allows.
+a file) and deletes events, and gives roles for one event. Pages check the role, and only
+show what it allows.
+
+A host's own role, from the config (`none` there for no role) or the provider, is for
+every event. On an event's Access tab, an admin can give anyone a role for that event
+alone, viewer or editor, by the name they log in with: a password user's name, or the
+provider's `preferred_username` (else `email`, else `sub`). On that event's pages, and its
+guests' and groups', a host has the higher of their own role and the event's. Without a
+role of their own, they see only the events that give them one; through the provider,
+they can't log in until one does. The role for an event is looked up on each request, so
+taking it away works at once.
 
 ## Data and retention
 
@@ -250,6 +261,7 @@ The schema is one commented file,
 | `event` | title and description (maps by language code, Bokmål always there), place, start, time zone, answer deadline, the style of its QR codes |
 | `rsvp` | each invitation or sign-up: name, answer, party size and its maximum, link nonce, language, optional e-mail and its status and consent time, privacy notice version, how the name shows, the group it came through |
 | `invite_group` | group links: name, maximum party size, link nonce |
+| `event_access` | roles for one event: the name a host logs in with, viewer or editor |
 | `outbox` | mail to send: kind, attempts, next try, when sent, last error |
 | `admin_refresh_token`, `admin_revoked_jwt` | keyed hashes of refresh tokens, and logged-out JWTs, until they'd expire |
 

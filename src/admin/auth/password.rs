@@ -39,7 +39,7 @@ pub fn verify(hash: &str, password: &str) -> bool {
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum Outcome {
     /// The user's name, as configured, and their role.
-    Accepted(String, Role),
+    Accepted(String, Option<Role>),
     Rejected,
     TooManyAttempts,
 }
@@ -72,16 +72,16 @@ mod tests {
             password_hash: cheap_hash(password),
         };
         let credentials = Credentials(vec![
-            user("admin", Role::Admin, "a:b"),
-            user("ola", Role::Viewer, "c"),
+            user("admin", Some(Role::Admin), "a:b"),
+            user("ola", None, "c"),
         ]);
         let accepted = |user, password| {
             credentials
                 .accept(user, password)
                 .map(|login| (login.user.as_str(), login.role))
         };
-        assert_eq!(accepted("admin", "a:b"), Some(("admin", Role::Admin)));
-        assert_eq!(accepted("ola", "c"), Some(("ola", Role::Viewer)));
+        assert_eq!(accepted("admin", "a:b"), Some(("admin", Some(Role::Admin))));
+        assert_eq!(accepted("ola", "c"), Some(("ola", None)));
         assert_eq!(accepted("admin", "wrong"), None);
         assert_eq!(accepted("ola", "a:b"), None);
         // Nobody's name, with the password checked against the first user's.

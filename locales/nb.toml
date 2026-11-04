@@ -185,7 +185,7 @@ log_in_or = "Eller bruk brukernavnet og passordet ditt."
 login_expired = "Innloggingen tok for lang tid, eller ble startet i en annen fane. Prøv igjen."
 login_cancelled = "Innloggingen ble avbrutt."
 login_failed = "Kunne ikke logge inn med {name}. Prøv igjen om litt; om det fortsetter, står årsaken i admin-loggen."
-no_role = "{user} har ingen rolle i Innby hos {name}. Be om viewer, editor eller admin."
+no_role = "{user} har ingen rolle i Innby hos {name}, og ingen tilgang til noe arrangement. Be om en rolle, eller om tilgang til et arrangement."
 forbidden = "Rollen din gir ikke tilgang til denne siden."
 not_found = "Fant ingen slik gjest eller gruppe."
 saved = "Lagret."
@@ -328,6 +328,23 @@ qr_carried = "QR-kodene får samme stil som de hadde."
 # Under the example code on the QR codes page.
 qr_preview = "Den lagrede stilen, slik den blir på festsiden. Lagre for å se en endring."
 qr_download = "Last ned QR-koden (SVG)"
+
+# Tilgang: roller for ett arrangement
+access = "Tilgang"
+access_hint = """
+Alle med en egen rolle i Innby ser alle arrangementer. Her kan du gi noen en rolle bare \
+for dette arrangementet, med brukernavnet de logger inn med."""
+no_access = "Ingen har en rolle bare for dette arrangementet."
+col_role = "Rolle"
+role_viewer = "Leser"
+role_editor = "Redaktør"
+roles_hint = """
+En leser ser hvem som kommer, men ikke lenkene eller e-postadressene deres. En redaktør \
+inviterer også gjester, lager gruppelenker, sender påminnelser og endrer arrangementet."""
+give_access = "Gi tilgang"
+remove_access = "Fjern"
+error_user_name = "Skriv brukernavnet de logger inn med, på én linje og med høyst {max} tegn."
+no_events_given = "Du har ikke tilgang til noen arrangementer ennå."
 
 # Guests
 guests = "Gjester"

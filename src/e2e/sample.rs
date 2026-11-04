@@ -57,4 +57,12 @@ async fn the_sample_shows_on_the_pages(db: PgPool) {
         .open(&silje_link)
         .await
         .expect(&t.answers_closed);
+
+    // Ola, a user in .env.example with no role of their own, helps run Sommerfest.
+    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click("Summer party").await;
+    host.click(&a.access)
+        .await
+        .expect("ola")
+        .expect(&a.role_editor);
 }

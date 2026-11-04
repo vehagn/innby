@@ -54,6 +54,9 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
         (Method::POST, paths::EVENTS_IMPORT.to_owned(), Role::Admin),
         (Method::GET, on(paths::EVENT_QR, e), Role::Editor),
         (Method::POST, on(paths::EVENT_QR, e), Role::Editor),
+        (Method::GET, on(paths::EVENT_ACCESS, e), Role::Admin),
+        (Method::POST, on(paths::EVENT_ACCESS, e), Role::Admin),
+        (Method::POST, on(paths::EVENT_ACCESS_REMOVE, e), Role::Admin),
     ];
     for role in Role::ALL {
         let host = Admin::as_role(db.clone(), role);
@@ -83,6 +86,7 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
         "/invitations\"",
         "/details\"",
         "/qr-style\"",
+        "/access\"",
     ] {
         assert!(!html.contains(hidden), "{hidden}");
     }
@@ -94,15 +98,134 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
     assert!(html.contains(&on(paths::GUEST, i)) && html.contains("guests.csv"));
     assert!(html.contains(&on(paths::EVENT_QR, e)));
     let html = body(editor.get(&on(paths::EVENT_DETAILS, e)).await).await;
-    assert!(!html.contains("/delete"));
+    assert!(!html.contains("/delete") && !html.contains("/access\""));
     let html = body(editor.get(paths::HOME).await).await;
     assert!(!html.contains(r#"action="/events#"#));
 
     let admin = Admin::new(db);
     let html = body(admin.get(&on(paths::EVENT_DETAILS, e)).await).await;
-    assert!(html.contains("/delete"));
+    assert!(html.contains("/delete") && html.contains("/access\""));
     let html = body(admin.get(paths::HOME).await).await;
     assert!(html.contains(r#"action="/events#"#));
+}
+
+async fn status(host: &Admin, path: String) -> StatusCode {
+    host.get(&path).await.status()
+}
+
+#[sqlx::test]
+async fn an_event_gives_a_host_a_role_for_it_alone(db: PgPool) {
+    let admin = Admin::new(db.clone());
+    let ours = crate::db::event::tests::event(&db).await;
+    let mut other = crate::db::event::tests::details();
+    other.title = crate::i18n::Texts {
+        nb: "Sommerfest".into(),
+        ..Default::default()
+    };
+    let other = crate::db::event::create(&db, &other).await.unwrap();
+    let guest = rsvp::create_invite(&db, ours.id, "Kari", 2).await.unwrap();
+    let club = group::create(&db, ours.id, "Climbing club", 2)
+        .await
+        .unwrap();
+    let elsewhere = rsvp::create_invite(&db, other.id, "Per", 1).await.unwrap();
+    let on = |pattern: &str, id: Uuid| paths::path(pattern, id);
+    let access = on(paths::EVENT_ACCESS, ours.id);
+
+    // Nils has no role of their own, so sees no event at first.
+    let nils = Admin::as_user(db.clone(), "nils", None);
+    let html = body(nils.get(paths::HOME).await).await;
+    assert!(
+        html.contains(&escape("You don't have access to any events yet.")),
+        "{html}"
+    );
+    assert_eq!(
+        status(&nils, on(paths::EVENT, ours.id)).await,
+        StatusCode::FORBIDDEN
+    );
+
+    // An admin makes them a viewer of the Christmas party.
+    let response = admin.post(&access, "user=+nils+&role=viewer").await;
+    assert_eq!(location(&response), format!("{access}?saved"));
+    let html = body(admin.get(&format!("{access}?saved")).await).await;
+    assert!(
+        html.contains("<td>nils</td>") && html.contains("<td>Viewer</td>"),
+        "{html}"
+    );
+    let html = body(nils.get(paths::HOME).await).await;
+    assert!(
+        html.contains("Christmas party") && !html.contains("Sommerfest"),
+        "{html}"
+    );
+    assert_eq!(
+        status(&nils, on(paths::EVENT, ours.id)).await,
+        StatusCode::OK
+    );
+    for path in [
+        on(paths::EVENT_INVITATIONS, ours.id),
+        on(paths::GUEST, guest.id),
+        on(paths::EVENT, other.id),
+    ] {
+        assert_eq!(
+            status(&nils, path.clone()).await,
+            StatusCode::FORBIDDEN,
+            "{path}"
+        );
+    }
+
+    // Then an editor of it, in place of a viewer: the event's guests and groups too,
+    // but not another event's, nor an admin's pages.
+    admin.post(&access, "user=nils&role=editor").await;
+    for path in [
+        on(paths::EVENT_INVITATIONS, ours.id),
+        on(paths::EVENT_DETAILS, ours.id),
+        on(paths::GUEST, guest.id),
+        on(paths::GROUP_QR, club.id),
+    ] {
+        assert_eq!(status(&nils, path.clone()).await, StatusCode::OK, "{path}");
+    }
+    for path in [
+        on(paths::GUEST, elsewhere.id),
+        on(paths::EVENT_INVITATIONS, other.id),
+        access.clone(),
+    ] {
+        assert_eq!(
+            status(&nils, path.clone()).await,
+            StatusCode::FORBIDDEN,
+            "{path}"
+        );
+    }
+    let response = nils
+        .post(&on(paths::EVENT_DELETE, ours.id), "confirm=on")
+        .await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let html = body(nils.get(&on(paths::EVENT_DETAILS, ours.id)).await).await;
+    assert!(!html.contains("/delete") && !html.contains("/access\""));
+
+    // A viewer of every event gets an editor's role for this one alone.
+    let per = Admin::as_user(db.clone(), "per", Some(Role::Viewer));
+    admin.post(&access, "user=per&role=editor").await;
+    assert_eq!(
+        status(&per, on(paths::GUEST, guest.id)).await,
+        StatusCode::OK
+    );
+    assert_eq!(
+        status(&per, on(paths::GUEST, elsewhere.id)).await,
+        StatusCode::FORBIDDEN
+    );
+    let html = body(per.get(paths::HOME).await).await;
+    assert!(html.contains("Sommerfest"));
+
+    // Names are refused with a reason, and taken away again.
+    let response = admin.post(&access, "user=%07&role=editor").await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(body(response).await.contains("on one line"));
+    admin
+        .post(&on(paths::EVENT_ACCESS_REMOVE, ours.id), "user=nils")
+        .await;
+    assert_eq!(
+        status(&nils, on(paths::EVENT, ours.id)).await,
+        StatusCode::FORBIDDEN
+    );
 }
 
 #[sqlx::test]

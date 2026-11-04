@@ -64,7 +64,7 @@ async fn logs_in_with_the_role_from_userinfo() {
         login,
         Login {
             user: "kari".into(),
-            role: Role::Editor
+            role: Some(Role::Editor)
         }
     );
     // The ID token has no roles, as Authelia's by default, so userinfo was asked.
@@ -73,7 +73,7 @@ async fn logs_in_with_the_role_from_userinfo() {
     // Discovery and keys are kept for the next login.
     fake.log_in("ola", json!(["viewer", "grafana_admin", "admin"]));
     let login = log_in(&fake, &provider).await.unwrap();
-    assert_eq!(login.role, Role::Admin);
+    assert_eq!(login.role, Some(Role::Admin));
     assert_eq!((fake.calls("discovery"), fake.calls("jwks")), (1, 1));
 }
 
@@ -96,13 +96,12 @@ async fn sends_pkce_state_and_nonce() {
 }
 
 #[tokio::test]
-async fn turns_away_hosts_without_a_role_and_hears_a_no() {
+async fn vouches_for_hosts_without_a_role_and_hears_a_no() {
     let (fake, provider) = provider().await;
+    // Whether an event gives them a role is for the callback to ask.
     fake.log_in("per", json!(["grafana_admin"]));
-    assert!(matches!(
-        log_in(&fake, &provider).await,
-        Err(LoginError::NoRole { user }) if user == "per"
-    ));
+    let login = log_in(&fake, &provider).await.unwrap();
+    assert_eq!((login.user.as_str(), login.role), ("per", None));
     fake.with(|fake| fake.user = None);
     assert!(matches!(
         log_in(&fake, &provider).await,
@@ -172,7 +171,7 @@ async fn checks_the_id_token_and_userinfo() {
     });
     let asked = fake.calls("userinfo");
     let login = log_in(&fake, &provider).await.unwrap();
-    assert_eq!(login.role, Role::Admin);
+    assert_eq!(login.role, Some(Role::Admin));
     assert_eq!(fake.calls("userinfo"), asked);
 }
 

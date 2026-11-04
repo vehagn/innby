@@ -35,6 +35,7 @@ accounts, a JavaScript front end, and a public list of who's coming.
 | Languages | Six, in TOML files with fallbacks | Plain strings don't need Fluent; each language is a file that names its fallbacks. |
 | CSRF | `Sec-Fetch-Site` and `Origin` | No tokens or cookies needed, as Go's `CrossOriginProtection` does it. |
 | Admin login | Passwords, single sign-on, or both | A user or a few with passwords and roles in the config, for a small install; an OpenID Connect provider, with roles, where there is one. |
+| Roles for one event | In the database, given on the event's Access tab | Events come and go in the admin UI, so neither the config nor the provider can name them. A role by login name, deleted with the event, lets a helper run one party without seeing the others. Admins give it, as they make and delete events. |
 | Image | Written by `just image`, no Containerfile | Just the binary in an OCI layout, with reproducible digests and no build tool needed. |
 | Deployment | A general Helm chart, published to GHCR | No CRDs needed; routes, policies and CloudNativePG are options. |
 | Saving | With a Save button | Saving as you type needs JavaScript. Instead, forms are open rather than folded away, Save is the main button, and the QR code's preview says it shows the saved style. |

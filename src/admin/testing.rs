@@ -32,9 +32,15 @@ impl Admin {
 
     /// A host with this role, as single sign-on would log them in.
     pub fn as_role(db: PgPool, role: Role) -> Self {
+        Self::as_user(db, "admin", Some(role))
+    }
+
+    /// A host by this name, with this role of their own, or none.
+    pub fn as_user(db: PgPool, user: &str, role: Option<Role>) -> Self {
         let admin = auth::tests::admin_config();
+        let token = auth::tests::token(&admin, db.clone(), user, role);
         Self {
-            token: format!("token={}", auth::tests::token(&admin, db.clone(), role)),
+            token: format!("token={token}"),
             db,
             config: config(),
             admin,

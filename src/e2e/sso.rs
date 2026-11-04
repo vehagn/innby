@@ -98,6 +98,54 @@ async fn someone_without_an_innby_role_is_turned_away(db: PgPool) {
 }
 
 #[sqlx::test]
+async fn a_host_given_one_event_sees_it_alone(db: PgPool) {
+    let world = World::with_sso(db, true).await;
+    world.summer_party().await;
+    world.provider().log_in("nils", json!([]));
+    let a = admin();
+    let sign_on = filled(&a.log_in_with, "name", "Authelia");
+
+    // With no role at the provider, Nils is turned away.
+    let mut nils = world.browser();
+    nils.open(ADMIN).await;
+    assert_eq!(nils.click(&sign_on).await.status, StatusCode::FORBIDDEN);
+
+    // Until an admin makes them an editor of the Christmas party, by their user name.
+    let mut host = world.admin().await;
+    host.click("Christmas party").await;
+    host.click(&a.access).await.expect(&a.no_access);
+    host.fill(&a.user_name, "nils").check(&a.role_editor);
+    host.press(&a.give_access)
+        .await
+        .expect(&a.saved)
+        .expect("nils")
+        .expect(&a.role_editor);
+
+    // Then they see that event alone, and run it, but don't give others access.
+    nils.open(ADMIN).await;
+    nils.click(&sign_on)
+        .await
+        .expect("Christmas party")
+        .expect_not("Summer party")
+        .expect_not(&a.new_event);
+    nils.click("Christmas party").await;
+    let tabs: Vec<_> = nils
+        .page()
+        .doc
+        .links
+        .iter()
+        .map(|link| &link.text)
+        .collect();
+    assert!(tabs.contains(&&a.invitation_links), "{tabs:?}");
+    assert!(!tabs.contains(&&a.access), "{tabs:?}");
+
+    // Taken away, it's gone at once.
+    host.press(&a.remove_access).await.expect(&a.no_access);
+    let page = nils.click(&a.invitation_links).await;
+    assert_eq!(page.status, StatusCode::FORBIDDEN);
+}
+
+#[sqlx::test]
 async fn the_built_in_user_and_the_provider_can_both_log_in(db: PgPool) {
     let world = World::with_sso(db, true).await;
     let a = admin();

@@ -4,11 +4,12 @@
 //!   against an argon2 hash and sets two cookies, a JWT that's good for a day and a
 //!   refresh token that gets new JWTs for a month. The users are the built-in admin
 //!   (unless `INNBY_ADMIN_PASSWORD_HASH` is left out) and those in `INNBY_ADMIN_USERS`,
-//!   each with the role it gives them.
+//!   each with the role it gives them, or none.
 //! - An OpenID Connect provider (see `oidc`), which says who the host is and what role
 //!   they have. That login gets a JWT without a refresh token.
 //!
-//! The JWT names the user and their role. Logging out revokes it, and the refresh token
+//! The JWT names the user and their role, if they have one; `role::for_event` adds the
+//! one an event gives them. Logging out revokes it, and the refresh token
 //! if there is one. The admin listener is only reachable from the internal gateway; this
 //! keeps everyone else on the LAN out too.
 //!
@@ -43,10 +44,10 @@ use chrono::{DateTime, TimeDelta, Utc};
 use sqlx::PgPool;
 use tokio::sync::Semaphore;
 
-use super::role::Role;
+use super::role::{Host, Role};
 use crate::{
     config::AdminConfig,
-    db::admin_login,
+    db::{access, admin_login},
     http::{ClientIp, RateLimiter, cookie, server_error},
     paths, random,
 };
@@ -90,10 +91,10 @@ pub struct Auth {
 
 /// What a request's cookies say.
 enum Session {
-    LoggedIn(Role),
+    LoggedIn(Host),
     /// A password user, logged in with the refresh token, which got this new `token`
     /// cookie.
-    Refreshed(HeaderValue, Role),
+    Refreshed(HeaderValue, Host),
     LoggedOut,
 }
 
@@ -106,7 +107,7 @@ impl Auth {
             bound.extend([
                 b"password".as_slice(),
                 login.user.as_bytes(),
-                login.role.name().as_bytes(),
+                login.role.map_or("none", Role::name).as_bytes(),
                 login.password_hash.as_bytes(),
             ]);
         }
@@ -186,7 +187,13 @@ impl Auth {
     }
 
     /// A new JWT for the host.
-    fn token(&self, now: DateTime<Utc>, user: &str, role: Role, lifetime: TimeDelta) -> String {
+    fn token(
+        &self,
+        now: DateTime<Utc>,
+        user: &str,
+        role: Option<Role>,
+        lifetime: TimeDelta,
+    ) -> String {
         self.key.sign(&jwt::Claims {
             iat: now.timestamp(),
             exp: (now + lifetime).timestamp(),
@@ -197,7 +204,7 @@ impl Auth {
     }
 
     /// The `token` cookie of a password user.
-    fn password_token(&self, now: DateTime<Utc>, user: &str, role: Role) -> HeaderValue {
+    fn password_token(&self, now: DateTime<Utc>, user: &str, role: Option<Role>) -> HeaderValue {
         let token = self.token(now, user, role, TOKEN_LIFETIME);
         self.cookie(TOKEN, &token, TOKEN_LIFETIME)
     }
@@ -205,7 +212,11 @@ impl Auth {
     /// The cookies of a password user's new login, once its refresh token is saved. The
     /// refresh token starts with the user's name, `ola.{random}`, so it can renew their
     /// JWT; the database keeps only its keyed digest, which covers the name too.
-    async fn start_session(&self, user: &str, role: Role) -> sqlx::Result<[HeaderValue; 2]> {
+    async fn start_session(
+        &self,
+        user: &str,
+        role: Option<Role>,
+    ) -> sqlx::Result<[HeaderValue; 2]> {
         let now = Utc::now();
         let refresh_token = format!("{user}.{}", random::token());
         let digest = self.key.digest(&refresh_token);
@@ -214,6 +225,12 @@ impl Auth {
             self.password_token(now, user, role),
             self.cookie(REFRESH_TOKEN, &refresh_token, REFRESH_LIFETIME),
         ])
+    }
+
+    /// Whether a host the provider vouched for may log in: with a role of their own, or
+    /// one an event gives them.
+    pub(super) async fn admits(&self, user: &str, role: Option<Role>) -> sqlx::Result<bool> {
+        Ok(role.is_some() || access::has_any(&self.db, user).await?)
     }
 
     /// The cookie of a login the provider vouched for.
@@ -227,7 +244,7 @@ impl Auth {
         if let Some(claims) = self.claims(headers, now)
             && !admin_login::is_revoked(&self.db, claims.jti).await?
         {
-            return Ok(Session::LoggedIn(claims.role));
+            return Ok(Session::LoggedIn(Host::new(&claims.user, claims.role)));
         }
         // The random part never has a dot; a name may.
         if let Some(credentials) = &self.credentials
@@ -237,7 +254,10 @@ impl Auth {
             && admin_login::has_refresh_token(&self.db, &self.key.digest(refresh_token)).await?
         {
             let token = self.password_token(now, &login.user, login.role);
-            return Ok(Session::Refreshed(token, login.role));
+            return Ok(Session::Refreshed(
+                token,
+                Host::new(&login.user, login.role),
+            ));
         }
         Ok(Session::LoggedOut)
     }
@@ -290,9 +310,9 @@ pub async fn require_login(
     next: Next,
 ) -> Response {
     match auth.session(request.headers()).await {
-        Ok(Session::LoggedIn(role)) => role.scope(next.run(request)).await,
-        Ok(Session::Refreshed(token, role)) => {
-            let mut response = role.scope(next.run(request)).await;
+        Ok(Session::LoggedIn(host)) => host.scope(next.run(request)).await,
+        Ok(Session::Refreshed(token, host)) => {
+            let mut response = host.scope(next.run(request)).await;
             response.headers_mut().append(header::SET_COOKIE, token);
             response
         }
@@ -318,8 +338,8 @@ pub mod tests {
             .to_string()
     }
 
-    /// `admin` with the password `secret`, the editor `ola.n` with `ola`, and no
-    /// provider.
+    /// `admin` with the password `secret`, the editor `ola.n` with `ola`, `nils` with no
+    /// role of their own with `nils`, and no provider.
     pub fn admin_config() -> AdminConfig {
         let user = |user: &str, role, password| PasswordLogin {
             user: user.into(),
@@ -330,17 +350,19 @@ pub mod tests {
             listen: "127.0.0.1:0".parse().unwrap(),
             path: String::new(),
             users: vec![
-                user("admin", Role::Admin, "secret"),
-                user("ola.n", Role::Editor, "ola"),
+                user("admin", Some(Role::Admin), "secret"),
+                user("ola.n", Some(Role::Editor), "ola"),
+                user("nils", None, "nils"),
             ],
             oidc: None,
             jwt_secret: jwt::Secret::from_base64(jwt::tests::SECRET).unwrap(),
         }
     }
 
-    /// A JWT for this role that's valid now, for tests that don't log in through a form.
-    pub fn token(config: &AdminConfig, db: PgPool, role: Role) -> String {
-        Auth::new(config, true, db).token(Utc::now(), "admin", role, TOKEN_LIFETIME)
+    /// A JWT for this user and role that's valid now, for tests that don't log in
+    /// through a form.
+    pub fn token(config: &AdminConfig, db: PgPool, user: &str, role: Option<Role>) -> String {
+        Auth::new(config, true, db).token(Utc::now(), user, role, TOKEN_LIFETIME)
     }
 
     fn auth() -> Auth {
@@ -357,7 +379,7 @@ pub mod tests {
         let client = |last: u8| ClientIp([192, 0, 2, last].into());
         let check =
             |last: u8, password: &str| auth.check(client(last), "admin".into(), password.into());
-        let admin = Outcome::Accepted("admin".into(), Role::Admin);
+        let admin = Outcome::Accepted("admin".into(), Some(Role::Admin));
         assert_eq!(check(1, "secret").await, admin);
         // The login above was the first of the attempts.
         for i in 1..ATTEMPTS {

@@ -52,8 +52,8 @@ impl FromRequestParts<AdminState> for ClientIp {
     }
 }
 
-/// The admin's sections, as tabs under the header: the events and the QR code style,
-/// or, within an event, its own pages.
+/// The admin's sections, as tabs under the header: the events, or, within an event,
+/// its own pages.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Events,
@@ -62,6 +62,7 @@ pub enum Tab {
     Groups,
     Qr,
     Details,
+    Access,
 }
 
 pub struct TabLink {
@@ -78,7 +79,7 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
         None => vec![(Tab::Events, paths::admin(paths::HOME), &text.events, true)],
         Some(&id) => {
             let links = EventLinks::new(id);
-            let edit = Role::can_edit();
+            let (edit, admin) = (Role::can_edit(), Role::is_admin());
             vec![
                 (Tab::Guests, links.guests, &text.guests, true),
                 (
@@ -90,6 +91,7 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
                 (Tab::Groups, links.groups, &text.group_links, edit),
                 (Tab::Qr, links.qr_style, &text.qr_heading, edit),
                 (Tab::Details, links.details, &text.details, edit),
+                (Tab::Access, links.access, &text.access, admin),
             ]
         }
     };
@@ -109,7 +111,7 @@ pub(super) fn timestamp(at: DateTime<Utc>, tz: Tz) -> String {
     at.with_timezone(&tz).format("%Y-%m-%d %H:%M").to_string()
 }
 
-/// The event behind an admin path's `{id}`.
+/// The event behind an admin path's `{event}`.
 pub(super) async fn load_event(state: &AdminState, id: Uuid) -> Result<Event, PageError> {
     event::find(&state.db, id).await?.ok_or(PageError::Missing)
 }

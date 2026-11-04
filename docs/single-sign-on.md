@@ -7,17 +7,26 @@ provider says who each host is, and what they may do in Innby.
 ## Roles
 
 The provider lists a host's Innby roles in a claim named after the app, `innby`, as a
-list such as `["editor"]`. The highest role listed counts, and a host with none can't log
-in. Values Innby doesn't know are ignored, so the same claim can carry other things.
+list such as `["editor"]`. The highest role listed counts. Values Innby doesn't know are
+ignored, so the same claim can carry other things.
 
 | Role | May |
 |---|---|
 | `viewer` | See the events, their headcounts and who's coming. Not the personal links, e-mail status or the guest export, since those let you act as a guest. |
 | `editor` | Also run the events: invitations, group links, guests, reminders, the guest export, each event's details, its QR codes' style and its event file |
-| `admin` | Also create events (by hand, by copying one, or from an event file) and delete them |
+| `admin` | Also create events (by hand, by copying one, or from an event file) and delete them, and give roles for one event |
 
 Hosts who log in with a password have the role `INNBY_ADMIN_USERS` gives them, and the
 built-in user is an admin.
+
+These roles are for every event. An admin can also give a host a role for one event,
+viewer or editor, on that event's Access tab, by the name Innby knows them by: the ID
+token's or userinfo's `preferred_username`, or else its `email`, or else its `sub` (the
+display name isn't used, since it needn't be anyone's alone). In Authelia that's the
+LLDAP user name. A host whose provider lists no Innby role can log in only if an event
+gives them one, and then sees only those events. Password users and the provider's users
+share one set of names, so give a password user a name that no one else at the provider
+has.
 
 ## Turning it on
 
@@ -88,7 +97,7 @@ allow the host in `oidc.issuer`.
    algorithms only, never keys from the token itself), and its `iss`, `aud` (Innby alone),
    `azp`, `exp`, `iat`, `nonce` and `at_hash`.
 4. The roles come from the ID token, or else from userinfo, which must be about the same
-   user. No role, no login.
+   user. No role, and no role for any event, no login.
 
 The provider's settings come from its discovery document and are kept for an hour; its
 keys are fetched again when a token names one Innby hasn't seen. A login lasts 12 hours,

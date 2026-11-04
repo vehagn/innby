@@ -1,0 +1,56 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ crate::admin::lang::text().access }} · {{ event.details.title(crate::admin::lang::current()) }}{% endblock %}
+
+{% block tabs %}{% let tabs = crate::admin::tabs(Some(event.id), crate::admin::Tab::Access) %}{% include "admin/_event_nav.html" %}{% endblock %}
+
+{% block content %}
+{% let a = crate::admin::lang::text() %}
+{% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
+<h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
+<p class="hint">{{ a.access_hint }}</p>
+
+<section class="card">
+  {% if hosts.is_empty() %}
+  <p class="muted">{{ a.no_access }}</p>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr><th>{{ a.user_name }}</th><th>{{ a.col_role }}</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for host in hosts %}
+      <tr>
+        <td>{{ host.user }}</td>
+        <td>{{ a.event_role_name(host.role) }}</td>
+        <td>
+          <form method="post" action="{{ links.access_remove }}">
+            <input type="hidden" name="user" value="{{ host.user }}">
+            <button class="link">{{ a.remove_access }}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>{{ a.give_access }}</h2>
+  <form method="post" action="{{ links.access }}">
+    <label for="access-user">{{ a.user_name }}</label>
+    <input id="access-user" name="user" required maxlength="{{ crate::db::access::MAX_USER_LEN }}" autocapitalize="none" autocomplete="off" spellcheck="false" value="{{ user }}">
+    <fieldset>
+      <legend>{{ a.col_role }}</legend>
+      {% for choice in crate::db::access::EventRole::ALL %}
+      <label class="choice"><input type="radio" name="role" value="{{ choice.code() }}"{% if choice == role %} checked{% endif %}> {{ a.event_role_name(choice) }}</label>
+      {% endfor %}
+    </fieldset>
+    <p class="hint">{{ a.roles_hint }}</p>
+    <button>{{ a.give_access }}</button>
+  </form>
+</section>
+{% endblock %}

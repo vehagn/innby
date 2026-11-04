@@ -189,7 +189,7 @@ log_in_or = "Or use your user name and password."
 login_expired = "That login took too long, or was started in another tab. Do try again."
 login_cancelled = "The login was cancelled."
 login_failed = "Couldn't log in with {name}. Try again shortly; should it keep failing, the admin log says why."
-no_role = "{user} has no role in Innby at {name}. Ask for viewer, editor or admin."
+no_role = "{user} has no role in Innby at {name}, and no access to any event. Ask for a role, or for access to an event."
 forbidden = "Your role doesn't allow this page."
 not_found = "There is no such guest or group."
 saved = "Saved."
@@ -331,6 +331,23 @@ qr_carried = "The QR codes keep the style they had."
 # Under the example code on the QR codes page.
 qr_preview = "The saved style, as on the event page. Save to see a change."
 qr_download = "Download the QR code (SVG)"
+
+# Access: roles for one event
+access = "Access"
+access_hint = """
+Everyone with a role of their own in Innby sees every event. Here you can give someone a \
+role for this event alone, by the user name they log in with."""
+no_access = "Nobody has a role for this event alone."
+col_role = "Role"
+role_viewer = "Viewer"
+role_editor = "Editor"
+roles_hint = """
+A viewer sees who's coming, but not their links or e-mail addresses. An editor also \
+invites guests, makes group links, sends reminders and changes the event."""
+give_access = "Give access"
+remove_access = "Remove"
+error_user_name = "Give the user name they log in with, on one line and in at most {max} characters."
+no_events_given = "You don't have access to any events yet."
 
 # Guests
 guests = "Guests"

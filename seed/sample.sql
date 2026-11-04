@@ -12,6 +12,9 @@
 --   Bursdag      ten days ago, so answers are closed; the janitor deletes it 30 days
 --                after it started.
 --
+-- Ola, a user in .env.example with no role of their own, helps run Sommerfest and may
+-- see who's coming to Julebord.
+--
 -- The ids are fixed, so loading it again replaces the sample (and nothing else) and
 -- every guest keeps the same link. Links are signed from the ids with the
 -- INNBY_LINK_SECRET; open them from the admin UI.
@@ -136,3 +139,8 @@ insert into rsvp (
     ('00000000-5eed-7000-8000-000000003101', '00000000-5eed-7000-8000-000000000003', '00000000-5eed-7000-8000-000000000301',
      'Tante Randi', 'attending', 3, 4, 'nb', null, 'none', null,
      '2026-11-04', now() - interval '20 days', 'partial', now() - interval '20 days');
+
+-- Roles for one event, by the name the host logs in with.
+insert into event_access (event_id, user_name, role) values
+    ('00000000-5eed-7000-8000-000000000001', 'ola', 'viewer'),
+    ('00000000-5eed-7000-8000-000000000002', 'ola', 'editor');

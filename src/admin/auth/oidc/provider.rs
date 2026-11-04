@@ -125,8 +125,10 @@ pub struct Callback {
 /// A login the provider vouched for.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Login {
+    /// The name an event's Access tab gives them a role by.
     pub user: String,
-    pub role: Role,
+    /// The highest role the provider lists for them, if it lists one.
+    pub role: Option<Role>,
 }
 
 #[derive(Debug)]
@@ -135,7 +137,8 @@ pub enum LoginError {
     Expired,
     /// The host said no at the provider.
     Cancelled,
-    /// The provider knows the host, but lists no Innby role for them.
+    /// The provider knows the host, but lists no Innby role for them, and no event gives
+    /// them one.
     NoRole { user: String },
     /// Something's wrong between Innby and the provider: for the log.
     Failed(anyhow::Error),
@@ -326,18 +329,17 @@ impl Provider {
                 claims.entry(name).or_insert(value);
             }
         }
-        let user = ["preferred_username", "name", "email", "sub"]
+        // Not the display name, which needn't be anyone's alone: an event gives a role
+        // by this name.
+        let user = ["preferred_username", "email", "sub"]
             .iter()
             .find_map(|name| claims.get(*name).and_then(Value::as_str))
             .unwrap_or_default()
             .to_owned();
-        match claims
+        let role = claims
             .get(&self.config.roles_claim)
-            .and_then(Role::from_claim)
-        {
-            Some(role) => Ok(Login { user, role }),
-            None => Err(LoginError::NoRole { user }),
-        }
+            .and_then(Role::from_claim);
+        Ok(Login { user, role })
     }
 
     async fn check_id_token(

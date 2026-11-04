@@ -1,0 +1,39 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select a.role as \"role: EventRole\"\n                 from invite_group g join event_access a on a.event_id = g.event_id\n                 where g.id = $1 and a.user_name = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "role: EventRole",
+        "type_info": {
+          "Custom": {
+            "name": "event_role",
+            "kind": {
+              "Enum": [
+                "viewer",
+                "editor"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "event_access",
+            "name": "role"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "90fb0cdc52fb70c2333bf049857c2b6695b38aa122f855e0b41ea04b007e2581"
+}

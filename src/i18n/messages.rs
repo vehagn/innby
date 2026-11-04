@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{count, fill};
 use crate::db::{
+    access::EventRole,
     qr,
     rsvp::{NameDisplay, Response},
 };
@@ -298,6 +299,19 @@ pub struct AdminMessages {
     pub qr_preview: String,
     pub qr_download: String,
 
+    // Access: roles for one event
+    pub access: String,
+    pub access_hint: String,
+    pub no_access: String,
+    pub col_role: String,
+    pub role_viewer: String,
+    pub role_editor: String,
+    pub roles_hint: String,
+    pub give_access: String,
+    pub remove_access: String,
+    pub error_user_name: String,
+    pub no_events_given: String,
+
     // Guests
     pub guests: String,
     /// Under the guests' heading when the table shows one answer only.
@@ -375,6 +389,13 @@ impl AdminMessages {
             qr::Shape::Square => &self.qr_square,
             qr::Shape::Rounded => &self.qr_rounded,
             qr::Shape::Dots => &self.qr_dots,
+        }
+    }
+
+    pub fn event_role_name(&self, role: impl Borrow<EventRole>) -> &str {
+        match role.borrow() {
+            EventRole::Viewer => &self.role_viewer,
+            EventRole::Editor => &self.role_editor,
         }
     }
 

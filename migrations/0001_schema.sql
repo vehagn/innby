@@ -1,6 +1,7 @@
 -- Innby's schema. Events hold everything else: their guests' answers, the group links
--- guests sign up through, and the mail queued for those guests; deleting an event
--- deletes all of it. The admin's login tables stand apart and hold no personal data.
+-- guests sign up through, the mail queued for those guests, and who besides the hosts
+-- may see the event; deleting an event deletes all of it. The admin's login tables stand
+-- apart and hold no personal data.
 --
 -- Released versions after this one change the schema in migrations of their own, beside
 -- this file; this one is never edited once released.
@@ -135,6 +136,24 @@ create table outbox (
 
 create index outbox_due on outbox (next_try_at) where sent_at is null;
 create index outbox_rsvp on outbox (rsvp_id);
+
+-- A role for one event: an admin's role is for every event, so it's not among them.
+create type event_role as enum ('viewer', 'editor');
+
+-- Hosts who may see or run one event, by the name they log in with, which an admin gives
+-- them on the event's Access tab. Someone with a role of their own (in the config, or at
+-- the identity provider) has it for every event; this gives others one event, or more
+-- than their own role allows for it. Deleted with the event.
+create table event_access (
+    event_id  uuid not null references event on delete cascade,
+    user_name text not null
+        check (length(user_name) between 1 and 254 and user_name !~ '[[:cntrl:]]'),
+    role      event_role not null,
+    primary key (event_id, user_name)
+);
+
+-- The events a host has access to, for their list of events.
+create index event_access_user on event_access (user_name);
 
 -- The host's logins, kept as LLDAP keeps them. A login gets a JWT that lasts a day and a
 -- refresh token that gets new JWTs for a month.

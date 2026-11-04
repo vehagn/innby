@@ -53,7 +53,8 @@ pub struct Claims {
     /// Expires at, in seconds since the epoch.
     pub exp: i64,
     pub user: String,
-    pub role: Role,
+    /// Their role for every event; without one, they see the events that give them one.
+    pub role: Option<Role>,
     /// Names the token when it's logged out.
     pub jti: Uuid,
 }
@@ -158,7 +159,7 @@ pub mod tests {
             iat: now.timestamp(),
             exp: (now + TimeDelta::hours(1)).timestamp(),
             user: "admin".into(),
-            role: Role::Editor,
+            role: Some(Role::Editor),
             jti: Uuid::nil(),
         }
     }

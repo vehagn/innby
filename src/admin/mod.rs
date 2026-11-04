@@ -5,11 +5,14 @@
 //! - `mod.rs`: `router`, which lists every page and the role it needs. Handlers are
 //!   named for what they do: `list`, `show`, `create`, `edit`, `revoke`, `delete`.
 //! - `page`: what pages share: state, tabs, errors. `forms`: what their forms share.
-//! - `events`, `guests`, `invitations`, `groups`, `qr`: the pages, one module per tab.
+//! - `events`, `guests`, `invitations`, `groups`, `qr`, `access`: the pages, one module
+//!   per tab.
 //! - `cli`: the host's commands: `innby invite` and `innby event`.
 //! - `auth`: logging in, with a password or through an OIDC provider, and sessions.
-//! - `role`: what each role may do. `lang`: the page's language.
+//! - `role`: what each role may do, for every event or for one. `lang`: the page's
+//!   language.
 
+mod access;
 pub mod auth;
 pub mod cli;
 mod events;
@@ -68,9 +71,11 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         auth: Arc::clone(&auth),
     };
     // Each path needs one role for all its methods; see `role` for what each may do.
+    // The list of events is for anyone logged in, and shows each the events they may see.
+    let anyone = Router::new().route(paths::HOME, get(events::list));
     let viewer = Router::new()
-        .route(paths::HOME, get(events::list))
-        .route(paths::EVENT, get(guests::list));
+        .route(paths::EVENT, get(guests::list))
+        .route_layer(middleware::from_fn(role::viewer));
     let editor = Router::new()
         .route(
             paths::EVENT_INVITATIONS,
@@ -98,10 +103,18 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route(paths::EVENTS, post(events::create))
         .route(paths::EVENTS_IMPORT, post(events::import))
         .route(paths::EVENT_DELETE, post(events::details::delete))
+        .route(paths::EVENT_ACCESS, get(access::list).post(access::create))
+        .route(paths::EVENT_ACCESS_REMOVE, post(access::delete))
         .route_layer(middleware::from_fn(role::admin));
-    let mut pages = viewer
+    let mut pages = anyone
+        .merge(viewer)
         .merge(editor)
         .merge(admin)
+        // On an event's pages, before the checks above, the role it gives the host.
+        .route_layer(middleware::from_fn_with_state(
+            state.db.clone(),
+            role::for_event,
+        ))
         .layer(middleware::from_fn_with_state(
             Arc::clone(&auth),
             auth::require_login,

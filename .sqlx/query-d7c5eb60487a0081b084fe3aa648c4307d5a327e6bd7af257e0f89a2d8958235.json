@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into event_access (event_id, user_name, role) values ($1, $2, $3)\n         on conflict (event_id, user_name) do update set role = excluded.role",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        {
+          "Custom": {
+            "name": "event_role",
+            "kind": {
+              "Enum": [
+                "viewer",
+                "editor"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d7c5eb60487a0081b084fe3aa648c4307d5a327e6bd7af257e0f89a2d8958235"
+}

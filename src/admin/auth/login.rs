@@ -14,7 +14,7 @@ use serde::Deserialize;
 
 use super::{Auth, Outcome, REFRESH_TOKEN, TOKEN};
 use crate::{
-    admin::lang,
+    admin::{lang, role::Role},
     http::{ClientIp, render, render_with, server_error},
     paths,
 };
@@ -82,7 +82,8 @@ pub async fn log_in(
         Outcome::Accepted(user, role) => {
             return match auth.start_session(&user, role).await {
                 Ok(cookies) => {
-                    tracing::info!(user, role = role.name(), "host logged in");
+                    let role = role.map_or("none", Role::name);
+                    tracing::info!(user, role, "host logged in");
                     let cookies = cookies
                         .into_iter()
                         .map(|cookie| (header::SET_COOKIE, cookie));

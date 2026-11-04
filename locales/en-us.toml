@@ -178,7 +178,7 @@ log_in_or = "Or use your username and password."
 login_expired = "That login took too long, or was started in another tab. Try again."
 login_cancelled = "The login was canceled."
 login_failed = "Couldn't log in with {name}. Try again in a bit; if it keeps failing, the admin log says why."
-no_role = "{user} doesn't have a role in Innby at {name}. Ask for viewer, editor, or admin."
+no_role = "{user} doesn't have a role in Innby at {name}, or access to any event. Ask for a role, or for access to an event."
 forbidden = "Your role doesn't allow this page."
 not_found = "Guest or group not found."
 saved = "Saved!"
@@ -317,6 +317,13 @@ qr_saved = "QR code style saved!"
 # Under the example code on the QR codes page.
 qr_preview = "The saved style, as on the party page. Save to see a change."
 qr_download = "Download QR code (SVG)"
+
+# Access: roles for one event
+access_hint = """
+Everyone with their own role in Innby sees every event. Here you can give someone a role \
+for just this event, by the username they log in with."""
+no_access = "No one has a role for just this event."
+error_user_name = "Enter the username they log in with, on one line, in {max} characters or less."
 
 # Guests
 guests = "Guests"

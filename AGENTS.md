@@ -55,13 +55,15 @@ src/
     invitations.rs   the Invitation links tab: invitations in a batch
     groups.rs        the Group links tab, and each group's page
     qr/              an event's QR code style tab and the SVG downloads; draw.rs draws them
-    role.rs          viewer < editor < admin, and what each may do
+    access.rs        an event's Access tab: roles for that event alone, by login name
+    role.rs          viewer < editor < admin, and the role a request has for its event
     lang.rs          the admin page's language
     auth/            logging in: sessions (mod.rs), login.rs, password.rs (argon2), jwt.rs
       oidc/          single sign-on: routes.rs, provider.rs, jws.rs (ID tokens), http.rs, fake.rs (tests)
     cli.rs           the host's commands: `innby invite`, `innby event list|export|import`
     testing.rs       a logged-in test host of any role
-  db/                queries per table; rsvp/ splits into the row, names.rs and guest_list.rs
+  db/                queries per table (access.rs: roles for one event); rsvp/ splits into
+                     the row, names.rs and guest_list.rs
   mailer/            the outbox worker; compose.rs writes the mails
   janitor.rs         deletes what retention says is due
   config/            settings from INNBY_* variables: mod.rs (site), admin.rs, mail.rs, env.rs

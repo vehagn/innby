@@ -4,9 +4,11 @@
 //!
 //! - `event`: events, and deleting each one with everything in it.
 //! - `rsvp`: guests' answers. `group`: group sign-up links. `outbox`: mail jobs.
-//! - `qr`: the QR code style. `admin_login`: refresh tokens and revoked JWTs.
+//! - `qr`: the QR code style. `access`: who may see or run one event.
+//! - `admin_login`: refresh tokens and revoked JWTs.
 //! - `retention`: deleting what's no longer needed.
 
+pub mod access;
 pub mod admin_login;
 pub mod event;
 pub mod group;

@@ -91,7 +91,9 @@ agents, but it's the quickest tour for people too. In short:
 - **Add a page:** a handler and an askama `Template` struct in the module for its area,
   a template in `templates/` (`templates/admin/` for the admin), its path in
   `src/paths.rs`, and a route in that site's `router`. An admin page goes in the router
-  group of the role it needs, and its template hides what the host's role can't use.
+  group of the role it needs, and its template hides what the host's role can't use. Name
+  an admin path's parameter for what it is, `{event}`, `{guest}` or `{group}`, so a role
+  for one event reaches the page (`admin::role::for_event`).
   Handlers are named for what they do, so the router reads as a list of them: `list`,
   `show`, `create`, `edit`, `revoke`, `delete`, `qr`, as in `guests::edit`. A page that
   shows a form again to fix answers 422 (`http::render_form`).
@@ -136,8 +138,9 @@ agents, but it's the quickest tour for people too. In short:
   provider. `src/e2e/mod.rs` explains how to add a journey.
 
 Router-level helpers: `web::testing::Site` for the public site, `admin::testing::Admin`
-for a logged-in host of any role (with `event()`, `invite()` and `guests()` for the
-tests' event), and `crate::testing` for reading responses.
+for a logged-in host of any role, or by name with none (`as_user`), with `event()`,
+`invite()` and `guests()` for the tests' event, and `crate::testing` for reading
+responses.
 
 ## Releases, images and CI
 

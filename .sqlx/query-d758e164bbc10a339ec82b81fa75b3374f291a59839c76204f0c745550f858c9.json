@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select user_name as \"user\", role as \"role: EventRole\" from event_access\n         where event_id = $1 order by user_name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event_access",
+            "name": "user_name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "role: EventRole",
+        "type_info": {
+          "Custom": {
+            "name": "event_role",
+            "kind": {
+              "Enum": [
+                "viewer",
+                "editor"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "event_access",
+            "name": "role"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "d758e164bbc10a339ec82b81fa75b3374f291a59839c76204f0c745550f858c9"
+}

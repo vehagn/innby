@@ -30,7 +30,7 @@ use super::{
     lang,
     page::{AdminState, PageError, load_event, redirect},
     qr as admin_qr,
-    role::Role,
+    role::{Host, Role},
 };
 use crate::{
     db::{
@@ -58,6 +58,9 @@ struct EventRow {
 #[template(path = "admin/events.html")]
 struct EventsPage {
     events: Vec<EventRow>,
+    /// Whether these are only the events that give the host a role, who has none of
+    /// their own.
+    given_only: bool,
     draft: Draft,
     notice: Option<String>,
     /// For the layout; what goes wrong here is said beside the form it's about.
@@ -120,8 +123,8 @@ pub(super) struct EventsQuery {
     copy: Option<Uuid>,
 }
 
-/// Every event, the soonest first, and the forms for a new one: filled in from another
-/// event with `?copy=`.
+/// Every event the host may see, the soonest first, and for an admin, the forms for a
+/// new one: filled in from another event with `?copy=`.
 pub(super) async fn list(
     State(state): State<AdminState>,
     Query(query): Query<EventsQuery>,
@@ -152,8 +155,17 @@ async fn events_page(
     notice: Option<String>,
 ) -> Result<Response, PageError> {
     let lang = lang::current();
-    let (events, headcounts) =
-        tokio::try_join!(event::list(&state.db), rsvp::headcounts(&state.db))?;
+    // Without a role of their own, a host sees only the events that give them one.
+    let host = Host::current();
+    let given_only = host.role.is_none();
+    let events = async {
+        if given_only {
+            event::list_given(&state.db, &host.user).await
+        } else {
+            event::list(&state.db).await
+        }
+    };
+    let (events, headcounts) = tokio::try_join!(events, rsvp::headcounts(&state.db))?;
     let events = events
         .into_iter()
         .map(|event| EventRow {
@@ -166,6 +178,7 @@ async fn events_page(
     let needs_fixing = draft.error.is_some() || draft.file_error.is_some();
     let page = EventsPage {
         events,
+        given_only,
         draft,
         notice,
         error: None,

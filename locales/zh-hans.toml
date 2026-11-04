@@ -170,7 +170,7 @@ log_in_or = "或使用你的用户名和密码。"
 login_expired = "登录耗时过长，或是在另一个标签页中开始的。请重试。"
 login_cancelled = "登录已取消。"
 login_failed = "无法通过 {name} 登录。请稍后重试；如果仍然失败，原因记录在管理后台的日志中。"
-no_role = "{user} 在 {name} 中没有 Innby 角色。请申请 viewer、editor 或 admin。"
+no_role = "{user} 在 {name} 中没有 Innby 角色，也没有任何活动的访问权限。请申请一个角色，或某个活动的访问权限。"
 forbidden = "你的角色无权访问此页面。"
 not_found = "找不到这位宾客或这个群组。"
 saved = "已保存。"
@@ -295,6 +295,19 @@ qr_carried = "二维码保留原来的样式。"
 # Under the example code on the QR codes page.
 qr_preview = "已保存的样式，即活动页面上的样子。保存后即可看到更改。"
 qr_download = "下载二维码（SVG）"
+
+# Access: roles for one event
+access = "访问权限"
+access_hint = "在 Innby 中有自己角色的人都能看到所有活动。你可以在这里按对方登录用的用户名，给其只针对本活动的角色。"
+no_access = "还没有人只拥有本活动的角色。"
+col_role = "角色"
+role_viewer = "查看者"
+role_editor = "编辑者"
+roles_hint = "查看者能看到谁会来，但看不到他们的链接或电子邮件地址。编辑者还能邀请宾客、创建群组链接、发送提醒并修改活动。"
+give_access = "授予权限"
+remove_access = "移除"
+error_user_name = "请填写对方登录用的用户名，只占一行，最多 {max} 个字符。"
+no_events_given = "你还没有任何活动的访问权限。"
 
 # Guests
 guests = "宾客"

@@ -36,7 +36,8 @@ pub struct AdminConfig {
 #[derive(Debug, Clone)]
 pub struct PasswordLogin {
     pub user: String,
-    pub role: Role,
+    /// `None` for a user who sees only the events an admin gives them a role for.
+    pub role: Option<Role>,
     /// An argon2 PHC string from `innby hash-password`.
     pub password_hash: String,
 }
@@ -53,8 +54,12 @@ impl PasswordLogin {
         else {
             bail!("expected name:role:hash, as kari:editor:$argon2id$…");
         };
-        let role = Role::from_name(role)
-            .ok_or_else(|| anyhow!("{user}: the role is admin, editor or viewer, not {role:?}"))?;
+        let role = match role {
+            "none" => None,
+            name => Some(Role::from_name(name).ok_or_else(|| {
+                anyhow!("{user}: the role is admin, editor, viewer or none, not {role:?}")
+            })?),
+        };
         Ok(Self {
             user: user.to_owned(),
             role,
@@ -132,7 +137,7 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
                 user: self
                     .optional("INNBY_ADMIN_USER")
                     .unwrap_or_else(|| "admin".into()),
-                role: Role::Admin,
+                role: Some(Role::Admin),
                 password_hash,
             };
             admin.check(public).context("INNBY_ADMIN_PASSWORD_HASH")?;
@@ -297,7 +302,7 @@ mod tests {
         let hash = crate::admin::auth::tests::cheap_hash("secret");
         let admin = admin_with_hash(&hash, &config).unwrap();
         assert_eq!(admin.users[0].user, "admin");
-        assert_eq!(admin.users[0].role, Role::Admin);
+        assert_eq!(admin.users[0].role, Some(Role::Admin));
         assert_eq!(admin.listen, "0.0.0.0:8081".parse().unwrap());
 
         assert!(AdminConfig::from_lookup(|_| None, &config).is_err());
@@ -326,7 +331,7 @@ mod tests {
         );
         // Apart by spaces or lines, and with no built-in admin.
         let admin = admin_users(
-            &format!("\n  kari:editor:{kari}\n ola.n@x:viewer:{ola} "),
+            &format!("\n  kari:editor:{kari}\n ola.n@x:none:{ola} "),
             &config(),
         )
         .unwrap();
@@ -335,7 +340,7 @@ mod tests {
             .iter()
             .map(|login| (login.user.as_str(), login.role))
             .collect();
-        assert_eq!(users, [("kari", Role::Editor), ("ola.n@x", Role::Viewer)]);
+        assert_eq!(users, [("kari", Some(Role::Editor)), ("ola.n@x", None)]);
         assert!(crate::admin::auth::verify(
             &admin.users[1].password_hash,
             "ola"

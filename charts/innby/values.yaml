@@ -43,7 +43,8 @@ database:
 #   INNBY_ADMIN_PASSWORD_HASH  the built-in admin user's password: `innby hash-password`;
 #                              leave it out to log in only through OIDC
 #   INNBY_ADMIN_USERS          more users with a password, each name:role:hash, apart by
-#                              spaces or lines; the role is admin, editor or viewer
+#                              spaces or lines; the role is admin, editor, viewer, or
+#                              none for only the events an admin gives them a role for
 #   INNBY_OIDC_CLIENT_SECRET   with oidc.issuer
 #   INNBY_SMTP_USER, INNBY_SMTP_PASSWORD
 secrets:
