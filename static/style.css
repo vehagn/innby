@@ -834,8 +834,8 @@ body.admin .card::before {
 /* The headcount, one tile per answer; each shows only those guests in the table. */
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: 0.75rem;
   margin: 0 0 1.5rem;
 }
 
@@ -843,7 +843,7 @@ body.admin .card::before {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 1rem 1.25rem;
+  padding: 0.875rem 1rem;
   background: var(--raised);
   border: 1px solid var(--line);
   border-top: 3px solid var(--c);
