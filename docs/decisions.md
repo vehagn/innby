@@ -67,5 +67,8 @@ main steps, oldest first:
 15. The stylesheet as tokens and components, a banner on every page, and sample data.
 16. The code organised by page, with handlers named for what they do and every module
     described.
+17. A third pentest: a cap on the remembered links the front page reads, control
+    characters refused in event texts, a stricter QR colour, and tests dated years
+    ahead.
 
 `git log` has the details.
