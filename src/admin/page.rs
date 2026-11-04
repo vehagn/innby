@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::FromRef,
-    http::StatusCode,
+    extract::{FromRef, FromRequestParts},
+    http::{StatusCode, request::Parts},
     response::{IntoResponse, Redirect, Response},
 };
 use serde::Deserialize;
@@ -16,7 +16,7 @@ use super::{auth, lang, role::Role};
 use crate::{
     config::Config,
     db::event::{self, Event},
-    http::server_error,
+    http::{ClientIp, server_error},
     paths::{self, EventLinks},
 };
 
@@ -36,6 +36,18 @@ impl FromRef<AdminState> for Arc<auth::Auth> {
 impl FromRef<AdminState> for PgPool {
     fn from_ref(state: &AdminState) -> Self {
         state.db.clone()
+    }
+}
+
+/// The client, behind the gateway if the config trusts it, for the login's limits.
+impl FromRequestParts<AdminState> for ClientIp {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AdminState,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Self::from_parts(parts, state.config.trust_forwarded))
     }
 }
 

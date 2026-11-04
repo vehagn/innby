@@ -15,7 +15,7 @@ use serde::Deserialize;
 use super::{Auth, Outcome, REFRESH_TOKEN, TOKEN};
 use crate::{
     admin::lang,
-    http::{render, render_with, server_error},
+    http::{ClientIp, render, render_with, server_error},
     paths,
 };
 
@@ -72,9 +72,13 @@ pub struct LoginForm {
     password: String,
 }
 
-pub async fn log_in(State(auth): State<Arc<Auth>>, Form(form): Form<LoginForm>) -> Response {
+pub async fn log_in(
+    State(auth): State<Arc<Auth>>,
+    client: ClientIp,
+    Form(form): Form<LoginForm>,
+) -> Response {
     let text = lang::text();
-    let (status, error) = match auth.check(form.user.clone(), form.password).await {
+    let (status, error) = match auth.check(client, form.user.clone(), form.password).await {
         Outcome::Accepted => {
             return match auth.start_session().await {
                 Ok(cookies) => {

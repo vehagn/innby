@@ -12,8 +12,10 @@
 //! keeps everyone else on the LAN out too.
 //!
 //! Each argon2 check needs 19 MiB and the admin pod gets 64, so checks run one at a time.
-//! After too many checks, logins are refused for a while; browsers that are logged in
-//! keep working.
+//! After too many checks from one client address, that address's logins are refused for
+//! a while, so a stranger guessing can't lock the host out. A much higher limit across
+//! every address bounds guessing from many at once. Browsers that are logged in keep
+//! working either way.
 //!
 //! - `mod.rs`: `Auth`, the sessions, and `require_login`, which every page goes through.
 //! - `login`: the login page and logging out. `password`: the built-in user's argon2
@@ -44,14 +46,16 @@ use super::role::Role;
 use crate::{
     config::{AdminConfig, PasswordLogin},
     db::admin_login,
-    http::{RateLimiter, cookie, server_error},
+    http::{ClientIp, RateLimiter, cookie, server_error},
     paths, random,
 };
 use oidc::OIDC_SESSION;
 use password::{Credentials, Outcome};
 
-/// Password checks allowed per window, right or wrong.
+/// Password checks allowed per client address and window, right or wrong.
 const ATTEMPTS: u32 = 10;
+/// The same from every address together.
+const ALL_ATTEMPTS: u32 = 100;
 
 const ATTEMPT_WINDOW: Duration = Duration::from_secs(15 * 60);
 
@@ -80,6 +84,7 @@ pub struct Auth {
     /// One permit: the argon2 check that may run right now.
     checking: Arc<Semaphore>,
     attempts: RateLimiter,
+    all_attempts: RateLimiter,
 }
 
 /// What a request's cookies say.
@@ -131,6 +136,7 @@ impl Auth {
             db,
             checking: Arc::new(Semaphore::new(1)),
             attempts: RateLimiter::new(ATTEMPTS, ATTEMPT_WINDOW),
+            all_attempts: RateLimiter::new(ALL_ATTEMPTS, ATTEMPT_WINDOW),
         }
     }
 
@@ -147,7 +153,7 @@ impl Auth {
         }
     }
 
-    async fn check(&self, user: String, password: String) -> Outcome {
+    async fn check(&self, client: ClientIp, user: String, password: String) -> Outcome {
         let Some(credentials) = &self.credentials else {
             return Outcome::Rejected;
         };
@@ -157,8 +163,13 @@ impl Auth {
             .acquire_owned()
             .await
             .expect("the semaphore is never closed");
-        if !self.attempts.check_all() {
-            tracing::warn!("admin login attempts limit hit");
+        // A client over its limit doesn't count against everyone's.
+        if !self.attempts.check(client) {
+            tracing::warn!("admin login attempts limit hit for a client");
+            return Outcome::TooManyAttempts;
+        }
+        if !self.all_attempts.check_all() {
+            tracing::warn!("admin login attempts limit hit for all clients");
             return Outcome::TooManyAttempts;
         }
         let credentials = Arc::clone(credentials);
@@ -333,15 +344,43 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn limits_guessing() {
+    async fn limits_guessing_per_client() {
         let auth = auth();
-        let check = |password: &str| auth.check("admin".into(), password.into());
-        assert_eq!(check("secret").await, Outcome::Accepted);
+        let client = |last: u8| ClientIp([192, 0, 2, last].into());
+        let check =
+            |last: u8, password: &str| auth.check(client(last), "admin".into(), password.into());
+        assert_eq!(check(1, "secret").await, Outcome::Accepted);
         // The login above was the first of the attempts.
         for i in 1..ATTEMPTS {
-            assert_eq!(check(&format!("guess{i}")).await, Outcome::Rejected, "{i}");
+            assert_eq!(
+                check(1, &format!("guess{i}")).await,
+                Outcome::Rejected,
+                "{i}"
+            );
         }
-        assert_eq!(check("secret").await, Outcome::TooManyAttempts);
+        assert_eq!(check(1, "secret").await, Outcome::TooManyAttempts);
+        // Someone else still gets in.
+        assert_eq!(check(2, "secret").await, Outcome::Accepted);
+    }
+
+    #[tokio::test]
+    async fn limits_guessing_from_many_clients() {
+        let auth = auth();
+        // 100 checks so far, from ten clients, ten each.
+        for client in 0..10u8 {
+            for _ in 0..10 {
+                let ip = ClientIp([192, 0, 2, client].into());
+                assert_eq!(
+                    auth.check(ip, "admin".into(), "guess".into()).await,
+                    Outcome::Rejected
+                );
+            }
+        }
+        let fresh = ClientIp([198, 51, 100, 1].into());
+        assert_eq!(
+            auth.check(fresh, "admin".into(), "secret".into()).await,
+            Outcome::TooManyAttempts
+        );
     }
 
     #[tokio::test]

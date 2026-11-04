@@ -53,15 +53,18 @@ secrets:
   smtpUser: ""
   smtpPassword: ""
 
+# Takes the client's address from the X-Forwarded-For entry the proxy in front appends,
+# for the rate limits: the site's sign-ups and mail, and the admin's login attempts,
+# which are counted per address. Only with a proxy every request comes through; without
+# it, everyone behind the proxy shares one address and one limit.
+trustForwarded: false
+
 # Further INNBY_* settings and RUST_LOG, as name: value, for every workload.
 extraConfig: {}
 #  INNBY_TRUST_FORWARDED: "true"
 
 web:
   replicaCount: 2
-  # Rate limits by the X-Forwarded-For address the proxy in front appends. Only with a
-  # proxy that every request comes through.
-  trustForwarded: false
   service:
     type: ClusterIP
     port: 80

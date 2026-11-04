@@ -16,9 +16,8 @@ database:
 secrets:
   existingSecret: innby
 
-web:
-  # The gateway appends the client address to X-Forwarded-For.
-  trustForwarded: true
+# The gateways append the client address to X-Forwarded-For.
+trustForwarded: true
 
 admin:
   # On a hostname of its own, on the internal gateway only.

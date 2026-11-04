@@ -8,7 +8,7 @@ data:
   INNBY_BASE_URL: {{ include "innby.siteUrl" . | quote }}
   INNBY_CONTROLLER_NAME: {{ required "controller.name: the data controller named in the privacy notice" .Values.controller.name | quote }}
   INNBY_CONTROLLER_EMAIL: {{ required "controller.email: how guests reach the data controller" .Values.controller.email | quote }}
-  INNBY_TRUST_FORWARDED: {{ .Values.web.trustForwarded | toString | quote }}
+  INNBY_TRUST_FORWARDED: {{ .Values.trustForwarded | toString | quote }}
   {{- if .Values.admin.enabled }}
   INNBY_ADMIN_URL: {{ include "innby.adminUrl" . | quote }}
   INNBY_ADMIN_USER: {{ .Values.admin.user | quote }}

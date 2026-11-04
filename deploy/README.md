@@ -50,8 +50,8 @@ To see what Argo CD will apply, `helm template innby charts/innby --namespace in
 
 ## Things to verify after the first deploy
 
-- **Client addresses.** Group sign-up and `/lost` are rate-limited per client address,
-  taken from the `X-Forwarded-For` entry the gateway appends. If the external gateway
+- **Client addresses.** Group sign-up, `/lost` and admin logins are rate-limited per
+  client address, taken from the `X-Forwarded-For` entry the gateway appends. If the external gateway
   SNATs traffic so that every request seems to come from a node, the limit becomes
   shared by everyone. `whoami-dev.stonegarden.dev` shows what the gateway forwards.
 - **Network policies.** No other app in the cluster uses Cilium network policies yet. If

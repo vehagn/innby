@@ -69,6 +69,7 @@
         "smtpPassword": { "type": "string" }
       }
     },
+    "trustForwarded": { "type": "boolean" },
     "extraConfig": {
       "type": "object",
       "propertyNames": { "pattern": "^(INNBY_[A-Z0-9_]+|RUST_LOG)$" },
@@ -79,7 +80,6 @@
       "additionalProperties": false,
       "properties": {
         "replicaCount": { "type": "integer", "minimum": 0 },
-        "trustForwarded": { "type": "boolean" },
         "service": { "$ref": "#/definitions/service" },
         "resources": { "$ref": "#/definitions/resources" }
       }

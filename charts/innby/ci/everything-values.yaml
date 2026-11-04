@@ -13,7 +13,7 @@ mailer:
   from: Innby <fest@example.com>
   smtpUrl: smtp://smtp.example.com:587?tls=required
 janitor: { timeZone: Europe/Oslo }
-web: { trustForwarded: true }
+trustForwarded: true
 extraConfig: { RUST_LOG: debug }
 httpRoute:
   enabled: true
