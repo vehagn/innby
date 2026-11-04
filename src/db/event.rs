@@ -215,7 +215,9 @@ pub(crate) mod tests {
 
     use super::*;
 
-    /// The tests' event: the Christmas party at Storgata 1 on 12 December 2026.
+    /// The tests' event: the Christmas party at Storgata 1 on 12 December 2054. Years
+    /// ahead, so its answers stay open whenever the tests run, and in a year with 2026's
+    /// calendar, so the weekdays are those the tests were written with.
     pub fn details() -> Details {
         Details {
             title: Texts {
@@ -229,7 +231,7 @@ pub(crate) mod tests {
             },
             location: "Storgata 1, Oslo".into(),
             starts_at: chrono_tz::Europe::Oslo
-                .with_ymd_and_hms(2026, 12, 12, 19, 0, 0)
+                .with_ymd_and_hms(2054, 12, 12, 19, 0, 0)
                 .unwrap(),
             rsvp_deadline: None,
         }
@@ -240,7 +242,7 @@ pub(crate) mod tests {
         Details {
             rsvp_deadline: Some(
                 chrono_tz::Europe::Oslo
-                    .with_ymd_and_hms(2026, 12, 1, 12, 0, 0)
+                    .with_ymd_and_hms(2054, 12, 1, 12, 0, 0)
                     .unwrap(),
             ),
             ..details()
@@ -267,7 +269,7 @@ pub(crate) mod tests {
         assert_eq!(found.details.title(Lang::ZhHant), "圣诞晚会");
         assert_eq!(
             found.details.starts_at.to_rfc3339(),
-            "2026-12-12T19:00:00+01:00"
+            "2054-12-12T19:00:00+01:00"
         );
 
         details.location = "Storgata 2".into();
@@ -280,18 +282,18 @@ pub(crate) mod tests {
     fn answers_close_at_the_deadline_or_the_start() {
         let at = |time: &str| time.parse::<DateTime<Utc>>().unwrap();
         let details = details();
-        assert!(details.accepts_answers(at("2026-12-12T17:59:00Z")));
-        assert!(!details.accepts_answers(at("2026-12-12T18:00:00Z")));
+        assert!(details.accepts_answers(at("2054-12-12T17:59:00Z")));
+        assert!(!details.accepts_answers(at("2054-12-12T18:00:00Z")));
         let details = details_with_deadline();
-        assert!(details.accepts_answers(at("2026-12-01T10:59:00Z")));
-        assert!(!details.accepts_answers(at("2026-12-01T11:00:00Z")));
+        assert!(details.accepts_answers(at("2054-12-01T10:59:00Z")));
+        assert!(!details.accepts_answers(at("2054-12-01T11:00:00Z")));
     }
 
     #[sqlx::test]
     async fn events_go_with_everything_in_them(db: PgPool) {
         let mut past = details();
         past.starts_at = chrono_tz::Europe::Oslo
-            .with_ymd_and_hms(2026, 1, 1, 19, 0, 0)
+            .with_ymd_and_hms(2054, 1, 1, 19, 0, 0)
             .unwrap();
         let past = create(&db, &past).await.unwrap();
         let future = create(&db, &details()).await.unwrap();
@@ -302,7 +304,7 @@ pub(crate) mod tests {
             .await
             .unwrap();
 
-        let cutoff = at_utc("2026-06-01T00:00:00Z");
+        let cutoff = at_utc("2054-06-01T00:00:00Z");
         assert_eq!(delete_started_by(&db, cutoff).await.unwrap(), 1);
         assert!(find(&db, past.id).await.unwrap().is_none());
         assert!(find(&db, future.id).await.unwrap().is_some());

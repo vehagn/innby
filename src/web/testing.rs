@@ -43,7 +43,10 @@ impl Site {
     pub async fn close_answers(&self) {
         let event = self.event().await;
         let mut details = event.details;
-        details.rsvp_deadline = Some(details.starts_at - chrono::Duration::days(3650));
+        // A minute ago, whenever the event is.
+        let zone = details.starts_at.timezone();
+        details.rsvp_deadline =
+            Some(chrono::Utc::now().with_timezone(&zone) - chrono::Duration::minutes(1));
         crate::db::event::update(&self.db, event.id, &details)
             .await
             .unwrap();

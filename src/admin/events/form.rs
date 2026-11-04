@@ -239,14 +239,14 @@ mod tests {
             ("title-nn", ""),
             ("description", "Velkommen!"),
             ("location", "Storgata 1, Oslo"),
-            ("starts_at", "2026-12-12T19:00"),
+            ("starts_at", "2054-12-12T19:00"),
             ("time_zone", "Europe/Oslo"),
             ("rsvp_deadline", ""),
         ]));
         assert_eq!(form.details().unwrap(), crate::db::event::tests::details());
         // And back into the form it came from.
         let again = EventForm::from_details(&form.details().unwrap());
-        assert_eq!(again.starts_at(), "2026-12-12T19:00");
+        assert_eq!(again.starts_at(), "2054-12-12T19:00");
         assert_eq!(again.translations()[1].title, "Christmas party");
 
         for (field, value) in [
@@ -261,7 +261,7 @@ mod tests {
         ] {
             let mut bad = fields(&[
                 ("title", "Julebord"),
-                ("starts_at", "2026-12-12T19:00"),
+                ("starts_at", "2054-12-12T19:00"),
                 ("time_zone", "Europe/Oslo"),
             ]);
             bad.insert(field.into(), value.into());
@@ -271,7 +271,7 @@ mod tests {
         let lines = EventForm::from_fields(&fields(&[
             ("title", "Julebord"),
             ("description", "Velkommen!\r\n\tKl. 19"),
-            ("starts_at", "2026-12-12T19:00"),
+            ("starts_at", "2054-12-12T19:00"),
             ("time_zone", "Europe/Oslo"),
         ]));
         assert!(lines.details().is_ok());

@@ -183,7 +183,7 @@ impl World {
             ..Default::default()
         };
         details.starts_at =
-            chrono::TimeZone::with_ymd_and_hms(&chrono_tz::Europe::Oslo, 2027, 6, 20, 15, 0, 0)
+            chrono::TimeZone::with_ymd_and_hms(&chrono_tz::Europe::Oslo, 2055, 6, 20, 15, 0, 0)
                 .unwrap();
         crate::db::event::create(&self.db, &details).await.unwrap()
     }

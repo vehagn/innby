@@ -323,7 +323,7 @@ mod tests {
     fn a_file_needs_little() {
         let file = EventFile::parse(
             "apiVersion = \"innby/v1\"\nkind = \"Event\"\n\
-             starts = \"2027-06-20T15:00\"\ntime_zone = \"Europe/Oslo\"\n\
+             starts = \"2055-06-20T15:00\"\ntime_zone = \"Europe/Oslo\"\n\
              title = { nb = \"Sommerfest\" }\n[[groups]]\nname = \"Naboer\"",
         )
         .unwrap();
@@ -364,7 +364,7 @@ mod tests {
     fn reads_only_the_format_and_kind_it_knows() {
         let file = |head: &str| {
             EventFile::parse(&format!(
-                "{head}starts = \"2027-06-20T15:00\"\ntime_zone = \"Europe/Oslo\"\n\
+                "{head}starts = \"2055-06-20T15:00\"\ntime_zone = \"Europe/Oslo\"\n\
                  title = {{ nb = \"Sommerfest\" }}"
             ))
         };
@@ -387,10 +387,10 @@ mod tests {
     #[test]
     fn names_files_after_the_title_and_year() {
         let mut details = details_with_deadline();
-        assert_eq!(file_name(&details), "julebord-2026.toml");
+        assert_eq!(file_name(&details), "julebord-2054.toml");
         details.title.nb = "  Sommerfest på Bygdøy! ".into();
-        assert_eq!(file_name(&details), "sommerfest-pa-bygdoy-2026.toml");
+        assert_eq!(file_name(&details), "sommerfest-pa-bygdoy-2054.toml");
         details.title.nb = "圣诞".into();
-        assert_eq!(file_name(&details), "event-2026.toml");
+        assert_eq!(file_name(&details), "event-2054.toml");
     }
 }

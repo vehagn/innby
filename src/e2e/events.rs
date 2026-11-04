@@ -24,7 +24,7 @@ async fn the_host_creates_an_event_invites_to_it_and_deletes_it(db: PgPool) {
             "Summer party",
         )
         .fill(&a.event_location, "Bygdøy")
-        .fill(&a.event_starts, "2026-12-20T15:00");
+        .fill(&a.event_starts, "2054-12-20T15:00");
     host.press(&a.create_event)
         .await
         .expect(&a.event_created)
@@ -76,7 +76,7 @@ async fn one_device_remembers_invitations_to_two_events(db: PgPool) {
 
     let mut host = world.admin().await;
     host.fill(&format!("{} · Bokmål", a.event_title), "Sommerfest")
-        .fill(&a.event_starts, "2027-06-20T15:00");
+        .fill(&a.event_starts, "2055-06-20T15:00");
     host.press(&a.create_event).await;
     host.click(&a.invitation_links).await;
     host.fill(&a.names, "Kari Nordmann");
@@ -258,7 +258,7 @@ async fn each_event_goes_a_month_after_it_starts(db: PgPool) {
 
     // A month after Christmas, the janitor takes the Christmas party and everything in
     // it, and leaves the summer party be.
-    world.run_janitor("2027-01-13T12:00:00Z").await;
+    world.run_janitor("2055-01-13T12:00:00Z").await;
     let gone = phone.open(&christmas).await;
     assert_eq!(gone.status, StatusCode::NOT_FOUND);
     gone.expect(&t.gone_title);
@@ -279,7 +279,7 @@ async fn each_event_goes_a_month_after_it_starts(db: PgPool) {
         .expect_not("Christmas party");
 
     // A month after midsummer, it goes too.
-    world.run_janitor("2027-07-21T12:00:00Z").await;
+    world.run_janitor("2055-07-21T12:00:00Z").await;
     assert_eq!(phone.open(&summer).await.status, StatusCode::NOT_FOUND);
     world.admin().await.page().expect(&a.no_events);
 }
@@ -302,13 +302,13 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
     let file = host.download(&a.export_event).await;
     assert_eq!(
         file.headers["content-disposition"],
-        r#"attachment; filename="julebord-2026.toml""#
+        r#"attachment; filename="julebord-2054.toml""#
     );
     let file = file.body;
     for expected in [
         "apiVersion = \"innby/v1\"",
         "kind = \"Event\"",
-        "starts = \"2026-12-12T19:00\"",
+        "starts = \"2054-12-12T19:00\"",
         "en = \"Christmas party\"",
         "name = \"Climbing club\"",
     ] {
@@ -326,13 +326,13 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
     host.press(&a.read_file).await.expect(&version);
 
     // Next year's: the file, uploaded with a new date, fills in the new event's form.
-    let next_year = file.replace("2026-12-12T19:00", "2027-12-11T19:00");
+    let next_year = file.replace("2054-12-12T19:00", "2055-12-11T19:00");
     host.fill(&a.event_file, "")
-        .attach(&a.event_file_upload, "julebord-2026.toml", &next_year);
+        .attach(&a.event_file_upload, "julebord-2054.toml", &next_year);
     host.press(&a.read_file)
         .await
         .expect(&filled(&a.imported_notice, "title", "Julebord"));
-    assert_eq!(host.value(&a.event_starts), "2027-12-11T19:00");
+    assert_eq!(host.value(&a.event_starts), "2055-12-11T19:00");
     assert_eq!(host.value(&a.event_groups), "Climbing club, 3");
     host.press(&a.create_event).await.expect(&a.event_created);
 

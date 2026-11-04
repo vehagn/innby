@@ -9,7 +9,7 @@ use crate::{
 };
 
 fn event_start() -> DateTime<Utc> {
-    "2026-12-12T18:00:00Z".parse().unwrap()
+    "2054-12-12T18:00:00Z".parse().unwrap()
 }
 
 async fn the_event(db: &PgPool) -> uuid::Uuid {
