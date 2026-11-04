@@ -103,6 +103,8 @@ into a module.
 - Router-level tests: `web::testing::Site` for the public site, `admin::testing::Admin`
   for a logged-in host. Generic helpers are in `crate::testing`.
 - Journeys go in `src/e2e/`, one file per area; `src/e2e/mod.rs` says how to add one.
+  `World` makes the sites, a second event (`summer_party`), invitations to either, and
+  runs the mailer and the janitor; each `Browser` is a device with its own address.
   They find fields by label and buttons by text, from the British locale (`en()`,
   `admin()`).
 

@@ -103,3 +103,31 @@ async fn the_admin_ui_can_live_under_the_sites_hostname(db: PgPool) {
     host.press(&a.log_out).await.expect(&a.logged_out);
     assert_eq!(host.page().url, world.site("/admin/login?logged_out"));
 }
+
+#[sqlx::test]
+async fn a_stranger_guessing_cannot_lock_the_host_out(db: PgPool) {
+    let world = World::new(db);
+    let a = admin();
+    let there: std::net::IpAddr = "203.0.113.9".parse().unwrap();
+    let mut stranger = world.browser_at(there);
+    stranger.open(&world.admin_url).await;
+    for _ in 0..10 {
+        stranger.fill(&a.user_name, USER).fill(&a.password, "guess");
+        stranger.press(&a.log_in).await.expect(&a.wrong_login);
+    }
+    // Then not even the right password works from there, nor from a second device on
+    // the same network.
+    stranger
+        .fill(&a.user_name, USER)
+        .fill(&a.password, PASSWORD);
+    stranger.press(&a.log_in).await.expect(&a.too_many_logins);
+    let mut neighbour = world.browser_at(there);
+    neighbour.open(&world.admin_url).await;
+    neighbour
+        .fill(&a.user_name, USER)
+        .fill(&a.password, PASSWORD);
+    neighbour.press(&a.log_in).await.expect(&a.too_many_logins);
+
+    // The host, elsewhere, logs in as usual.
+    world.admin().await.page().expect(&a.events);
+}

@@ -276,7 +276,7 @@ The devcontainer is a Compose project with three services:
 - **Tests:**
   - Unit tests for link signing (tampering, nonce bump, expiry), validation, i18n completeness and retention.
   - Integration tests with `#[sqlx::test]`, which creates a throwaway database per test against `db`.
-  - End-to-end journeys in `src/e2e/`, over the real routers of the public site and the admin UI and the real mailer, on a throwaway database. A test `Browser` opens pages, fills in fields by their labels, presses buttons by their text, follows redirects and keeps cookies; mail lands in an inbox the test reads. Labels and texts come from the British locale file, so rewording a text doesn't break a test. Each file covers an area: `guests.rs`, `groups.rs`, `email.rs`, `host.rs`, `events.rs`, `sso.rs`. Single sign-on runs against a fake provider in `admin/auth/oidc/fake.rs`, on a local port, which checks what a real one would and can be made to misbehave.
+  - End-to-end journeys in `src/e2e/`, over the real routers of the public site and the admin UI and the real mailer, on a throwaway database. A test `Browser` opens pages, fills in fields by their labels, presses buttons by their text, follows redirects and keeps cookies; mail lands in an inbox the test reads. Labels and texts come from the British locale file, so rewording a text doesn't break a test. Each file covers an area: `guests.rs`, `groups.rs`, `email.rs`, `host.rs`, `events.rs` (several events side by side, a guest of two, and the janitor taking each in turn), `names.rs`, `languages.rs`, `sso.rs`. Each test browser has a client address of its own, so per-address limits can be tested. Single sign-on runs against a fake provider in `admin/auth/oidc/fake.rs`, on a local port, which checks what a real one would and can be made to misbehave.
 
 ## 10. Container image (binary only, no build tool)
 
@@ -373,6 +373,7 @@ Hidden from the list, for other recipes and CI: `run`, `migrate`, `build` (cargo
 26. ✅ **Languages as modules:** each `locales/*.toml` declares what its language is and which languages fill in the texts it leaves out; the Rust side keeps only the list.
 27. ✅ **Second pentest:** names (guests', invitations' and groups') are letters in any script with their accents, spaces and name punctuation (`- ' . , & ·`), and digits in a group's name, refused otherwise rather than stripped; request headers are capped at 16 KiB. Stored markup, CSV formulas, CSRF from other sites and `Origin: null`, forged and tampered links and JWTs, `?lang=`/`?theme=`/`?notice=` injection, oversized bodies, path tricks, e-mail header injection, party sizes and the rate limits all held.
 28. ✅ **Login limit per address:** the admin login counts attempts per client address (10 in 15 minutes), with 100 across all addresses as a backstop; the chart's `trustForwarded` moves to the top level, as it now serves the admin too.
+29. ✅ **More journeys:** names, language fallbacks for host-written texts, the per-address login limit, and several events: run side by side, sharing a guest's address, and deleted a month after each starts.
 
 ## 14. Decisions
 

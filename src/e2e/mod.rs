@@ -1,10 +1,10 @@
 //! End-to-end tests: whole journeys through the public site, the admin UI and the mailer,
 //! driven the way people use them.
 //!
-//! A [`World`] is one event on a throwaway database. Each [`Browser`] in it is one
-//! person's device: it opens links, fills in fields by their labels, presses buttons by
-//! their text and keeps its own cookies. Mail goes to an inbox the test can read instead
-//! of to SMTP.
+//! A [`World`] is a throwaway database with the sites on it. Each [`Browser`] in it is
+//! one person's device, with a client address of its own (`browser_at` picks one): it
+//! opens links, fills in fields by their labels, presses buttons by their text and
+//! keeps its own cookies. Mail goes to an inbox the test can read instead of to SMTP.
 //!
 //! The pages are the real ones, so these tests find what a person would look for:
 //! labels and button texts, taken from the British texts (`en()`, `admin()`) so that a
@@ -15,7 +15,7 @@
 //! ([`World::with_sso`]), which the browsers visit as they would Authelia.
 //!
 //! To add a journey, add a `#[sqlx::test]` to the file for its area: events, guests,
-//! groups, e-mail, the host or single sign-on.
+//! groups, e-mail, the host, names, languages or single sign-on.
 
 mod browser;
 mod email;
@@ -24,9 +24,19 @@ mod groups;
 mod guests;
 mod host;
 mod html;
+mod languages;
+mod names;
 mod sso;
 
-use std::{collections::HashMap, sync::Mutex, time::Duration};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr},
+    sync::{
+        Mutex,
+        atomic::{AtomicU8, Ordering},
+    },
+    time::Duration,
+};
 
 use axum::Router;
 use lettre::message::Mailbox;
@@ -65,6 +75,8 @@ pub struct World {
     sent: Inbox,
     /// How many mails each address has read with `receive`.
     read: Mutex<HashMap<String, usize>>,
+    /// The last client address handed to a browser.
+    addresses: AtomicU8,
 }
 
 #[derive(Default)]
@@ -87,6 +99,7 @@ impl World {
             sso: None,
             sent: Inbox::default(),
             read: Mutex::default(),
+            addresses: AtomicU8::new(0),
             db,
             config,
         }
@@ -125,7 +138,13 @@ impl World {
 
     /// A new device, with no cookies and no page open.
     pub fn browser(&self) -> Browser<'_> {
-        Browser::new(self)
+        let n = self.addresses.fetch_add(1, Ordering::Relaxed) + 1;
+        self.browser_at(IpAddr::V4(Ipv4Addr::new(192, 0, 2, n)))
+    }
+
+    /// A new device at this client address, as two devices on one network share one.
+    pub fn browser_at(&self, address: IpAddr) -> Browser<'_> {
+        Browser::new(self, address)
     }
 
     /// The host's browser, logged in to the admin UI, on the list of events.
@@ -151,11 +170,32 @@ impl World {
         crate::db::event::tests::event(&self.db).await
     }
 
-    /// An invitation made straight in the database, for journeys that don't start
-    /// with the host. Returns the guest's link.
+    /// A second event, the summer party in June, made straight in the database after
+    /// the tests' event, which `event` would otherwise take it for.
+    pub async fn summer_party(&self) -> crate::db::event::Event {
+        self.event().await;
+        let mut details = crate::db::event::tests::details();
+        details.title = crate::i18n::Texts {
+            nb: "Sommerfest".into(),
+            en_gb: Some("Summer party".into()),
+            ..Default::default()
+        };
+        details.starts_at =
+            chrono::TimeZone::with_ymd_and_hms(&chrono_tz::Europe::Oslo, 2027, 6, 20, 15, 0, 0)
+                .unwrap();
+        crate::db::event::create(&self.db, &details).await.unwrap()
+    }
+
+    /// An invitation to the tests' event made straight in the database, for journeys
+    /// that don't start with the host. Returns the guest's link.
     pub async fn invite(&self, name: &str, max_party_size: i32) -> String {
         let event = self.event().await;
-        let rsvp = crate::db::rsvp::create_invite(&self.db, event.id, name, max_party_size)
+        self.invite_to(event.id, name, max_party_size).await
+    }
+
+    /// The same, to another event.
+    pub async fn invite_to(&self, event: uuid::Uuid, name: &str, max_party_size: i32) -> String {
+        let rsvp = crate::db::rsvp::create_invite(&self.db, event, name, max_party_size)
             .await
             .unwrap();
         let link = self
@@ -163,6 +203,12 @@ impl World {
             .link_key
             .link(crate::link::Purpose::Rsvp, rsvp.id, rsvp.link_nonce);
         self.site(&crate::paths::path(crate::paths::RSVP, link))
+    }
+
+    /// Runs the retention rules as `innby janitor` would at this time.
+    pub async fn run_janitor(&self, at: &str) {
+        let now = at.parse().unwrap();
+        crate::janitor::run(&self.db, now).await.unwrap();
     }
 
     /// Runs the mailer until nothing is due, as its loop would.

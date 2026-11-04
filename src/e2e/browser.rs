@@ -2,10 +2,11 @@
 //! by their labels and presses buttons by their text, and keeps its cookies. Each
 //! `Browser` is one person's device.
 
-use std::fmt;
+use std::{fmt, net::IpAddr};
 
 use axum::{
     body::Body,
+    extract::ConnectInfo,
     http::{HeaderMap, Method, Request, StatusCode, header},
 };
 use http_body_util::BodyExt;
@@ -18,6 +19,8 @@ use super::{
 
 pub struct Browser<'w> {
     world: &'w World,
+    /// Where its requests come from, for the rate limits.
+    address: IpAddr,
     cookies: Vec<Cookie>,
     page: Option<Page>,
 }
@@ -50,9 +53,10 @@ pub struct Page {
 }
 
 impl<'w> Browser<'w> {
-    pub(super) fn new(world: &'w World) -> Self {
+    pub(super) fn new(world: &'w World, address: IpAddr) -> Self {
         Self {
             world,
+            address,
             cookies: Vec::new(),
             page: None,
         }
@@ -229,9 +233,12 @@ impl<'w> Browser<'w> {
                     .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
                     .header("sec-fetch-site", "same-origin");
             }
-            let request = request
+            let mut request = request
                 .body(Body::from(body.take().unwrap_or_default()))
                 .unwrap();
+            // As the listener records the peer's address.
+            let peer = std::net::SocketAddr::new(self.address, 50000);
+            request.extensions_mut().insert(ConnectInfo(peer));
             let response = self.world.router(&url).oneshot(request).await.unwrap();
             self.store_cookies(origin, response.headers());
             let status = response.status();

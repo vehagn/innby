@@ -1,11 +1,15 @@
-//! Journeys across events: the host makes them, and a device can remember invitations
-//! to several.
+//! Journeys across events: the host makes and runs several side by side, each keeps its
+//! guests to itself, one guest and one device can belong to several, and each goes a
+//! month after it starts.
 
 use axum::http::StatusCode;
 use sqlx::PgPool;
 
-use super::{World, admin, en};
-use crate::{db::rsvp::Response, i18n::filled};
+use super::{World, admin, en, link_in};
+use crate::{
+    db::rsvp::Response,
+    i18n::{count, filled},
+};
 
 #[sqlx::test]
 async fn the_host_creates_an_event_invites_to_it_and_deletes_it(db: PgPool) {
@@ -109,4 +113,173 @@ async fn one_device_remembers_invitations_to_two_events(db: PgPool) {
         .expect("Sommerfest")
         .expect_not("Christmas party");
     assert_eq!(phone.cookie_names().len(), 1);
+}
+
+#[sqlx::test]
+async fn the_host_runs_two_events_side_by_side(db: PgPool) {
+    let world = World::new(db);
+    let (t, a) = (en(), admin());
+    let summer = world.summer_party().await;
+    let kari = world.invite("Kari Nordmann", 2).await;
+    let per = world.invite_to(summer.id, "Per Hansen", 1).await;
+
+    // Kari is coming to Christmas with one more; Per hasn't answered for the summer.
+    let mut kari_phone = world.browser();
+    kari_phone.open(&kari).await.expect("Christmas party");
+    kari_phone.select(&t.how_many, &t.people_count(2));
+    kari_phone.press(&t.attend).await;
+
+    // Each event's guest list has only its own guests.
+    kari_phone
+        .click(&t.see_guest_list)
+        .await
+        .expect("Kari Nordmann")
+        .expect_not("Per H");
+    let mut per_phone = world.browser();
+    per_phone
+        .open(&per)
+        .await
+        .expect("Summer party")
+        .expect_not("Christmas party");
+    per_phone
+        .click(&t.see_guest_list)
+        .await
+        .expect("Per H.")
+        .expect_not("Kari");
+
+    // The host sees both events, the soonest first, each with its own headcount,
+    // guests and export.
+    let mut host = world.admin().await;
+    let text = &host.page().doc.text;
+    assert!(
+        text.find("Christmas party").unwrap() < text.find("Summer party").unwrap(),
+        "{text}"
+    );
+    host.click("Christmas party")
+        .await
+        .expect(&count(2, &a.coming_one, &a.coming_other))
+        .expect("Kari Nordmann")
+        .expect_not("Per Hansen");
+    let csv = host.download(&a.download_csv).await;
+    assert!(csv.body.contains("Kari Nordmann") && !csv.body.contains("Per Hansen"));
+
+    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click("Summer party")
+        .await
+        .expect(&count(0, &a.coming_one, &a.coming_other))
+        .expect("Per Hansen")
+        .expect_not("Kari Nordmann");
+    let csv = host.download(&a.download_csv).await;
+    assert!(csv.body.contains("Per Hansen") && !csv.body.contains("Kari Nordmann"));
+
+    // Invitations made on one event's tab belong to it alone.
+    host.click(&a.invitation_links).await;
+    host.fill(&a.names, "Ola Nordmann");
+    host.press(&a.create_invitations).await;
+    host.click(&a.guests).await.expect("Ola Nordmann");
+    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click("Christmas party")
+        .await
+        .expect_not("Ola Nordmann");
+}
+
+#[sqlx::test]
+async fn one_address_belongs_to_a_guest_of_two_events(db: PgPool) {
+    let world = World::new(db);
+    let (t, a) = (en(), admin());
+    let summer = world.summer_party().await;
+    let links = [
+        world.invite("Kari Nordmann", 1).await,
+        world.invite_to(summer.id, "Kari Nordmann", 1).await,
+    ];
+
+    // Kari confirms the same address on both invitations.
+    let mut kari = world.browser();
+    for link in &links {
+        kari.open(link).await;
+        kari.fill(&t.email_label, "kari@example.com")
+            .check(t.email_consent.trim());
+        kari.press(&t.email_add).await.expect(&t.email_sent_notice);
+        let confirmation = world.receive("kari@example.com").await;
+        kari.open(link_in(&confirmation)).await;
+        kari.press(&t.confirm_button)
+            .await
+            .expect(&t.email_confirmed_notice);
+        let mail = world.receive("kari@example.com").await;
+        assert!(link_in(&mail).starts_with(link.as_str()), "{}", mail.body);
+    }
+
+    // A mislaid link brings both back, one mail each.
+    let mut phone = world.browser();
+    phone.open(&world.site("/lost")).await;
+    phone.fill(&t.email_label, "kari@example.com");
+    phone.press(&t.lost_button).await.expect(&t.lost_sent_title);
+    let mut mailed: Vec<String> = Vec::new();
+    for _ in &links {
+        let mail = world.receive("kari@example.com").await;
+        mailed.push(link_in(&mail).split('?').next().unwrap().to_owned());
+    }
+    mailed.sort();
+    let mut expected = links.to_vec();
+    expected.sort();
+    assert_eq!(mailed, expected);
+
+    // Reminders for the summer party remind her of that one only.
+    let mut host = world.admin().await;
+    host.click("Summer party").await;
+    host.press(&a.send_reminders).await.expect(&count(
+        1,
+        &a.reminders_queued_one,
+        &a.reminders_queued_other,
+    ));
+    let reminder = world.receive("kari@example.com").await;
+    assert!(reminder.body.contains("Summer party"), "{}", reminder.body);
+    assert!(
+        !reminder.body.contains("Christmas party"),
+        "{}",
+        reminder.body
+    );
+    world.deliver_mail().await;
+    assert_eq!(world.inbox("kari@example.com").len(), 7);
+}
+
+#[sqlx::test]
+async fn each_event_goes_a_month_after_it_starts(db: PgPool) {
+    let world = World::new(db);
+    let (t, a) = (en(), admin());
+    let summer = world.summer_party().await;
+    let christmas = world.invite("Kari Nordmann", 1).await;
+    let summer = world.invite_to(summer.id, "Kari Nordmann", 1).await;
+    let mut phone = world.browser();
+    for link in [&christmas, &summer] {
+        phone.open(link).await;
+        phone.press(&t.remember_device).await;
+    }
+
+    // A month after Christmas, the janitor takes the Christmas party and everything in
+    // it, and leaves the summer party be.
+    world.run_janitor("2027-01-13T12:00:00Z").await;
+    let gone = phone.open(&christmas).await;
+    assert_eq!(gone.status, StatusCode::NOT_FOUND);
+    gone.expect(&t.gone_title);
+    phone.open(&summer).await.expect("Summer party");
+
+    // The front page leads back to the summer party only, and drops the other cookie.
+    phone
+        .open(&world.site("/"))
+        .await
+        .expect("Summer party")
+        .expect_not("Christmas party");
+    assert_eq!(phone.cookie_names().len(), 1);
+    world
+        .admin()
+        .await
+        .page()
+        .expect("Summer party")
+        .expect_not("Christmas party");
+
+    // A month after midsummer, it goes too.
+    world.run_janitor("2027-07-21T12:00:00Z").await;
+    assert_eq!(phone.open(&summer).await.status, StatusCode::NOT_FOUND);
+    world.admin().await.page().expect(&a.no_events);
 }
