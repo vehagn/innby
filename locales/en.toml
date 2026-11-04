@@ -216,6 +216,7 @@ event_retention_hint = "An event is deleted {days} days after it starts, with ev
 delete_event = "Delete {title} with every invitation, group link and answer in it"
 error_event_title = "Enter a title of up to 200 characters."
 error_event_text = "The description can be up to 5000 characters, and the place up to 200."
+error_event_control = "The title, description and place can't contain control characters."
 error_event_time = "Enter when the event starts, as a date and a time."
 error_event_deadline = "Enter when answers close as a date and a time, or leave it empty."
 error_time_zone = "Enter a time zone such as Europe/Oslo."

@@ -197,6 +197,7 @@ event_retention_hint = "活动会在开始 {days} 天后删除，其中所有邀
 delete_event = "删除 {title} 及其中所有邀请、群组链接和回复"
 error_event_title = "请输入不超过 200 个字符的标题。"
 error_event_text = "说明最多 5000 个字符，地点最多 200 个字符。"
+error_event_control = "标题、说明和地点不能包含控制字符。"
 error_event_time = "请以日期和时间填写活动开始时间。"
 error_event_deadline = "请以日期和时间填写回复截止时间，或留空。"
 error_time_zone = "请输入时区，例如 Europe/Oslo。"

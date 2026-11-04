@@ -197,6 +197,7 @@ event_retention_hint = "活動會在開始 {days} 天後刪除，其中所有邀
 delete_event = "刪除 {title} 及其中所有邀請、群組連結和回覆"
 error_event_title = "請輸入不超過 200 個字元的標題。"
 error_event_text = "說明最多 5000 個字元，地點最多 200 個字元。"
+error_event_control = "標題、說明和地點不能包含控制字元。"
 error_event_time = "請以日期和時間填寫活動開始時間。"
 error_event_deadline = "請以日期和時間填寫回覆截止時間，或留空。"
 error_time_zone = "請輸入時區，例如 Europe/Oslo。"

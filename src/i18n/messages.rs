@@ -200,6 +200,7 @@ pub struct AdminMessages {
     pub delete_event: String,
     pub error_event_title: String,
     pub error_event_text: String,
+    pub error_event_control: String,
     pub error_event_time: String,
     pub error_event_deadline: String,
     pub error_time_zone: String,

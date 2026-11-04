@@ -212,6 +212,7 @@ event_retention_hint = "Et arrangement slettes {days} dager etter at det starter
 delete_event = "Slett {title} med alle invitasjoner, gruppelenker og svar"
 error_event_title = "Skriv en tittel på opptil 200 tegn."
 error_event_text = "Beskrivelsen kan være opptil 5000 tegn, og stedet opptil 200."
+error_event_control = "Tittel, beskrivelse og sted kan ikke inneholde kontrolltegn."
 error_event_time = "Skriv når arrangementet starter, som dato og klokkeslett."
 error_event_deadline = "Skriv svarfristen som dato og klokkeslett, eller la feltet stå tomt."
 error_time_zone = "Skriv en tidssone, for eksempel Europe/Oslo."

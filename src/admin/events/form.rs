@@ -173,6 +173,21 @@ impl EventForm {
         if !description_ok || !fits(&self.location, MAX_LOCATION) {
             return Err(text.error_event_text.clone());
         }
+        // Postgres can't store a NUL, and other control characters only come from a
+        // crafted request or file. A description keeps its line breaks and tabs.
+        let plain = |text: &str| !text.chars().any(char::is_control);
+        let lines = |text: &str| {
+            !text
+                .chars()
+                .any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))
+        };
+        let texts_ok = Lang::ALL
+            .into_iter()
+            .all(|lang| plain(self.title.own(lang)) && lines(self.description.own(lang)))
+            && plain(&self.location);
+        if !texts_ok {
+            return Err(text.error_event_control.clone());
+        }
         let tz: Tz = self
             .time_zone
             .parse()
@@ -236,6 +251,10 @@ mod tests {
 
         for (field, value) in [
             ("title", ""),
+            ("title", "Jule\u{0}bord"),
+            ("title-en", "Christmas\u{1}party"),
+            ("location", "Storgata\n1"),
+            ("description", "Velkommen\u{0}!"),
             ("starts_at", "next Friday"),
             ("time_zone", "Europe/Atlantis"),
             ("rsvp_deadline", "soon"),
@@ -248,5 +267,13 @@ mod tests {
             bad.insert(field.into(), value.into());
             assert!(EventForm::from_fields(&bad).details().is_err(), "{field}");
         }
+        // A description keeps its line breaks and tabs.
+        let lines = EventForm::from_fields(&fields(&[
+            ("title", "Julebord"),
+            ("description", "Velkommen!\r\n\tKl. 19"),
+            ("starts_at", "2026-12-12T19:00"),
+            ("time_zone", "Europe/Oslo"),
+        ]));
+        assert!(lines.details().is_ok());
     }
 }

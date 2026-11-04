@@ -213,6 +213,7 @@ event_retention_hint = "Eit arrangement blir sletta {days} dagar etter at det st
 delete_event = "Slett {title} med alle invitasjonar, gruppelenkjer og svar"
 error_event_title = "Skriv ein tittel på opptil 200 teikn."
 error_event_text = "Skildringa kan vere opptil 5000 teikn, og staden opptil 200."
+error_event_control = "Tittel, skildring og stad kan ikkje innehalde kontrollteikn."
 error_event_time = "Skriv når arrangementet startar, som dato og klokkeslett."
 error_event_deadline = "Skriv svarfristen som dato og klokkeslett, eller la feltet stå tomt."
 error_time_zone = "Skriv ei tidssone, til dømes Europe/Oslo."
