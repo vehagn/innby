@@ -14,7 +14,7 @@ use serde::Deserialize;
 use super::{
     AppState, PRIVACY_VERSION,
     pages::{
-        DisplayChoice, EventView, GuestList, GuestsPage, PartySize, not_found, render, render_with,
+        DisplayChoice, EventView, GuestList, GuestsPage, PartySize, gone, render, render_with,
         server_error,
     },
     rate_limit::ClientIp,
@@ -91,7 +91,7 @@ async fn find_group(state: &AppState, link: &str) -> sqlx::Result<Option<Group>>
 pub async fn show(State(state): State<AppState>, lang: Lang, Path(link): Path<String>) -> Response {
     match find_group(&state, &link).await {
         Ok(Some(group)) => render(JoinPage::new(&state, lang, &group, &link)),
-        Ok(None) => not_found(lang).await,
+        Ok(None) => gone(lang),
         Err(err) => server_error(err),
     }
 }
@@ -104,7 +104,7 @@ pub async fn guests(
 ) -> Response {
     match find_group(&state, &link).await {
         Ok(Some(_)) => {}
-        Ok(None) => return not_found(lang).await,
+        Ok(None) => return gone(lang),
         Err(err) => return server_error(err),
     }
     let guests = match GuestList::load(&state.db, None).await {
@@ -143,7 +143,7 @@ pub async fn join(
 ) -> Response {
     let group = match find_group(&state, &link).await {
         Ok(Some(group)) => group,
-        Ok(None) => return not_found(lang).await,
+        Ok(None) => return gone(lang),
         Err(err) => return server_error(err),
     };
     if !form.website.is_empty() {
@@ -219,7 +219,7 @@ mod tests {
         for bad in ["wrong-code", rsvp_link.as_str()] {
             let response = site.get(&format!("/join/{bad}")).await;
             assert_eq!(response.status(), StatusCode::NOT_FOUND, "{bad}");
-            assert!(body(response).await.contains("Siden finnes ikke"));
+            assert!(body(response).await.contains("Denne lenken virker ikke"));
             let response = site
                 .post(&format!("/join/{bad}"), "name=Per&party_size=1")
                 .await;

@@ -13,7 +13,7 @@ use serde::Deserialize;
 use super::{
     AppState, PRIVACY_VERSION,
     pages::{
-        DisplayChoice, EventView, GuestList, GuestsPage, MessagePage, PartySize, YourListing,
+        DisplayChoice, EventView, GuestList, GuestsPage, MessagePage, PartySize, YourListing, gone,
         render, render_with, server_error,
     },
     remember,
@@ -67,14 +67,6 @@ impl Guest {
                 rsvp,
             }))
     }
-}
-
-/// The page every link that doesn't lead to a guest gets.
-fn gone(lang: Lang) -> Response {
-    render_with(
-        StatusCode::NOT_FOUND,
-        MessagePage::new(lang, |t| (&t.gone_title, &t.gone_text)),
-    )
 }
 
 #[derive(Template)]

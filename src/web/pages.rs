@@ -305,6 +305,15 @@ impl MessagePage {
 }
 
 /// The fallback for unknown paths and links.
+/// The page every guest or group link that doesn't work gets: mistyped, replaced by a
+/// new one, or its guest deleted.
+pub fn gone(lang: Lang) -> Response {
+    render_with(
+        StatusCode::NOT_FOUND,
+        MessagePage::new(lang, |t| (&t.gone_title, &t.gone_text)),
+    )
+}
+
 pub async fn not_found(lang: Lang) -> Response {
     render_with(
         StatusCode::NOT_FOUND,
