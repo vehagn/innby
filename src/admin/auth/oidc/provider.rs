@@ -1,41 +1,15 @@
-//! Logging in to the admin UI through an OpenID Connect provider such as Authelia, as an
-//! alternative or a replacement for the built-in user.
-//!
-//! The authorization code flow, for a confidential client:
-//! 1. `/login/oidc` makes a `state`, a `nonce` and a PKCE verifier, keeps them in a
-//!    short-lived signed cookie, and sends the browser to the provider.
-//! 2. The provider sends it back to `/login/oidc/callback` with a code. The `state` must
-//!    match the cookie's, so nobody can log a browser in to their account (login CSRF).
-//! 3. Innby trades the code for tokens, authenticating with its client secret and the
-//!    PKCE verifier, and checks the ID token (see `jws`).
-//! 4. The roles claim, from the ID token or else from userinfo (whose `sub` must be the
-//!    ID token's), gives the host's role. No role, no login.
-//!
-//! The provider's settings come from its discovery document, whose `issuer` must be the
-//! configured one exactly, and are kept for an hour. Its keys are fetched again when a
-//! token names one Innby hasn't seen, at most once a minute.
-//!
-//! The login lasts `OIDC_SESSION` without a refresh token; after that the provider is
-//! asked again, which is seamless while the host is logged in there.
-
-mod http;
-pub mod jws;
+//! The provider's side of a login: discovery, its keys, the authorization request, and
+//! finishing the login the browser comes back with.
 
 use std::{
-    collections::HashMap,
-    fmt,
     sync::Arc,
     time::{Duration, Instant},
 };
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use axum::{
-    extract::{Query, State},
-    http::{HeaderMap, StatusCode, header},
-    response::{AppendHeaders, IntoResponse, Redirect, Response},
-};
+use axum::http::StatusCode;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use ring::digest;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -43,87 +17,10 @@ use subtle::ConstantTimeEq;
 use tokio::sync::Mutex;
 use url::Url;
 
-use super::{
-    auth::{self, Auth},
-    lang,
-    role::Role,
-};
-use crate::{http::cookie, i18n::fill, paths};
+use crate::admin::role::Role;
 
-/// How long a login through the provider lasts before the provider is asked again.
-pub const OIDC_SESSION: TimeDelta = TimeDelta::hours(12);
-/// How long the host has at the provider before the login must start over.
-const FLOW_LIFETIME: TimeDelta = TimeDelta::minutes(10);
-/// The cookie that holds a login in progress.
-pub const FLOW_COOKIE: &str = "oidc_flow";
-const METADATA_TTL: Duration = Duration::from_secs(60 * 60);
-const KEYS_TTL: Duration = Duration::from_secs(60 * 60);
-/// A token with an unknown key fetches the keys again, but not more often than this.
-const KEYS_MIN_AGE: Duration = Duration::from_secs(60);
-
-/// `INNBY_OIDC_*`.
-#[derive(Clone)]
-pub struct OidcConfig {
-    /// Exactly as the provider's discovery document has it, e.g.
-    /// `https://authelia.example.com`.
-    pub issuer: String,
-    pub client_id: String,
-    pub client_secret: String,
-    /// The provider's name on the login button.
-    pub name: String,
-    /// Space-separated, with `openid`.
-    pub scopes: String,
-    /// The claim that lists the host's Innby roles, named after the app as the homelab
-    /// names them: `innby: [editor]`.
-    pub roles_claim: String,
-    /// `{INNBY_ADMIN_URL}/login/oidc/callback`, to register with the provider.
-    pub redirect_uri: Url,
-}
-
-impl fmt::Debug for OidcConfig {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("OidcConfig")
-            .field("issuer", &self.issuer)
-            .field("client_id", &self.client_id)
-            .field("client_secret", &"..")
-            .field("name", &self.name)
-            .field("scopes", &self.scopes)
-            .field("roles_claim", &self.roles_claim)
-            .field("redirect_uri", &self.redirect_uri.as_str())
-            .finish()
-    }
-}
-
-impl OidcConfig {
-    /// Where the provider's discovery document is: the issuer with
-    /// `/.well-known/openid-configuration` after it.
-    fn discovery(&self) -> Result<Url> {
-        let url: Url = format!(
-            "{}/.well-known/openid-configuration",
-            self.issuer.trim_end_matches('/')
-        )
-        .parse()?;
-        http::check_url(&url)?;
-        Ok(url)
-    }
-
-    /// Rejects settings that can't work.
-    pub fn check(&self) -> Result<()> {
-        let issuer: Url = self.issuer.parse().context("not a URL")?;
-        ensure!(
-            issuer.query().is_none() && issuer.fragment().is_none(),
-            "an issuer has no query or fragment"
-        );
-        self.discovery()?;
-        ensure!(
-            self.scopes
-                .split_whitespace()
-                .any(|scope| scope == "openid"),
-            "INNBY_OIDC_SCOPES must include openid"
-        );
-        Ok(())
-    }
-}
+use super::{FLOW_LIFETIME, KEYS_MIN_AGE, KEYS_TTL, METADATA_TTL, OidcConfig, http, jws};
+use crate::random;
 
 /// What the discovery document says, checked.
 struct Metadata {
@@ -218,11 +115,11 @@ pub struct Flow {
 /// What the provider sends the browser back with.
 #[derive(Debug, Default, Deserialize)]
 pub struct Callback {
-    code: Option<String>,
-    state: Option<String>,
-    iss: Option<String>,
-    error: Option<String>,
-    error_description: Option<String>,
+    pub(super) code: Option<String>,
+    pub(super) state: Option<String>,
+    pub(super) iss: Option<String>,
+    pub(super) error: Option<String>,
+    pub(super) error_description: Option<String>,
 }
 
 /// A login the provider vouched for.
@@ -255,12 +152,6 @@ struct TokenResponse {
     access_token: String,
     token_type: String,
     id_token: Option<String>,
-}
-
-fn random() -> String {
-    let mut bytes = [0; 32];
-    getrandom::fill(&mut bytes).expect("the system has randomness");
-    URL_SAFE_NO_PAD.encode(bytes)
 }
 
 impl Provider {
@@ -346,9 +237,9 @@ impl Provider {
     pub async fn start(&self, now: DateTime<Utc>) -> Result<(Url, Flow)> {
         let metadata = self.metadata().await?;
         let flow = Flow {
-            state: random(),
-            nonce: random(),
-            verifier: random(),
+            state: random::token(),
+            nonce: random::token(),
+            verifier: random::token(),
             exp: (now + FLOW_LIFETIME).timestamp(),
         };
         let challenge = digest::digest(&digest::SHA256, flow.verifier.as_bytes());
@@ -497,109 +388,18 @@ async fn userinfo_claims(
     Ok(claims)
 }
 
-/// `/login/oidc`: off to the provider.
-pub async fn start(State(auth): State<Arc<Auth>>) -> Response {
-    let Some(provider) = auth.oidc() else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    match provider.start(Utc::now()).await {
-        Ok((url, flow)) => {
-            let sealed = auth.seal(
-                FLOW_COOKIE,
-                &serde_json::to_vec(&flow).expect("flows serialize"),
-            );
-            let cookie = auth.cookie(FLOW_COOKIE, &sealed, FLOW_LIFETIME);
-            (
-                AppendHeaders([(header::SET_COOKIE, cookie)]),
-                Redirect::to(url.as_str()),
-            )
-                .into_response()
-        }
-        Err(err) => {
-            tracing::error!("OIDC login couldn't start: {err:#}");
-            failed(&auth, provider)
-        }
-    }
-}
-
-/// `/login/oidc/callback`: back from the provider.
-pub async fn callback(
-    State(auth): State<Arc<Auth>>,
-    headers: HeaderMap,
-    Query(query): Query<HashMap<String, String>>,
-) -> Response {
-    let Some(provider) = auth.oidc() else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
-    let field = |name: &str| query.get(name).cloned();
-    let callback = Callback {
-        code: field("code"),
-        state: field("state"),
-        iss: field("iss"),
-        error: field("error"),
-        error_description: field("error_description"),
-    };
-    let clear = auth.cookie(FLOW_COOKIE, "", TimeDelta::zero());
-    let flow = cookie::get(&headers, FLOW_COOKIE)
-        .and_then(|sealed| auth.open(FLOW_COOKIE, sealed))
-        .and_then(|json| serde_json::from_slice::<Flow>(&json).ok());
-    let result = match &flow {
-        Some(flow) => provider.finish(flow, &callback, Utc::now()).await,
-        None => Err(LoginError::Expired),
-    };
-    let text = lang::text();
-    let mut response = match result {
-        Ok(login) => {
-            let cookie = auth.start_oidc_session(&login);
-            tracing::info!(
-                user = login.user,
-                role = login.role.name(),
-                "host logged in through OIDC"
-            );
-            let home = Redirect::to(&paths::admin(paths::HOME));
-            (AppendHeaders([(header::SET_COOKIE, cookie)]), home).into_response()
-        }
-        Err(LoginError::Expired) => {
-            tracing::warn!("OIDC callback without a login in progress, or a stale one");
-            auth::login_error(&auth, StatusCode::BAD_REQUEST, text.login_expired.clone())
-        }
-        Err(LoginError::Cancelled) => auth::login_error(
-            &auth,
-            StatusCode::UNAUTHORIZED,
-            text.login_cancelled.clone(),
-        ),
-        Err(LoginError::NoRole { user }) => {
-            tracing::warn!(user, "OIDC login without an Innby role");
-            let message = fill(
-                &text.no_role,
-                &[("name", &provider.name()), ("user", &user)],
-            );
-            auth::login_error(&auth, StatusCode::FORBIDDEN, message)
-        }
-        Err(LoginError::Failed(err)) => {
-            tracing::error!("OIDC login failed: {err:#}");
-            failed(&auth, provider)
-        }
-    };
-    response.headers_mut().append(header::SET_COOKIE, clear);
-    response
-}
-
-fn failed(auth: &Auth, provider: &Provider) -> Response {
-    let message = fill(&lang::text().login_failed, &[("name", &provider.name())]);
-    auth::login_error(auth, StatusCode::BAD_GATEWAY, message)
-}
-
-#[cfg(test)]
-pub mod fake;
-
 #[cfg(test)]
 mod tests {
     use axum::{body::Body, http::Request};
     use serde_json::json;
     use tower::ServiceExt;
 
-    use super::{fake::Fake, *};
+    use std::collections::HashMap;
+
+    use axum::http::header;
+
+    use super::*;
+    use crate::admin::auth::oidc::fake::Fake;
 
     const ADMIN: &str = "https://admin.fest.example.com";
 

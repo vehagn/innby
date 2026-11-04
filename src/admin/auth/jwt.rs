@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha512;
 use uuid::Uuid;
 
-use super::role::Role;
+use crate::admin::role::Role;
 
 /// `{"alg":"HS512","typ":"JWT"}`, base64url-encoded.
 const HEADER: &str = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9";

@@ -179,7 +179,7 @@ pub mod tests {
         );
         assert_eq!(
             admin::EXAMPLE_ADMIN_JWT_SECRET,
-            crate::admin::jwt::tests::SECRET
+            crate::admin::auth::jwt::tests::SECRET
         );
         let hash = value("INNBY_ADMIN_PASSWORD_HASH").trim_matches('\'');
         assert!(crate::admin::auth::verify(

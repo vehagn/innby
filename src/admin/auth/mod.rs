@@ -14,77 +14,56 @@
 //! Each argon2 check needs 19 MiB and the admin pod gets 64, so checks run one at a time.
 //! After too many checks, logins are refused for a while; browsers that are logged in
 //! keep working.
+//!
+//! - `mod.rs`: `Auth`, the sessions, and `require_login`, which every page goes through.
+//! - `login`: the login page and logging out. `password`: the built-in user's argon2
+//!   hash. `jwt`: the session tokens. `oidc`: single sign-on.
+
+pub mod jwt;
+mod login;
+pub mod oidc;
+mod password;
+
+pub(in crate::admin) use login::login_error;
+pub use login::{log_in, log_out, login_page};
+pub use password::{check_hash, hash_password, verify};
 
 use std::{sync::Arc, time::Duration};
 
-use anyhow::{Result, anyhow};
-use argon2::{
-    Argon2,
-    password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},
-};
-use askama::Template;
 use axum::{
-    Form,
-    extract::{Query, Request, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header},
+    extract::{Request, State},
+    http::{HeaderMap, HeaderValue, header},
     middleware::Next,
-    response::{AppendHeaders, IntoResponse, Redirect, Response},
+    response::{IntoResponse, Redirect, Response},
 };
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, TimeDelta, Utc};
-use serde::Deserialize;
 use sqlx::PgPool;
 use tokio::sync::Semaphore;
 
-use super::{
-    jwt, lang,
-    oidc::{self, OIDC_SESSION},
-    role::Role,
-};
+use super::role::Role;
 use crate::{
     config::{AdminConfig, PasswordLogin},
     db::admin_login,
-    http::{RateLimiter, cookie, render, render_with, server_error},
-    paths,
+    http::{RateLimiter, cookie, server_error},
+    paths, random,
 };
+use oidc::OIDC_SESSION;
+use password::{Credentials, Outcome};
 
 /// Password checks allowed per window, right or wrong.
 const ATTEMPTS: u32 = 10;
+
 const ATTEMPT_WINDOW: Duration = Duration::from_secs(15 * 60);
+
 /// How long a JWT lasts, and a refresh token: LLDAP's defaults.
 const TOKEN_LIFETIME: TimeDelta = TimeDelta::days(1);
+
 const REFRESH_LIFETIME: TimeDelta = TimeDelta::days(30);
+
 /// The cookies, named as LLDAP names them.
 const TOKEN: &str = "token";
+
 const REFRESH_TOKEN: &str = "refresh_token";
-
-struct Credentials {
-    user: String,
-    password_hash: String,
-}
-
-/// Rejects anything that isn't an argon2 PHC string.
-pub fn check_hash(hash: &str) -> Result<()> {
-    PasswordHash::new(hash).map_err(|err| anyhow!("not an argon2 hash: {err}"))?;
-    Ok(())
-}
-
-/// Hashes a password with argon2id and a random salt, for `INNBY_ADMIN_PASSWORD_HASH`.
-pub fn hash_password(password: &str) -> Result<String> {
-    Argon2::default()
-        .hash_password(password.as_bytes())
-        .map(|hash| hash.to_string())
-        .map_err(|err| anyhow!("hashing password: {err}"))
-}
-
-/// Whether the password matches an argon2 PHC string.
-pub fn verify(hash: &str, password: &str) -> bool {
-    PasswordHash::new(hash).is_ok_and(|hash| {
-        Argon2::default()
-            .verify_password(password.as_bytes(), &hash)
-            .is_ok()
-    })
-}
 
 /// Logs the host in and out, and checks their cookies.
 pub struct Auth {
@@ -101,13 +80,6 @@ pub struct Auth {
     /// One permit: the argon2 check that may run right now.
     checking: Arc<Semaphore>,
     attempts: RateLimiter,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum Outcome {
-    Accepted,
-    Rejected,
-    TooManyAttempts,
 }
 
 /// What a request's cookies say.
@@ -211,7 +183,7 @@ impl Auth {
             exp: (now + lifetime).timestamp(),
             user: user.to_owned(),
             role,
-            jti: uuid::Builder::from_random_bytes(random()).into_uuid(),
+            jti: uuid::Builder::from_random_bytes(random::bytes()).into_uuid(),
         })
     }
 
@@ -225,7 +197,7 @@ impl Auth {
     /// The cookies of a new login of the built-in user, once its refresh token is saved.
     async fn start_session(&self) -> sqlx::Result<Vec<HeaderValue>> {
         let now = Utc::now();
-        let refresh_token = URL_SAFE_NO_PAD.encode(random::<32>());
+        let refresh_token = random::token();
         let digest = self.key.digest(&refresh_token);
         admin_login::save_refresh_token(&self.db, &digest, now + REFRESH_LIFETIME).await?;
         Ok(self
@@ -299,20 +271,6 @@ impl Auth {
     }
 }
 
-impl Credentials {
-    /// The password is always verified, so a wrong user name takes as long as a wrong
-    /// password.
-    fn accept(&self, user: &str, password: &str) -> bool {
-        verify(&self.password_hash, password) && user == self.user
-    }
-}
-
-fn random<const N: usize>() -> [u8; N] {
-    let mut bytes = [0; N];
-    getrandom::fill(&mut bytes).expect("the system has randomness");
-    bytes
-}
-
 /// Lets a request through if it's logged in, and sends it to the login page otherwise.
 pub async fn require_login(
     State(auth): State<Arc<Auth>>,
@@ -331,101 +289,9 @@ pub async fn require_login(
     }
 }
 
-#[derive(Template, Default)]
-#[template(path = "admin/login.html")]
-struct LoginPage {
-    logged_out: bool,
-    /// Whether the built-in user may log in.
-    password: bool,
-    /// The provider's name, when there is one.
-    oidc: Option<String>,
-    /// The user name typed in, when the login failed.
-    user: String,
-    error: Option<String>,
-}
-
-impl LoginPage {
-    fn new(auth: &Auth) -> Self {
-        Self {
-            password: auth.credentials.is_some(),
-            oidc: auth.oidc.as_ref().map(|oidc| oidc.name().to_owned()),
-            ..Self::default()
-        }
-    }
-}
-
-/// The login page, with what went wrong.
-pub(super) fn login_error(auth: &Auth, status: StatusCode, error: String) -> Response {
-    let page = LoginPage {
-        error: Some(error),
-        ..LoginPage::new(auth)
-    };
-    render_with(status, page)
-}
-
-#[derive(Deserialize)]
-pub struct LoginQuery {
-    logged_out: Option<String>,
-}
-
-pub async fn login_page(
-    State(auth): State<Arc<Auth>>,
-    Query(query): Query<LoginQuery>,
-) -> Response {
-    render(LoginPage {
-        logged_out: query.logged_out.is_some(),
-        ..LoginPage::new(&auth)
-    })
-}
-
-#[derive(Deserialize)]
-pub struct LoginForm {
-    user: String,
-    password: String,
-}
-
-pub async fn log_in(State(auth): State<Arc<Auth>>, Form(form): Form<LoginForm>) -> Response {
-    let text = lang::text();
-    let (status, error) = match auth.check(form.user.clone(), form.password).await {
-        Outcome::Accepted => {
-            return match auth.start_session().await {
-                Ok(cookies) => {
-                    tracing::info!("host logged in");
-                    let cookies = cookies
-                        .into_iter()
-                        .map(|cookie| (header::SET_COOKIE, cookie));
-                    let home = Redirect::to(&paths::admin(paths::HOME));
-                    (AppendHeaders(cookies), home).into_response()
-                }
-                Err(err) => server_error(err),
-            };
-        }
-        Outcome::Rejected => (StatusCode::UNAUTHORIZED, &text.wrong_login),
-        Outcome::TooManyAttempts => (StatusCode::TOO_MANY_REQUESTS, &text.too_many_logins),
-    };
-    let page = LoginPage {
-        user: form.user,
-        error: Some(error.clone()),
-        ..LoginPage::new(&auth)
-    };
-    render_with(status, page)
-}
-
-/// Needs no login, so a browser whose JWT has expired can still forget its refresh token.
-pub async fn log_out(State(auth): State<Arc<Auth>>, headers: HeaderMap) -> Response {
-    if let Err(err) = auth.end_session(&headers).await {
-        return server_error(err);
-    }
-    tracing::info!("host logged out");
-    let cleared = [TOKEN, REFRESH_TOKEN]
-        .map(|name| (header::SET_COOKIE, auth.cookie(name, "", TimeDelta::zero())));
-    let page = paths::admin(&format!("{}?logged_out", paths::LOGIN));
-    (AppendHeaders(cleared), Redirect::to(&page)).into_response()
-}
-
 #[cfg(test)]
 pub mod tests {
-    use argon2::{Algorithm, Params, Version};
+    use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
     use sqlx::postgres::PgPoolOptions;
 
     use super::*;
@@ -464,25 +330,6 @@ pub mod tests {
             .connect_lazy("postgres://innby@127.0.0.1:1/innby")
             .unwrap();
         Auth::new(&admin_config(), true, db)
-    }
-
-    #[test]
-    fn accepts_only_the_right_user_and_password() {
-        let credentials = Credentials {
-            user: "admin".into(),
-            password_hash: cheap_hash("a:b"),
-        };
-        assert!(credentials.accept("admin", "a:b"));
-        assert!(!credentials.accept("admin", "wrong"));
-        assert!(!credentials.accept("root", "a:b"));
-    }
-
-    #[test]
-    fn hashes_verify_and_check() {
-        let hash = hash_password("hunter2").unwrap();
-        assert!(hash.starts_with("$argon2id$"));
-        check_hash(&hash).unwrap();
-        assert!(check_hash("plaintext").is_err());
     }
 
     #[tokio::test]

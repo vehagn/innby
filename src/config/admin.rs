@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use anyhow::{Context, Result, anyhow, ensure};
 
 use super::{Config, Env, process_env};
-use crate::admin::{jwt, oidc::OidcConfig};
+use crate::admin::auth::{jwt, oidc::OidcConfig};
 
 /// The example password and JWT secret in `.env.example`, which a public site refuses.
 pub(super) const EXAMPLE_ADMIN_PASSWORD: &str = "innby";

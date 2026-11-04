@@ -35,7 +35,10 @@ use sqlx::PgPool;
 pub use browser::Browser;
 
 use crate::{
-    admin::{self, auth, oidc::fake::Fake},
+    admin::{
+        self,
+        auth::{self, oidc::fake::Fake},
+    },
     config::{Config, tests::config},
     i18n::{AdminMessages, Lang, Messages},
     mailer::{self, Mail, Sender},

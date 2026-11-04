@@ -5,7 +5,7 @@
 //! - `mod.rs`: `router`, which lists every page and the role it needs.
 //! - `page`: what pages share: state, tabs, errors.
 //! - `events`, `guests`, `invitations`, `groups`, `qr`: the pages, one module per tab.
-//! - `auth`: logging in, with the built-in user or through `oidc`, and `jwt` sessions.
+//! - `auth`: logging in, as the built-in user or through an OIDC provider, and sessions.
 //! - `role`: what each role may do. `lang`: the page's language.
 
 pub mod auth;
@@ -13,9 +13,7 @@ mod events;
 mod groups;
 mod guests;
 mod invitations;
-pub mod jwt;
 pub mod lang;
-pub mod oidc;
 mod page;
 mod qr;
 pub mod role;
@@ -111,8 +109,8 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
     };
     if admin_config.oidc.is_some() {
         pages = pages
-            .route(paths::LOGIN_OIDC, get(oidc::start))
-            .route(paths::LOGIN_OIDC_CALLBACK, get(oidc::callback));
+            .route(paths::LOGIN_OIDC, get(auth::oidc::start))
+            .route(paths::LOGIN_OIDC_CALLBACK, get(auth::oidc::callback));
     }
     let prefix: Arc<str> = Arc::from(admin_config.path.as_str());
     let scoped = Arc::clone(&prefix);

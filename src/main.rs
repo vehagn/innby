@@ -9,6 +9,7 @@ mod janitor;
 mod link;
 mod mailer;
 mod paths;
+mod random;
 mod theme;
 mod web;
 

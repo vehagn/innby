@@ -134,12 +134,6 @@ fn count(state: &Arc<Mutex<Fakery>>, endpoint: &'static str) {
     *state.lock().unwrap().calls.entry(endpoint).or_default() += 1;
 }
 
-fn random() -> String {
-    let mut bytes = [0; 16];
-    getrandom::fill(&mut bytes).unwrap();
-    URL_SAFE_NO_PAD.encode(bytes)
-}
-
 async fn discovery(State((origin, state)): FakeState) -> Json<Value> {
     count(&state, "discovery");
     let issuer = state
@@ -178,7 +172,7 @@ async fn authorize(
         let mut pairs = redirect.query_pairs_mut();
         match fake.user.clone() {
             Some((user, roles)) => {
-                let code = random();
+                let code = crate::random::token();
                 fake.codes.insert(
                     code.clone(),
                     Grant {
@@ -242,7 +236,7 @@ async fn token(State((origin, state)): FakeState, headers: HeaderMap, body: Stri
     if challenge != grant.challenge {
         return error("invalid_grant");
     }
-    let access_token = random();
+    let access_token = crate::random::token();
     let hash = digest::digest(&digest::SHA256, access_token.as_bytes());
     let now = chrono::Utc::now().timestamp();
     let mut claims = json!({
