@@ -14,7 +14,10 @@ use chrono_tz::Tz;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use super::{AdminState, DeleteForm, PageError, SavedQuery, lang, load_event};
+use super::{
+    lang,
+    page::{AdminState, DeleteForm, PageError, SavedQuery, load_event},
+};
 use crate::{
     db::{
         event::{self, Details, Event},

@@ -11,8 +11,11 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use super::{
-    AdminState, BatchForm, DeleteForm, InviteForm, PageError, Row, SavedQuery, admin_qr, count,
-    lang, load_event, local, qr_file,
+    guests::{Row, local},
+    invitations::{BatchForm, InviteForm},
+    lang,
+    page::{AdminState, DeleteForm, PageError, SavedQuery, load_event},
+    qr::{self as admin_qr, qr_file},
 };
 use crate::{
     config::Config,
@@ -23,6 +26,7 @@ use crate::{
         rsvp::{self, MAX_PARTY_SIZE, Rsvp},
     },
     http::{render, render_with},
+    i18n::count,
     link::Purpose,
     paths::{self, AdminLinks, EventLinks},
 };
@@ -285,4 +289,99 @@ pub(super) async fn delete(
     tracing::info!(group = %id, "group deleted");
     let groups = paths::path(paths::EVENT_GROUPS, group.event_id);
     Ok(Redirect::to(&paths::admin(&groups)).into_response())
+}
+
+#[cfg(test)]
+mod tests {
+
+    use sqlx::PgPool;
+
+    use super::*;
+    use crate::{
+        admin::testing::{Admin, links},
+        web::testing::{body, location},
+    };
+
+    #[sqlx::test]
+    async fn creates_and_manages_groups(db: PgPool) {
+        let admin = Admin::new(db);
+        let e = admin.event().await;
+        let response = admin
+            .post(
+                &format!("{e}/groups"),
+                "names=Climbing+club%0D%0ANeighbours%2C+4&max_party_size=2",
+            )
+            .await;
+        assert_eq!(location(&response), format!("{e}/groups?created=2"));
+        let html = body(admin.get(&format!("{e}/groups?created=2")).await).await;
+        assert!(html.contains("2 groups created."));
+        let [climbing, neighbours] = group::list(
+            &admin.db,
+            crate::db::event::tests::event(&admin.db).await.id,
+        )
+        .await
+        .unwrap()
+        .try_into()
+        .unwrap();
+        assert_eq!(
+            (neighbours.name.as_str(), neighbours.max_party_size),
+            ("Neighbours", 4)
+        );
+        let url = format!(
+            "https://fest.example.com/join/{}",
+            admin.config.link_key.link(Purpose::Group, climbing.id, 0)
+        );
+        assert!(links(&html).contains(&url.as_str()));
+
+        let page = format!("/groups/{}", climbing.id);
+        let html = body(admin.get(&page).await).await;
+        assert!(html.contains("<h1>Climbing club</h1>"));
+        assert!(html.contains(&format!(r#"value="{url}""#)));
+        assert!(html.contains("<svg"));
+
+        // Someone signs up; the group shows them and can't be deleted any more.
+        let sign_up = rsvp::SignUp {
+            group: &climbing,
+            name: "Per Hansen",
+            party_size: 1,
+            name_display: rsvp::NameDisplay::Partial,
+            lang: crate::i18n::Lang::Nb,
+        };
+        rsvp::create_open(&admin.db, &sign_up, crate::web::PRIVACY_VERSION)
+            .await
+            .unwrap();
+        let html = body(admin.get(&page).await).await;
+        assert!(html.contains("Per Hansen"));
+        assert!(html.contains("first name and initial"));
+        let html = body(admin.get(&e).await).await;
+        assert!(html.contains("sign-up: Climbing club"));
+        let response = admin.post(&format!("{page}/delete"), "confirm=yes").await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(body(response).await.contains("can&#39;t be deleted"));
+
+        admin
+            .post(&page, "name=Climbing+friends&max_party_size=3")
+            .await;
+        admin.post(&format!("{page}/revoke"), "").await;
+        let edited = group::find(&admin.db, climbing.id).await.unwrap().unwrap();
+        assert_eq!(
+            (
+                edited.name.as_str(),
+                edited.max_party_size,
+                edited.link_nonce
+            ),
+            ("Climbing friends", 3, 1)
+        );
+
+        let response = admin
+            .post(&format!("/groups/{}/delete", neighbours.id), "confirm=yes")
+            .await;
+        assert_eq!(location(&response), format!("{e}/groups"));
+        assert!(
+            group::find(&admin.db, neighbours.id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
 }
