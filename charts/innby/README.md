@@ -85,10 +85,11 @@ spec:
   storage: { size: 1Gi }
 ```
 
-Innby keeps nothing past 30 days after an event, so the cluster needs no backups. The
-chart's network policies cover Innby's pods, not the cluster's: to let in only Innby,
-give the cluster's pods (`cnpg.io/cluster: <name>`) a policy that accepts port 5432
-from `app.kubernetes.io/name: innby`, and the operator's namespace on 5432 and 8000.
+Innby keeps nothing past 30 days after an event, so the cluster needs no backups. With
+Cilium, `ciliumNetworkPolicy.cnpg.enabled` also gives the cluster's pods a policy: they
+accept Postgres only from Innby, the cluster's own instances and the operator (from
+`ciliumNetworkPolicy.cnpg.operatorNamespace`). Otherwise their ingress is yours to
+limit.
 
 ## The admin UI
 
@@ -133,7 +134,8 @@ one kind, not both.
   Ingress proxy; `ingressFromEntities` and `ingressFromEndpoints` change that, and
   `admin.*` gives the admin UI its own. `databaseEndpoints` narrows Postgres.
 
-Neither covers Postgres's own ingress; see the database's section above.
+Only the Cilium ones can cover Postgres's own ingress (`ciliumNetworkPolicy.cnpg`); see
+the database's section above.
 
 ## Upgrades
 

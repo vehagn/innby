@@ -15,9 +15,8 @@ namespace, the sealed Secret, and the CloudNativePG cluster
 | `innby-janitor` (`janitor`) | CronJob, hourly | nothing; may only reach Postgres |
 | `innby-postgres` | CloudNativePG `Cluster`, 1 instance, 1 Gi | the Innby pods and the CNPG operator |
 
-Each has a Cilium network policy: the chart makes the workloads', which can name
-MailerSend and Authelia by hostname, and [`network-policies.yaml`](network-policies.yaml)
-has Postgres's.
+The chart gives each a Cilium network policy, Postgres's included; the workloads' can
+name MailerSend and Authelia by hostname.
 
 ## Steps
 

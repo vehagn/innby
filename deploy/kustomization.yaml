@@ -1,6 +1,6 @@
 # Innby in vehagn/homelab: the published chart with this cluster's values, plus what the
-# chart leaves to the cluster: the namespace, Postgres (CloudNativePG) and its Cilium
-# policy, and the sealed Secret. Copy this directory to k8s/apps/<group>/innby, where
+# chart leaves to the cluster: the namespace, Postgres (CloudNativePG) and the sealed
+# Secret. Copy this directory to k8s/apps/<group>/innby, where
 # the ApplicationSet picks it up, and add the innby namespace to that group's AppProject
 # destinations. Argo CD renders it with `kustomize build --enable-helm`.
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -10,7 +10,6 @@ namespace: innby
 resources:
   - ns.yaml
   - cnpg-db.yaml
-  - network-policies.yaml
   # Created by `just seal` from secrets.env; the workloads wait for it.
   # - sealed-secrets.yaml
 

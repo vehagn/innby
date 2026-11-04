@@ -192,6 +192,14 @@
         },
         "databaseEndpoints": { "$ref": "#/definitions/list" },
         "databasePort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "cnpg": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "operatorNamespace": { "type": "string", "minLength": 1 }
+          }
+        },
         "dnsEndpoints": { "$ref": "#/definitions/list" }
       }
     },

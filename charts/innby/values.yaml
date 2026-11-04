@@ -172,6 +172,12 @@ ciliumNetworkPolicy:
   # its port anywhere when empty.
   databaseEndpoints: []
   databasePort: 5432
+  # A policy for the pods of database.cnpg.cluster too, which the chart doesn't make:
+  # they accept Postgres only from Innby, the cluster's own instances and the operator.
+  cnpg:
+    enabled: false
+    # Where the CloudNativePG operator runs.
+    operatorNamespace: cnpg-system
   # The cluster's DNS, whose answers Cilium reads to learn the hosts' addresses.
   dnsEndpoints:
     - matchLabels:

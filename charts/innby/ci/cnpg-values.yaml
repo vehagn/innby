@@ -8,4 +8,4 @@ mailer:
   from: Innby <fest@example.com>
   smtpUrl: smtp://smtp.example.com:587?tls=required
 networkPolicy: { enabled: true }
-ciliumNetworkPolicy: { enabled: true }
+ciliumNetworkPolicy: { enabled: true, cnpg: { enabled: true } }

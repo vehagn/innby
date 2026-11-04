@@ -1,0 +1,29 @@
+{{- $policy := .Values.ciliumNetworkPolicy }}
+{{- if and $policy.enabled $policy.cnpg.enabled }}
+{{- $cluster := required "ciliumNetworkPolicy.cnpg: name the CloudNativePG cluster in database.cnpg.cluster" (include "innby.cnpgCluster" .) }}
+{{- $ctx := dict "root" . "component" "postgres" }}
+# The CloudNativePG cluster's pods, which the chart doesn't make, accept Postgres only
+# from Innby, the cluster's own instances (for replication) and the operator. Their
+# egress, to the API server, is the operator's business.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "innby.component" $ctx }}
+  labels:
+    {{- include "innby.labels" $ctx | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels: { cnpg.io/cluster: {{ $cluster }} }
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: {{ include "innby.name" . }}
+            app.kubernetes.io/instance: {{ .Release.Name }}
+        - matchLabels: { cnpg.io/cluster: {{ $cluster }} }
+      toPorts:
+        - ports: [{ port: "5432", protocol: TCP }]
+    - fromEndpoints:
+        - matchLabels: { k8s:io.kubernetes.pod.namespace: {{ $policy.cnpg.operatorNamespace }} }
+      toPorts:
+        - ports: [{ port: "8000", protocol: TCP }, { port: "5432", protocol: TCP }]
+{{- end }}

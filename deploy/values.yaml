@@ -50,7 +50,9 @@ httpRoute:
       - { name: internal, namespace: gateway }
 
 # Each workload may reach only what it needs: the gateways reach the site and the admin
-# UI, the mailer only MailerSend, and the admin UI only Authelia once oidc is set.
-# network-policies.yaml has Postgres's.
+# UI, the mailer only MailerSend, the admin UI only Authelia once oidc is set, and
+# Postgres only Innby and the CloudNativePG operator.
 ciliumNetworkPolicy:
   enabled: true
+  cnpg:
+    enabled: true
