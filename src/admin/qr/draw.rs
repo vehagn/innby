@@ -216,7 +216,12 @@ impl StyleForm {
 /// Whether a `#rrggbb` colour has a contrast of at least 4.5:1 on white, as phones need
 /// to tell the modules apart.
 fn is_dark_enough(color: &str) -> bool {
-    let Some(hex) = color.strip_prefix('#').filter(|hex| hex.len() == 6) else {
+    // Six hex digits and nothing else: `from_str_radix` would also take a sign, as in
+    // `#+12345`, which the database then refuses.
+    let Some(hex) = color
+        .strip_prefix('#')
+        .filter(|hex| hex.len() == 6 && hex.bytes().all(|b| b.is_ascii_hexdigit()))
+    else {
         return false;
     };
     let Ok(rgb) = u32::from_str_radix(hex, 16) else {
@@ -292,6 +297,9 @@ mod tests {
         assert!(!is_dark_enough("#ffffff"));
         assert!(!is_dark_enough("teal"));
         assert!(!is_dark_enough("#00695"));
+        assert!(!is_dark_enough("#+12345"));
+        assert!(!is_dark_enough("#-12345"));
+        assert!(!is_dark_enough("#00695g"));
 
         assert!(is_emoji("🎉"));
         assert!(is_emoji("❤️"));
