@@ -20,6 +20,11 @@ use super::{
 };
 use crate::{http::cookie, i18n::Lang};
 
+/// The most remembered links the front page reads. Each costs a lookup, and a guest is
+/// rarely invited to more than a few events at once; a request with more is someone
+/// making the site look up links for nothing.
+const MOST_REMEMBERED: usize = 10;
+
 /// The start of every cookie's name. On https, the `__Host-` prefix makes browsers
 /// refuse one that another host or path tries to set.
 fn prefix(https: bool) -> &'static str {
@@ -107,7 +112,7 @@ impl Remembered {
             guests: Vec::new(),
             cookies: Vec::new(),
         };
-        for (cookie_name, link) in links(headers, https) {
+        for (cookie_name, link) in links(headers, https).into_iter().take(MOST_REMEMBERED) {
             let Some(guest) = Guest::find(state, link).await? else {
                 remembered
                     .cookies

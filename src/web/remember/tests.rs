@@ -1,6 +1,6 @@
 use axum::{
     body::Body,
-    http::{Request, header},
+    http::{Request, StatusCode, header},
 };
 use sqlx::PgPool;
 
@@ -164,4 +164,16 @@ fn reads_only_its_own_cookies() {
     assert!(links(&headers("innbyx=a.b"), false).is_empty());
     assert!(links(&headers("innby-e="), false).is_empty());
     assert!(links(&HeaderMap::new(), false).is_empty());
+}
+
+#[sqlx::test]
+async fn the_front_page_reads_only_so_many_remembered_links(db: PgPool) {
+    let site = Site::new(db);
+    // Well-formed links that lead nowhere: each one read is a lookup, and is dropped.
+    let forged = "AAAAAAAAAAAAAAAAAAAAAA.AAAAAAAAAAAAAAAAAAAAAA";
+    let prefix = prefix(site.config.is_https());
+    let cookie: Vec<String> = (0..40).map(|n| format!("{prefix}{n}={forged}")).collect();
+    let response = site.send(get("/?lang=en", &cookie.join("; "))).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(set_cookies(&response).len(), MOST_REMEMBERED);
 }
