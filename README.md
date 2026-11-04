@@ -59,10 +59,23 @@ ports themselves.
 Every text on the public site, the admin UI and in the mails is in
 [`locales/`](locales/): `nb.toml` (Bokmål), `nn.toml` (Nynorsk), `en.toml` (British,
 posh), `en-us.toml` (American, simplified), `zh-hans.toml` (Simplified Chinese) and
-`zh-hant.toml` (Traditional Chinese). The admin UI's texts are under `[admin]`. All files
-have the same keys, and placeholders such as `{name}` mark where a value goes; keep them
-as they are. Punctuation that differs between scripts, like "：" for ": ", is part of the
-texts. `just test` checks that the files agree.
+`zh-hant.toml` (Traditional Chinese). The admin UI's texts are under `[admin]`.
+
+Each file is a language of its own. Its `language` table at the top names it, says which
+browser languages it answers, and lists its `fallback` languages: a text the file leaves
+out comes from those, in order, and from theirs in turn. American English falls back to
+British, Traditional Chinese to Simplified, Simplified Chinese and British English and
+Nynorsk to Bokmål, which has every text. So a variant only needs the texts it changes,
+and a new text can go in `nb.toml` first. A text Bokmål doesn't have is refused.
+
+Placeholders such as `{name}` mark where a value goes; keep them as they are.
+Punctuation that differs between scripts, like "：" for ": ", is part of the texts.
+`just test` checks the files.
+
+To add a language, add its file, a variant to `Lang` in
+[`src/i18n/mod.rs`](src/i18n/mod.rs), and a migration adding it to the database's `lang`
+type, since guests' languages are stored. Host-written texts, like an event's title,
+fall back the same way.
 
 The privacy notice is an HTML template per language, in
 [`templates/privacy/`](templates/privacy/). Bump `PRIVACY_VERSION` in

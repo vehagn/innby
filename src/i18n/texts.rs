@@ -1,9 +1,8 @@
 use super::Lang;
 
 /// A text the host writes, such as an event's title: in Bokmål, and in other languages
-/// if the host gives them. A missing language falls back: Nynorsk and British English to
-/// Bokmål, American English and Simplified Chinese to British, and Traditional Chinese
-/// to Simplified.
+/// if the host gives them. A language without one falls back as its file says, as the
+/// site's own texts do, and in the end to Bokmål.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Texts {
     pub nb: String,
@@ -17,16 +16,11 @@ pub struct Texts {
 impl Texts {
     /// The text in this language, or the one it falls back to.
     pub fn get(&self, lang: Lang) -> &str {
-        let en_gb = self.en_gb.as_deref().unwrap_or(&self.nb);
-        let zh_hans = self.zh_hans.as_deref().unwrap_or(en_gb);
-        match lang {
-            Lang::Nb => &self.nb,
-            Lang::Nn => self.nn.as_deref().unwrap_or(&self.nb),
-            Lang::EnGb => en_gb,
-            Lang::EnUs => self.en_us.as_deref().unwrap_or(en_gb),
-            Lang::ZhHans => zh_hans,
-            Lang::ZhHant => self.zh_hant.as_deref().unwrap_or(zh_hans),
-        }
+        std::iter::once(lang)
+            .chain(lang.fallbacks().iter().copied())
+            .map(|lang| self.own(lang))
+            .find(|text| !text.is_empty())
+            .unwrap_or(&self.nb)
     }
 
     /// The text written for this language, without falling back; empty if there's none.

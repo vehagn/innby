@@ -54,14 +54,14 @@ src/
   mailer/            the outbox worker; compose.rs writes the mails
   janitor.rs         deletes what retention says is due
   config/            settings from INNBY_* variables: mod.rs (site), admin.rs, mail.rs, env.rs
-  i18n/              Lang (mod.rs), messages.rs (locales/*.toml), texts.rs (host-written texts), fill.rs
+  i18n/              Lang (mod.rs), language.rs (a locale file and its fallbacks), messages.rs, texts.rs, fill.rs
   link.rs            HMAC-signed links: possession is the authorisation
   paths.rs           every route pattern, and links built from them
   theme.rs           the colour scheme from ?theme=
   random.rs          tokens from the OS
   testing.rs         HTTP helpers for tests (body, location, escape, form posts, Set-Cookie)
   e2e/               end-to-end journeys through both sites and the mailer, by a test Browser
-locales/*.toml       every text, in six languages; templates/ askama pages (admin/, privacy/)
+locales/*.toml       one file per language: what it is, its fallbacks, its texts; templates/ askama pages
 migrations/*.sql     the schema, applied by `innby migrate`
 charts/innby/        the Helm chart; deploy/ is one homelab's install of it
 docs/ropa.md         the GDPR record of processing
@@ -76,9 +76,13 @@ into a module.
   template in `templates/` (`templates/admin/` for the admin), the route in that site's
   `router` and its path in `paths.rs`. Admin routes go in the router group of the role
   they need, and templates hide what `Role::can_edit()` / `Role::is_admin()` rule out.
-- **A text:** a key in all six `locales/*.toml` files (tests fail if one lacks it, or
-  their `{placeholders}` differ), and a field in `i18n/messages.rs`. Admin texts are
-  under `[admin]`. Fill placeholders with `i18n::fill` or `filled`, never `format!`.
+- **A text:** a field in `i18n/messages.rs` and a key in `locales/nb.toml`, which must
+  have every text; then in the other languages that word it differently. A language's
+  file leaves out what its `language.fallback` languages should fill in (en-us → en →
+  nb, zh-hant → zh-hans → en, nn → nb). Admin texts are under `[admin]`. Placeholders
+  must match Bokmål's; fill them with `i18n::fill` or `filled`, never `format!`.
+- **A language:** its `locales/{code}.toml` with a `language` table, a `Lang` variant
+  (code and file) in `i18n/mod.rs`, and a migration adding it to the `lang` type.
 - **A query:** in the `db` module for its table, as a `sqlx` macro; then `just db prepare`.
 - **A schema change:** a new file in `migrations/`; never edit one that's released.
 - **A setting:** read it in `config/`, list it in `.env.example`, and in the chart's

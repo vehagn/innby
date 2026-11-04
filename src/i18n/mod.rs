@@ -1,26 +1,34 @@
-//! The site's six languages and every text in them.
+//! The site's six languages and every text in them. Each language is a module of its
+//! own, its file in `locales/`, which says what it is and which languages fill in the
+//! texts it leaves out.
 //!
-//! - `mod.rs`: `Lang`, negotiated from `Accept-Language` or picked with `?lang=`, with
-//!   its locale and date format.
-//! - `messages`: the texts in `locales/{code}.toml`, as `Messages` (the site, the admin
-//!   UI's `AdminMessages` and the `Mails`).
-//! - `texts`: `Texts`, a text the host writes in several languages, with fallbacks.
+//! - `mod.rs`: `Lang`, the list of languages, negotiated from `Accept-Language` or
+//!   picked with `?lang=`.
+//! - `language`: reading a language's file and filling in its texts from its fallbacks.
+//! - `messages`: the texts, as `Messages` (the site, the admin UI's `AdminMessages` and
+//!   the mails).
+//! - `texts`: `Texts`, a text the host writes in several languages, which falls back
+//!   the same way.
 //! - `fill`: filling in `{placeholders}` and counting.
 
 mod fill;
+mod language;
 mod messages;
 mod texts;
 
 pub use fill::{bold, bold_count, count, fill, filled};
-pub use messages::{AdminMessages, Messages, load};
+pub use language::load;
+pub use messages::{AdminMessages, Messages};
 pub use texts::Texts;
 
-use chrono::{DateTime, Locale};
+use chrono::DateTime;
 use chrono_tz::Tz;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-/// The site's languages. Enum order is `Lang::ALL` order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
+/// The site's languages, each with its file in `locales/` (`file`). Adding one means a
+/// variant here, its file, and a migration adding it to the database's `lang` type.
+/// Enum order is `Lang::ALL` order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "lang", rename_all = "lowercase")]
 pub enum Lang {
@@ -69,48 +77,40 @@ impl Lang {
         }
     }
 
+    /// Its own name, on the language switch.
+    pub fn name(self) -> &'static str {
+        &language::of(self).name
+    }
+
     /// The language tag, for `<html lang>` and `hreflang`.
     pub fn tag(self) -> &'static str {
-        match self {
-            Lang::Nb => "nb",
-            Lang::Nn => "nn",
-            Lang::EnGb => "en-GB",
-            Lang::EnUs => "en-US",
-            Lang::ZhHans => "zh-Hans",
-            Lang::ZhHant => "zh-Hant",
-        }
+        &language::of(self).tag
     }
 
     /// A short mark for the language menu: two letters, or one character for Chinese.
     pub fn badge(self) -> &'static str {
-        match self {
-            Lang::Nb => "NB",
-            Lang::Nn => "NN",
-            Lang::EnGb => "GB",
-            Lang::EnUs => "US",
-            Lang::ZhHans => "简",
-            Lang::ZhHant => "繁",
-        }
+        &language::of(self).badge
     }
 
-    /// Parses a `?lang=` value or a language tag such as "nn-NO". Plain "no" is Bokmål,
-    /// English is British unless it's from the US, and Chinese is Simplified unless it's
-    /// Traditional or from Taiwan, Hong Kong or Macau.
+    /// The languages its texts fall back to, nearest first.
+    pub fn fallbacks(self) -> &'static [Lang] {
+        &language::of(self).fallbacks
+    }
+
+    /// Parses a `?lang=` value or a language tag such as "nn-NO", as the languages'
+    /// files say which tags they answer. The tag loses a part at a time from the end
+    /// until a language answers it, as in RFC 4647's lookup: "zh-Hant-TW" tries
+    /// "zh-hant-tw", "zh-hant" and "zh".
     pub fn from_code(code: &str) -> Option<Self> {
-        let code = code.trim().to_ascii_lowercase();
-        let (language, region) = code.split_once(['-', '_']).unwrap_or((&code, ""));
-        match (language, region) {
-            ("nb" | "no", _) => Some(Lang::Nb),
-            ("nn", _) => Some(Lang::Nn),
-            ("en", "us") => Some(Lang::EnUs),
-            ("en", _) => Some(Lang::EnGb),
-            ("zh", region)
-                if region.starts_with("hant") || ["tw", "hk", "mo"].contains(&region) =>
-            {
-                Some(Lang::ZhHant)
+        let mut tag = code.trim().to_ascii_lowercase().replace('_', "-");
+        loop {
+            let found = Lang::ALL
+                .into_iter()
+                .find(|lang| language::of(*lang).serves.contains(&tag));
+            if found.is_some() {
+                return found;
             }
-            ("zh", _) => Some(Lang::ZhHans),
-            _ => None,
+            tag.truncate(tag.rfind('-')?);
         }
     }
 
@@ -139,9 +139,10 @@ impl Lang {
     }
 
     pub fn messages(self) -> &'static Messages {
-        messages::of(self)
+        &language::of(self).messages
     }
 
+    /// Its file, compiled in.
     pub(super) fn file(self) -> &'static str {
         match self {
             Lang::Nb => include_str!("../../locales/nb.toml"),
@@ -153,21 +154,10 @@ impl Lang {
         }
     }
 
-    fn locale(self) -> Locale {
-        match self {
-            Lang::Nb => Locale::nb_NO,
-            Lang::Nn => Locale::nn_NO,
-            Lang::EnGb => Locale::en_GB,
-            Lang::EnUs => Locale::en_US,
-            Lang::ZhHans => Locale::zh_CN,
-            Lang::ZhHant => Locale::zh_TW,
-        }
-    }
-
     /// A date and time as people write it, e.g. "lørdag 12. desember 2026 kl. 19:00".
     pub fn format_date(self, date: DateTime<Tz>) -> String {
         let date = date
-            .format_localized(&self.messages().date_format, self.locale())
+            .format_localized(&self.messages().date_format, language::of(self).locale)
             .to_string();
         // Some locales' day and month names end in a space ("laurdag ").
         date.split_whitespace().collect::<Vec<_>>().join(" ")

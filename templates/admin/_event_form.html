@@ -1,5 +1,5 @@
 {% let a = crate::admin::lang::text() %}
-{% let bokmal = crate::i18n::Lang::Nb.messages().language_name.as_str() %}
+{% let bokmal = crate::i18n::Lang::Nb.name() %}
 <label for="title">{{ a.event_title }} · {{ bokmal }}</label>
 <input id="title" name="title" required maxlength="200" value="{{ form.title() }}">
 <label for="description">{{ a.event_description }} · {{ bokmal }}</label>

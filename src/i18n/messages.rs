@@ -1,38 +1,21 @@
-//! Every user-facing string, read from `locales/{code}.toml` into one struct per
-//! language. A key one language has and another lacks stops the program at start.
+//! Every user-facing string, from `locales/{code}.toml` with the gaps filled in from the
+//! language's fallbacks (see `language`), as one struct per language.
 
-use std::{borrow::Borrow, fmt::Display, sync::LazyLock};
+use std::{borrow::Borrow, fmt::Display};
 
 use serde::{Deserialize, Serialize};
 
-use super::{Lang, count, fill};
+use super::{count, fill};
 use crate::db::{
     qr,
     rsvp::{NameDisplay, Response},
 };
 
-static MESSAGES: LazyLock<[Messages; 6]> = LazyLock::new(|| Lang::ALL.map(Messages::load));
-
-/// The texts in this language.
-pub(super) fn of(lang: Lang) -> &'static Messages {
-    &MESSAGES[lang as usize]
-}
-
-/// Reads every language's texts now, so a broken file stops the program at start rather
-/// than failing the first page that needs it.
-pub fn load() {
-    for lang in Lang::ALL {
-        lang.messages();
-    }
-}
-
-/// Every user-facing string, from `locales/{code}.toml`. Each file must have exactly
-/// these keys. `{name}` and the like in a text are filled in with `fill`.
+/// Every user-facing string. A language's file may leave any of them out, for its
+/// fallbacks to fill in, but may not have others. `{name}` and the like in a text are filled in with `fill`.
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Messages {
-    /// The language's own name, on the language switch.
-    pub language_name: String,
     /// What the language switch is, for screen readers.
     pub languages: String,
     pub theme: String,
@@ -401,11 +384,6 @@ pub struct MailText {
 }
 
 impl Messages {
-    fn load(lang: Lang) -> Self {
-        toml::from_str(lang.file())
-            .unwrap_or_else(|err| panic!("locales/{}.toml: {err}", lang.code()))
-    }
-
     /// "1 person", "3 people".
     pub fn people_count(&self, n: i32) -> String {
         let text = if n == 1 {
@@ -458,7 +436,7 @@ mod tests {
     use serde_json::Value;
 
     use super::*;
-    use crate::i18n::bold_count;
+    use crate::i18n::{Lang, bold_count};
 
     /// The `{…}` placeholders in a text.
     fn placeholders(text: &str) -> BTreeSet<&str> {
@@ -499,14 +477,6 @@ mod tests {
                 assert_eq!(placeholders(&nb), placeholders(&text), "{lang:?} {key}");
             }
         }
-    }
-
-    #[test]
-    fn unknown_or_missing_keys_are_refused() {
-        let nb = include_str!("../../locales/nb.toml");
-        assert!(toml::from_str::<Messages>(&format!("typo = \"x\"\n{nb}")).is_err());
-        let without_greeting = nb.replace("greeting = ", "# greeting = ");
-        assert!(toml::from_str::<Messages>(&without_greeting).is_err());
     }
 
     #[test]

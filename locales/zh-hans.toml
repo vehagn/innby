@@ -1,10 +1,19 @@
 # Simplified Chinese texts for the public site, the admin pages and the mails.
-# Every language has the same keys; a missing or unknown key fails the tests and stops
-# fest at start.
+# A text left out here comes from the `fallback` languages, in order, and from theirs
+# in turn; a text Bokmål doesn't have is refused.
 # `{name}` and the like are filled in; keep them as they are.
 
-# The language's own name, on the language switch.
-language_name = "简体中文"
+# What the language is: its own name on the language switch, its tag for <html lang>,
+# its mark in the language menu, its locale for day and month names, the
+# Accept-Language tags it answers (a tag loses a part at a time until one matches), and
+# the languages that fill in what this file leaves out.
+language.name = "简体中文"
+language.tag = "zh-Hans"
+language.badge = "简"
+language.locale = "zh_CN"
+language.serves = ["zh", "zh-hans"]
+language.fallback = ["en"]
+
 # What the language switch is, for screen readers.
 languages = "语言"
 # The colour scheme switch, and its three choices.

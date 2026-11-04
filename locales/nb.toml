@@ -1,10 +1,18 @@
 # Norwegian (bokmål) texts for the public site, the admin pages and the mails.
-# Every language has the same keys; a missing or unknown key fails the tests and stops
-# fest at start.
+# Bokmål is where every other language ends up, so it has every text and falls back to
+# nothing.
 # `{name}` and the like are filled in; keep them as they are.
 
-# The language's own name, on the language switch.
-language_name = "Bokmål"
+# What the language is: its own name on the language switch, its tag for <html lang>,
+# its mark in the language menu, its locale for day and month names, the
+# Accept-Language tags it answers (a tag loses a part at a time until one matches), and
+# the languages that fill in what this file leaves out.
+language.name = "Bokmål"
+language.tag = "nb"
+language.badge = "NB"
+language.locale = "nb_NO"
+language.serves = ["nb", "no"]
+
 # What the language switch is, for screen readers.
 languages = "Språk"
 # The colour scheme switch, and its three choices.

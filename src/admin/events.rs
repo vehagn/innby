@@ -297,7 +297,7 @@ impl EventForm {
             .into_iter()
             .filter(|lang| *lang != Lang::Nb)
             .map(|lang| Translation {
-                language: &lang.messages().language_name,
+                language: lang.name(),
                 title_field: field("title", lang),
                 title: self.title.own(lang).to_owned(),
                 description_field: field("description", lang),
