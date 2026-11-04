@@ -42,12 +42,13 @@ create table invite_group (
     max_party_size int not null default 2 check (max_party_size between 1 and 20),
     -- Bumped to revoke the group's link; part of the HMAC input.
     link_nonce     int not null default 0,
-    created_at     timestamptz not null default now()
+    created_at     timestamptz not null default now(),
+    -- For sign-ups to name their group and its event together.
+    unique (id, event_id)
 );
 
 create index invite_group_event on invite_group (event_id);
 
-create type rsvp_source as enum ('invite', 'open');
 create type rsvp_response as enum ('pending', 'attending', 'declined');
 create type email_status as enum ('none', 'unconfirmed', 'confirmed');
 -- How the guest's name shows in the guest list that every link shows. Null until the
@@ -59,9 +60,9 @@ create type name_display as enum ('full', 'partial', 'hidden');
 create table rsvp (
     id               uuid primary key default uuidv7(),
     event_id         uuid not null references event on delete cascade,
-    source           rsvp_source not null,
-    -- The group link a sign-up came through. A group with sign-ups can't be deleted.
-    group_id         uuid references invite_group,
+    -- The group link a sign-up came through, which must be the same event's; none for an
+    -- invitation. A group with sign-ups can't be deleted.
+    group_id         uuid,
     -- Label for invitations, self-given name for sign-ups.
     name             text not null check (length(name) between 1 and 100),
     response         rsvp_response not null default 'pending',
@@ -80,6 +81,7 @@ create table rsvp (
     privacy_version  text,
     responded_at     timestamptz,
     created_at       timestamptz not null default now(),
+    foreign key (group_id, event_id) references invite_group (id, event_id),
     check (party_size between 1 and max_party_size),
     check ((email is null) = (email_status = 'none')),
     check ((email_consent_at is null) = (email is null))

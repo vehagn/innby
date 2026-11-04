@@ -25,7 +25,7 @@ use crate::{
         event::Event,
         group::{self, Group},
         outbox,
-        rsvp::{self, EmailStatus, Headcount, MAX_PARTY_SIZE, NameDisplay, NameKind, Rsvp, Source},
+        rsvp::{self, EmailStatus, Headcount, MAX_PARTY_SIZE, NameDisplay, NameKind, Rsvp},
     },
     http::{render, render_with},
     i18n::{count, filled},
@@ -38,7 +38,8 @@ pub(super) struct GuestRow {
     /// The guest's admin page.
     pub(super) path: String,
     pub(super) name: String,
-    /// An invitation, or which group link the guest signed up through.
+    /// An invitation, or which group link the guest signed up through: those the row is
+    /// given are the event's, or the one it's shown under.
     pub(super) source: String,
     /// The admin page of that group.
     pub(super) group_path: Option<String>,
@@ -60,10 +61,9 @@ impl GuestRow {
         Self {
             path: paths::admin(&paths::path(paths::GUEST, rsvp.id)),
             name: rsvp.name.clone(),
-            source: match (rsvp.source, group) {
-                (Source::Invite, _) => text.source_invitation.clone(),
-                (Source::Open, Some(group)) => filled(&text.source_group, "group", &group.name),
-                (Source::Open, None) => text.source_sign_up.clone(),
+            source: match group {
+                Some(group) => filled(&text.source_group, "group", &group.name),
+                None => text.source_invitation.clone(),
             },
             group_path: rsvp
                 .group_id

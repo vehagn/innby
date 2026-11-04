@@ -105,17 +105,12 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::{
-        config::tests::config,
-        db::rsvp::{Response, Source},
-        i18n::Lang,
-    };
+    use crate::{config::tests::config, db::rsvp::Response, i18n::Lang};
 
     fn guest(lang: Lang, email_status: EmailStatus) -> Rsvp {
         Rsvp {
             id: Uuid::nil(),
             event_id: Uuid::nil(),
-            source: Source::Invite,
             name: "Kari Nordmann".into(),
             response: Response::Attending,
             party_size: 2,

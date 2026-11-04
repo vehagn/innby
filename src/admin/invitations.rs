@@ -18,7 +18,7 @@ use super::{
 use crate::{
     db::{
         event::Event,
-        rsvp::{self, MAX_PARTY_SIZE, NameKind, Source},
+        rsvp::{self, MAX_PARTY_SIZE, NameKind},
     },
     http::render_form,
     paths::{self, EventLinks},
@@ -103,7 +103,7 @@ async fn invitations_page(
     let tz = event.details.starts_at.timezone();
     let invitations = rsvps
         .iter()
-        .filter(|rsvp| rsvp.source == Source::Invite)
+        .filter(|rsvp| rsvp.is_invitation())
         .filter(|rsvp| from.is_none_or(|from| rsvp.id >= from))
         .map(|rsvp| Invitation {
             row: GuestRow::new(rsvp, tz, &[]),

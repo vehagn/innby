@@ -379,7 +379,6 @@ answer_pending = "no answer"
 answer_attending = "coming"
 answer_declined = "not coming"
 source_invitation = "invitation"
-source_sign_up = "sign-up"
 # A sign-up through a group's link.
 source_group = "sign-up: {group}"
 email_unconfirmed = "unconfirmed"

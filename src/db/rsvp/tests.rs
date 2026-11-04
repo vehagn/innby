@@ -38,7 +38,7 @@ async fn invitation_starts_pending(pool: PgPool) -> sqlx::Result<()> {
         2,
     )
     .await?;
-    assert_eq!(rsvp.source, Source::Invite);
+    assert!(rsvp.is_invitation());
     assert_eq!(rsvp.response, Response::Pending);
     assert_eq!((rsvp.party_size, rsvp.max_party_size), (1, 2));
     assert_eq!((rsvp.link_nonce, rsvp.lang), (0, Lang::Nb));
@@ -49,9 +49,23 @@ async fn invitation_starts_pending(pool: PgPool) -> sqlx::Result<()> {
 }
 
 #[sqlx::test]
+async fn a_sign_up_belongs_to_its_groups_event(pool: PgPool) -> sqlx::Result<()> {
+    let rsvp = sign_up(&pool, "Per", 1).await?;
+    let other = crate::db::event::create(&pool, &crate::db::event::tests::details()).await?;
+    // Moving the sign-up to another event, its group left behind, is refused.
+    let moved = sqlx::query("update rsvp set event_id = $1 where id = $2")
+        .bind(other.id)
+        .bind(rsvp.id)
+        .execute(&pool)
+        .await;
+    assert!(moved.is_err(), "{moved:?}");
+    Ok(())
+}
+
+#[sqlx::test]
 async fn open_rsvp_is_attending_immediately(pool: PgPool) -> sqlx::Result<()> {
     let rsvp = sign_up(&pool, "Per", 2).await?;
-    assert_eq!(rsvp.source, Source::Open);
+    assert!(!rsvp.is_invitation());
     assert!(rsvp.group_id.is_some());
     assert_eq!(rsvp.name_display, Some(NameDisplay::Full));
     assert_eq!(rsvp.response, Response::Attending);

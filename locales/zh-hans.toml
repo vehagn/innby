@@ -343,7 +343,6 @@ answer_pending = "未回复"
 answer_attending = "参加"
 answer_declined = "不参加"
 source_invitation = "邀请"
-source_sign_up = "报名"
 # A sign-up through a group's link.
 source_group = "报名：{group}"
 email_unconfirmed = "未确认"

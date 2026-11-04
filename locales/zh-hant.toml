@@ -345,7 +345,6 @@ answer_pending = "未回覆"
 answer_attending = "參加"
 answer_declined = "不參加"
 source_invitation = "邀請"
-source_sign_up = "報名"
 # A sign-up through a group's link.
 source_group = "報名：{group}"
 email_unconfirmed = "未確認"

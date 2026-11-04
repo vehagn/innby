@@ -376,7 +376,6 @@ answer_pending = "ikke svart"
 answer_attending = "kommer"
 answer_declined = "kommer ikke"
 source_invitation = "invitasjon"
-source_sign_up = "påmelding"
 # A sign-up through a group's link.
 source_group = "påmelding: {group}"
 email_unconfirmed = "ubekreftet"

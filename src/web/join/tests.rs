@@ -102,7 +102,7 @@ async fn guest_joins_and_gets_their_link(db: PgPool) {
     let guest = all(&site)
         .await
         .into_iter()
-        .find(|guest| guest.source == rsvp::Source::Open)
+        .find(|guest| !guest.is_invitation())
         .unwrap();
     assert_eq!(guest.name, "Per Hansen");
     assert_eq!(guest.group_id, Some(group.id));

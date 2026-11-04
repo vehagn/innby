@@ -347,7 +347,6 @@ pub struct AdminMessages {
     pub answer_attending: String,
     pub answer_declined: String,
     pub source_invitation: String,
-    pub source_sign_up: String,
     /// A sign-up through a group's link.
     pub source_group: String,
     pub email_unconfirmed: String,

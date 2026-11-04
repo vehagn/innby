@@ -22,14 +22,6 @@ use crate::i18n::Lang;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
-#[sqlx(type_name = "rsvp_source", rename_all = "lowercase")]
-pub enum Source {
-    Invite,
-    Open,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
-#[serde(rename_all = "lowercase")]
 #[sqlx(type_name = "rsvp_response", rename_all = "lowercase")]
 pub enum Response {
     Pending,
@@ -66,7 +58,6 @@ pub enum EmailStatus {
 pub struct Rsvp {
     pub id: Uuid,
     pub event_id: Uuid,
-    pub source: Source,
     pub name: String,
     pub response: Response,
     pub party_size: i32,
@@ -86,6 +77,11 @@ pub struct Rsvp {
 }
 
 impl Rsvp {
+    /// Whether the host invited them, rather than their signing up through a group link.
+    pub fn is_invitation(&self) -> bool {
+        self.group_id.is_none()
+    }
+
     /// How the guest's name shows in the guest list right now.
     pub fn listed(&self) -> NameDisplay {
         NameDisplay::listed(self.response, self.name_display)
@@ -109,7 +105,7 @@ macro_rules! query_rsvp {
         sqlx::query_as!(
             Rsvp,
             $($head +)*
-            r#" id, event_id, source as "source: Source", name, response as "response: Response",
+            r#" id, event_id, name, response as "response: Response",
                 party_size, max_party_size, link_nonce, lang as "lang: Lang", email,
                 email_status as "email_status: EmailStatus", email_consent_at,
                 privacy_version, responded_at, created_at, group_id,
@@ -128,8 +124,7 @@ pub async fn create_invite(
     max_party_size: i32,
 ) -> sqlx::Result<Rsvp> {
     query_rsvp!(
-        "insert into rsvp (event_id, source, name, max_party_size) \
-         values ($1, 'invite', $2, $3)" returning,
+        "insert into rsvp (event_id, name, max_party_size) values ($1, $2, $3)" returning,
         event_id,
         name,
         max_party_size,
@@ -154,9 +149,9 @@ pub async fn create_open(
     privacy_version: &str,
 ) -> sqlx::Result<Rsvp> {
     query_rsvp!(
-        "insert into rsvp (event_id, source, group_id, name, response, party_size, \
+        "insert into rsvp (event_id, group_id, name, response, party_size, \
             max_party_size, name_display, lang, privacy_version, responded_at) \
-         values ($8, 'open', $1, $2, 'attending', $3, $4, $5, $6, $7, now())" returning,
+         values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now())" returning,
         sign_up.group.id,
         sign_up.name,
         sign_up.party_size,

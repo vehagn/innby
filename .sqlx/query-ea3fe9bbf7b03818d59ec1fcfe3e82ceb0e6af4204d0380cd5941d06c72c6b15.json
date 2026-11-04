@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, event_id, source as \"source: Source\", name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\" from rsvp where id = $1",
+  "query": "insert into rsvp (event_id, name, max_party_size) values ($1, $2, $3) returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\" ",
   "describe": {
     "columns": [
       {
@@ -27,27 +27,6 @@
       },
       {
         "ordinal": 2,
-        "name": "source: Source",
-        "type_info": {
-          "Custom": {
-            "name": "rsvp_source",
-            "kind": {
-              "Enum": [
-                "invite",
-                "open"
-              ]
-            }
-          }
-        },
-        "origin": {
-          "Table": {
-            "table": "rsvp",
-            "name": "source"
-          }
-        }
-      },
-      {
-        "ordinal": 3,
         "name": "name",
         "type_info": "Text",
         "origin": {
@@ -58,7 +37,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "response: Response",
         "type_info": {
           "Custom": {
@@ -80,7 +59,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 4,
         "name": "party_size",
         "type_info": "Int4",
         "origin": {
@@ -91,7 +70,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "max_party_size",
         "type_info": "Int4",
         "origin": {
@@ -102,7 +81,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 6,
         "name": "link_nonce",
         "type_info": "Int4",
         "origin": {
@@ -113,7 +92,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 7,
         "name": "lang: Lang",
         "type_info": {
           "Custom": {
@@ -138,7 +117,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 8,
         "name": "email",
         "type_info": "Text",
         "origin": {
@@ -149,7 +128,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 9,
         "name": "email_status: EmailStatus",
         "type_info": {
           "Custom": {
@@ -171,7 +150,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 10,
         "name": "email_consent_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -182,7 +161,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 11,
         "name": "privacy_version",
         "type_info": "Text",
         "origin": {
@@ -193,7 +172,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 12,
         "name": "responded_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -204,7 +183,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 13,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -215,7 +194,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 14,
         "name": "group_id",
         "type_info": "Uuid",
         "origin": {
@@ -226,7 +205,7 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 15,
         "name": "name_display: NameDisplay",
         "type_info": {
           "Custom": {
@@ -250,11 +229,12 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Text",
+        "Int4"
       ]
     },
     "nullable": [
-      false,
       false,
       false,
       false,
@@ -273,5 +253,5 @@
       true
     ]
   },
-  "hash": "038ea7fe0fcb95719ab1a195fdd8e74deac27fd5c02fe668d2c1ab730b3d8466"
+  "hash": "ea3fe9bbf7b03818d59ec1fcfe3e82ceb0e6af4204d0380cd5941d06c72c6b15"
 }
