@@ -2,8 +2,12 @@
 
 Innby is an RSVP site that keeps as little about its guests as it can: a public site for
 guests, an admin UI for the host, a mailer and a janitor. It's one Rust binary on
-Postgres 18, with no JavaScript and server-rendered HTML. [PLAN.md](PLAN.md) explains
-the design and its reasons; [README.md](README.md) is for people running it.
+Postgres 18, with no JavaScript and server-rendered HTML.
+
+Read as needed: [docs/architecture.md](docs/architecture.md) (how it works),
+[docs/development.md](docs/development.md) (how to add a page, text, query, setting or
+test), [docs/translating.md](docs/translating.md), [docs/decisions.md](docs/decisions.md)
+(why), and the chart's [README](charts/innby/README.md).
 
 ## Commands
 
@@ -64,55 +68,28 @@ src/
 locales/*.toml       one file per language: what it is, its fallbacks, its texts; templates/ askama pages
 migrations/*.sql     the schema, applied by `innby migrate`
 charts/innby/        the Helm chart; deploy/ is one homelab's install of it
-docs/ropa.md         the GDPR record of processing
+docs/                the guides for people, and ropa.md, the GDPR record of processing
 ```
 
 Every `mod.rs` starts with a `//!` comment listing its parts, so reading it is the way
 into a module.
 
-## Where things go
+## Rules
 
-- **A page:** a handler and an askama `Template` struct in the module for its area, the
-  template in `templates/` (`templates/admin/` for the admin), the route in that site's
-  `router` and its path in `paths.rs`. Admin routes go in the router group of the role
-  they need, and templates hide what `Role::can_edit()` / `Role::is_admin()` rule out.
-- **A text:** a field in `i18n/messages.rs` and a key in `locales/nb.toml`, which must
-  have every text; then in the other languages that word it differently. A language's
-  file leaves out what its `language.fallback` languages should fill in (en-us → en →
-  nb, zh-hant → zh-hans → en, nn → nb). Admin texts are under `[admin]`. Placeholders
-  must match Bokmål's; fill them with `i18n::fill` or `filled`, never `format!`.
-- **A language:** its `locales/{code}.toml` with a `language` table, a `Lang` variant
-  (code and file) in `i18n/mod.rs`, and a migration adding it to the `lang` type.
-- **A query:** in the `db` module for its table, as a `sqlx` macro; then `just db prepare`.
-- **A schema change:** a new file in `migrations/`; never edit one that's released.
-- **A setting:** read it in `config/`, list it in `.env.example`, and in the chart's
-  `values.yaml`, `values.schema.json` and `templates/configmap.yaml` if it's for the cluster.
-- **Personal data:** keep it out of logs (route patterns and ids only), give it a
-  retention rule in `db/retention.rs`, and update `docs/ropa.md` and the privacy
-  notices in `templates/privacy/`, bumping `web::PRIVACY_VERSION`.
-
-## Tests
-
-- Unit and database tests are a `tests` child module of the code they test, so they
-  can reach private items; `#[sqlx::test]` gives each a fresh database. A short one sits
-  at the bottom of the file. One past about 150 lines goes in a sibling file, so reading
-  the code doesn't mean reading its tests: `foo.rs` ends with `#[cfg(test)] mod tests;`
-  and the tests are in `foo/tests.rs` (beside a `mod.rs`, in `tests.rs`).
-- There's no `tests/` directory: integration tests there only see a library's public
-  API, and Innby is a binary whose journeys need its internals.
-- Router-level tests: `web::testing::Site` for the public site, `admin::testing::Admin`
-  for a logged-in host. Generic helpers are in `crate::testing`.
-- Journeys go in `src/e2e/`, one file per area; `src/e2e/mod.rs` says how to add one.
-  `World` makes the sites, a second event (`summer_party`), invitations to either, and
-  runs the mailer and the janitor; each `Browser` is a device with its own address.
-  They find fields by label and buttons by text, from the British locale (`en()`,
-  `admin()`).
-
-## Conventions
-
-- Rust 2024 edition, `cargo fmt`, clippy clean with `-D warnings`.
-- No JavaScript, and a strict CSP: forms and links only. Theme and language travel in
-  `?theme=` and `?lang=`.
-- Docs and comments are plain, British English, and say why rather than what.
-- Say Containerfile and Compose, not Dockerfile and Docker Compose.
-- Commits: one change each, imperative subject, a body that says why.
+- `just test`, `just lint` and `just chart` must pass; CI runs them.
+- After changing a query, run `just db prepare` and commit `.sqlx/`.
+- Never edit a migration that has been released; add a new one.
+- A new text goes in `src/i18n/messages.rs` and `locales/nb.toml` at least; placeholders
+  must match Bokmål's. Fill them with `i18n::fill` or `filled`, never `format!`.
+- Admin routes go in the router group of the role they need (`admin/mod.rs`), and
+  templates hide what `Role::can_edit()` / `Role::is_admin()` rule out.
+- Keep personal data out of logs (route patterns and ids only). New personal data needs
+  a retention rule in `db/retention.rs`, and updates to `docs/ropa.md`, the privacy
+  notices in `templates/privacy/` and `web::PRIVACY_VERSION`.
+- Tests go in a `tests` module beside the code: inline when short, in a sibling
+  `tests.rs` past about 150 lines (`foo.rs` → `foo/tests.rs`). Journeys go in
+  `src/e2e/`. There's no `tests/` directory: integration tests there only see a
+  library's public API, and Innby is a binary.
+- No JavaScript. Say Containerfile and Compose, not Dockerfile and Docker Compose. Docs
+  and comments are plain British English and say why rather than what. One change per
+  commit, imperative subject, a body that says why.

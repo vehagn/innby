@@ -113,7 +113,7 @@ With Ingresses, `ingress.admin.className` does the same.
 
 Hosts log in as the built-in user, through an OpenID Connect provider such as Authelia
 (`oidc.issuer`), or either. The provider gives each host a role, viewer, editor or
-admin; the top-level README's "Single sign-on" shows how to set one up. Register
+admin; [docs/single-sign-on.md](../../docs/single-sign-on.md) shows how to set one up. Register
 `{admin.url}/login/oidc/callback` with the provider.
 
 ## Network policies

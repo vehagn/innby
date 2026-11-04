@@ -23,7 +23,7 @@ admin:
   # On a hostname of its own, on the internal gateway only.
   url: https://fest-admin.stonegarden.dev
 
-# Single sign-on through Authelia; see "Single sign-on" in the top-level README. Needs
+# Single sign-on through Authelia; see docs/single-sign-on.md. Needs
 # INNBY_OIDC_CLIENT_SECRET in secrets.env. Without an issuer, only the built-in user
 # logs in.
 # oidc:

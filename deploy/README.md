@@ -27,8 +27,8 @@ name MailerSend and Authelia by hostname.
    that release.
 2. **Values.** Edit `values.yaml`: your name and contact address for the privacy notice,
    and the sender address. Events are made in the admin UI once it runs. For single
-   sign-on, uncomment `oidc`, and register the client in Authelia as the top-level
-   README's "Single sign-on" shows. The admin's network policy lets it reach
+   sign-on, uncomment `oidc`, and register the client in Authelia as
+   [docs/single-sign-on.md](../docs/single-sign-on.md) shows. The admin's network policy lets it reach
    `authelia.stonegarden.dev`.
 3. **Secrets.** `cp secrets.example.env secrets.env` and fill it in: the link key, the
    admin password hash (`just innby hash-password`; leave it out to log in only through

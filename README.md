@@ -1,177 +1,56 @@
 # Innby
 
-An RSVP site for a host's events, about 100 guests each. Guests answer through a personal link,
-with no account or e-mail address needed, or sign up through a link the host makes for
-their group. Every link leads to a guest list, with each name shown as its guest chose.
-E-mail reminders are optional. Pages are in Bokmål, Nynorsk, Simplified and Traditional
-Chinese, and English in a traditional (British) and a simplified (American) flavour, and
-use no JavaScript. The front page is about Innby; each event shows on its invitations.
-The public site's only cookies are those a guest asks for, one per invitation, so that the
-front page leads them back. An event and everything in it is deleted 30 days after it
-starts.
+An RSVP site for a host's events that keeps as little about its guests as it can.
 
-One Rust binary, run as several workloads:
+- **Guests need nothing but a link.** No account, no password, no e-mail address. They
+  answer through a personal invitation link, or sign up by name through a link the host
+  makes for a group, such as a club's chat.
+- **Everyone sees who's coming**, each name shown as its guest chose: in full, as first
+  name and initial, or not at all.
+- **E-mail is optional**, for reminders and a guest's own link, with double opt-in.
+- **Everything goes 30 days after each event.** No tracking, no third parties, and on the
+  public site no cookies but those a guest asks for.
+- **Six languages:** Bokmål, Nynorsk, British and American English, and Simplified and
+  Traditional Chinese. No JavaScript.
+- **For the host:** an admin UI for events, invitations and group links in batches, QR
+  codes, the headcount and reminders, with a built-in login or single sign-on.
 
-| Command | What it does |
-|---|---|
-| `innby serve` | The public site: event page, `/r/{link}` RSVP pages, `/join/{link}` group sign-up, `/lost`, `/privacy` |
-| `innby admin` | The host's UI: events, and for each its invitations and group links in batches, headcount, CSV and reminders; QR codes in one style |
-| `innby mailer` | Sends queued mail (confirmations, links, reminders) |
-| `innby janitor` | Deletes data past its retention; run hourly |
-| `innby migrate` | Applies the database migrations |
-| `innby invite [--event ID] NAME [MAX]` | Creates an invitation and prints its link |
-| `innby hash-password` | Hashes the admin password read from stdin |
+It's one Rust binary on Postgres, run as a few small workloads, with a Helm chart for
+Kubernetes.
 
-## Develop
+## Try it
 
-Run `just dev` on the host. It starts the devcontainer with Postgres 18 and Mailpit and
-every tool the Justfile needs, then opens a zsh in it. In there:
+You need Docker (or Podman, with `ENGINE=podman`) and
+[`just`](https://github.com/casey/just).
 
 ```bash
 just up
 ```
 
-That builds and runs this checkout: the site on http://localhost:8080, the admin UI on
-http://localhost:8081 (user `admin`, password `innby`), and Mailpit's inbox on
-http://localhost:8025, all in your own browser. Ctrl-C stops it, and `just dev down` on
-the host stops the devcontainer, keeping its database and build cache. `just dev` makes a
-`.env` from `.env.example` if there is none.
+That runs the published image with Postgres and a mail catcher. Then open:
 
-`just` lists the other recipes. `just test`, `just lint` and `just chart` (the Helm
-chart) are what CI runs; the tests
-include end-to-end journeys in [`src/e2e/`](src/e2e/mod.rs), which say how to add one.
-`just db` opens psql, `just db prepare` updates the offline query data in `.sqlx/` after
-a query changes, `just db reset` rebuilds the dev database from the migrations, and
-`just innby` runs the binary's commands, e.g. `just innby invite "Kari & Ola" 2`.
+- http://localhost:8081, the admin UI (user `admin`, password `innby`): create an event,
+  then invitations on its *Invitation links* tab;
+- an invitation's link, to answer as a guest;
+- http://localhost:8025, to read the mail Innby sends.
 
-The shell is zsh with oh-my-zsh and the devcontainers prompt, which shows the git
-branch. It completes `just`, `cargo`, `rustup` and `kubectl`, has `k`, `kz`
-(`kubectl kustomize`) and `yl` (`yamllint`) aliases, and keeps its history in a volume,
-so it survives rebuilds. Vim and Neovim are there too, both with rust-analyzer.
-`just dev` mounts those of your `~/.vimrc`, `~/.vim` and `~/.config/nvim` that you have,
-read-only, and Neovim falls back to your Vim settings.
+`just down` stops it.
 
-VS Code, RustRover and the `devcontainer` CLI open the same devcontainer and forward the
-ports themselves.
+## Documentation
 
-## Translate
-
-Every text on the public site, the admin UI and in the mails is in
-[`locales/`](locales/): `nb.toml` (Bokmål), `nn.toml` (Nynorsk), `en.toml` (British,
-posh), `en-us.toml` (American, simplified), `zh-hans.toml` (Simplified Chinese) and
-`zh-hant.toml` (Traditional Chinese). The admin UI's texts are under `[admin]`.
-
-Each file is a language of its own. Its `language` table at the top names it, says which
-browser languages it answers, and lists its `fallback` languages: a text the file leaves
-out comes from those, in order, and from theirs in turn. American English falls back to
-British, Traditional Chinese to Simplified, Simplified Chinese and British English and
-Nynorsk to Bokmål, which has every text. So a variant only needs the texts it changes,
-and a new text can go in `nb.toml` first. A text Bokmål doesn't have is refused.
-
-Placeholders such as `{name}` mark where a value goes; keep them as they are.
-Punctuation that differs between scripts, like "：" for ": ", is part of the texts.
-`just test` checks the files.
-
-To add a language, add its file, a variant to `Lang` in
-[`src/i18n/mod.rs`](src/i18n/mod.rs), and a migration adding it to the database's `lang`
-type, since guests' languages are stored. Host-written texts, like an event's title,
-fall back the same way.
-
-The privacy notice is an HTML template per language, in
-[`templates/privacy/`](templates/privacy/). Bump `PRIVACY_VERSION` in
-[`src/web/mod.rs`](src/web/mod.rs) when it changes; each answer records the version the
-guest saw.
-
-## Run a local copy
-
-```bash
-just up
-```
-
-That runs the published image with [`compose.yaml`](compose.yaml): Postgres, Mailpit, and
-the site, admin UI and mailer. The site is on http://localhost:8080, the admin UI on
-http://localhost:8081 (user `admin`, password `innby`), and the mail it sends on
-http://localhost:8025. Settings come from `.env.example`, overridden by `.env` if there is
-one. `just up v1.0.0` runs a given tag, `just up janitor` applies the retention rules,
-and `just down` stops it all. It uses Docker unless `ENGINE` says otherwise, e.g.
-`ENGINE=podman`.
-
-To run your own build instead, run `just image` in the dev container, then `just up dev`
-on the host, which loads it first.
-
-## Single sign-on
-
-The admin UI can log hosts in through an OpenID Connect provider such as Authelia, as
-well as or instead of its built-in user. Set `INNBY_OIDC_ISSUER`, `INNBY_OIDC_CLIENT_ID`,
-`INNBY_OIDC_CLIENT_SECRET` and `INNBY_ADMIN_URL` (`.env.example` lists the rest), and
-leave out `INNBY_ADMIN_PASSWORD_HASH` to turn the built-in user off. The login page then
-sends hosts straight to the provider.
-
-The provider says what each host may do, in a claim named after the app, as Grafana's
-`grafana` claim does:
-
-| `innby` claim | May |
+| Read | To |
 |---|---|
-| `viewer` | See the events, their headcounts and who's coming; not the personal links, the e-mail status or the guest export |
-| `editor` | Also run the events: invitations, group links, guests, reminders, the CSV and the event's details |
-| `admin` | Also create and delete events and style the QR codes. The built-in user is an admin. |
+| [How Innby works](docs/architecture.md) | understand it: guests, hosts, links, e-mail, data and privacy |
+| [Working on Innby](docs/development.md) | develop: the dev container, commands, tests and releases |
+| [Translating](docs/translating.md) | change texts or add a language |
+| [The Helm chart](charts/innby/README.md) | run it on Kubernetes |
+| [Single sign-on](docs/single-sign-on.md) | log hosts in through Authelia or another OpenID Connect provider |
+| [Decisions](docs/decisions.md) | see why it's built this way, and how it got here |
+| [Record of processing](docs/ropa.md) | the GDPR record, to fill in before going live |
+| [AGENTS.md](AGENTS.md) | find your way in the code (written for coding agents, useful to people) |
 
-The highest role listed counts, and someone with none can't log in. In Authelia, with
-LLDAP holding a multi-valued string attribute `innby` per user:
+[`deploy/`](deploy/README.md) is one homelab's installation, with Argo CD.
 
-```yaml
-authentication_backend:
-  ldap:
-    attributes:
-      extra:
-        innby: { multi_valued: true, value_type: string }
-identity_providers:
-  oidc:
-    claims_policies:
-      innby:
-        custom_claims: { innby: { attribute: innby } }
-    scopes:
-      innby:
-        claims: [ innby ]
-    clients:
-      - client_id: innby
-        client_secret: { path: /secrets/client-innby/client_secret.txt }
-        client_name: Innby
-        public: false
-        authorization_policy: two_factor
-        claims_policy: innby
-        pre_configured_consent_duration: 3 months
-        require_pkce: true
-        pkce_challenge_method: S256
-        redirect_uris: [ https://fest-admin.stonegarden.dev/login/oidc/callback ]
-        scopes: [ openid, profile, email, innby ]
-        response_types: [ code ]
-        grant_types: [ authorization_code ]
-        token_endpoint_auth_method: client_secret_basic
-        id_token_signed_response_alg: ES256
-        userinfo_signed_response_alg: none
-```
+## Licence
 
-Innby uses the authorization code flow with PKCE, `state` and `nonce`, and checks the ID
-token's signature against the provider's published keys and its `iss`, `aud`, `azp`,
-`exp`, `iat`, `nonce` and `at_hash`. Roles come from the ID token if it has them, or else
-from userinfo. A login lasts 12 hours, after which the provider is asked again; logging
-out of Innby doesn't log out of the provider.
-
-## Deploy
-
-CI builds `FROM scratch` images holding only the static binary, for amd64 and arm64, and
-pushes them to `ghcr.io/vehagn/innby` as one OCI image index. Every push to `main` is
-`latest`; `just release 0.3.0` bumps `Cargo.toml` and the chart, tags `v0.3.0` and
-pushes, which publishes `:v0.3.0` and the Helm chart with it:
-
-```bash
-helm install innby oci://ghcr.io/vehagn/charts/innby --version 0.3.0 --values my-values.yaml
-```
-
-[`charts/innby`](charts/innby/README.md) says what the chart needs and can do: the admin UI
-under `/admin` or on a hostname of its own, and optional HTTPRoutes, Ingresses and
-NetworkPolicies. [`deploy/`](deploy/README.md) is how the homelab installs it.
-
-[PLAN.md](PLAN.md) explains the design, and [docs/ropa.md](docs/ropa.md) is the GDPR
-record of processing.
+MIT; see [LICENCE](LICENCE).
