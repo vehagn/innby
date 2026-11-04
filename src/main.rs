@@ -7,8 +7,10 @@
 //! - `db`: the queries, per table. `config`: the settings. `i18n`: languages and texts.
 //! - `link`: signed links. `paths`: every route and link. `theme`: the colour scheme.
 //! - `random`: tokens. `testing` and `e2e`: test helpers and end-to-end journeys.
+//! - `alloc`: the memory allocator.
 
 mod admin;
+mod alloc;
 mod config;
 mod db;
 #[cfg(test)]
@@ -87,8 +89,17 @@ enum EventCommand {
     Import { file: std::path::PathBuf },
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
+    // Before the runtime starts its threads, as mimalloc's options want.
+    alloc::purge_at_once();
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .context("starting the async runtime")?
+        .block_on(run())
+}
+
+async fn run() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .json()
         .with_writer(std::io::stderr)

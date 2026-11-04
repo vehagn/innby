@@ -30,6 +30,7 @@ Run these in the dev container (`just dev` on the host opens a shell in it).
 ```
 src/
   main.rs            the CLI: serve | admin | mailer | janitor | migrate | invite | event | hash-password
+  alloc.rs           the allocator: mimalloc, giving freed memory back at once
   http/              what both listeners share
     mod.rs           listen (timeouts, graceful shutdown), harden (security headers), no_store, ready, Lang extractor
     cookie.rs        reading Cookie headers, writing Set-Cookie
