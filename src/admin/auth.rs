@@ -94,6 +94,9 @@ pub struct Auth {
     key: jwt::Key,
     /// Whether the cookies are only for HTTPS.
     https: bool,
+    /// The path the cookies are for: the admin UI's, so a site on the same hostname
+    /// never gets them.
+    cookie_path: String,
     db: PgPool,
     /// One permit: the argon2 check that may run right now.
     checking: Arc<Semaphore>,
@@ -149,6 +152,10 @@ impl Auth {
             oidc: config.oidc.clone().map(oidc::Provider::new),
             key: jwt::Key::new(&config.jwt_secret, &bound),
             https,
+            cookie_path: match config.path.as_str() {
+                "" => "/".to_owned(),
+                path => path.to_owned(),
+            },
             db,
             checking: Arc::new(Semaphore::new(1)),
             attempts: RateLimiter::new(ATTEMPTS, ATTEMPT_WINDOW),
@@ -284,7 +291,8 @@ impl Auth {
     pub(super) fn cookie(&self, name: &str, value: &str, lifetime: TimeDelta) -> HeaderValue {
         let secure = if self.https { "; Secure" } else { "" };
         let max_age = lifetime.num_seconds();
-        format!("{name}={value}; Max-Age={max_age}; Path=/; HttpOnly; SameSite=Lax{secure}")
+        let path = &self.cookie_path;
+        format!("{name}={value}; Max-Age={max_age}; Path={path}; HttpOnly; SameSite=Lax{secure}")
             .try_into()
             .expect("tokens are base64")
     }
@@ -444,6 +452,7 @@ pub mod tests {
     pub fn admin_config() -> AdminConfig {
         AdminConfig {
             listen: "127.0.0.1:0".parse().unwrap(),
+            path: String::new(),
             login: Some(PasswordLogin {
                 user: "admin".into(),
                 password_hash: cheap_hash("secret"),

@@ -1,0 +1,59 @@
+{{- $ctx := dict "root" . "component" "web" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "innby.component" $ctx }}
+  labels:
+    {{- include "innby.labels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ .Values.web.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      {{- include "innby.podMetadata" $ctx | nindent 6 }}
+    spec:
+      {{- include "innby.podSpec" . | nindent 6 }}
+      initContainers:
+        # Migrations take an advisory lock, so replicas starting together are fine.
+        - name: migrate
+          {{- include "innby.container" . | nindent 10 }}
+          args: [migrate]
+          env:
+            {{- include "innby.databaseEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+      containers:
+        - name: innby
+          {{- include "innby.container" . | nindent 10 }}
+          args: [serve]
+          env:
+            {{- include "innby.databaseEnv" . | nindent 12 }}
+            {{- include "innby.secretEnv" (dict "root" . "key" "INNBY_LINK_KEY") | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "innby.component" $ctx }}
+  labels:
+    {{- include "innby.labels" $ctx | nindent 4 }}
+spec:
+  type: {{ .Values.web.service.type }}
+  selector:
+    {{- include "innby.selectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.web.service.port }}
+      targetPort: http

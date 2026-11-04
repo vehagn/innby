@@ -1,0 +1,33 @@
+{{- $ctx := dict "root" . "component" "janitor" }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "innby.component" $ctx }}
+  labels:
+    {{- include "innby.labels" $ctx | nindent 4 }}
+spec:
+  schedule: {{ .Values.janitor.schedule | quote }}
+  {{- with .Values.janitor.timeZone }}
+  timeZone: {{ . }}
+  {{- end }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          {{- include "innby.podMetadata" $ctx | nindent 10 }}
+        spec:
+          restartPolicy: OnFailure
+          {{- include "innby.podSpec" . | nindent 10 }}
+          containers:
+            - name: innby
+              {{- include "innby.container" . | nindent 14 }}
+              args: [janitor]
+              env:
+                {{- include "innby.databaseEnv" . | nindent 16 }}
+              resources:
+                {{- toYaml .Values.janitor.resources | nindent 16 }}

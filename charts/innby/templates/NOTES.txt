@@ -1,0 +1,21 @@
+Innby {{ .Chart.AppVersion }} is installed as {{ include "innby.fullname" . }}.
+
+Guests reach the site at {{ include "innby.siteUrl" . }}.
+{{- if .Values.admin.enabled }}
+Hosts reach the admin UI at {{ include "innby.adminUrl" . }}.
+{{- if and (not .Values.httpRoute.enabled) (not .Values.ingress.enabled) }}
+
+Neither httpRoute nor ingress is enabled, so route those addresses to the Services
+{{ include "innby.component" (dict "root" . "component" "web") }} and {{ include "innby.component" (dict "root" . "component" "admin") }} yourself.
+{{- end }}
+{{- if eq (urlParse (include "innby.siteUrl" .)).hostname (urlParse (include "innby.adminUrl" .)).hostname }}
+
+The admin UI shares the site's hostname, so whoever reaches the site can reach its login
+page. To keep it off the internet, give it a hostname of its own (admin.url) on an
+internal gateway (httpRoute.admin.parentRefs) or ingress class (ingress.admin.className).
+{{- end }}
+{{- if .Values.oidc.issuer }}
+
+Register {{ include "innby.adminUrl" . }}/login/oidc/callback as a redirect URI at {{ .Values.oidc.issuer }}.
+{{- end }}
+{{- end }}

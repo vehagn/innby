@@ -77,8 +77,22 @@ pub fn themed(lang: impl Borrow<Lang>, theme: impl Borrow<Theme>) -> String {
     format!("?lang={}{}", lang.code(), theme.param())
 }
 
-/// An admin path in the language and colour scheme the host picked, if they did.
+/// An admin path under the admin UI's prefix: `/` under `/admin` is `/admin`, and
+/// `/events` is `/admin/events`.
+pub fn admin_under(prefix: &str, path: &str) -> String {
+    if prefix.is_empty() {
+        return path.to_owned();
+    }
+    match path.strip_prefix('/') {
+        Some(rest) if rest.is_empty() || rest.starts_with(['?', '#']) => format!("{prefix}{rest}"),
+        _ => format!("{prefix}{path}"),
+    }
+}
+
+/// An admin path, under the admin UI's prefix, in the language and colour scheme the
+/// host picked, if they did.
 pub fn admin(path: &str) -> String {
+    let path = admin_under(&crate::admin::prefix(), path);
     let (path, fragment) = path.split_at(path.find('#').unwrap_or(path.len()));
     let mut url = path.to_owned();
     let lang = crate::admin::lang::picked().map(|lang| format!("lang={}", lang.code()));

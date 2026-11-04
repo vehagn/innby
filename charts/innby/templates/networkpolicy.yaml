@@ -1,0 +1,87 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $policy := .Values.networkPolicy }}
+{{- $web := dict "root" . "component" "web" }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "innby.component" $web }}
+  labels:
+    {{- include "innby.labels" $web | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $web | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - {{- with $policy.ingressFrom }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      ports:
+        - { port: 8080, protocol: TCP }
+  egress:
+    {{- include "innby.egressBasics" . | nindent 4 }}
+{{- if .Values.admin.enabled }}
+{{- $admin := dict "root" . "component" "admin" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "innby.component" $admin }}
+  labels:
+    {{- include "innby.labels" $admin | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $admin | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - {{- with (default $policy.ingressFrom $policy.admin.ingressFrom) }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      ports:
+        - { port: 8081, protocol: TCP }
+  egress:
+    {{- include "innby.egressBasics" . | nindent 4 }}
+    {{- if .Values.oidc.issuer }}
+    # The OIDC provider: discovery, keys, tokens and userinfo.
+    - ports:
+        - { port: {{ include "innby.oidcPort" . }}, protocol: TCP }
+    {{- end }}
+{{- end }}
+{{- if .Values.mailer.enabled }}
+{{- $mailer := dict "root" . "component" "mailer" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "innby.component" $mailer }}
+  labels:
+    {{- include "innby.labels" $mailer | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $mailer | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  egress:
+    {{- include "innby.egressBasics" . | nindent 4 }}
+    - ports:
+        - { port: {{ $policy.smtpPort }}, protocol: TCP }
+{{- end }}
+{{- $janitor := dict "root" . "component" "janitor" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "innby.component" $janitor }}
+  labels:
+    {{- include "innby.labels" $janitor | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $janitor | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  egress:
+    {{- include "innby.egressBasics" . | nindent 4 }}
+{{- end }}

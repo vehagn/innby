@@ -1,0 +1,11 @@
+# The least a working install needs: the admin UI under /admin on the site's hostname.
+siteUrl: https://fest.example.com
+controller: { name: Kari Nordmann, email: kari@example.com }
+database: { url: "postgres://innby:innby@postgres:5432/innby" }
+secrets:
+  linkKey: ZGV2LW9ubHktbGluay1rZXktZG8tbm90LXVzZS1pbi1wcm9k
+  adminJwtSecret: ZGV2LW9ubHktYWRtaW4tand0LXNlY3JldC1kby1ub3QtdXNlLWluLXByb2Q=
+  adminPasswordHash: $argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHQ$aGFzaA
+mailer:
+  from: Innby <fest@example.com>
+  smtpUrl: smtp://smtp.example.com:587?tls=required

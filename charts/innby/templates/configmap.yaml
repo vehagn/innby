@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "innby.fullname" . }}
+  labels:
+    {{- include "innby.labels" (dict "root" . "component" "config") | nindent 4 }}
+data:
+  INNBY_BASE_URL: {{ include "innby.siteUrl" . | quote }}
+  INNBY_CONTROLLER_NAME: {{ required "controller.name: the data controller named in the privacy notice" .Values.controller.name | quote }}
+  INNBY_CONTROLLER_EMAIL: {{ required "controller.email: how guests reach the data controller" .Values.controller.email | quote }}
+  INNBY_TRUST_FORWARDED: {{ .Values.web.trustForwarded | toString | quote }}
+  {{- if .Values.admin.enabled }}
+  INNBY_ADMIN_URL: {{ include "innby.adminUrl" . | quote }}
+  INNBY_ADMIN_USER: {{ .Values.admin.user | quote }}
+  {{- end }}
+  {{- with .Values.oidc }}
+  {{- if .issuer }}
+  INNBY_OIDC_ISSUER: {{ .issuer | quote }}
+  INNBY_OIDC_CLIENT_ID: {{ required "oidc.clientId" .clientId | quote }}
+  {{- with .name }}
+  INNBY_OIDC_NAME: {{ . | quote }}
+  {{- end }}
+  {{- with .scopes }}
+  INNBY_OIDC_SCOPES: {{ . | quote }}
+  {{- end }}
+  {{- with .rolesClaim }}
+  INNBY_OIDC_ROLES_CLAIM: {{ . | quote }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
+  {{- if .Values.mailer.enabled }}
+  INNBY_MAIL_FROM: {{ required "mailer.from: the sender, e.g. \"Innby <fest@example.com>\"" .Values.mailer.from | quote }}
+  INNBY_SMTP_URL: {{ required "mailer.smtpUrl: e.g. smtp://smtp.example.com:587?tls=required" .Values.mailer.smtpUrl | quote }}
+  {{- end }}
+  {{- range $name, $value := .Values.extraConfig }}
+  {{ $name }}: {{ $value | toString | quote }}
+  {{- end }}

@@ -1,0 +1,71 @@
+{{- if .Values.ingress.enabled }}
+{{- $ingress := .Values.ingress }}
+{{- $web := dict "root" . "component" "web" }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "innby.component" $web }}
+  labels:
+    {{- include "innby.labels" $web | nindent 4 }}
+  {{- with $ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with $ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ (urlParse (include "innby.siteUrl" .)).hostname | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "innby.component" $web }}
+                port: { name: http }
+{{- if .Values.admin.enabled }}
+{{- $admin := dict "root" . "component" "admin" }}
+{{- $adminHost := (urlParse (include "innby.adminUrl" .)).hostname }}
+{{- /* The site's certificate only fits the admin UI on the same hostname. */}}
+{{- $adminTls := $ingress.admin.tls }}
+{{- if and (not $adminTls) (eq $adminHost (urlParse (include "innby.siteUrl" .)).hostname) }}
+{{- $adminTls = $ingress.tls }}
+{{- end }}
+---
+# The admin UI's path or hostname. On the site's hostname, its longer path wins.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "innby.component" $admin }}
+  labels:
+    {{- include "innby.labels" $admin | nindent 4 }}
+  {{- with (default $ingress.annotations $ingress.admin.annotations) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with (default $ingress.className $ingress.admin.className) }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with $adminTls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ $adminHost | quote }}
+      http:
+        paths:
+          - path: {{ include "innby.adminPath" . }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "innby.component" $admin }}
+                port: { name: http }
+{{- end }}
+{{- end }}

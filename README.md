@@ -37,7 +37,8 @@ http://localhost:8025, all in your own browser. Ctrl-C stops it, and `just dev d
 the host stops the devcontainer, keeping its database and build cache. `just dev` makes a
 `.env` from `.env.example` if there is none.
 
-`just` lists the other recipes. `just test` and `just lint` are what CI runs; the tests
+`just` lists the other recipes. `just test`, `just lint` and `just chart` (the Helm
+chart) are what CI runs; the tests
 include end-to-end journeys in [`src/e2e/`](src/e2e/mod.rs), which say how to add one.
 `just db` opens psql, `just db prepare` updates the offline query data in `.sqlx/` after
 a query changes, `just db reset` rebuilds the dev database from the migrations, and
@@ -148,9 +149,16 @@ out of Innby doesn't log out of the provider.
 
 CI builds `FROM scratch` images holding only the static binary, for amd64 and arm64, and
 pushes them to `ghcr.io/vehagn/innby` as one OCI image index. Every push to `main` is
-`latest`; `just release 0.3.0` bumps `Cargo.toml`, tags `v0.3.0` and pushes, which
-publishes `:v0.3.0`. [`deploy/`](deploy/README.md) has the Kubernetes manifests and the
-steps to deploy them.
+`latest`; `just release 0.3.0` bumps `Cargo.toml` and the chart, tags `v0.3.0` and
+pushes, which publishes `:v0.3.0` and the Helm chart with it:
+
+```bash
+helm install innby oci://ghcr.io/vehagn/charts/innby --version 0.3.0 --values my-values.yaml
+```
+
+[`charts/innby`](charts/innby/README.md) says what the chart needs and can do: the admin UI
+under `/admin` or on a hostname of its own, and optional HTTPRoutes, Ingresses and
+NetworkPolicies. [`deploy/`](deploy/README.md) is how the homelab installs it.
 
 [PLAN.md](PLAN.md) explains the design, and [docs/ropa.md](docs/ropa.md) is the GDPR
 record of processing.

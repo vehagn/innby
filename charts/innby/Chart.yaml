@@ -1,0 +1,18 @@
+apiVersion: v2
+name: innby
+description: >-
+  Innby, a small RSVP site that keeps as little about its guests as it can: a public
+  site, an admin UI for the host, a mailer and an hourly janitor, on your own Postgres.
+type: application
+# The chart is released with the app, under the same version (`just release`).
+version: 0.2.1
+appVersion: "0.2.1"
+# CronJob time zones.
+kubeVersion: ">=1.27.0-0"
+home: https://github.com/vehagn/innby
+sources:
+  - https://github.com/vehagn/innby
+keywords: [rsvp, invitations, events, gdpr]
+maintainers:
+  - name: Vegard Hagen
+    url: https://github.com/vehagn

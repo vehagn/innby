@@ -1,5 +1,6 @@
 # Each workload may reach only what it needs. Cilium allows kubelet probes from the
-# node regardless.
+# node regardless. These select the chart's pods by their name and component labels;
+# the chart's own NetworkPolicies are off, since these can name hosts.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

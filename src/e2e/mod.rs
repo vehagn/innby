@@ -54,6 +54,8 @@ pub struct World {
     pub config: Config,
     site: Router,
     admin: Router,
+    /// Where the admin UI is: `ADMIN`, or under a path of the site's.
+    pub admin_url: String,
     /// The identity provider, when the admin UI uses one.
     pub sso: Option<Fake>,
     /// Mail the mailer has sent.
@@ -78,6 +80,7 @@ impl World {
         Self {
             site: web::router(config.clone(), db.clone()),
             admin: admin::router(config.clone(), &auth::tests::admin_config(), db.clone()),
+            admin_url: ADMIN.to_owned(),
             sso: None,
             sent: Inbox::default(),
             read: Mutex::default(),
@@ -101,6 +104,16 @@ impl World {
         world
     }
 
+    /// A world whose admin UI is under `/admin` on the site's own hostname.
+    pub fn with_admin_under_the_site(db: PgPool) -> Self {
+        let mut world = Self::new(db);
+        world.admin_url = world.site("/admin");
+        let mut admin_config = auth::tests::admin_config();
+        admin_config.path = "/admin".into();
+        world.admin = admin::router(world.config.clone(), &admin_config, world.db.clone());
+        world
+    }
+
     /// The fake provider.
     #[track_caller]
     pub fn provider(&self) -> &Fake {
@@ -115,7 +128,7 @@ impl World {
     /// The host's browser, logged in to the admin UI, on the list of events.
     pub async fn admin(&self) -> Browser<'_> {
         let mut host = self.browser();
-        host.open(ADMIN).await.expect(&admin().user_name);
+        host.open(&self.admin_url).await.expect(&admin().user_name);
         host.fill(&admin().user_name, USER)
             .fill(&admin().password, PASSWORD);
         host.press(&admin().log_in).await.expect(&admin().events);
@@ -202,9 +215,14 @@ impl World {
         &self.config.base_url
     }
 
-    fn router(&self, origin: &str) -> Router {
+    /// The router behind an address, as the gateway would route it.
+    fn router(&self, url: &str) -> Router {
+        let admin = url.strip_prefix(self.admin_url.as_str());
+        if admin.is_some_and(|rest| rest.is_empty() || rest.starts_with(['/', '?'])) {
+            return self.admin.clone();
+        }
+        let (origin, _) = browser::split(url);
         match origin {
-            ADMIN => self.admin.clone(),
             origin if self.sso.as_ref().is_some_and(|sso| sso.origin == origin) => {
                 self.provider().router.clone()
             }

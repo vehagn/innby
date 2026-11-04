@@ -18,9 +18,26 @@ use super::{
 
 pub struct Browser<'w> {
     world: &'w World,
-    /// Origin, name and value of each cookie.
-    cookies: Vec<(String, String, String)>,
+    cookies: Vec<Cookie>,
     page: Option<Page>,
+}
+
+struct Cookie {
+    origin: String,
+    /// The paths it's sent to: this one and those under it.
+    path: String,
+    name: String,
+    value: String,
+}
+
+impl Cookie {
+    fn sent_to(&self, origin: &str, path: &str) -> bool {
+        let path = path.split('?').next().unwrap();
+        self.origin == origin
+            && (self.path == "/"
+                || path == self.path
+                || path.starts_with(&format!("{}/", self.path)))
+    }
 }
 
 /// The page a browser shows: its address, and what came back.
@@ -201,8 +218,8 @@ impl<'w> Browser<'w> {
             let cookies: Vec<String> = self
                 .cookies
                 .iter()
-                .filter(|(at, _, _)| at == origin)
-                .map(|(_, name, value)| format!("{name}={value}"))
+                .filter(|cookie| cookie.sent_to(origin, path))
+                .map(|cookie| format!("{}={}", cookie.name, cookie.value))
                 .collect();
             if !cookies.is_empty() {
                 request = request.header(header::COOKIE, cookies.join("; "));
@@ -215,7 +232,7 @@ impl<'w> Browser<'w> {
             let request = request
                 .body(Body::from(body.take().unwrap_or_default()))
                 .unwrap();
-            let response = self.world.router(origin).oneshot(request).await.unwrap();
+            let response = self.world.router(&url).oneshot(request).await.unwrap();
             self.store_cookies(origin, response.headers());
             let status = response.status();
             let headers = response.headers().clone();
@@ -244,14 +261,25 @@ impl<'w> Browser<'w> {
             let header = header.to_str().unwrap();
             let (pair, attributes) = header.split_once(';').unwrap_or((header, ""));
             let (name, value) = pair.split_once('=').unwrap();
-            self.cookies
-                .retain(|(at, existing, _)| !(at == origin && existing == name));
+            let attributes: Vec<&str> = attributes.split(';').map(str::trim).collect();
+            let path = attributes
+                .iter()
+                .find_map(|attribute| attribute.strip_prefix("Path="))
+                .unwrap_or("/")
+                .to_owned();
+            self.cookies.retain(|cookie| {
+                !(cookie.origin == origin && cookie.name == name && cookie.path == path)
+            });
             let expired = attributes
-                .split(';')
-                .any(|attribute| attribute.trim().eq_ignore_ascii_case("max-age=0"));
+                .iter()
+                .any(|attribute| attribute.eq_ignore_ascii_case("max-age=0"));
             if !expired {
-                self.cookies
-                    .push((origin.to_owned(), name.to_owned(), value.to_owned()));
+                self.cookies.push(Cookie {
+                    origin: origin.to_owned(),
+                    path,
+                    name: name.to_owned(),
+                    value: value.to_owned(),
+                });
             }
         }
     }
@@ -261,8 +289,8 @@ impl<'w> Browser<'w> {
         let site = self.world.site_origin();
         self.cookies
             .iter()
-            .filter(|(origin, _, _)| origin == site)
-            .map(|(_, name, _)| name.as_str())
+            .filter(|cookie| cookie.sent_to(site, "/"))
+            .map(|cookie| cookie.name.as_str())
             .collect()
     }
 
@@ -303,7 +331,7 @@ impl fmt::Display for Page {
 }
 
 /// The origin and the path of an absolute address.
-fn split(url: &str) -> (&str, &str) {
+pub(super) fn split(url: &str) -> (&str, &str) {
     let after_scheme = url.find("://").map_or(0, |at| at + 3);
     let path_at = url[after_scheme..]
         .find('/')

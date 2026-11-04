@@ -1,0 +1,169 @@
+# Innby's settings. The ones without a default must be set; `helm install` says which.
+# Every INNBY_* setting is described in the app's .env.example.
+
+image:
+  repository: ghcr.io/vehagn/innby
+  # Defaults to v{appVersion}, the release the chart came with.
+  tag: ""
+  # Pins the image by digest, e.g. sha256:…, over the tag.
+  digest: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Where guests reach the site, INNBY_BASE_URL. Links in mails and QR codes point here.
+siteUrl: ""
+
+# The data controller named in the privacy notice: you.
+controller:
+  name: ""
+  email: ""
+
+database:
+  # A Secret holding a postgres:// URL, such as the `{cluster}-app` Secret CloudNativePG
+  # makes (key `uri`).
+  existingSecret: ""
+  existingSecretKey: uri
+  # Or the URL itself, which goes into the chart's Secret.
+  url: ""
+
+# Secrets. Either name a Secret you made (with SealedSecrets, External Secrets, …) holding
+# these keys, or give the values here and the chart makes one. Values in a values file
+# end up in Helm's release history, so prefer existingSecret.
+#   INNBY_LINK_KEY             signs guests' links: `openssl rand -base64 32`
+#   INNBY_ADMIN_JWT_SECRET     signs the admin's logins: `openssl rand -base64 32`
+#   INNBY_ADMIN_PASSWORD_HASH  the built-in admin user's password: `innby hash-password`;
+#                              leave it out to log in only through OIDC
+#   INNBY_OIDC_CLIENT_SECRET   with oidc.issuer
+#   INNBY_SMTP_USER, INNBY_SMTP_PASSWORD
+secrets:
+  existingSecret: ""
+  linkKey: ""
+  adminJwtSecret: ""
+  adminPasswordHash: ""
+  oidcClientSecret: ""
+  smtpUser: ""
+  smtpPassword: ""
+
+# Further INNBY_* settings and RUST_LOG, as name: value, for every workload.
+extraConfig: {}
+#  INNBY_TRUST_FORWARDED: "true"
+
+web:
+  replicaCount: 2
+  # Rate limits by the X-Forwarded-For address the proxy in front appends. Only with a
+  # proxy that every request comes through.
+  trustForwarded: false
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { memory: 64Mi }
+
+admin:
+  enabled: true
+  # Where hosts reach the admin UI: under a path of the site's hostname, or on a hostname
+  # of its own, e.g. https://fest-admin.example.com. Defaults to {siteUrl}/admin.
+  url: ""
+  # The built-in user, when secrets has a password hash.
+  user: admin
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { memory: 64Mi }
+
+# Single sign-on to the admin UI through an OpenID Connect provider, such as Authelia.
+# Register {admin.url}/login/oidc/callback with it. Hosts' roles (admin, editor, viewer)
+# come from the claim named in rolesClaim.
+oidc:
+  issuer: ""
+  clientId: innby
+  # The name on the login button.
+  name: ""
+  scopes: ""
+  rolesClaim: ""
+
+mailer:
+  enabled: true
+  # The sender, e.g. "Innby <fest@example.com>".
+  from: ""
+  # smtp://host:587?tls=required (STARTTLS) or smtps://host:465.
+  smtpUrl: ""
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { memory: 64Mi }
+
+# Deletes what the retention rules say is due.
+janitor:
+  schedule: "17 * * * *"
+  # The schedule's time zone, e.g. Europe/Oslo; the cluster's when empty.
+  timeZone: ""
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { memory: 64Mi }
+
+# Gateway API routes, for a cluster with its CRDs: one for the site's hostname and one for
+# the admin UI's path or hostname. Gateways pick the longest matching path, so /admin can
+# share the site's hostname.
+httpRoute:
+  enabled: false
+  annotations: {}
+  # e.g. [{ name: external, namespace: gateway }]
+  parentRefs: []
+  admin:
+    # Another gateway for the admin UI, such as an internal one; parentRefs when empty.
+    parentRefs: []
+
+# Ingresses, if you'd rather: the same two, for the site and the admin UI.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  # e.g. [{ secretName: innby-tls, hosts: [fest.example.com] }]
+  tls: []
+  admin:
+    # The admin UI's own class, annotations and TLS; the ones above when empty (TLS only
+    # when the admin UI shares the site's hostname).
+    className: ""
+    annotations: {}
+    tls: []
+
+# Kubernetes NetworkPolicies that let each workload reach only what it needs. Standard
+# NetworkPolicy can't name hosts, so the database, SMTP and OIDC provider are reached on
+# their ports anywhere unless you narrow them with peers.
+networkPolicy:
+  enabled: false
+  # Who may reach the site and the admin UI, e.g. your ingress controller's namespace.
+  # Anyone when empty.
+  ingressFrom: []
+  admin:
+    ingressFrom: []
+  # Peers for Postgres, e.g. [{ podSelector: { matchLabels: { cnpg.io/cluster: db } } }].
+  databasePeers: []
+  databasePort: 5432
+  smtpPort: 587
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]

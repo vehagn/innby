@@ -1,29 +1,24 @@
-# Copy this directory to vehagn/homelab k8s/apps/<group>/innby, where the ApplicationSet
-# picks it up. Add the innby namespace to that group's AppProject destinations.
+# Innby in vehagn/homelab: the published chart with this cluster's values, plus what the
+# chart leaves to the cluster: the namespace, Postgres (CloudNativePG), Cilium network
+# policies and the sealed Secret. Copy this directory to k8s/apps/<group>/innby, where
+# the ApplicationSet picks it up, and add the innby namespace to that group's AppProject
+# destinations. Argo CD renders it with `kustomize build --enable-helm`.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: innby
 
-labels:
-  - pairs:
-      app.kubernetes.io/part-of: innby
-
 resources:
   - ns.yaml
   - cnpg-db.yaml
-  - web.yaml
-  - admin.yaml
-  - mailer.yaml
-  - janitor.yaml
   - network-policies.yaml
   # Created by `just seal` from secrets.env; the workloads wait for it.
   # - sealed-secrets.yaml
 
-configMapGenerator:
-  - name: innby-config
-    envs: [config.env]
-
-images:
-  - name: ghcr.io/vehagn/innby
-    # Pin to a release tag, e.g. v0.2.0, for repeatable deploys.
-    newTag: latest
+helmCharts:
+  - name: innby
+    repo: oci://ghcr.io/vehagn/charts
+    releaseName: innby
+    namespace: innby
+    # The chart is released with the app, under the same version.
+    version: 0.3.0
+    valuesFile: values.yaml

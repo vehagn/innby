@@ -10,6 +10,12 @@ ARG ZIG_SHA256_X86_64=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52
 ARG ZIG_SHA256_AARCH64=ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17
 ARG KUBECTL_VERSION=1.35.10
 ARG KUBESEAL_VERSION=0.38.4
+ARG HELM_VERSION=4.3.1
+ARG HELM_SHA256_AMD64=0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b
+ARG HELM_SHA256_ARM64=8cf8f66ecbc252ac8f7f06cca68aba88508ddfde3a6a34feb1678ad1694b4f88
+ARG KUBECONFORM_VERSION=0.8.0
+ARG KUBECONFORM_SHA256_AMD64=9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883
+ARG KUBECONFORM_SHA256_ARM64=1f53fc8e81258197a35e8603054162a5af1de8c5af13746c71ab680d9534ed87
 ARG CARGO_BINSTALL_VERSION=1.26.2
 ARG JUST_VERSION=1.59.0
 ARG CARGO_ZIGBUILD_VERSION=0.24.0
@@ -79,6 +85,21 @@ RUN arch="$(dpkg --print-architecture)"; \
       | grep " ${kubeseal_tar}\$" | (cd /tmp && sha256sum -c -); \
     tar -xzf "/tmp/${kubeseal_tar}" -C /usr/local/bin kubeseal; \
     rm "/tmp/${kubeseal_tar}"
+
+# Helm for the chart in charts/innby, and kubeconform to check what it renders.
+RUN arch="$(dpkg --print-architecture)"; \
+    case "${arch}" in \
+      amd64) helm_sha="${HELM_SHA256_AMD64}"; kubeconform_sha="${KUBECONFORM_SHA256_AMD64}" ;; \
+      arm64) helm_sha="${HELM_SHA256_ARM64}"; kubeconform_sha="${KUBECONFORM_SHA256_ARM64}" ;; \
+      *) echo "unsupported architecture: ${arch}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/helm.tar.gz "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${arch}.tar.gz"; \
+    echo "${helm_sha}  /tmp/helm.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/helm.tar.gz -C /usr/local/bin --strip-components=1 "linux-${arch}/helm"; \
+    curl -fsSL -o /tmp/kubeconform.tar.gz "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-${arch}.tar.gz"; \
+    echo "${kubeconform_sha}  /tmp/kubeconform.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/kubeconform.tar.gz -C /usr/local/bin kubeconform; \
+    rm /tmp/helm.tar.gz /tmp/kubeconform.tar.gz
 
 RUN rustup component add clippy rustfmt rust-src rust-analyzer; \
     rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl

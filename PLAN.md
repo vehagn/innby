@@ -263,7 +263,8 @@ innby/
 ├── migrations/*.sql           # sqlx::migrate!(), compiled in
 ├── .sqlx/                     # offline query metadata (committed)
 ├── compose.yaml               # a local copy of the published image
-├── deploy/                    # Kustomize, mirrored into vehagn/homelab k8s/apps/…
+├── charts/innby/              # the Helm chart, published as an OCI artifact
+├── deploy/                    # the homelab's install of it, mirrored into vehagn/homelab
 ├── docs/ropa.md               # GDPR record of processing
 ├── Justfile
 └── PLAN.md
@@ -302,23 +303,34 @@ The devcontainer is a Compose project with three services:
 - CI's `just push` copies the index and both images to the registry with `skopeo copy --all --preserve-digests`; CI checks that the registry serves an OCI image index for amd64 and arm64.
 - `just up <tag>`, on the host, loads the image into Docker or Podman first when `target/oci` holds that tag.
 - The image contains no shell, no CA bundle and no tzdata: the CA roots and zoneinfo are compiled into the binary. It runs as a numeric non-root UID, so it needs no `/etc/passwd`. Expect about 10–20 MB.
-- `.github/workflows/ci.yaml` runs `just test` and `just lint` against a Postgres 18 service on every push and pull request; on pushes it then runs `just image` on `ubuntu-24.04` (which ships skopeo) and pushes `sha-<commit>`, plus `latest` from `main` and the tag name for `v*` tags, to `ghcr.io/vehagn/innby`. Tool versions match the devcontainer.
+- `.github/workflows/ci.yaml` runs `just test` and `just lint` against a Postgres 18 service on every push and pull request; on pushes it then runs `just image` on `ubuntu-24.04` (which ships skopeo) and pushes `sha-<commit>`, plus `latest` from `main` and the tag name for `v*` tags, to `ghcr.io/vehagn/innby`. A `chart` job runs `just chart` and packages the chart; for `v*` tags, once the image is pushed, it goes to `oci://ghcr.io/vehagn/charts`, after checking that `Chart.yaml` has the tag's version. Tool versions match the devcontainer.
 - Probes use `httpGet` on `/healthz` and `/readyz`, since there is no shell for `exec` probes.
 
-## 11. Kubernetes (following the homelab's conventions)
+## 11. Kubernetes
+
+A **Helm chart** in `charts/innby`, published with each release as an OCI artifact, `oci://ghcr.io/vehagn/charts/innby`, under the app's version. It's general purpose: it needs no CRDs and assumes nothing about the cluster but a Postgres to reach.
 
 | Resource | Notes |
 |---|---|
-| Namespace | `innby` |
+| Deployments | `{release}-web` (`serve`, 2 replicas), `{release}-admin` (`admin`, 1 replica), `{release}-mailer` (`mailer`, 1 replica, `Recreate`). `innby migrate` runs as an **init container** on `web`. Each can be turned off but `web`. |
+| CronJob | `{release}-janitor`: hourly, with `concurrencyPolicy: Forbid` and an optional time zone. |
+| Settings | A ConfigMap of `INNBY_*` from the values, and a Secret, the chart's or one you made (`secrets.existingSecret`), with the link key, the admin's JWT secret, password hash and OIDC client secret, and the SMTP credentials. Each workload references only the keys it needs. The database URL comes from a Secret of its own, such as CloudNativePG's `{cluster}-app`. Pods roll when either changes. |
+| Routing | Optional: two HTTPRoutes (Gateway API, the one CRD the chart can use) or two Ingresses, one for the site's hostname and one for the admin UI. The admin UI is under `/admin` on the site's hostname by default, where the longer path wins, or on a hostname of its own, and then can attach to another gateway or ingress class. |
+| NetworkPolicies | Optional, standard ones: the site and admin UI accept traffic on their ports, and each workload may reach DNS and Postgres, the mailer SMTP and the admin UI the OIDC provider. Standard policies can't name hosts, so clusters with Cilium or Calico can do better with their own. |
+| Pod security | `runAsNonRoot`, `readOnlyRootFilesystem`, `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault`, no service account token: the `restricted` Pod Security Standard. |
+| Checks | `values.schema.json` refuses unknown values, and the templates refuse settings that can't work (no site URL, nobody able to log in, routes without a gateway). `just chart` lints, renders `charts/innby/ci/*.yaml`, checks the manifests with kubeconform, and checks that bad settings fail. |
+
+**The homelab** installs it from `deploy/`, a kustomization that Argo CD renders with `--enable-helm`: the chart with `deploy/values.yaml`, plus what the chart leaves to the cluster.
+
+| Resource | Notes |
+|---|---|
+| Namespace | `innby`, labelled `pod-security.kubernetes.io/enforce: restricted`. |
 | Postgres | A **CNPG `Cluster`** `innby-postgres`: 1 instance, image `postgresql:18.6-minimal-trixie` (same as dev), 1 Gi on `proxmox-csi`, created with `bootstrap.initdb` (database `innby`, owner `innby`). The CNPG-generated `innby-postgres-app` secret provides `uri`. No backups, on purpose. |
-| Deployments | `innby-web` (`serve`, 2 replicas), `innby-admin` (`admin`, 1 replica), `innby-mailer` (`mailer`, 1 replica, `Recreate`). `innby migrate` runs as an **init container** on `innby-web`. |
-| CronJob | `innby-janitor`: hourly, with `concurrencyPolicy: Forbid`. |
-| HTTPRoutes | Public routes on `gateway/external`. The admin hostname on `gateway/internal`. TLS comes from the existing cert-manager setup. |
-| Secrets (SealedSecrets) | One `innby` secret, sealed by `just seal` from the gitignored `deploy/secrets.env`: the link key, the admin password hash and JWT secret, and the MailerSend SMTP credentials. Each workload references only the keys it needs. |
-| NetworkPolicies (Cilium) | `web` and `admin` accept traffic from the gateways (`fromEntities: ingress`); which gateway reaches which is decided by the HTTPRoutes. `mailer` has no ingress and egress to `smtp.mailersend.net:587` only. `janitor` has egress to the DB only. Postgres accepts ingress from the Innby pods and the CNPG operator. |
-| Pod security | `runAsNonRoot`, `readOnlyRootFilesystem`, `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault`, and the namespace labelled `pod-security.kubernetes.io/enforce: restricted`. |
-| Observability | JSON logs. `/metrics` (responses, headcount, rate-limit hits, outbox lag, mail failures) is left for hardening. |
-| Delivery | Kustomize in `deploy/` (see `deploy/README.md`), copied to `vehagn/homelab` → `k8s/apps/<group>/innby`, where the group's ApplicationSet picks it up. |
+| Routes | The site on `gateway/external` and `gateway/internal`; the admin UI on `fest-admin.stonegarden.dev`, on `gateway/internal` only. TLS comes from the existing cert-manager setup. |
+| Secrets (SealedSecrets) | The `innby` secret, sealed by `just seal` from the gitignored `deploy/secrets.env`. |
+| NetworkPolicies (Cilium) | Instead of the chart's: `web` and `admin` accept traffic from the gateways (`fromEntities: ingress`). `mailer` has no ingress and egress to `smtp.mailersend.net:587` only, and `admin` to `authelia.stonegarden.dev:443`. `janitor` has egress to the DB only. Postgres accepts ingress from the Innby pods and the CNPG operator. |
+
+- Observability: JSON logs. `/metrics` (responses, headcount, rate-limit hits, outbox lag, mail failures) is left for hardening.
 
 ## 12. Justfile
 
@@ -332,11 +344,12 @@ just lint                # cargo fmt --check, clippy -D warnings, sqlx prepare -
 just db [prepare]        # psql on the dev db, or cargo sqlx prepare → .sqlx/ (commit it)
 just innby invite "Kari & Ola" 2   # any innby command; hash-password asks without echo
 just image [tag]         # OCI layout in target/oci: amd64 + arm64, binary only
-just release 0.3.0       # bump, tag (signed), push
+just release 0.3.0       # bump the crate and the chart, tag (signed), push
+just chart               # helm lint, render charts/innby/ci/*.yaml, kubeconform
 just seal                # deploy/secrets.env → deploy/sealed-secrets.yaml
 ```
 
-Hidden from the list, for other recipes and CI: `run`, `migrate`, `build` (cargo zigbuild, static musl, `SQLX_OFFLINE`) and `push` (skopeo copy → ghcr.io/vehagn/innby). `kubectl kustomize deploy` renders the manifests.
+Hidden from the list, for other recipes and CI: `run`, `migrate`, `build` (cargo zigbuild, static musl, `SQLX_OFFLINE`) and `push` (skopeo copy → ghcr.io/vehagn/innby). `helm template innby charts/innby -f deploy/values.yaml` renders the homelab's manifests.
 
 ## 13. History
 
@@ -364,6 +377,7 @@ Hidden from the list, for other recipes and CI: `run`, `migrate`, `build` (cargo
 21. ✅ **Admin tabs and end-to-end tests:** the admin's sections as tabs, a headcount that filters the guests, and journeys through the site, the admin UI and the mailer in `src/e2e/`.
 22. ✅ **Several events:** events in the database, made in the admin UI, with everything else belonging to one; a front page about Innby that leads back to each remembered invitation, one cookie per event; retention per event.
 23. ✅ **Single sign-on and roles:** optional OpenID Connect login (Authelia), the built-in user optional, and viewer, editor and admin roles from an `innby` claim.
+24. ✅ **Helm chart:** `charts/innby`, general purpose and without CRDs, with optional HTTPRoutes, Ingresses and NetworkPolicies, published to GHCR as an OCI artifact with each release. The admin UI can live under `/admin` on the site's hostname. `deploy/` is now the homelab's values for it.
 
 ## 14. Decisions
 

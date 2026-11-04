@@ -1,7 +1,10 @@
-# Deploying Innby
+# Deploying Innby in the homelab
 
-These manifests follow the `vehagn/homelab` conventions: one directory per app under
-`k8s/apps/<group>/`, picked up by that group's Argo CD ApplicationSet.
+This is how `vehagn/homelab` installs [the chart](../charts/innby/README.md): one
+directory per app under `k8s/apps/<group>/`, picked up by that group's Argo CD
+ApplicationSet, which renders it with `kustomize build --enable-helm`. The chart comes
+from `oci://ghcr.io/vehagn/charts` with [`values.yaml`](values.yaml); the rest is what
+the chart leaves to the cluster.
 
 | Workload | Kind | Reachable from |
 |---|---|---|
@@ -9,24 +12,29 @@ These manifests follow the `vehagn/homelab` conventions: one directory per app u
 | `innby-admin` (`admin`) | Deployment | `fest-admin.stonegarden.dev` on the internal gateway only |
 | `innby-mailer` (`mailer`) | Deployment | nothing; may only reach Postgres and `smtp.mailersend.net:587` |
 | `innby-janitor` (`janitor`) | CronJob, hourly | nothing; may only reach Postgres |
-| `innby-postgres` | CloudNativePG `Cluster`, 1 instance, 1 Gi | the Innby pods and the CNPG operator |
+| `innby-postgres` | CloudNativePG `Cluster` ([`cnpg-db.yaml`](cnpg-db.yaml)), 1 instance, 1 Gi | the Innby pods and the CNPG operator |
+
+[`network-policies.yaml`](network-policies.yaml) holds Cilium policies, which can name
+hosts, so the chart's own NetworkPolicies are off.
 
 ## Steps
 
-1. **Image.** `just release <version>` tags a release, and CI publishes it as
-   `ghcr.io/vehagn/innby:v<version>`. New GHCR packages are private: make it public, or
-   add an image pull secret. Pin `newTag` in `kustomization.yaml` to that tag.
-2. **Config.** Edit `config.env`: your name and contact address for the privacy notice,
-   and the sender address. Events are made in the admin UI once it runs.
-   For single sign-on, uncomment the `INNBY_OIDC_*` settings and `INNBY_ADMIN_URL`, and
-   register the client in Authelia as the top-level README's "Single sign-on" shows.
-   The admin's network policy lets it reach `authelia.stonegarden.dev`.
+1. **Release.** `just release <version>` tags a release, and CI publishes the image as
+   `ghcr.io/vehagn/innby:v<version>` and the chart as
+   `oci://ghcr.io/vehagn/charts/innby:<version>`. New GHCR packages are private: make
+   both public, or give Argo CD credentials. Set `version` in `kustomization.yaml` to
+   that release.
+2. **Values.** Edit `values.yaml`: your name and contact address for the privacy notice,
+   and the sender address. Events are made in the admin UI once it runs. For single
+   sign-on, uncomment `oidc`, and register the client in Authelia as the top-level
+   README's "Single sign-on" shows. The admin's network policy lets it reach
+   `authelia.stonegarden.dev`.
 3. **Secrets.** `cp secrets.example.env secrets.env` and fill it in: the link key, the
    admin password hash (`just innby hash-password`; leave it out to log in only through
    Authelia) and JWT secret, the OIDC client secret if you use single sign-on, and the
-   SMTP credentials from step 4. Then from the repository root run `just seal` and uncomment
-   `sealed-secrets.yaml` in `kustomization.yaml`. `secrets.env` is gitignored; never
-   commit it.
+   SMTP credentials from step 4. Then from the repository root run `just seal` and
+   uncomment `sealed-secrets.yaml` in `kustomization.yaml`. `secrets.env` is gitignored;
+   never commit it.
 4. **MailerSend.** Verify the sender domain (SPF, DKIM, DMARC), accept the DPA, and
    create SMTP credentials for step 3.
 5. **Argo CD.** Copy this directory (without `secrets.env`) to
@@ -35,6 +43,9 @@ These manifests follow the `vehagn/homelab` conventions: one directory per app u
 6. **Check.** `https://fest.stonegarden.dev/readyz` should answer 200. Create an event
    and a test invitation in the admin UI, open its link, answer, then delete it from the
    RSVP page.
+
+To see what Argo CD will apply, `helm template innby charts/innby --namespace innby
+--values deploy/values.yaml` from the repository root renders the chart's part.
 
 ## Things to verify after the first deploy
 

@@ -69,6 +69,18 @@ pub async fn serve(config: Config, admin: AdminConfig, db: PgPool) -> anyhow::Re
     web::listen(address, router(config, &admin, db)).await
 }
 
+tokio::task_local! {
+    static PREFIX: Arc<str>;
+}
+
+/// The path the admin UI is under, such as `/admin`, or empty at the root of its own
+/// hostname. Links read it from here, as they read the language.
+pub fn prefix() -> Arc<str> {
+    PREFIX
+        .try_with(Arc::clone)
+        .unwrap_or_else(|_| Arc::from(""))
+}
+
 pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> Router {
     // The admin hostname is served the same way as the public one.
     let https = config.is_https();
@@ -126,14 +138,37 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
             .route(paths::LOGIN_OIDC, get(oidc::start))
             .route(paths::LOGIN_OIDC_CALLBACK, get(oidc::callback));
     }
-    let router = web::no_store(pages)
+    let prefix: Arc<str> = Arc::from(admin_config.path.as_str());
+    let scoped = Arc::clone(&prefix);
+    let router: Router = web::no_store(pages)
         // Probes don't log in, and the login page has its style before anyone does.
         .route(paths::HEALTH, get(|| async { "ok" }))
         .route(paths::READY, get(web::ready))
         .route(paths::STYLESHEET, get(web::stylesheet))
         .layer(middleware::from_fn(crate::theme::scope))
         .layer(middleware::from_fn(lang::scope))
-        .with_state(state);
+        .layer(middleware::from_fn(
+            move |request, next: middleware::Next| {
+                PREFIX.scope(Arc::clone(&scoped), next.run(request))
+            },
+        ))
+        .with_state(state.clone());
+    let router = if prefix.is_empty() {
+        router
+    } else {
+        // Under a path of the site's hostname, as `/admin`. The probes stay at the
+        // root, where the kubelet asks.
+        let home = paths::admin_under(&prefix, paths::HOME);
+        Router::<AdminState>::new()
+            .route(paths::HEALTH, get(|| async { "ok" }))
+            .route(paths::READY, get(web::ready))
+            .with_state(state)
+            .nest(&prefix, router)
+            .route(
+                &format!("{prefix}/"),
+                get(move || async move { Redirect::permanent(&home) }),
+            )
+    };
     web::harden(router, https)
 }
 
@@ -1066,6 +1101,38 @@ mod tests {
         assert!(html.contains("/delete"));
         let html = body(admin.get(paths::HOME).await).await;
         assert!(html.contains(paths::QR_STYLE) && html.contains(r#"action="/events""#));
+    }
+
+    #[sqlx::test]
+    async fn serves_under_a_path_with_the_probes_at_the_root(db: PgPool) {
+        let mut admin = Admin::new(db);
+        admin.admin.path = "/admin".into();
+        let status = |response: Response| response.status();
+        for probe in [paths::HEALTH, paths::READY] {
+            assert_eq!(
+                status(admin.send(Request::get(probe), "").await),
+                StatusCode::OK
+            );
+        }
+        let response = admin.send(Request::get("/admin"), "").await;
+        assert_eq!(location(&response), "/admin/login");
+        let response = admin.send(Request::get("/admin/"), "").await;
+        assert_eq!(location(&response), "/admin");
+        let html = body(admin.send(Request::get("/admin/login"), "").await).await;
+        assert!(html.contains(r#"href="/admin/static/style.css"#), "{html}");
+        assert!(html.contains(r#"action="/admin/login""#));
+        let css = admin.send(
+            Request::get(paths::STYLESHEET).uri("/admin/static/style.css"),
+            "",
+        );
+        assert_eq!(status(css.await), StatusCode::OK);
+        // Nothing of the admin's outside its path.
+        assert_eq!(status(admin.get("/events").await), StatusCode::NOT_FOUND);
+
+        let response = admin.get("/admin").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let html = body(response).await;
+        assert!(html.contains(r#"href="/admin/qr-style""#), "{html}");
     }
 
     #[sqlx::test]

@@ -135,6 +135,9 @@ impl Config {
 #[derive(Debug, Clone)]
 pub struct AdminConfig {
     pub listen: SocketAddr,
+    /// The path the admin UI is under, such as `/admin`, or empty for the root. From
+    /// `INNBY_ADMIN_URL`.
+    pub path: String,
     /// The built-in user, unless `INNBY_ADMIN_PASSWORD_HASH` is left out.
     pub login: Option<PasswordLogin>,
     /// Single sign-on, when `INNBY_OIDC_ISSUER` is set.
@@ -179,7 +182,8 @@ impl AdminConfig {
                 })
             })
             .transpose()?;
-        let oidc = env.oidc()?;
+        let admin_url = env.admin_url()?;
+        let oidc = env.oidc(admin_url.as_ref())?;
         ensure!(
             login.is_some() || oidc.is_some(),
             "nobody could log in: set INNBY_ADMIN_PASSWORD_HASH, INNBY_OIDC_ISSUER or both"
@@ -191,6 +195,9 @@ impl AdminConfig {
         );
         Ok(Self {
             listen: env.socket_address("INNBY_ADMIN_LISTEN", "0.0.0.0:8081")?,
+            path: admin_url
+                .map(|url| url.path().trim_end_matches('/').to_owned())
+                .unwrap_or_default(),
             login,
             oidc,
             jwt_secret: jwt::Secret::from_base64(&jwt_secret).context("INNBY_ADMIN_JWT_SECRET")?,
@@ -199,19 +206,42 @@ impl AdminConfig {
 }
 
 impl<F: Fn(&str) -> Option<String>> Env<F> {
-    fn oidc(&self) -> Result<Option<OidcConfig>> {
+    /// Where hosts reach the admin UI: on a hostname of its own, or under a path of the
+    /// site's, such as `https://fest.example.com/admin`.
+    fn admin_url(&self) -> Result<Option<url::Url>> {
+        let Some(value) = self.optional("INNBY_ADMIN_URL") else {
+            return Ok(None);
+        };
+        let url = value
+            .trim()
+            .parse::<url::Url>()
+            .ok()
+            .filter(|url| {
+                matches!(url.scheme(), "http" | "https")
+                    && url.host().is_some()
+                    && url.query().is_none()
+                    && url.fragment().is_none()
+                    && url.username().is_empty()
+            })
+            .ok_or_else(|| {
+                anyhow!(
+                    "INNBY_ADMIN_URL: expected an address like https://admin.example.com \
+                     or https://example.com/admin, got {value:?}"
+                )
+            })?;
+        Ok(Some(url))
+    }
+
+    fn oidc(&self, admin_url: Option<&url::Url>) -> Result<Option<OidcConfig>> {
         let Some(issuer) = self.optional("INNBY_OIDC_ISSUER") else {
             return Ok(None);
         };
-        let admin_url = self.required("INNBY_ADMIN_URL")?;
-        let admin_url = admin_url.trim_end_matches('/');
-        let redirect_uri = format!("{admin_url}{OIDC_CALLBACK}")
-            .parse::<url::Url>()
-            .ok()
-            .filter(|url| url.path() == OIDC_CALLBACK && url.query().is_none())
-            .ok_or_else(|| {
-                anyhow!("INNBY_ADMIN_URL: expected an origin like https://admin.example.com")
-            })?;
+        let admin_url = admin_url.ok_or_else(|| anyhow!("INNBY_ADMIN_URL must be set"))?;
+        let redirect_uri = format!(
+            "{}{OIDC_CALLBACK}",
+            admin_url.as_str().trim_end_matches('/')
+        )
+        .parse::<url::Url>()?;
         let config = OidcConfig {
             issuer: issuer.trim().to_owned(),
             client_id: self.required("INNBY_OIDC_CLIENT_ID")?,
@@ -343,6 +373,7 @@ pub mod tests {
     fn single_sign_on_can_replace_the_built_in_user() {
         let admin = admin_oidc(&[]).unwrap();
         assert!(admin.login.is_none());
+        assert_eq!(admin.path, "");
         let oidc = admin.oidc.unwrap();
         assert_eq!(
             oidc.redirect_uri.as_str(),
@@ -365,7 +396,15 @@ pub mod tests {
         let err = |overrides: &[(&str, &str)]| format!("{:#}", admin_oidc(overrides).unwrap_err());
         assert!(err(&[("INNBY_OIDC_ISSUER", "")]).starts_with("nobody could log in"));
         assert!(err(&[("INNBY_ADMIN_URL", "")]).contains("INNBY_ADMIN_URL"));
-        assert!(err(&[("INNBY_ADMIN_URL", "https://admin.example.com/admin")]).contains("origin"));
+        assert!(err(&[("INNBY_ADMIN_URL", "admin.example.com")]).contains("expected"));
+        assert!(err(&[("INNBY_ADMIN_URL", "https://example.com/?admin")]).contains("expected"));
+        // Under a path of the site's.
+        let under = admin_oidc(&[("INNBY_ADMIN_URL", "https://fest.example.com/admin/")]).unwrap();
+        assert_eq!(under.path, "/admin");
+        assert_eq!(
+            under.oidc.unwrap().redirect_uri.as_str(),
+            "https://fest.example.com/admin/login/oidc/callback"
+        );
         assert!(err(&[("INNBY_OIDC_CLIENT_SECRET", "")]).contains("INNBY_OIDC_CLIENT_SECRET"));
         assert!(err(&[("INNBY_OIDC_ISSUER", "http://authelia.example.com")]).contains("https"));
         assert!(err(&[("INNBY_OIDC_SCOPES", "profile innby")]).contains("openid"));

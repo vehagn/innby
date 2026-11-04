@@ -1,0 +1,179 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Innby chart values",
+  "type": "object",
+  "additionalProperties": false,
+  "definitions": {
+    "resources": { "type": "object" },
+    "list": { "type": "array", "items": { "type": "object" } },
+    "url": { "type": "string", "pattern": "^(https?://[^/?#]+(/[^?#]*)?)?$" },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    }
+  },
+  "properties": {
+    "global": { "type": "object" },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "digest": { "type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "imagePullSecrets": { "$ref": "#/definitions/list" },
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "siteUrl": { "$ref": "#/definitions/url" },
+    "controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "existingSecretKey": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "pattern": "^(postgres(ql)?://.*)?$" }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "linkKey": { "type": "string" },
+        "adminJwtSecret": { "type": "string" },
+        "adminPasswordHash": { "type": "string", "pattern": "^(\\$argon2.*)?$" },
+        "oidcClientSecret": { "type": "string" },
+        "smtpUser": { "type": "string" },
+        "smtpPassword": { "type": "string" }
+      }
+    },
+    "extraConfig": {
+      "type": "object",
+      "propertyNames": { "pattern": "^(INNBY_[A-Z0-9_]+|RUST_LOG)$" },
+      "additionalProperties": { "type": ["string", "number", "boolean"] }
+    },
+    "web": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "replicaCount": { "type": "integer", "minimum": 0 },
+        "trustForwarded": { "type": "boolean" },
+        "service": { "$ref": "#/definitions/service" },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "admin": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "url": { "$ref": "#/definitions/url" },
+        "user": { "type": "string", "minLength": 1 },
+        "replicaCount": { "type": "integer", "minimum": 0 },
+        "service": { "$ref": "#/definitions/service" },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "oidc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "issuer": { "$ref": "#/definitions/url" },
+        "clientId": { "type": "string" },
+        "name": { "type": "string" },
+        "scopes": { "type": "string" },
+        "rolesClaim": { "type": "string" }
+      }
+    },
+    "mailer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "from": { "type": "string" },
+        "smtpUrl": { "type": "string", "pattern": "^(smtps?://.*)?$" },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "janitor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schedule": { "type": "string", "minLength": 1 },
+        "timeZone": { "type": "string" },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "httpRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "annotations": { "type": "object" },
+        "parentRefs": { "$ref": "#/definitions/list" },
+        "admin": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "parentRefs": { "$ref": "#/definitions/list" } }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "annotations": { "type": "object" },
+        "tls": { "$ref": "#/definitions/list" },
+        "admin": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "className": { "type": "string" },
+            "annotations": { "type": "object" },
+            "tls": { "$ref": "#/definitions/list" }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingressFrom": { "$ref": "#/definitions/list" },
+        "admin": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "ingressFrom": { "$ref": "#/definitions/list" } }
+        },
+        "databasePeers": { "$ref": "#/definitions/list" },
+        "databasePort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "smtpPort": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "podAnnotations": { "type": "object" },
+    "podLabels": { "type": "object" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "$ref": "#/definitions/list" },
+    "affinity": { "type": "object" },
+    "podSecurityContext": { "type": "object" },
+    "securityContext": { "type": "object" }
+  }
+}

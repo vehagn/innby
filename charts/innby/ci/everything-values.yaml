@@ -1,0 +1,33 @@
+# Every option on: an admin hostname behind its own gateway, single sign-on without the
+# built-in user, routes, ingresses and network policies.
+siteUrl: https://fest.example.com
+controller: { name: Kari Nordmann, email: kari@example.com }
+database: { existingSecret: innby-postgres-app }
+secrets: { existingSecret: innby }
+admin:
+  url: https://fest-admin.example.com
+oidc:
+  issuer: https://auth.example.com
+  name: Authelia
+mailer:
+  from: Innby <fest@example.com>
+  smtpUrl: smtp://smtp.example.com:587?tls=required
+janitor: { timeZone: Europe/Oslo }
+web: { trustForwarded: true }
+extraConfig: { RUST_LOG: debug }
+httpRoute:
+  enabled: true
+  parentRefs: [{ name: external, namespace: gateway }]
+  admin:
+    parentRefs: [{ name: internal, namespace: gateway }]
+ingress:
+  enabled: true
+  className: public
+  tls: [{ secretName: fest-tls, hosts: [fest.example.com] }]
+  admin:
+    className: internal
+networkPolicy:
+  enabled: true
+  ingressFrom: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: gateway } } }]
+  databasePeers: [{ podSelector: { matchLabels: { cnpg.io/cluster: innby-postgres } } }]
+image: { digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000" }

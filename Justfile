@@ -88,6 +88,40 @@ lint:
     cargo sqlx prepare --check -- --all-targets
     cargo deny check
 
+# Lints the chart and renders it with each values file in charts/innby/ci, checking the
+# manifests against the Kubernetes schemas (and the Gateway API's, from the CRDs
+# catalog). Settings that can't work must stop the render.
+[doc("Lint and render the Helm chart, and check its manifests")]
+[group("dev")]
+chart:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    chart=charts/innby
+    for values in "$chart"/ci/*.yaml; do
+      helm lint --strict --quiet "$chart" --values "$values"
+      helm template innby "$chart" --values "$values" \
+        | kubeconform -strict -summary -kubernetes-version 1.35.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{{{.Group}}/{{{{.ResourceKind}}_{{{{.ResourceAPIVersion}}.json'
+    done
+    fails() {
+      if helm template innby "$chart" --values "$chart/ci/minimal-values.yaml" "$@" >/dev/null 2>&1; then
+        echo "expected the chart to refuse: $*" >&2
+        exit 1
+      fi
+    }
+    fails --set siteUrl=fest.example.com
+    fails --set admin.url=https://example.com/?admin
+    fails --set secrets.adminPasswordHash=
+    fails --set secrets.linkKey=
+    fails --set database.url=
+    fails --set mailer.smtpUrl=
+    fails --set httpRoute.enabled=true
+    fails --set oidc.issuer=https://auth.example.com
+    fails --set extraConfig.HOME=/tmp
+    fails --set adminn.enabled=false
+    echo "The chart refuses the settings that can't work."
+
 # `just db prepare` regenerates the offline query data in .sqlx/, which is committed.
 # `just db reset` drops the dev database and builds it again from the migrations.
 [doc("Open psql on the dev database; `just db prepare` updates .sqlx/, `just db reset` rebuilds it")]
@@ -119,8 +153,8 @@ innby *args:
     sqlx migrate run
     exec cargo run --quiet -- "$@"
 
-# Bumps Cargo.toml if needed, tags v<version> (signed) and pushes, which builds and
-# publishes the image.
+# Bumps Cargo.toml and the chart if needed, tags v<version> (signed) and pushes, which
+# builds and publishes the image and the chart.
 [doc("Release a version, e.g. `just release 0.3.0`")]
 [group("release")]
 release version:
@@ -139,7 +173,9 @@ release version:
     if [[ "$current" != "$version" ]]; then
       perl -pi -e 's/^version = "[^"]*"/version = "'"$version"'"/ if /^version = / && !$done++' Cargo.toml
       perl -0pi -e 's/(name = "innby"\nversion = )"[^"]*"/$1"'"$version"'"/' Cargo.lock
-      git commit --quiet --message "Release $tag" -- Cargo.toml Cargo.lock
+      # The chart is released with the app, under the same version.
+      perl -pi -e 's/^version: .*/version: '"$version"'/; s/^appVersion: .*/appVersion: "'"$version"'"/' charts/innby/Chart.yaml
+      git commit --quiet --message "Release $tag" -- Cargo.toml Cargo.lock charts/innby/Chart.yaml
       echo "Bumped $current → $version"
     fi
     git tag --sign --message "Innby $version" "$tag"

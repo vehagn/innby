@@ -1,0 +1,54 @@
+# This cluster's values for the chart in charts/innby, whose values.yaml says what each
+# does. Everything here is public; secrets go in secrets.env, sealed by `just seal`.
+siteUrl: https://fest.stonegarden.dev
+
+# The data controller named on /privacy: you.
+controller:
+  name: Vegard Hagen
+  email: fest@stonegarden.dev
+
+# From the CloudNativePG cluster in cnpg-db.yaml.
+database:
+  existingSecret: innby-postgres-app
+  existingSecretKey: uri
+
+# The `innby` Secret that `just seal` makes from secrets.env.
+secrets:
+  existingSecret: innby
+
+web:
+  # The gateway appends the client address to X-Forwarded-For.
+  trustForwarded: true
+
+admin:
+  # On a hostname of its own, on the internal gateway only.
+  url: https://fest-admin.stonegarden.dev
+
+# Single sign-on through Authelia; see "Single sign-on" in the top-level README. Needs
+# INNBY_OIDC_CLIENT_SECRET in secrets.env. Without an issuer, only the built-in user
+# logs in.
+# oidc:
+#   issuer: https://authelia.stonegarden.dev
+#   clientId: innby
+#   name: Authelia
+
+mailer:
+  # The sender domain must be verified in MailerSend (SPF, DKIM, DMARC).
+  from: Julebord <fest@stonegarden.dev>
+  smtpUrl: smtp://smtp.mailersend.net:587?tls=required
+
+janitor:
+  timeZone: Europe/Oslo
+
+httpRoute:
+  enabled: true
+  parentRefs:
+    - { name: external, namespace: gateway }
+    - { name: internal, namespace: gateway }
+  admin:
+    parentRefs:
+      - { name: internal, namespace: gateway }
+
+# The Cilium policies in network-policies.yaml do this better: they can name hosts.
+networkPolicy:
+  enabled: false

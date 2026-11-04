@@ -77,3 +77,29 @@ async fn the_host_styles_the_qr_codes(db: PgPool) {
     assert!(svg.contains(r##"fill="#1a237e""##), "{svg}");
     assert!(svg.contains("🥂</text>"));
 }
+
+#[sqlx::test]
+async fn the_admin_ui_can_live_under_the_sites_hostname(db: PgPool) {
+    let world = World::with_admin_under_the_site(db);
+    world.event().await;
+    let a = admin();
+
+    // The host logs in at /admin, and every link stays under it.
+    let mut host = world.admin().await;
+    assert_eq!(host.page().url, world.site("/admin"));
+    host.click("Christmas party").await.expect(&a.guests);
+    assert!(host.page().url.starts_with(&world.site("/admin/events/")));
+    host.click(&a.invitation_links).await;
+    host.fill(&a.names, "Kari Nordmann, 2");
+    host.press(&a.create_invitations)
+        .await
+        .expect("Kari Nordmann");
+    let link = host.value(&filled(&a.link_for, "name", "Kari Nordmann"));
+
+    // The login is the admin's alone: the site on the same hostname never sees it.
+    assert!(host.cookie_names().is_empty(), "{:?}", host.cookie_names());
+    host.open(&link).await.expect("Kari Nordmann");
+    host.open(&world.site("/admin/")).await.expect(&a.events);
+    host.press(&a.log_out).await.expect(&a.logged_out);
+    assert_eq!(host.page().url, world.site("/admin/login?logged_out"));
+}

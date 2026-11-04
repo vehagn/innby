@@ -1,0 +1,33 @@
+{{- if .Values.mailer.enabled }}
+{{- $ctx := dict "root" . "component" "mailer" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "innby.component" $ctx }}
+  labels:
+    {{- include "innby.labels" $ctx | nindent 4 }}
+spec:
+  replicas: 1
+  # One sender is plenty, and a restart shouldn't overlap with a second one.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      {{- include "innby.podMetadata" $ctx | nindent 6 }}
+    spec:
+      {{- include "innby.podSpec" . | nindent 6 }}
+      containers:
+        - name: innby
+          {{- include "innby.container" . | nindent 10 }}
+          args: [mailer]
+          env:
+            {{- include "innby.databaseEnv" . | nindent 12 }}
+            {{- include "innby.secretEnv" (dict "root" . "key" "INNBY_LINK_KEY") | nindent 12 }}
+            {{- include "innby.secretEnv" (dict "root" . "key" "INNBY_SMTP_USER" "optional" true) | nindent 12 }}
+            {{- include "innby.secretEnv" (dict "root" . "key" "INNBY_SMTP_PASSWORD" "optional" true) | nindent 12 }}
+          resources:
+            {{- toYaml .Values.mailer.resources | nindent 12 }}
+{{- end }}
