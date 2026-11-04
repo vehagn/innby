@@ -8,7 +8,6 @@ use axum::{
     http::{StatusCode, request::Parts},
     response::{IntoResponse, Redirect, Response},
 };
-use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -113,16 +112,6 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
 /// The event behind an admin path's `{id}`.
 pub(super) async fn load_event(state: &AdminState, id: Uuid) -> Result<Event, PageError> {
     event::find(&state.db, id).await?.ok_or(PageError::Missing)
-}
-
-#[derive(Deserialize)]
-pub(super) struct SavedQuery {
-    pub(super) saved: Option<String>,
-}
-
-#[derive(Deserialize)]
-pub(super) struct DeleteForm {
-    pub(super) confirm: Option<String>,
 }
 
 /// Why a request about one guest or group failed.

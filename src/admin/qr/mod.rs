@@ -14,8 +14,9 @@ use axum::{
 };
 
 use super::{
+    forms::SavedQuery,
     lang,
-    page::{AdminState, SavedQuery, redirect},
+    page::{AdminState, redirect},
 };
 use crate::{
     config::Config,

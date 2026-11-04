@@ -14,9 +14,9 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use super::{
-    invitations::InviteForm,
+    forms::{DeleteForm, NameForm, SavedQuery},
     lang,
-    page::{AdminState, DeleteForm, PageError, SavedQuery, load_event, redirect},
+    page::{AdminState, PageError, load_event, redirect},
     qr::qr_file,
 };
 use crate::{
@@ -290,7 +290,7 @@ pub(super) fn saved_redirect(id: Uuid) -> Response {
 pub(super) async fn edit(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
-    Form(form): Form<InviteForm>,
+    Form(form): Form<NameForm>,
 ) -> Result<Response, PageError> {
     let name = match form.validate(NameKind::Person) {
         Ok(name) => name,

@@ -7,8 +7,8 @@ use uuid::Uuid;
 
 use super::{
     events::{create_event, file::EventFile, group_lines},
+    forms::validate,
     guests::guest_url,
-    invitations::validate,
     lang,
 };
 use crate::{

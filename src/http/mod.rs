@@ -8,7 +8,7 @@ mod rate_limit;
 mod render;
 
 pub use rate_limit::{ClientIp, RateLimiter};
-pub use render::{render, render_with, server_error, stylesheet, stylesheet_link};
+pub use render::{render, render_form, render_with, server_error, stylesheet, stylesheet_link};
 
 use std::{convert::Infallible, net::SocketAddr, pin::pin, time::Duration};
 

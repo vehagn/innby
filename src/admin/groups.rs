@@ -11,10 +11,10 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use super::{
+    forms::{BatchForm, DeleteForm, NameForm, SavedQuery},
     guests::{Row, local},
-    invitations::{BatchForm, InviteForm},
     lang,
-    page::{AdminState, DeleteForm, PageError, SavedQuery, load_event, redirect},
+    page::{AdminState, PageError, load_event, redirect},
     qr::{self as admin_qr, qr_file},
 };
 use crate::{
@@ -25,7 +25,7 @@ use crate::{
         qr,
         rsvp::{self, MAX_PARTY_SIZE, NameKind, Rsvp},
     },
-    http::{render, render_with},
+    http::{render, render_form, render_with},
     i18n::count,
     link::Purpose,
     paths::{self, AdminLinks, EventLinks},
@@ -89,10 +89,7 @@ async fn groups_page(
         group::list(&state.db, event.id),
         rsvp::list(&state.db, event.id)
     )?;
-    let status = match error {
-        Some(_) => StatusCode::UNPROCESSABLE_ENTITY,
-        None => StatusCode::OK,
-    };
+    let needs_fixing = error.is_some();
     let page = GroupsPage {
         links: EventLinks::new(event.id),
         accepts_answers: event.details.accepts_answers(Utc::now()),
@@ -106,7 +103,7 @@ async fn groups_page(
         notice,
         error,
     };
-    Ok(render_with(status, page))
+    Ok(render_form(page, needs_fixing))
 }
 
 #[derive(serde::Deserialize)]
@@ -244,7 +241,7 @@ pub(super) async fn qr(
 pub(super) async fn edit(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
-    Form(form): Form<InviteForm>,
+    Form(form): Form<NameForm>,
 ) -> Result<Response, PageError> {
     let name = match form.validate(NameKind::Group) {
         Ok(name) => name,

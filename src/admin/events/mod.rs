@@ -18,7 +18,6 @@ use askama::Template;
 use axum::{
     Form,
     extract::{Multipart, Query, State},
-    http::StatusCode,
     response::Response,
 };
 use serde::Deserialize;
@@ -26,7 +25,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::{
-    invitations::BatchForm,
+    forms::BatchForm,
     lang,
     page::{AdminState, PageError, load_event, redirect},
     role::Role,
@@ -37,7 +36,7 @@ use crate::{
         group,
         rsvp::{self, Headcount, NameKind},
     },
-    http::render_with,
+    http::render_form,
     i18n::filled,
     paths,
 };
@@ -154,17 +153,14 @@ async fn events_page(
             headcount: rsvp::headcount(&state.db, event.id).await?,
         });
     }
-    let status = match (&draft.error, &draft.file_error) {
-        (None, None) => StatusCode::OK,
-        _ => StatusCode::UNPROCESSABLE_ENTITY,
-    };
+    let needs_fixing = draft.error.is_some() || draft.file_error.is_some();
     let page = EventsPage {
         events,
         draft,
         notice,
         error: None,
     };
-    Ok(render_with(status, page))
+    Ok(render_form(page, needs_fixing))
 }
 
 /// Creates an event, with any group links, and opens its guests, where invitations

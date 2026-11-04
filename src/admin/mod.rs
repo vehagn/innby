@@ -3,7 +3,7 @@
 //! own hostname or under a path of the site's (`INNBY_ADMIN_URL`), behind a login.
 //!
 //! - `mod.rs`: `router`, which lists every page and the role it needs.
-//! - `page`: what pages share: state, tabs, errors.
+//! - `page`: what pages share: state, tabs, errors. `forms`: what their forms share.
 //! - `events`, `guests`, `invitations`, `groups`, `qr`: the pages, one module per tab.
 //! - `cli`: the host's commands: `innby invite` and `innby event`.
 //! - `auth`: logging in, as the built-in user or through an OIDC provider, and sessions.
@@ -12,6 +12,7 @@
 pub mod auth;
 pub mod cli;
 mod events;
+mod forms;
 mod groups;
 mod guests;
 mod invitations;

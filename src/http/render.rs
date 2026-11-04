@@ -55,6 +55,16 @@ pub fn render_with(status: StatusCode, template: impl Template) -> Response {
     response
 }
 
+/// A page with a form on it: 200, or 422 when it shows something to fix, so that tests
+/// and tools can tell a refused form from a fresh one.
+pub fn render_form(template: impl Template, needs_fixing: bool) -> Response {
+    let status = match needs_fixing {
+        true => StatusCode::UNPROCESSABLE_ENTITY,
+        false => StatusCode::OK,
+    };
+    render_with(status, template)
+}
+
 /// Logs the cause and answers 500 without details.
 pub fn server_error(err: impl Display) -> Response {
     tracing::error!(error = %err, "request failed");

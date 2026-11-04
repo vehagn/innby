@@ -18,8 +18,9 @@ use super::{
 };
 use crate::{
     admin::{
+        forms::{DeleteForm, SavedQuery},
         lang,
-        page::{AdminState, DeleteForm, PageError, SavedQuery, load_event, redirect},
+        page::{AdminState, PageError, load_event, redirect},
     },
     db::{
         event::{self, Event},
