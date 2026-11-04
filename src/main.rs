@@ -70,7 +70,7 @@ enum Command {
         #[command(subcommand)]
         command: EventCommand,
     },
-    /// Hash a password read from stdin, for INNBY_ADMIN_PASSWORD_HASH.
+    /// Hash a password read from stdin, for INNBY_ADMIN_PASSWORD_HASH or INNBY_ADMIN_USERS.
     HashPassword,
 }
 

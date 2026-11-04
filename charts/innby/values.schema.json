@@ -64,6 +64,7 @@
         "linkKey": { "type": "string" },
         "adminJwtSecret": { "type": "string" },
         "adminPasswordHash": { "type": "string", "pattern": "^(\\$argon2.*)?$" },
+        "adminUsers": { "type": "string" },
         "oidcClientSecret": { "type": "string" },
         "smtpUser": { "type": "string" },
         "smtpPassword": { "type": "string" }

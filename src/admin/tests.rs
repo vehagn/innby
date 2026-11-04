@@ -238,6 +238,27 @@ async fn logs_in_refreshes_and_logs_out(db: PgPool) {
     // Another login still works.
     let response = send("POST", "/login", "", "user=admin&password=secret").await;
     assert_eq!(location(&response), "/");
+
+    // Another user has the role the config gives them, and keeps it when the refresh
+    // token renews their JWT. Their refresh token is no one else's.
+    let response = send("POST", "/login", "", "user=ola.n&password=ola").await;
+    let cookies = set_cookies(&response);
+    let [(token, _), (refresh, _)] = &cookies[..] else {
+        panic!("{cookies:?}");
+    };
+    assert!(refresh.starts_with("refresh_token=ola.n."), "{refresh}");
+    let delete = paths::path(paths::EVENT_DELETE, Uuid::nil());
+    for cookie in [token, refresh] {
+        let details = paths::path(paths::EVENT_DETAILS, Uuid::nil());
+        assert_eq!(
+            send("GET", &details, cookie, "").await.status(),
+            StatusCode::NOT_FOUND
+        );
+        let response = send("POST", &delete, cookie, "").await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{cookie}");
+    }
+    let as_admin = refresh.replace("ola.n.", "admin.");
+    assert_eq!(location(&send("GET", "/", &as_admin, "").await), "/login");
 }
 
 #[sqlx::test]

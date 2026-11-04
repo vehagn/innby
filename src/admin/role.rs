@@ -1,5 +1,6 @@
-//! What a host may do in the admin UI. The built-in user is an admin; a single sign-on
-//! user gets the highest role their identity provider lists for Innby.
+//! What a host may do in the admin UI. A user who logs in with a password has the role
+//! the config gives them (the built-in user is an admin); a single sign-on user gets the
+//! highest role their identity provider lists for Innby.
 //!
 //! - **viewer** sees the events, their headcounts and who's coming. Not the personal
 //!   links, e-mail addresses or the guest export: those let you act as a guest.
@@ -36,13 +37,17 @@ tokio::task_local! {
 impl Role {
     pub const ALL: [Role; 3] = [Role::Viewer, Role::Editor, Role::Admin];
 
-    /// The name an identity provider lists, as in `innby: [editor]`.
+    /// The name an identity provider lists, as in `innby: [editor]`, and the config.
     pub fn name(self) -> &'static str {
         match self {
             Role::Viewer => "viewer",
             Role::Editor => "editor",
             Role::Admin => "admin",
         }
+    }
+
+    pub fn from_name(name: &str) -> Option<Role> {
+        Role::ALL.into_iter().find(|role| role.name() == name)
     }
 
     /// The role of the request being handled. Outside a login, the least.

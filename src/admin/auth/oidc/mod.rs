@@ -1,5 +1,5 @@
-//! Logging in to the admin UI through an OpenID Connect provider such as Authelia, as an
-//! alternative or a replacement for the built-in user.
+//! Logging in to the admin UI through an OpenID Connect provider such as Authelia, beside
+//! the password users or instead of them.
 //!
 //! The authorization code flow, for a confidential client:
 //! 1. `/login/oidc` makes a `state`, a `nonce` and a PKCE verifier, keeps them in a

@@ -1,7 +1,7 @@
 # Single sign-on
 
 The admin UI can log hosts in through an OpenID Connect provider, such as
-[Authelia](https://www.authelia.com/), as well as or instead of its built-in user. The
+[Authelia](https://www.authelia.com/), as well as or instead of its password users. The
 provider says who each host is, and what they may do in Innby.
 
 ## Roles
@@ -16,7 +16,8 @@ in. Values Innby doesn't know are ignored, so the same claim can carry other thi
 | `editor` | Also run the events: invitations, group links, guests, reminders, the guest export, each event's details, its QR codes' style and its event file |
 | `admin` | Also create events (by hand, by copying one, or from an event file) and delete them |
 
-The built-in user is always an admin.
+Hosts who log in with a password have the role `INNBY_ADMIN_USERS` gives them, and the
+built-in user is an admin.
 
 ## Turning it on
 
@@ -32,8 +33,8 @@ Set these, in `.env` or in the chart's values (`oidc` and `admin.url`):
 | `INNBY_OIDC_SCOPES`, `INNBY_OIDC_ROLES_CLAIM` | Optional: the scopes asked for (`openid profile email innby`) and the claim with the roles (`innby`) |
 
 Register `{INNBY_ADMIN_URL}/login/oidc/callback` as the client's redirect URI. Leave out
-`INNBY_ADMIN_PASSWORD_HASH` to turn the built-in user off; the admin UI then sends hosts
-straight to the provider.
+`INNBY_ADMIN_PASSWORD_HASH` and `INNBY_ADMIN_USERS` to log in only through the provider;
+the admin UI then sends hosts straight to it.
 
 ## Authelia
 

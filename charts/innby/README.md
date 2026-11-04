@@ -53,6 +53,7 @@ secret`), with these keys, and name it in `secrets.existingSecret`:
 | `INNBY_LINK_KEY` | Signs the guests' links: `openssl rand -base64 32`. Changing it breaks every link. |
 | `INNBY_ADMIN_JWT_SECRET` | Signs the admin's logins: `openssl rand -base64 32` |
 | `INNBY_ADMIN_PASSWORD_HASH` | The built-in admin user's password, from `innby hash-password`. Leave it out to log in only through OIDC. |
+| `INNBY_ADMIN_USERS` | More users who log in with a password, each `name:role:hash`, apart by spaces or lines, as `ola:editor:$argon2id$…`. The role is `admin`, `editor` or `viewer`. |
 | `INNBY_OIDC_CLIENT_SECRET` | With `oidc.issuer` |
 | `INNBY_SMTP_USER`, `INNBY_SMTP_PASSWORD` | If the SMTP server wants them |
 
@@ -111,10 +112,11 @@ httpRoute:
 
 With Ingresses, `ingress.admin.className` does the same.
 
-Hosts log in as the built-in user, through an OpenID Connect provider such as Authelia
-(`oidc.issuer`), or either. The provider gives each host a role, viewer, editor or
-admin; [docs/single-sign-on.md](../../docs/single-sign-on.md) shows how to set one up. Register
-`{admin.url}/login/oidc/callback` with the provider.
+Hosts log in with a password (the built-in admin, and any users in `INNBY_ADMIN_USERS`),
+through an OpenID Connect provider such as Authelia (`oidc.issuer`), or either. Each has
+a role, viewer, editor or admin: the one `INNBY_ADMIN_USERS` or the provider gives them;
+[docs/single-sign-on.md](../../docs/single-sign-on.md) shows how to set a provider up.
+Register `{admin.url}/login/oidc/callback` with the provider.
 
 ## Network policies
 

@@ -24,8 +24,8 @@ admin:
   url: https://fest-admin.stonegarden.dev
 
 # Single sign-on through Authelia; see docs/single-sign-on.md. Needs
-# INNBY_OIDC_CLIENT_SECRET in secrets.env. Without an issuer, only the built-in user
-# logs in.
+# INNBY_OIDC_CLIENT_SECRET in secrets.env. Without an issuer, only the password users
+# log in.
 # oidc:
 #   issuer: https://authelia.stonegarden.dev
 #   clientId: innby

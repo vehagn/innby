@@ -1,13 +1,16 @@
 //! Settings only `innby admin` needs, on top of `Config`: where it listens and where
-//! hosts reach it, the built-in user, single sign-on, and the secret its logins are
-//! signed with. A public site refuses the example ones in `.env.example`.
+//! hosts reach it, the users who log in with a password, single sign-on, and the secret
+//! its logins are signed with. A public site refuses the example ones in `.env.example`.
 
 use std::net::SocketAddr;
 
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 
 use super::{Config, Env, process_env};
-use crate::admin::auth::{jwt, oidc::OidcConfig};
+use crate::admin::{
+    auth::{self, jwt, oidc::OidcConfig},
+    role::Role,
+};
 
 /// The example password and JWT secret in `.env.example`, which a public site refuses.
 pub(super) const EXAMPLE_ADMIN_PASSWORD: &str = "innby";
@@ -21,8 +24,9 @@ pub struct AdminConfig {
     /// The path the admin UI is under, such as `/admin`, or empty for the root. From
     /// `INNBY_ADMIN_URL`.
     pub path: String,
-    /// The built-in user, unless `INNBY_ADMIN_PASSWORD_HASH` is left out.
-    pub login: Option<PasswordLogin>,
+    /// Who may log in with a password: the built-in admin, unless
+    /// `INNBY_ADMIN_PASSWORD_HASH` is left out, and the users in `INNBY_ADMIN_USERS`.
+    pub users: Vec<PasswordLogin>,
     /// Single sign-on, when `INNBY_OIDC_ISSUER` is set.
     pub oidc: Option<OidcConfig>,
     /// Signs the login's JWTs.
@@ -32,8 +36,52 @@ pub struct AdminConfig {
 #[derive(Debug, Clone)]
 pub struct PasswordLogin {
     pub user: String,
+    pub role: Role,
     /// An argon2 PHC string from `innby hash-password`.
     pub password_hash: String,
+}
+
+/// The longest user name `INNBY_ADMIN_USERS` takes.
+const MAX_USER_LEN: usize = 100;
+
+impl PasswordLogin {
+    /// One user of `INNBY_ADMIN_USERS`: `name:role:hash`, as `kari:editor:$argon2id$…`.
+    fn parse(entry: &str) -> Result<Self> {
+        let mut fields = entry.splitn(3, ':');
+        let (Some(user), Some(role), Some(password_hash)) =
+            (fields.next(), fields.next(), fields.next())
+        else {
+            bail!("expected name:role:hash, as kari:editor:$argon2id$…");
+        };
+        let role = Role::from_name(role)
+            .ok_or_else(|| anyhow!("{user}: the role is admin, editor or viewer, not {role:?}"))?;
+        Ok(Self {
+            user: user.to_owned(),
+            role,
+            password_hash: password_hash.to_owned(),
+        })
+    }
+
+    /// Refuses a name that can't be typed in the login form, or carried in the refresh
+    /// token's cookie; a hash that isn't argon2's; and on a public site, the example
+    /// password.
+    fn check(&self, public: bool) -> Result<()> {
+        let user = &self.user;
+        ensure!(
+            (1..=MAX_USER_LEN).contains(&user.len())
+                && user
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "._@-".contains(c)),
+            "{user:?}: a user name is up to {MAX_USER_LEN} letters a to z, digits and . _ @ -"
+        );
+        auth::check_hash(&self.password_hash)?;
+        ensure!(
+            !public || !auth::verify(&self.password_hash, EXAMPLE_ADMIN_PASSWORD),
+            "that's a hash of the example password from .env.example; make one for a real \
+             password with `just innby hash-password`"
+        );
+        Ok(())
+    }
 }
 
 /// Where the provider sends the host back to, under `INNBY_ADMIN_URL`.
@@ -49,30 +97,13 @@ impl AdminConfig {
         config: &Config,
     ) -> Result<Self> {
         let env = Env(get);
-        let login = env
-            .optional("INNBY_ADMIN_PASSWORD_HASH")
-            .map(|password_hash| -> Result<PasswordLogin> {
-                crate::admin::auth::check_hash(&password_hash)
-                    .context("INNBY_ADMIN_PASSWORD_HASH")?;
-                ensure!(
-                    !config.is_https()
-                        || !crate::admin::auth::verify(&password_hash, EXAMPLE_ADMIN_PASSWORD),
-                    "INNBY_ADMIN_PASSWORD_HASH: that's a hash of the example password from \
-                     .env.example; make one for a real password with `just innby hash-password`"
-                );
-                Ok(PasswordLogin {
-                    user: env
-                        .optional("INNBY_ADMIN_USER")
-                        .unwrap_or_else(|| "admin".into()),
-                    password_hash,
-                })
-            })
-            .transpose()?;
+        let users = env.users(config.is_https())?;
         let admin_url = env.admin_url()?;
         let oidc = env.oidc(admin_url.as_ref())?;
         ensure!(
-            login.is_some() || oidc.is_some(),
-            "nobody could log in: set INNBY_ADMIN_PASSWORD_HASH, INNBY_OIDC_ISSUER or both"
+            !users.is_empty() || oidc.is_some(),
+            "nobody could log in: set INNBY_ADMIN_PASSWORD_HASH, INNBY_ADMIN_USERS, \
+             INNBY_OIDC_ISSUER, or more than one"
         );
         let jwt_secret = env.required("INNBY_ADMIN_JWT_SECRET")?;
         ensure!(
@@ -84,7 +115,7 @@ impl AdminConfig {
             path: admin_url
                 .map(|url| url.path().trim_end_matches('/').to_owned())
                 .unwrap_or_default(),
-            login,
+            users,
             oidc,
             jwt_secret: jwt::Secret::from_base64(&jwt_secret).context("INNBY_ADMIN_JWT_SECRET")?,
         })
@@ -92,6 +123,39 @@ impl AdminConfig {
 }
 
 impl<F: Fn(&str) -> Option<String>> Env<F> {
+    /// The built-in admin, `INNBY_ADMIN_USER` with `INNBY_ADMIN_PASSWORD_HASH`, then the
+    /// users in `INNBY_ADMIN_USERS`: `name:role:hash` each, apart by spaces or lines.
+    fn users(&self, public: bool) -> Result<Vec<PasswordLogin>> {
+        let mut users = Vec::new();
+        if let Some(password_hash) = self.optional("INNBY_ADMIN_PASSWORD_HASH") {
+            let admin = PasswordLogin {
+                user: self
+                    .optional("INNBY_ADMIN_USER")
+                    .unwrap_or_else(|| "admin".into()),
+                role: Role::Admin,
+                password_hash,
+            };
+            admin.check(public).context("INNBY_ADMIN_PASSWORD_HASH")?;
+            users.push(admin);
+        }
+        for entry in self
+            .optional("INNBY_ADMIN_USERS")
+            .unwrap_or_default()
+            .split_whitespace()
+        {
+            let user = PasswordLogin::parse(entry).context("INNBY_ADMIN_USERS")?;
+            user.check(public)
+                .with_context(|| format!("INNBY_ADMIN_USERS: {}", user.user))?;
+            ensure!(
+                users.iter().all(|other| other.user != user.user),
+                "INNBY_ADMIN_USERS: there's already a user {}",
+                user.user
+            );
+            users.push(user);
+        }
+        Ok(users)
+    }
+
     /// Where hosts reach the admin UI: on a hostname of its own, or under a path of the
     /// site's, such as `https://fest.example.com/admin`.
     fn admin_url(&self) -> Result<Option<url::Url>> {
@@ -183,7 +247,7 @@ mod tests {
     #[test]
     fn single_sign_on_can_replace_the_built_in_user() {
         let admin = admin_oidc(&[]).unwrap();
-        assert!(admin.login.is_none());
+        assert!(admin.users.is_empty());
         assert_eq!(admin.path, "");
         let oidc = admin.oidc.unwrap();
         assert_eq!(
@@ -202,7 +266,7 @@ mod tests {
 
         let hash = crate::admin::auth::tests::cheap_hash("secret");
         let both = admin_oidc(&[("INNBY_ADMIN_PASSWORD_HASH", &hash)]).unwrap();
-        assert!(both.login.is_some() && both.oidc.is_some());
+        assert!(!both.users.is_empty() && both.oidc.is_some());
 
         let err = |overrides: &[(&str, &str)]| format!("{:#}", admin_oidc(overrides).unwrap_err());
         assert!(err(&[("INNBY_OIDC_ISSUER", "")]).starts_with("nobody could log in"));
@@ -232,7 +296,8 @@ mod tests {
         let config = config();
         let hash = crate::admin::auth::tests::cheap_hash("secret");
         let admin = admin_with_hash(&hash, &config).unwrap();
-        assert_eq!(admin.login.unwrap().user, "admin");
+        assert_eq!(admin.users[0].user, "admin");
+        assert_eq!(admin.users[0].role, Role::Admin);
         assert_eq!(admin.listen, "0.0.0.0:8081".parse().unwrap());
 
         assert!(AdminConfig::from_lookup(|_| None, &config).is_err());
@@ -242,12 +307,75 @@ mod tests {
         assert!(format!("{err:#}").starts_with("INNBY_ADMIN_JWT_SECRET"));
     }
 
+    fn admin_users(users: &str, config: &Config) -> Result<AdminConfig> {
+        AdminConfig::from_lookup(
+            |key| match key {
+                "INNBY_ADMIN_USERS" => Some(users.to_owned()),
+                "INNBY_ADMIN_JWT_SECRET" => Some(crate::link::tests::KEY.to_owned()),
+                _ => None,
+            },
+            config,
+        )
+    }
+
+    #[test]
+    fn more_users_each_with_a_role() {
+        let (kari, ola) = (
+            crate::admin::auth::tests::cheap_hash("kari"),
+            crate::admin::auth::tests::cheap_hash("ola"),
+        );
+        // Apart by spaces or lines, and with no built-in admin.
+        let admin = admin_users(
+            &format!("\n  kari:editor:{kari}\n ola.n@x:viewer:{ola} "),
+            &config(),
+        )
+        .unwrap();
+        let users: Vec<_> = admin
+            .users
+            .iter()
+            .map(|login| (login.user.as_str(), login.role))
+            .collect();
+        assert_eq!(users, [("kari", Role::Editor), ("ola.n@x", Role::Viewer)]);
+        assert!(crate::admin::auth::verify(
+            &admin.users[1].password_hash,
+            "ola"
+        ));
+
+        let err = |users: &str| format!("{:#}", admin_users(users, &config()).unwrap_err());
+        assert!(err(&format!("kari:{kari}")).contains("expected name:role:hash"));
+        assert!(err(&format!("kari:owner:{kari}")).contains("kari: the role is admin"));
+        assert!(err("kari:editor:hunter2").starts_with("INNBY_ADMIN_USERS: kari: not an argon2"));
+        assert!(err(&format!("kari:editor:{kari} kari:viewer:{ola}")).contains("already"));
+        assert!(err(&format!(":editor:{kari}")).contains("a user name is"));
+        assert!(err(&format!("kåre:editor:{kari}")).contains("a user name is"));
+        assert!(err(&format!("k;b:editor:{kari}")).contains("a user name is"));
+
+        // Beside the built-in admin, whose name nobody else may have.
+        let both = AdminConfig::from_lookup(
+            |key| match key {
+                "INNBY_ADMIN_PASSWORD_HASH" => Some(kari.clone()),
+                "INNBY_ADMIN_USERS" => Some(format!("admin:viewer:{ola}")),
+                "INNBY_ADMIN_JWT_SECRET" => Some(crate::link::tests::KEY.to_owned()),
+                _ => None,
+            },
+            &config(),
+        );
+        assert!(format!("{:#}", both.unwrap_err()).contains("already a user admin"));
+    }
+
     #[test]
     fn admin_refuses_the_example_secrets_on_a_public_site() {
         let local = parse(&[("INNBY_BASE_URL", "http://localhost:8080")]).unwrap();
         let hash = crate::admin::auth::tests::cheap_hash(EXAMPLE_ADMIN_PASSWORD);
         assert!(admin_with_hash(&hash, &config()).is_err());
         admin_with_hash(&hash, &local).unwrap();
+        let user = format!("ola:viewer:{hash}");
+        let err = admin_users(&user, &config()).unwrap_err();
+        assert!(
+            format!("{err:#}").contains("ola: that's a hash of the example"),
+            "{err:#}"
+        );
+        admin_users(&user, &local).unwrap();
 
         let hash = crate::admin::auth::tests::cheap_hash("secret");
         let err = admin_with(&hash, EXAMPLE_ADMIN_JWT_SECRET, &config()).unwrap_err();

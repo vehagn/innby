@@ -34,7 +34,7 @@ accounts, a JavaScript front end, and a public list of who's coming.
 | Retention | 30 days after each event | Long enough for afterthoughts, and then gone. No backups, on purpose. |
 | Languages | Six, in TOML files with fallbacks | Plain strings don't need Fluent; each language is a file that names its fallbacks. |
 | CSRF | `Sec-Fetch-Site` and `Origin` | No tokens or cookies needed, as Go's `CrossOriginProtection` does it. |
-| Admin login | Built-in user, single sign-on, or both | A password for a small install; an OpenID Connect provider, with roles, where there is one. |
+| Admin login | Passwords, single sign-on, or both | A user or a few with passwords and roles in the config, for a small install; an OpenID Connect provider, with roles, where there is one. |
 | Image | Written by `just image`, no Containerfile | Just the binary in an OCI layout, with reproducible digests and no build tool needed. |
 | Deployment | A general Helm chart, published to GHCR | No CRDs needed; routes, policies and CloudNativePG are options. |
 | Saving | With a Save button | Saving as you type needs JavaScript. Instead, forms are open rather than folded away, Save is the main button, and the QR code's preview says it shows the saved style. |

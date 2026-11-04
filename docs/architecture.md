@@ -104,7 +104,7 @@ Postgres links them.
 | `innby migrate` | init container of `serve` | Brings the database schema up to date | the database |
 | `innby invite [--event ID] NAME [MAX]` | by hand | Makes an invitation and prints its link | the database, the link key |
 | `innby event list`, `export ID`, `import FILE` | by hand | Lists events, prints one as an event file, or makes one from a file | the database |
-| `innby hash-password` | by hand | Hashes the admin password, read from stdin | nothing |
+| `innby hash-password` | by hand | Hashes a host's password, read from stdin | nothing |
 
 Splitting it this way keeps each part to what it needs: the public site has no SMTP
 credentials, the admin UI can be kept off the internet, and each workload can have its
@@ -220,12 +220,15 @@ allowed.
 
 **Logging in**, either way or both:
 
-- **The built-in user**, checked against an argon2 hash (`INNBY_ADMIN_PASSWORD_HASH`;
-  leave it out to turn this off). A login sets an HS512 JWT good for a day and a refresh
-  token good for 30 days, both `HttpOnly` cookies; logging out revokes both. Ten attempts
-  in 15 minutes from one address lock that address out for the rest of the window, and
-  100 from all addresses together lock everyone out, which bounds guessing from many
-  addresses. The built-in user is an admin.
+- **A user name and password**, checked against an argon2 hash. The users are the
+  built-in admin (`INNBY_ADMIN_USER` and `INNBY_ADMIN_PASSWORD_HASH`; leave the hash out
+  to turn it off) and any in `INNBY_ADMIN_USERS`, each `name:role:hash`, as
+  `ola:editor:$argon2id$…`, apart by spaces or lines. A login sets an HS512 JWT good
+  for a day and a refresh token good for 30 days, both `HttpOnly` cookies; logging out
+  revokes both. Changing a user, their role or their password logs every browser out.
+  Ten attempts in 15 minutes from one address lock that address out for the rest of the
+  window, and 100 from all addresses together lock everyone out, which bounds guessing
+  from many addresses.
 - **Single sign-on** through an OpenID Connect provider such as Authelia, which also says
   what role each host has. [single-sign-on.md](single-sign-on.md) explains the roles and
   the setup.

@@ -42,6 +42,8 @@ database:
 #   INNBY_ADMIN_JWT_SECRET     signs the admin's logins: `openssl rand -base64 32`
 #   INNBY_ADMIN_PASSWORD_HASH  the built-in admin user's password: `innby hash-password`;
 #                              leave it out to log in only through OIDC
+#   INNBY_ADMIN_USERS          more users with a password, each name:role:hash, apart by
+#                              spaces or lines; the role is admin, editor or viewer
 #   INNBY_OIDC_CLIENT_SECRET   with oidc.issuer
 #   INNBY_SMTP_USER, INNBY_SMTP_PASSWORD
 secrets:
@@ -49,6 +51,7 @@ secrets:
   linkKey: ""
   adminJwtSecret: ""
   adminPasswordHash: ""
+  adminUsers: ""
   oidcClientSecret: ""
   smtpUser: ""
   smtpPassword: ""

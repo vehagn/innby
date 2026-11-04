@@ -108,13 +108,13 @@ impl World {
     }
 
     /// A world whose admin UI logs in through a fake provider, where Kari, an editor,
-    /// is logged in. With `password`, the built-in user can log in too.
+    /// is logged in. With `password`, the password users can log in too.
     pub async fn with_sso(db: PgPool, password: bool) -> Self {
         let fake = Fake::start().await;
         let mut admin_config = auth::tests::admin_config();
         admin_config.oidc = Some(fake.config(ADMIN));
         if !password {
-            admin_config.login = None;
+            admin_config.users.clear();
         }
         let mut world = Self::new(db);
         world.admin = admin::router(world.config.clone(), &admin_config, world.db.clone());

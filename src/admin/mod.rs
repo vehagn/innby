@@ -7,7 +7,7 @@
 //! - `page`: what pages share: state, tabs, errors. `forms`: what their forms share.
 //! - `events`, `guests`, `invitations`, `groups`, `qr`: the pages, one module per tab.
 //! - `cli`: the host's commands: `innby invite` and `innby event`.
-//! - `auth`: logging in, as the built-in user or through an OIDC provider, and sessions.
+//! - `auth`: logging in, with a password or through an OIDC provider, and sessions.
 //! - `role`: what each role may do. `lang`: the page's language.
 
 pub mod auth;
@@ -107,7 +107,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
             auth::require_login,
         ))
         .route(paths::LOGOUT, post(auth::log_out));
-    pages = if admin_config.login.is_some() {
+    pages = if !admin_config.users.is_empty() {
         pages.route(paths::LOGIN, get(auth::login_page).post(auth::log_in))
     } else {
         pages.route(paths::LOGIN, get(auth::login_page))

@@ -1,4 +1,4 @@
-//! The login page, logging in as the built-in user, and logging out.
+//! The login page, logging in with a user name and password, and logging out.
 
 use std::sync::Arc;
 
@@ -23,7 +23,7 @@ use crate::{
 #[template(path = "admin/login.html")]
 struct LoginPage {
     logged_out: bool,
-    /// Whether the built-in user may log in.
+    /// Whether anyone may log in with a password.
     password: bool,
     /// The provider's name, when there is one.
     oidc: Option<String>,
@@ -79,10 +79,10 @@ pub async fn log_in(
 ) -> Response {
     let text = lang::text();
     let (status, error) = match auth.check(client, form.user.clone(), form.password).await {
-        Outcome::Accepted => {
-            return match auth.start_session().await {
+        Outcome::Accepted(user, role) => {
+            return match auth.start_session(&user, role).await {
                 Ok(cookies) => {
-                    tracing::info!("host logged in");
+                    tracing::info!(user, role = role.name(), "host logged in");
                     let cookies = cookies
                         .into_iter()
                         .map(|cookie| (header::SET_COOKIE, cookie));
