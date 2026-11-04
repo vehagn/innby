@@ -80,6 +80,7 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
     let viewer = Admin::as_role(db.clone(), Role::Viewer);
     let html = body(viewer.get(&on(paths::EVENT, e)).await).await;
     assert!(html.contains("Kari") && !html.contains(&on(paths::GUEST, i)));
+    assert!(!html.contains("<th>E-mail</th>"));
     for hidden in [
         "guests.csv",
         "/reminders\"",
@@ -96,6 +97,7 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
     let editor = Admin::as_role(db.clone(), Role::Editor);
     let html = body(editor.get(&on(paths::EVENT, e)).await).await;
     assert!(html.contains(&on(paths::GUEST, i)) && html.contains("guests.csv"));
+    assert!(html.contains("<th>E-mail</th>"));
     assert!(html.contains(&on(paths::EVENT_QR, e)));
     let html = body(editor.get(&on(paths::EVENT_DETAILS, e)).await).await;
     assert!(!html.contains("/delete") && !html.contains("/access\""));

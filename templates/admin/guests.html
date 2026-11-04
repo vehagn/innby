@@ -32,7 +32,7 @@
   <div class="table-wrap">
   <table>
     <thead>
-      <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th><th>{{ a.col_source }}</th><th>{{ a.col_guest_list }}</th><th>{{ a.col_email }}</th><th>{{ a.col_answered }}</th></tr>
+      <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th><th>{{ a.col_source }}</th><th>{{ a.col_guest_list }}</th>{% if edit %}<th>{{ a.col_email }}</th>{% endif %}<th>{{ a.col_answered }}</th></tr>
     </thead>
     <tbody>
       {% for row in rows %}
@@ -42,7 +42,7 @@
         <td>{{ row.party }}</td>
         <td>{{ row.source }}</td>
         <td>{{ row.listed }}</td>
-        <td>{{ row.email }}</td>
+        {% if edit %}<td>{{ row.email }}</td>{% endif %}
         <td>{{ row.responded }}</td>
       </tr>
       {% endfor %}
