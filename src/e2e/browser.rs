@@ -116,6 +116,15 @@ impl<'w> Browser<'w> {
         self
     }
 
+    /// Chooses a file, by its name and contents, for the file field with this label.
+    #[track_caller]
+    pub fn attach(&mut self, label: &str, file_name: &str, contents: &str) -> &mut Self {
+        let field = self.field(label, &[Kind::File]);
+        field.file_name = file_name.to_owned();
+        field.value = contents.to_owned();
+        self
+    }
+
     /// Picks the option with this text in the select with this label.
     #[track_caller]
     pub fn select(&mut self, label: &str, option: &str) -> &mut Self {
@@ -178,10 +187,10 @@ impl<'w> Browser<'w> {
                     .collect();
                 panic!("no button {text:?} on {}; buttons: {buttons:?}", page.url)
             });
-        let body = form.encode(button);
+        let (content_type, body) = form.encode(button);
         let url = self.resolve(form.action.as_deref().unwrap_or(&page.url));
         let (method, url, body) = if form.post {
-            (Method::POST, url, Some(body))
+            (Method::POST, url, Some((content_type, body)))
         } else {
             let separator = if url.contains('?') { '&' } else { '?' };
             (Method::GET, format!("{url}{separator}{body}"), None)
@@ -209,7 +218,12 @@ impl<'w> Browser<'w> {
     }
 
     /// Sends a request and follows redirects, as a browser does.
-    async fn navigate(&mut self, method: Method, url: String, body: Option<String>) -> &Page {
+    async fn navigate(
+        &mut self,
+        method: Method,
+        url: String,
+        body: Option<(String, String)>,
+    ) -> &Page {
         let (mut method, mut url, mut body) = (method, url, body);
         for _ in 0..10 {
             let (origin, path) = split(&url);
@@ -228,14 +242,13 @@ impl<'w> Browser<'w> {
             if !cookies.is_empty() {
                 request = request.header(header::COOKIE, cookies.join("; "));
             }
-            if body.is_some() {
+            let (content_type, body) = body.take().unzip();
+            if let Some(content_type) = content_type {
                 request = request
-                    .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                    .header(header::CONTENT_TYPE, content_type)
                     .header("sec-fetch-site", "same-origin");
             }
-            let mut request = request
-                .body(Body::from(body.take().unwrap_or_default()))
-                .unwrap();
+            let mut request = request.body(Body::from(body.unwrap_or_default())).unwrap();
             // As the listener records the peer's address.
             let peer = std::net::SocketAddr::new(self.address, 50000);
             request.extensions_mut().insert(ConnectInfo(peer));

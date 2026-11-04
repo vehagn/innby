@@ -65,8 +65,26 @@ enum Command {
         #[arg(default_value_t = 1)]
         max_party_size: i32,
     },
+    /// List events, or export or import one as a TOML file.
+    Event {
+        #[command(subcommand)]
+        command: EventCommand,
+    },
     /// Hash a password read from stdin, for INNBY_ADMIN_PASSWORD_HASH.
     HashPassword,
+}
+
+#[derive(Subcommand)]
+enum EventCommand {
+    /// List the events, the soonest first, with their ids.
+    List,
+    /// Print an event and its group links as a TOML file.
+    Export {
+        /// The event's id, from `innby event list` or its address in the admin UI.
+        id: uuid::Uuid,
+    },
+    /// Make a new event, and its group links, from a TOML file (`-` reads stdin).
+    Import { file: std::path::PathBuf },
 }
 
 #[tokio::main]
@@ -103,6 +121,25 @@ async fn main() -> anyhow::Result<()> {
                 "{}",
                 admin::invite(&config, &db, event, &name, max_party_size).await?
             );
+            Ok(())
+        }
+        Command::Event { command } => {
+            let db = db::connect().await?;
+            match command {
+                EventCommand::List => print!("{}", admin::event_list(&db).await?),
+                EventCommand::Export { id } => print!("{}", admin::export_event(&db, id).await?),
+                EventCommand::Import { file } => {
+                    let text = if file.as_os_str() == "-" {
+                        let mut text = String::new();
+                        std::io::stdin().read_to_string(&mut text)?;
+                        text
+                    } else {
+                        std::fs::read_to_string(&file)
+                            .with_context(|| format!("reading {}", file.display()))?
+                    };
+                    println!("{}", admin::import_event(&db, &text).await?);
+                }
+            }
             Ok(())
         }
         Command::HashPassword => {

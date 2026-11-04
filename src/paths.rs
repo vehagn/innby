@@ -39,6 +39,8 @@ pub const EVENT_GROUPS: &str = "/events/{id}/groups";
 pub const EVENT_DETAILS: &str = "/events/{id}/details";
 pub const EVENT_DELETE: &str = "/events/{id}/delete";
 pub const EVENT_CSV: &str = "/events/{id}/guests.csv";
+pub const EVENT_EXPORT: &str = "/events/{id}/event.toml";
+pub const EVENTS_IMPORT: &str = "/events/import";
 pub const EVENT_REMINDERS: &str = "/events/{id}/reminders";
 pub const GUEST: &str = "/guests/{id}";
 pub const GUEST_REVOKE: &str = "/guests/{id}/revoke";
@@ -205,6 +207,10 @@ pub struct EventLinks {
     pub delete: String,
     pub csv: String,
     pub reminders: String,
+    /// The event as a file.
+    pub export: String,
+    /// The events page, with the new event's form filled in from this one.
+    pub copy: String,
 }
 
 impl EventLinks {
@@ -218,6 +224,8 @@ impl EventLinks {
             delete: at(EVENT_DELETE),
             csv: at(EVENT_CSV),
             reminders: at(EVENT_REMINDERS),
+            export: at(EVENT_EXPORT),
+            copy: admin(&format!("{HOME}?copy={id}#new-event")),
         }
     }
 }

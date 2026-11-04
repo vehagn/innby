@@ -13,8 +13,8 @@ in. Values Innby doesn't know are ignored, so the same claim can carry other thi
 | Role | May |
 |---|---|
 | `viewer` | See the events, their headcounts and who's coming. Not the personal links, e-mail status or the guest export, since those let you act as a guest. |
-| `editor` | Also run the events: invitations, group links, guests, reminders, the export and each event's details |
-| `admin` | Also create and delete events, and style the QR codes |
+| `editor` | Also run the events: invitations, group links, guests, reminders, the guest export, each event's details and its event file |
+| `admin` | Also create events (by hand, by copying one, or from an event file) and delete them, and style the QR codes |
 
 The built-in user is always an admin.
 

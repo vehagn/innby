@@ -37,6 +37,7 @@ accounts, a JavaScript front end, and a public list of who's coming.
 | Admin login | Built-in user, single sign-on, or both | A password for a small install; an OpenID Connect provider, with roles, where there is one. |
 | Image | Written by `just image`, no Containerfile | Just the binary in an OCI layout, with reproducible digests and no build tool needed. |
 | Deployment | A general Helm chart, published to GHCR | No CRDs needed; routes, policies and CloudNativePG are options. |
+| Events as code | Import and export, not sync | A file per event, versioned like a Kubernetes manifest, read into the form for a new event. Syncing events from a ConfigMap or Secret was considered, but would put addresses in a public repository or need a watcher; a file the host keeps and imports when needed does what's wanted. Never guests, whose names mustn't outlive the event. |
 | Mail provider | MailerSend, in the homelab | An existing account in the EU. Any SMTP server works. |
 
 ## History
@@ -60,5 +61,6 @@ main steps, oldest first:
 12. Restructuring into modules, with a map for people and agents; languages as modules
     with fallbacks.
 13. A second pentest: stricter names, capped headers, and a login limit per address.
+14. Event files: export, import and copying events, with their group links.
 
 `git log` has the details.

@@ -28,7 +28,7 @@ Run these in the dev container (`just dev` on the host opens a shell in it).
 
 ```
 src/
-  main.rs            the CLI: serve | admin | mailer | janitor | migrate | invite | hash-password
+  main.rs            the CLI: serve | admin | mailer | janitor | migrate | invite | event | hash-password
   http/              what both listeners share
     mod.rs           listen (timeouts, graceful shutdown), harden (security headers), no_store, ready, Lang extractor
     cookie.rs        reading Cookie headers, writing Set-Cookie
@@ -44,7 +44,8 @@ src/
     views.rs         what personal and group pages show alike (event, guest list, choices)
   admin/             the host's UI; mod.rs has the router, grouped by the role each page needs
     page.rs          shared: AdminState, tabs, PageError, load_event, redirect
-    events.rs        the events list, a new event, an event's details
+    events.rs        the events list, a new event (typed, copied or imported), an event's details and export
+    event_file.rs    an event as a versioned TOML file (apiVersion innby/v1, kind Event)
     guests.rs        an event's Guests tab, a guest's page, CSV export, reminders
     invitations.rs   invitations in a batch, and `innby invite`
     groups.rs        group sign-up links

@@ -42,7 +42,38 @@ then sent to a personal link of their own, with a reminder to keep it.
   their links to copy.
 - **Group links:** the same for groups, each with its link, QR code and sign-ups.
 - **Details:** the event's title and description (in Bokmål, and optionally in each other
-  language), place, start, time zone and answer deadline; or deleting the event.
+  language), place, start, time zone and answer deadline; the event as a file; or
+  deleting the event.
+
+**New events** are typed into a form on the events page, which also takes group links, a
+line each. The form can be filled in for you: from an **event file** (below), or by
+*Copy to a new event* on another event's Details tab, for next year's party.
+
+**Event files** hold an event's details and its group links, in TOML, but never its
+guests. *Download as a file* on the Details tab saves one; *Import an event* on the
+events page reads one, uploaded or pasted, into the new event's form, to check and
+change before creating it. Like a Kubernetes manifest, a file says what it is:
+
+```toml
+apiVersion = "innby/v1"
+kind = "Event"
+starts = "2026-12-12T19:00"
+time_zone = "Europe/Oslo"
+location = "Storgata 1, Oslo"
+
+[title]
+nb = "Julebord"
+en = "Christmas party"
+
+[[groups]]
+name = "Climbing club"
+max_party_size = 2
+```
+
+Innby reads `apiVersion` and `kind` first, so a file in a later format, or of another
+kind, is refused by name rather than misread. A change to the format gets a new version,
+read alongside the old one. `innby event list`, `export` and `import` do the same from the
+command line.
 
 Besides the events, there's one QR code style for every code: the module shape, a colour,
 and a heart, star or emoji in the middle.
@@ -64,6 +95,7 @@ Postgres links them.
 | `innby janitor` | CronJob, hourly | Deletes what the retention rules say is due | the database |
 | `innby migrate` | init container of `serve` | Brings the database schema up to date | the database |
 | `innby invite [--event ID] NAME [MAX]` | by hand | Makes an invitation and prints its link | the database, the link key |
+| `innby event list`, `export ID`, `import FILE` | by hand | Lists events, prints one as an event file, or makes one from a file | the database |
 | `innby hash-password` | by hand | Hashes the admin password, read from stdin | nothing |
 
 Splitting it this way keeps each part to what it needs: the public site has no SMTP
@@ -188,9 +220,10 @@ allowed.
   the setup.
 
 **Roles:** a *viewer* sees events, headcounts and who's coming, but not links, e-mail
-status or the export, since those let you act as a guest. An *editor* also runs events:
-invitations, group links, guests, reminders, the export and the details. An *admin* also
-creates and deletes events and styles the QR codes. Pages check the role, and only show
+status or the guest export, since those let you act as a guest. An *editor* also runs
+events: invitations, group links, guests, reminders, the guest export, the details and the
+event file. An *admin* also creates (by hand, by copying or from a file) and deletes
+events, and styles the QR codes. Pages check the role, and only show
 what it allows.
 
 ## Data and retention

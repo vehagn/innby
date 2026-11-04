@@ -13,7 +13,9 @@ An RSVP site for a host's events that keeps as little about its guests as it can
 - **Six languages:** Bokmål, Nynorsk, British and American English, and Simplified and
   Traditional Chinese. No JavaScript.
 - **For the host:** an admin UI for events, invitations and group links in batches, QR
-  codes, the headcount and reminders, with a built-in login or single sign-on.
+  codes, the headcount and reminders, with a built-in login or single sign-on. An event
+  and its group links go into a versioned TOML file, to keep, or to import as next
+  year's.
 
 It's one Rust binary on Postgres, run as a few small workloads, with a Helm chart for
 Kubernetes.

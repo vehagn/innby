@@ -9,7 +9,7 @@ publish = false
 anyhow = "1.0.104"
 argon2 = "0.6.0"
 askama = "0.16.1"
-axum = "0.8.9"
+axum = { version = "0.8.9", features = ["multipart"] }
 base64 = "0.22.1"
 chrono = { version = "0.4.45", features = ["serde", "unstable-locales"] }
 chrono-tz = "0.10.4"
@@ -39,7 +39,7 @@ tower-http = { version = "0.7.1", features = ["set-header", "timeout", "trace"] 
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 uuid = { version = "1.29.0", features = ["serde"] }
-toml = { version = "1.1.8", default-features = false, features = ["std", "parse", "serde"] }
+toml = { version = "1.1.8", default-features = false, features = ["std", "parse", "display", "serde"] }
 # Single sign-on: the HTTP client, signatures and URLs, all already in the build through
 # sqlx and lettre. ring rather than aws-lc-rs, as for those.
 http-body-util = "0.1.5"

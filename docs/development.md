@@ -84,6 +84,10 @@ agents, but it's the quickest tour for people too. In short:
 - **Add a setting:** read it in `src/config/`, describe it in `.env.example`, and, if the
   cluster needs it, add it to the chart (`values.yaml`, `values.schema.json` and
   `templates/configmap.yaml`).
+- **Change the event file format:** keep reading `innby/v1` as it is. A new field that
+  older Innbys can ignore safely still needs a new version, since files are read with
+  unknown fields refused; add `innby/v2` beside `v1` in `src/admin/event_file.rs`, write
+  the new one, and keep reading both.
 - **Keep personal data:** keep it out of the logs, give it a retention rule in
   `src/db/retention.rs`, and update [ropa.md](ropa.md) and the privacy notices in
   `templates/privacy/`, bumping `PRIVACY_VERSION` in `src/web/mod.rs`.

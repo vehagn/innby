@@ -50,6 +50,8 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
         (Method::POST, on(paths::GROUP_DELETE, g), Role::Editor),
         (Method::POST, paths::EVENTS.to_owned(), Role::Admin),
         (Method::POST, on(paths::EVENT_DELETE, e), Role::Admin),
+        (Method::GET, on(paths::EVENT_EXPORT, e), Role::Editor),
+        (Method::POST, paths::EVENTS_IMPORT.to_owned(), Role::Admin),
         (Method::GET, paths::QR_STYLE.to_owned(), Role::Admin),
         (Method::POST, paths::QR_STYLE.to_owned(), Role::Admin),
     ];
@@ -79,7 +81,7 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
         assert!(!html.contains(hidden), "{hidden}");
     }
     let html = body(viewer.get(paths::HOME).await).await;
-    assert!(!html.contains(paths::QR_STYLE) && !html.contains(r#"action="/events""#));
+    assert!(!html.contains(paths::QR_STYLE) && !html.contains(r#"action="/events#"#));
 
     let editor = Admin::as_role(db.clone(), Role::Editor);
     let html = body(editor.get(&on(paths::EVENT, e)).await).await;
@@ -87,13 +89,13 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
     let html = body(editor.get(&on(paths::EVENT_DETAILS, e)).await).await;
     assert!(!html.contains("/delete"));
     let html = body(editor.get(paths::HOME).await).await;
-    assert!(!html.contains(paths::QR_STYLE) && !html.contains(r#"action="/events""#));
+    assert!(!html.contains(paths::QR_STYLE) && !html.contains(r#"action="/events#"#));
 
     let admin = Admin::new(db);
     let html = body(admin.get(&on(paths::EVENT_DETAILS, e)).await).await;
     assert!(html.contains("/delete"));
     let html = body(admin.get(paths::HOME).await).await;
-    assert!(html.contains(paths::QR_STYLE) && html.contains(r#"action="/events""#));
+    assert!(html.contains(paths::QR_STYLE) && html.contains(r#"action="/events#"#));
 }
 
 #[sqlx::test]

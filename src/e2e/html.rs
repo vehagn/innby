@@ -24,6 +24,8 @@ pub struct Link {
 pub struct Form {
     pub action: Option<String>,
     pub post: bool,
+    /// `enctype="multipart/form-data"`, as a form with a file field has.
+    pub multipart: bool,
     pub fields: Vec<Field>,
     pub buttons: Vec<Button>,
 }
@@ -36,6 +38,8 @@ pub enum Kind {
     Radio,
     Select,
     Textarea,
+    /// `<input type="file">`: its value is the chosen file's contents.
+    File,
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +52,8 @@ pub struct Field {
     pub options: Vec<(String, String)>,
     /// What a person reads as the field's name: its `<label>`, or its `aria-label`.
     pub label: String,
+    /// A file field's chosen file.
+    pub file_name: String,
     id: String,
 }
 
@@ -102,6 +108,8 @@ impl Document {
                                 action: attr("action"),
                                 post: attr("method")
                                     .is_some_and(|m| m.eq_ignore_ascii_case("post")),
+                                multipart: attr("enctype")
+                                    .is_some_and(|e| e.eq_ignore_ascii_case("multipart/form-data")),
                                 fields: Vec::new(),
                                 buttons: Vec::new(),
                             });
@@ -122,6 +130,7 @@ impl Document {
                                     Some("hidden") => Kind::Hidden,
                                     Some("checkbox") => Kind::Checkbox,
                                     Some("radio") => Kind::Radio,
+                                    Some("file") => Kind::File,
                                     _ => Kind::Text,
                                 },
                             };
@@ -135,6 +144,7 @@ impl Document {
                                 checked: attr("checked").is_some(),
                                 options: Vec::new(),
                                 label: attr("aria-label").unwrap_or_default(),
+                                file_name: String::new(),
                                 id: attr("id").unwrap_or_default(),
                             };
                             match kind {
@@ -284,7 +294,51 @@ impl Link {
 
 impl Form {
     /// The form's data as a browser sends it, pressing `button`.
-    pub fn encode(&self, button: &Button) -> String {
+    /// The form's body, and its content type, as a browser sends it when this button is
+    /// pressed.
+    pub fn encode(&self, button: &Button) -> (String, String) {
+        if self.multipart {
+            return self.encode_multipart(button);
+        }
+        let body = self.encode_urlencoded(button);
+        ("application/x-www-form-urlencoded".into(), body)
+    }
+
+    /// `multipart/form-data`, with a file field's value as the file's contents.
+    fn encode_multipart(&self, button: &Button) -> (String, String) {
+        const BOUNDARY: &str = "innby-test-boundary";
+        let mut body = String::new();
+        for field in self.fields.iter().filter(|field| !field.name.is_empty()) {
+            if matches!(field.kind, Kind::Checkbox | Kind::Radio) && !field.checked {
+                continue;
+            }
+            body.push_str(&format!("--{BOUNDARY}\r\n"));
+            if field.kind == Kind::File {
+                body.push_str(&format!(
+                    "Content-Disposition: form-data; name=\"{}\"; filename=\"{}\"\r\n\
+                     Content-Type: application/octet-stream\r\n\r\n",
+                    field.name, field.file_name
+                ));
+            } else {
+                body.push_str(&format!(
+                    "Content-Disposition: form-data; name=\"{}\"\r\n\r\n",
+                    field.name
+                ));
+            }
+            body.push_str(&field.value.replace("\r\n", "\n").replace('\n', "\r\n"));
+            body.push_str("\r\n");
+        }
+        if let Some(name) = &button.name {
+            body.push_str(&format!(
+                "--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{}\r\n",
+                button.value
+            ));
+        }
+        body.push_str(&format!("--{BOUNDARY}--\r\n"));
+        (format!("multipart/form-data; boundary={BOUNDARY}"), body)
+    }
+
+    fn encode_urlencoded(&self, button: &Button) -> String {
         let mut pairs: Vec<(&str, &str)> = self
             .fields
             .iter()
@@ -364,8 +418,33 @@ Ola</textarea>
         assert_eq!(labels, ["How many?", "Yes, please", ""]);
         assert_eq!(form.fields[0].value, "2");
         assert_eq!(
-            form.encode(&form.buttons[0]),
+            form.encode(&form.buttons[0]).1,
             "party_size=2&names=Kari%0D%0AOla&response=attending"
         );
+    }
+
+    #[test]
+    fn sends_files_as_multipart() {
+        let doc = Document::parse(
+            r#"<form method="post" enctype="multipart/form-data">
+              <label for="f">File</label><input id="f" name="file" type="file">
+              <label for="t">Text</label><textarea id="t" name="text">a
+b</textarea>
+              <button>Read</button></form>"#,
+        );
+        let mut form = doc.forms[0].clone();
+        assert_eq!(form.fields[0].kind, Kind::File);
+        form.fields[0].file_name = "event.toml".into();
+        form.fields[0].value = "title = 1".into();
+        let (content_type, body) = form.encode(&form.buttons[0]);
+        assert_eq!(
+            content_type,
+            "multipart/form-data; boundary=innby-test-boundary"
+        );
+        assert!(body.contains(
+            "name=\"file\"; filename=\"event.toml\"\r\nContent-Type: application/octet-stream\r\n\r\ntitle = 1\r\n"
+        ));
+        assert!(body.contains("name=\"text\"\r\n\r\na\r\nb\r\n"));
+        assert!(body.ends_with("--innby-test-boundary--\r\n"));
     }
 }

@@ -29,6 +29,18 @@ pub fn picked() -> Option<Lang> {
         .flatten()
 }
 
+/// Runs work outside a request, such as a CLI command, in a language.
+pub async fn within<T>(lang: Lang, work: impl Future<Output = T>) -> T {
+    LANG.scope(
+        Choice {
+            lang,
+            picked: false,
+        },
+        work,
+    )
+    .await
+}
+
 /// The admin texts in the page's language.
 pub fn text() -> &'static AdminMessages {
     &current().messages().admin

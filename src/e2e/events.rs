@@ -283,3 +283,72 @@ async fn each_event_goes_a_month_after_it_starts(db: PgPool) {
     assert_eq!(phone.open(&summer).await.status, StatusCode::NOT_FOUND);
     world.admin().await.page().expect(&a.no_events);
 }
+
+#[sqlx::test]
+async fn the_host_carries_an_event_into_next_year(db: PgPool) {
+    let world = World::new(db);
+    let a = admin();
+    world.invite("Kari Nordmann", 2).await;
+
+    // This year's party has a group link for the climbing club.
+    let mut host = world.host().await;
+    host.click(&a.group_links).await;
+    host.fill(&a.names, "Climbing club, 3");
+    host.press(&a.create_groups).await;
+    let old_link = host.value(&filled(&a.link_for, "name", "Climbing club"));
+
+    // Its file has the details and the group, versioned, and none of the guests.
+    host.click(&a.details).await;
+    let file = host.download(&a.export_event).await;
+    assert_eq!(
+        file.headers["content-disposition"],
+        r#"attachment; filename="julebord-2026.toml""#
+    );
+    let file = file.body;
+    for expected in [
+        "apiVersion = \"innby/v1\"",
+        "kind = \"Event\"",
+        "starts = \"2026-12-12T19:00\"",
+        "en = \"Christmas party\"",
+        "name = \"Climbing club\"",
+    ] {
+        assert!(file.contains(expected), "{expected} in {file}");
+    }
+    assert!(!file.contains("Kari"), "{file}");
+
+    // A file of another kind, or from a later Innby, is refused by name.
+    host.click(&format!("‹ {}", a.all_events)).await;
+    host.fill(&a.event_file, &file.replace("innby/v1", "innby/v9"));
+    let version = crate::i18n::fill(
+        &a.error_file_version,
+        &[("found", &"innby/v9"), ("api", &"innby/v1")],
+    );
+    host.press(&a.read_file).await.expect(&version);
+
+    // Next year's: the file, uploaded with a new date, fills in the new event's form.
+    let next_year = file.replace("2026-12-12T19:00", "2027-12-11T19:00");
+    host.fill(&a.event_file, "")
+        .attach(&a.event_file_upload, "julebord-2026.toml", &next_year);
+    host.press(&a.read_file)
+        .await
+        .expect(&filled(&a.imported_notice, "title", "Julebord"));
+    assert_eq!(host.value(&a.event_starts), "2027-12-11T19:00");
+    assert_eq!(host.value(&a.event_groups), "Climbing club, 3");
+    host.press(&a.create_event).await.expect(&a.event_created);
+
+    // It has the climbing club, with a link of its own.
+    host.click(&a.group_links).await.expect("Climbing club");
+    let new_link = host.value(&filled(&a.link_for, "name", "Climbing club"));
+    assert_ne!(new_link, old_link);
+    host.click(&format!("‹ {}", a.all_events)).await;
+    let text = &host.page().doc.text;
+    assert_eq!(text.matches("Christmas party").count(), 2, "{text}");
+
+    // Copying skips the file: the form fills in from the event itself.
+    host.click("Christmas party").await;
+    host.click(&a.details).await;
+    host.click(&a.copy_event)
+        .await
+        .expect(&filled(&a.copied_notice, "title", "Christmas party"));
+    assert_eq!(host.value(&a.event_groups), "Climbing club, 3");
+}
