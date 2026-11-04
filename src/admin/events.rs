@@ -20,10 +20,10 @@ use crate::{
         event::{self, Details, Event},
         rsvp::{self, Headcount},
     },
+    http::{render, render_with},
     i18n::{Lang, Texts},
     janitor::KEEP_AFTER_EVENT,
     paths::{self, EventLinks},
-    web::{render, render_with},
 };
 
 /// The longest title, description and place the form takes.

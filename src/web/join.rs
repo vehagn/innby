@@ -13,11 +13,7 @@ use serde::Deserialize;
 
 use super::{
     AppState, PRIVACY_VERSION,
-    pages::{
-        DisplayChoice, EventView, GuestList, GuestsPage, PartySize, gone, render, render_with,
-        server_error,
-    },
-    rate_limit::ClientIp,
+    pages::{DisplayChoice, EventView, GuestList, GuestsPage, PartySize, gone},
 };
 use crate::{
     db::{
@@ -25,6 +21,7 @@ use crate::{
         group::{self, Group},
         rsvp::{self, NameDisplay, SignUp},
     },
+    http::{ClientIp, render, render_with, server_error},
     i18n::{Lang, Messages},
     link::{IdLink, Purpose},
     paths,

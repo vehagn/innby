@@ -14,7 +14,6 @@ use super::{
     AppState, PRIVACY_VERSION,
     pages::{
         DisplayChoice, EventView, GuestList, GuestsPage, MessagePage, PartySize, YourListing, gone,
-        render, render_with, server_error,
     },
     remember,
 };
@@ -23,6 +22,7 @@ use crate::{
         event::{self, Event},
         rsvp::{self, NameDisplay, Rsvp},
     },
+    http::{render, render_with, server_error},
     i18n::{Lang, Messages},
     link::{IdLink, Purpose},
     paths::{self, GuestLinks},

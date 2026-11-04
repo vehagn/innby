@@ -63,7 +63,7 @@ pub async fn run(config: Config, mail: MailConfig, db: PgPool) -> Result<()> {
     let smtp = Smtp::new(&mail)?;
     let mut interval = tokio::time::interval(POLL_INTERVAL);
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-    let shutdown = crate::web::shutdown_signal();
+    let shutdown = crate::http::shutdown_signal();
     tokio::pin!(shutdown);
     tracing::info!("mailer started");
     loop {

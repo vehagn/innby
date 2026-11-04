@@ -14,8 +14,7 @@ use sqlx::PgPool;
 
 use super::{
     AppState, PRIVACY_VERSION,
-    pages::{MessagePage, render, render_with, server_error},
-    rate_limit::ClientIp,
+    pages::MessagePage,
     rsvp::{Guest, Notice, RsvpPage, redirect},
 };
 use crate::{
@@ -23,6 +22,7 @@ use crate::{
         outbox::{self, Kind},
         rsvp::{self, EmailStatus, Rsvp},
     },
+    http::{ClientIp, render, render_with, server_error},
     i18n::{Lang, Messages},
     link::{EmailLink, Purpose},
     paths,

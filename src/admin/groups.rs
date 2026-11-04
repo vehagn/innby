@@ -22,9 +22,9 @@ use crate::{
         qr,
         rsvp::{self, MAX_PARTY_SIZE, Rsvp},
     },
+    http::{render, render_with},
     link::Purpose,
     paths::{self, AdminLinks, EventLinks},
-    web::{render, render_with},
 };
 
 /// One group as the group links page lists it.

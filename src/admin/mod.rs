@@ -37,10 +37,10 @@ use crate::{
         outbox,
         rsvp::{self, EmailStatus, Headcount, MAX_PARTY_SIZE, NameDisplay, Rsvp, Source},
     },
+    http::{self, render, render_with, server_error},
     i18n::{count, fill, filled},
     link::Purpose,
     paths::{self, AdminLinks, EventLinks},
-    web::{self, render, render_with, server_error},
 };
 use qr as admin_qr;
 use role::Role;
@@ -66,7 +66,7 @@ impl FromRef<AdminState> for PgPool {
 
 pub async fn serve(config: Config, admin: AdminConfig, db: PgPool) -> anyhow::Result<()> {
     let address = admin.listen;
-    web::listen(address, router(config, &admin, db)).await
+    http::listen(address, router(config, &admin, db)).await
 }
 
 tokio::task_local! {
@@ -140,11 +140,11 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
     }
     let prefix: Arc<str> = Arc::from(admin_config.path.as_str());
     let scoped = Arc::clone(&prefix);
-    let router: Router = web::no_store(pages)
+    let router: Router = http::no_store(pages)
         // Probes don't log in, and the login page has its style before anyone does.
         .route(paths::HEALTH, get(|| async { "ok" }))
-        .route(paths::READY, get(web::ready))
-        .route(paths::STYLESHEET, get(web::stylesheet))
+        .route(paths::READY, get(http::ready))
+        .route(paths::STYLESHEET, get(http::stylesheet))
         .layer(middleware::from_fn(crate::theme::scope))
         .layer(middleware::from_fn(lang::scope))
         .layer(middleware::from_fn(
@@ -161,7 +161,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         let home = paths::admin_under(&prefix, paths::HOME);
         Router::<AdminState>::new()
             .route(paths::HEALTH, get(|| async { "ok" }))
-            .route(paths::READY, get(web::ready))
+            .route(paths::READY, get(http::ready))
             .with_state(state)
             .nest(&prefix, router)
             .route(
@@ -169,7 +169,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
                 get(move || async move { Redirect::permanent(&home) }),
             )
     };
-    web::harden(router, https)
+    http::harden(router, https)
 }
 
 /// The admin's sections, as tabs under the header: the events and the QR code style,
@@ -1579,7 +1579,7 @@ mod tests {
             3,
             None,
             crate::i18n::Lang::EnGb,
-            web::PRIVACY_VERSION,
+            crate::web::PRIVACY_VERSION,
         )
         .await
         .unwrap();
@@ -1690,7 +1690,7 @@ mod tests {
             name_display: rsvp::NameDisplay::Partial,
             lang: crate::i18n::Lang::Nb,
         };
-        rsvp::create_open(&admin.db, &sign_up, web::PRIVACY_VERSION)
+        rsvp::create_open(&admin.db, &sign_up, crate::web::PRIVACY_VERSION)
             .await
             .unwrap();
         let html = body(admin.get(&page).await).await;

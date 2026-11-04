@@ -48,7 +48,7 @@ use super::{
     lang,
     role::Role,
 };
-use crate::{i18n::fill, paths};
+use crate::{http::cookie, i18n::fill, paths};
 
 /// How long a login through the provider lasts before the provider is asked again.
 pub const OIDC_SESSION: TimeDelta = TimeDelta::hours(12);
@@ -540,7 +540,7 @@ pub async fn callback(
         error_description: field("error_description"),
     };
     let clear = auth.cookie(FLOW_COOKIE, "", TimeDelta::zero());
-    let flow = auth::cookie(&headers, FLOW_COOKIE)
+    let flow = cookie::get(&headers, FLOW_COOKIE)
         .and_then(|sealed| auth.open(FLOW_COOKIE, sealed))
         .and_then(|json| serde_json::from_slice::<Flow>(&json).ok());
     let result = match &flow {

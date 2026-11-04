@@ -44,8 +44,8 @@ use super::{
 use crate::{
     config::{AdminConfig, PasswordLogin},
     db::admin_login,
+    http::{RateLimiter, cookie, render, render_with, server_error},
     paths,
-    web::{RateLimiter, render, render_with, server_error},
 };
 
 /// Password checks allowed per window, right or wrong.
@@ -249,7 +249,7 @@ impl Auth {
             return Ok(Session::LoggedIn(claims.role));
         }
         if self.credentials.is_some()
-            && let Some(refresh_token) = cookie(headers, REFRESH_TOKEN)
+            && let Some(refresh_token) = cookie::get(headers, REFRESH_TOKEN)
             && admin_login::has_refresh_token(&self.db, &self.key.digest(refresh_token)).await?
             && let Some(token) = self.admin_token(now)
         {
@@ -275,26 +275,27 @@ impl Auth {
             let expires_at = DateTime::from_timestamp(claims.exp, 0).unwrap_or_default();
             admin_login::revoke_jwt(&self.db, claims.jti, expires_at).await?;
         }
-        if let Some(refresh_token) = cookie(headers, REFRESH_TOKEN) {
+        if let Some(refresh_token) = cookie::get(headers, REFRESH_TOKEN) {
             admin_login::delete_refresh_token(&self.db, &self.key.digest(refresh_token)).await?;
         }
         Ok(())
     }
 
     fn claims(&self, headers: &HeaderMap, now: DateTime<Utc>) -> Option<jwt::Claims> {
-        self.key.verify(cookie(headers, TOKEN)?, now)
+        self.key.verify(cookie::get(headers, TOKEN)?, now)
     }
 
-    /// A `Set-Cookie` value. `SameSite=Lax` rather than LLDAP's `Strict`, so a link to
-    /// the admin pages from elsewhere opens them logged in; `csrf::protect` turns away
-    /// forms posted from other sites.
+    /// A `Set-Cookie` value for the admin UI's paths. `SameSite=Lax` rather than LLDAP's
+    /// `Strict`, so a link to the admin pages from elsewhere opens them logged in;
+    /// `http::csrf` turns away forms posted from other sites.
     pub(super) fn cookie(&self, name: &str, value: &str, lifetime: TimeDelta) -> HeaderValue {
-        let secure = if self.https { "; Secure" } else { "" };
-        let max_age = lifetime.num_seconds();
-        let path = &self.cookie_path;
-        format!("{name}={value}; Max-Age={max_age}; Path={path}; HttpOnly; SameSite=Lax{secure}")
-            .try_into()
-            .expect("tokens are base64")
+        cookie::set(
+            name,
+            value,
+            &self.cookie_path,
+            lifetime.num_seconds(),
+            self.https,
+        )
     }
 }
 
@@ -310,16 +311,6 @@ fn random<const N: usize>() -> [u8; N] {
     let mut bytes = [0; N];
     getrandom::fill(&mut bytes).expect("the system has randomness");
     bytes
-}
-
-/// A cookie the request sent.
-pub(super) fn cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
-    headers
-        .get_all(header::COOKIE)
-        .iter()
-        .filter_map(|value| value.to_str().ok())
-        .flat_map(|value| value.split(';'))
-        .find_map(|pair| pair.trim().strip_prefix(name)?.strip_prefix('='))
 }
 
 /// Lets a request through if it's logged in, and sends it to the login page otherwise.
@@ -506,26 +497,12 @@ pub mod tests {
         assert_eq!(check("secret").await, Outcome::TooManyAttempts);
     }
 
-    #[test]
-    fn reads_cookies() {
-        let mut headers = HeaderMap::new();
-        headers.append(
-            header::COOKIE,
-            "theme=dark; refresh_token=r".parse().unwrap(),
-        );
-        headers.append(header::COOKIE, "token=t".parse().unwrap());
-        assert_eq!(cookie(&headers, TOKEN), Some("t"));
-        assert_eq!(cookie(&headers, REFRESH_TOKEN), Some("r"));
-        assert_eq!(cookie(&headers, "theme"), Some("dark"));
-        assert_eq!(cookie(&headers, "them"), None);
-    }
-
     #[tokio::test]
     async fn cookies_are_http_only_and_secure_over_https() {
         let cookie = auth().cookie(TOKEN, "t", TOKEN_LIFETIME);
         assert_eq!(
             cookie,
-            "token=t; Max-Age=86400; Path=/; HttpOnly; SameSite=Lax; Secure"
+            "token=t; Path=/; Max-Age=86400; HttpOnly; SameSite=Lax; Secure"
         );
     }
 }

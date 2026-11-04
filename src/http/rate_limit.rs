@@ -9,10 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use axum::{
-    extract::{ConnectInfo, FromRequestParts},
-    http::request::Parts,
-};
+use axum::{extract::ConnectInfo, http::request::Parts};
 
 /// A fixed-window counter per client, or for everyone with `check_all`.
 pub struct RateLimiter {
@@ -77,7 +74,7 @@ fn network(client: IpAddr) -> IpAddr {
 pub struct ClientIp(pub IpAddr);
 
 impl ClientIp {
-    fn from_parts(parts: &Parts, trust_forwarded: bool) -> Self {
+    pub fn from_parts(parts: &Parts, trust_forwarded: bool) -> Self {
         let forwarded = || {
             parts
                 .headers
@@ -96,17 +93,6 @@ impl ClientIp {
         };
         let client = trust_forwarded.then(forwarded).flatten().or_else(peer);
         Self(client.unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)))
-    }
-}
-
-impl FromRequestParts<super::AppState> for ClientIp {
-    type Rejection = std::convert::Infallible;
-
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &super::AppState,
-    ) -> Result<Self, Self::Rejection> {
-        Ok(Self::from_parts(parts, state.config.trust_forwarded))
     }
 }
 

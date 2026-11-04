@@ -3,6 +3,7 @@ mod config;
 mod db;
 #[cfg(test)]
 mod e2e;
+mod http;
 mod i18n;
 mod janitor;
 mod link;

@@ -7,7 +7,7 @@
 use axum::{
     Form,
     extract::State,
-    http::{HeaderMap, HeaderValue, header},
+    http::{HeaderMap, HeaderValue},
     response::{IntoResponse, Redirect, Response},
 };
 use chrono::Utc;
@@ -18,7 +18,7 @@ use super::{
     AppState,
     rsvp::{Guest, Notice, redirect},
 };
-use crate::i18n::Lang;
+use crate::{http::cookie, i18n::Lang};
 
 /// The start of every cookie's name. On https, the `__Host-` prefix makes browsers
 /// refuse one that another host or path tries to set.
@@ -34,12 +34,7 @@ fn name(https: bool, event: Uuid) -> String {
 /// The links this browser remembers, with the name of the cookie each is in.
 fn links(headers: &HeaderMap, https: bool) -> Vec<(&str, &str)> {
     let prefix = prefix(https);
-    headers
-        .get_all(header::COOKIE)
-        .iter()
-        .filter_map(|value| value.to_str().ok())
-        .flat_map(|value| value.split(';'))
-        .filter_map(|pair| pair.trim().split_once('='))
+    cookie::all(headers)
         .filter(|(name, link)| name.starts_with(prefix) && !link.is_empty())
         .collect()
 }
@@ -52,40 +47,34 @@ pub(super) fn remembers(headers: &HeaderMap, https: bool, guest: &Guest) -> bool
         .any(|(cookie, link)| cookie == name && link == guest.link)
 }
 
-fn cookie(https: bool, name: &str, value: &str, max_age: i64) -> HeaderValue {
-    let secure = if https { "; Secure" } else { "" };
-    let cookie =
-        format!("{name}={value}; Path=/; Max-Age={max_age}; HttpOnly; SameSite=Lax{secure}");
-    HeaderValue::from_str(&cookie).expect("a link is plain ASCII")
-}
-
 /// The cookie that remembers the guest until their data is deleted, after the event.
 fn remember_cookie(https: bool, guest: &Guest) -> HeaderValue {
     let max_age = (guest.event.deleted_at() - Utc::now()).num_seconds().max(0);
-    cookie(https, &name(https, guest.event.id), &guest.link, max_age)
+    cookie::set(
+        &name(https, guest.event.id),
+        &guest.link,
+        "/",
+        max_age,
+        https,
+    )
 }
 
 /// Tells the browser to drop the cookie for this event.
 pub(super) fn forget_cookie(https: bool, event: Uuid) -> HeaderValue {
-    cookie(https, &name(https, event), "", 0)
-}
-
-fn with_cookie(mut response: Response, cookie: HeaderValue) -> Response {
-    response.headers_mut().append(header::SET_COOKIE, cookie);
-    response
+    cookie::set(&name(https, event), "", "/", 0, https)
 }
 
 /// Remembers the guest's link on this device until their data is deleted.
 pub async fn remember(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
     let cookie = remember_cookie(state.config.is_https(), &guest);
     tracing::info!(rsvp = %guest.rsvp.id, "device remembered");
-    with_cookie(redirect(&guest.link, lang, Notice::Remembered), cookie)
+    cookie::with(redirect(&guest.link, lang, Notice::Remembered), cookie)
 }
 
 /// Forgets the guest on this device, from their page.
 pub async fn forget_here(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
     let cookie = forget_cookie(state.config.is_https(), guest.event.id);
-    with_cookie(redirect(&guest.link, lang, Notice::Forgotten), cookie)
+    cookie::with(redirect(&guest.link, lang, Notice::Forgotten), cookie)
 }
 
 #[derive(Deserialize)]
@@ -100,7 +89,7 @@ pub async fn forget(
     Form(form): Form<ForgetForm>,
 ) -> Response {
     let cookie = forget_cookie(state.config.is_https(), form.event);
-    with_cookie(Redirect::to(&lang.home()).into_response(), cookie)
+    cookie::with(Redirect::to(&lang.home()).into_response(), cookie)
 }
 
 /// The invitations the front page leads back to.
@@ -120,7 +109,9 @@ impl Remembered {
         };
         for (cookie_name, link) in links(headers, https) {
             let Some(guest) = Guest::find(state, link).await? else {
-                remembered.cookies.push(cookie(https, cookie_name, "", 0));
+                remembered
+                    .cookies
+                    .push(cookie::set(cookie_name, "", "/", 0, https));
                 continue;
             };
             if !remembered
@@ -137,7 +128,10 @@ impl Remembered {
 
 #[cfg(test)]
 mod tests {
-    use axum::{body::Body, http::Request};
+    use axum::{
+        body::Body,
+        http::{Request, header},
+    };
     use sqlx::PgPool;
 
     use super::*;
