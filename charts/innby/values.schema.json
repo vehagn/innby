@@ -168,6 +168,26 @@
         "smtpPort": { "type": "integer", "minimum": 1, "maximum": 65535 }
       }
     },
+    "ciliumNetworkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ingressFromEntities": { "type": "array", "items": { "type": "string" } },
+        "ingressFromEndpoints": { "$ref": "#/definitions/list" },
+        "admin": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ingressFromEntities": { "type": "array", "items": { "type": "string" } },
+            "ingressFromEndpoints": { "$ref": "#/definitions/list" }
+          }
+        },
+        "databaseEndpoints": { "$ref": "#/definitions/list" },
+        "databasePort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "dnsEndpoints": { "$ref": "#/definitions/list" }
+      }
+    },
     "podAnnotations": { "type": "object" },
     "podLabels": { "type": "object" },
     "nodeSelector": { "type": "object" },

@@ -149,6 +149,29 @@ networkPolicy:
   databasePort: 5432
   smtpPort: 587
 
+# CiliumNetworkPolicies instead, for a cluster with Cilium's CRDs. They can name hosts:
+# the mailer may reach only the SMTP server in mailer.smtpUrl, and the admin UI only the
+# OIDC provider in oidc.issuer. Use these or networkPolicy, not both.
+ciliumNetworkPolicy:
+  enabled: false
+  # Who may reach the site and the admin UI: Cilium entities, such as ingress for
+  # Cilium's own Gateway API and Ingress, and endpoint selectors.
+  ingressFromEntities: [ingress]
+  ingressFromEndpoints: []
+  admin:
+    # The admin UI's own; the ones above when both are empty.
+    ingressFromEntities: []
+    ingressFromEndpoints: []
+  # Postgres, as endpoint selectors, e.g. [{ matchLabels: { cnpg.io/cluster: db } }];
+  # its port anywhere when empty.
+  databaseEndpoints: []
+  databasePort: 5432
+  # The cluster's DNS, whose answers Cilium reads to learn the hosts' addresses.
+  dnsEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+
 podAnnotations: {}
 podLabels: {}
 nodeSelector: {}

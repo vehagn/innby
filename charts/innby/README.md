@@ -11,7 +11,7 @@ runs its four workloads on your own Postgres:
 | `janitor` | CronJob, hourly | Deletes what the retention rules say is due |
 
 It needs no CRDs. With the Gateway API installed it can make HTTPRoutes, or else
-Ingresses, and it can add NetworkPolicies. Pods run as non-root with a read-only root
+Ingresses, and it can add NetworkPolicies, or CiliumNetworkPolicies with Cilium. Pods run as non-root with a read-only root
 filesystem and no API token, so they fit the `restricted` Pod Security Standard.
 
 ## Install
@@ -86,12 +86,23 @@ admin; the top-level README's "Single sign-on" shows how to set one up. Register
 
 ## Network policies
 
-`networkPolicy.enabled` gives each workload a NetworkPolicy: the site and the admin UI
-accept traffic on their ports (from `ingressFrom`, or anyone), and each workload may
-reach DNS and Postgres, the mailer SMTP, and the admin UI the OIDC provider. Standard
-NetworkPolicies can't name hosts, so those are reachable on their ports anywhere unless
-you narrow Postgres with `databasePeers`. With Cilium or Calico, policies of their own
-can do better; `deploy/network-policies.yaml` in the repository has Cilium ones.
+Either kind lets each workload reach only what it needs: the site and the admin UI
+accept traffic on their ports, the mailer and janitor nothing, and each may reach DNS
+and Postgres, the mailer its SMTP server, and the admin UI its OIDC provider. Turn on
+one kind, not both.
+
+- `networkPolicy.enabled`: standard NetworkPolicies, for any cluster whose network
+  plugin enforces them. They can't name hosts, so the SMTP server and the OIDC
+  provider are reachable on their ports anywhere, as is Postgres unless you narrow it
+  with `databasePeers`. `ingressFrom` says who may reach the site and the admin UI.
+- `ciliumNetworkPolicy.enabled`: CiliumNetworkPolicies, for a cluster with Cilium's
+  CRDs. These name the SMTP host from `mailer.smtpUrl` and the provider from
+  `oidc.issuer`, so the mailer can reach only that one server. By default the site and
+  the admin UI accept traffic from Cilium's `ingress` entity, its Gateway API and
+  Ingress proxy; `ingressFromEntities` and `ingressFromEndpoints` change that, and
+  `admin.*` gives the admin UI its own. `databaseEndpoints` narrows Postgres.
+
+Neither covers Postgres's own ingress, since the chart doesn't run it.
 
 ## Upgrades
 

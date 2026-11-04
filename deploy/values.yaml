@@ -49,6 +49,9 @@ httpRoute:
     parentRefs:
       - { name: internal, namespace: gateway }
 
-# The Cilium policies in network-policies.yaml do this better: they can name hosts.
-networkPolicy:
-  enabled: false
+# Each workload may reach only what it needs: the gateways reach the site and the admin
+# UI, the mailer only MailerSend, and the admin UI only Authelia, once oidc is set.
+ciliumNetworkPolicy:
+  enabled: true
+  databaseEndpoints:
+    - matchLabels: { cnpg.io/cluster: innby-postgres }

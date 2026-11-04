@@ -160,7 +160,42 @@ securityContext:
 
 {{/* The OIDC provider's port, from its issuer URL. */}}
 {{- define "innby.oidcPort" -}}
-{{- $issuer := urlParse .Values.oidc.issuer }}
-{{- $port := regexFind ":[0-9]+$" $issuer.host | trimPrefix ":" }}
-{{- default (ternary "443" "80" (eq $issuer.scheme "https")) $port }}
+{{- (include "innby.hostPort" (dict "url" .Values.oidc.issuer "defaults" (dict "https" "443" "http" "80")) | fromJson).port }}
+{{- end }}
+
+{{/* A URL's host and port, with the scheme's port when it names none. */}}
+{{- define "innby.hostPort" -}}
+{{- $url := urlParse .url }}
+{{- $port := regexFind ":[0-9]+$" $url.host | trimPrefix ":" }}
+{{- dict "host" $url.hostname "port" (default (get .defaults $url.scheme) $port) | toJson }}
+{{- end }}
+
+{{/* Cilium egress most workloads need: DNS (read for the FQDN rules), and Postgres. */}}
+{{- define "innby.ciliumEgressBasics" -}}
+{{- $policy := .Values.ciliumNetworkPolicy -}}
+- toEndpoints:
+    {{- toYaml $policy.dnsEndpoints | nindent 4 }}
+  toPorts:
+    - ports: [{ port: "53", protocol: ANY }]
+      rules: { dns: [{ matchPattern: "*" }] }
+- {{- with $policy.databaseEndpoints }}
+  toEndpoints:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  toPorts:
+    - ports: [{ port: {{ $policy.databasePort | quote }}, protocol: TCP }]
+{{- end }}
+
+{{/* Cilium ingress for the site or the admin UI, on its port. */}}
+{{- define "innby.ciliumIngress" -}}
+- {{- with .entities }}
+  fromEntities:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .endpoints }}
+  fromEndpoints:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  toPorts:
+    - ports: [{ port: {{ .port | quote }}, protocol: TCP }]
 {{- end }}

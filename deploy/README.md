@@ -14,8 +14,9 @@ the chart leaves to the cluster.
 | `innby-janitor` (`janitor`) | CronJob, hourly | nothing; may only reach Postgres |
 | `innby-postgres` | CloudNativePG `Cluster` ([`cnpg-db.yaml`](cnpg-db.yaml)), 1 instance, 1 Gi | the Innby pods and the CNPG operator |
 
-[`network-policies.yaml`](network-policies.yaml) holds Cilium policies, which can name
-hosts, so the chart's own NetworkPolicies are off.
+The chart makes the workloads' Cilium network policies (`ciliumNetworkPolicy` in
+`values.yaml`), which can name MailerSend and Authelia by hostname;
+[`network-policies.yaml`](network-policies.yaml) adds Postgres's.
 
 ## Steps
 

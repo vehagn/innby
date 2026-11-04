@@ -1,0 +1,17 @@
+# Cilium's network policies, with the admin UI on its own hostname and single sign-on.
+siteUrl: https://fest.example.com
+controller: { name: Kari Nordmann, email: kari@example.com }
+database: { existingSecret: innby-postgres-app }
+secrets: { existingSecret: innby }
+admin:
+  url: https://fest-admin.example.com
+oidc:
+  issuer: https://auth.example.com:8443
+mailer:
+  from: Innby <fest@example.com>
+  smtpUrl: smtps://smtp.example.com?tls=required
+ciliumNetworkPolicy:
+  enabled: true
+  admin:
+    ingressFromEndpoints: [{ matchLabels: { k8s:io.kubernetes.pod.namespace: gateway } }]
+  databaseEndpoints: [{ matchLabels: { cnpg.io/cluster: innby-postgres } }]

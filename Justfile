@@ -120,6 +120,7 @@ chart:
     fails --set oidc.issuer=https://auth.example.com
     fails --set extraConfig.HOME=/tmp
     fails --set adminn.enabled=false
+    fails --set ciliumNetworkPolicy.enabled=true --set ciliumNetworkPolicy.ingressFromEntities=null
     echo "The chart refuses the settings that can't work."
 
 # `just db prepare` regenerates the offline query data in .sqlx/, which is committed.

@@ -1,0 +1,91 @@
+{{- if .Values.ciliumNetworkPolicy.enabled }}
+{{- $policy := .Values.ciliumNetworkPolicy }}
+{{- if not (or $policy.ingressFromEntities $policy.ingressFromEndpoints) }}
+{{- fail "ciliumNetworkPolicy: name who may reach the site in ingressFromEntities or ingressFromEndpoints" }}
+{{- end }}
+{{- $web := dict "root" . "component" "web" }}
+# Each workload may reach only what it needs. Cilium lets the kubelet's probes through
+# regardless.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "innby.component" $web }}
+  labels:
+    {{- include "innby.labels" $web | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $web | nindent 6 }}
+  ingress:
+    {{- include "innby.ciliumIngress" (dict "entities" $policy.ingressFromEntities "endpoints" $policy.ingressFromEndpoints "port" 8080) | nindent 4 }}
+  egress:
+    {{- include "innby.ciliumEgressBasics" . | nindent 4 }}
+{{- if .Values.admin.enabled }}
+{{- $admin := dict "root" . "component" "admin" }}
+{{- $own := or $policy.admin.ingressFromEntities $policy.admin.ingressFromEndpoints }}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "innby.component" $admin }}
+  labels:
+    {{- include "innby.labels" $admin | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $admin | nindent 6 }}
+  ingress:
+    {{- if $own }}
+    {{- include "innby.ciliumIngress" (dict "entities" $policy.admin.ingressFromEntities "endpoints" $policy.admin.ingressFromEndpoints "port" 8081) | nindent 4 }}
+    {{- else }}
+    {{- include "innby.ciliumIngress" (dict "entities" $policy.ingressFromEntities "endpoints" $policy.ingressFromEndpoints "port" 8081) | nindent 4 }}
+    {{- end }}
+  egress:
+    {{- include "innby.ciliumEgressBasics" . | nindent 4 }}
+    {{- with .Values.oidc.issuer }}
+    {{- $oidc := include "innby.hostPort" (dict "url" . "defaults" (dict "https" "443" "http" "80")) | fromJson }}
+    # The OIDC provider: discovery, keys, tokens and userinfo.
+    - toFQDNs: [{ matchName: {{ $oidc.host | quote }} }]
+      toPorts:
+        - ports: [{ port: {{ $oidc.port | quote }}, protocol: TCP }]
+    {{- end }}
+{{- end }}
+{{- if .Values.mailer.enabled }}
+{{- $mailer := dict "root" . "component" "mailer" }}
+{{- $smtp := include "innby.hostPort" (dict "url" .Values.mailer.smtpUrl "defaults" (dict "smtp" "587" "smtps" "465")) | fromJson }}
+---
+# The only workload that leaves the cluster, and only to the SMTP server.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "innby.component" $mailer }}
+  labels:
+    {{- include "innby.labels" $mailer | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $mailer | nindent 6 }}
+  # An empty rule allows nothing, but turns on default deny for ingress.
+  ingress: [{}]
+  egress:
+    {{- include "innby.ciliumEgressBasics" . | nindent 4 }}
+    - toFQDNs: [{ matchName: {{ $smtp.host | quote }} }]
+      toPorts:
+        - ports: [{ port: {{ $smtp.port | quote }}, protocol: TCP }]
+{{- end }}
+{{- $janitor := dict "root" . "component" "janitor" }}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "innby.component" $janitor }}
+  labels:
+    {{- include "innby.labels" $janitor | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $janitor | nindent 6 }}
+  ingress: [{}]
+  egress:
+    {{- include "innby.ciliumEgressBasics" . | nindent 4 }}
+{{- end }}
