@@ -1,3 +1,7 @@
+//! Names and addresses: what a name may hold (letters in any script, and the
+//! punctuation names use), cleaning up what guests and hosts type, and how a name shows
+//! on the guest list (`NameDisplay`).
+
 use serde::{Deserialize, Serialize};
 
 use super::Response;

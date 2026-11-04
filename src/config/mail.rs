@@ -1,3 +1,6 @@
+//! Settings only `innby mailer` needs, on top of `Config`: the SMTP server, its login,
+//! and the sender. The password never shows in `Debug`.
+
 use anyhow::{Context, Result, ensure};
 
 use super::{Env, process_env};

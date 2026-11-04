@@ -1,3 +1,6 @@
+//! Reading `INNBY_*` settings through a lookup function: the process environment when
+//! Innby runs, and a map in the tests. Blank counts as unset.
+
 use std::net::SocketAddr;
 
 use anyhow::{Context, Result, anyhow};

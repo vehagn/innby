@@ -1,3 +1,7 @@
+//! Settings only `innby admin` needs, on top of `Config`: where it listens and where
+//! hosts reach it, the built-in user, single sign-on, and the secret its logins are
+//! signed with. A public site refuses the example ones in `.env.example`.
+
 use std::net::SocketAddr;
 
 use anyhow::{Context, Result, anyhow, ensure};

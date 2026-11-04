@@ -1,3 +1,6 @@
+//! Texts the host writes, such as an event's title and description: in Bokmål, and in
+//! any other language the host gives, falling back as the site's own texts do.
+
 use super::Lang;
 
 /// A text the host writes, such as an event's title: in Bokmål, and in other languages

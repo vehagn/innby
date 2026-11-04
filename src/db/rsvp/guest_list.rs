@@ -1,3 +1,7 @@
+//! What a guest sees of the others, and the host's headcount: the guest list of an
+//! event (who's coming and who hasn't answered), and how many are coming, haven't
+//! answered, or aren't coming.
+
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
