@@ -50,6 +50,9 @@ pub const GROUP_DELETE: &str = "/groups/{id}/delete";
 pub const GROUP_QR: &str = "/groups/{id}/qr.svg";
 pub const QR_STYLE: &str = "/qr-style";
 pub const LOGIN: &str = "/login";
+/// Logging in through the OpenID Connect provider, and coming back from it.
+pub const LOGIN_OIDC: &str = "/login/oidc";
+pub const LOGIN_OIDC_CALLBACK: &str = crate::config::OIDC_CALLBACK;
 pub const LOGOUT: &str = "/logout";
 
 /// A pattern with its one parameter filled in: `path(RSVP, link)` is `/r/{link}`.

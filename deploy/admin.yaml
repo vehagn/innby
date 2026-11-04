@@ -37,9 +37,14 @@ spec:
             - name: INNBY_LINK_KEY
               valueFrom:
                 secretKeyRef: { name: innby, key: INNBY_LINK_KEY }
+            # Each way of logging in is on when its secret is there: the built-in user's
+            # password hash, and the client secret for single sign-on.
             - name: INNBY_ADMIN_PASSWORD_HASH
               valueFrom:
-                secretKeyRef: { name: innby, key: INNBY_ADMIN_PASSWORD_HASH }
+                secretKeyRef: { name: innby, key: INNBY_ADMIN_PASSWORD_HASH, optional: true }
+            - name: INNBY_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef: { name: innby, key: INNBY_OIDC_CLIENT_SECRET, optional: true }
             - name: INNBY_ADMIN_JWT_SECRET
               valueFrom:
                 secretKeyRef: { name: innby, key: INNBY_ADMIN_JWT_SECRET }

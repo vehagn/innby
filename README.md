@@ -40,8 +40,8 @@ the host stops the devcontainer, keeping its database and build cache. `just dev
 `just` lists the other recipes. `just test` and `just lint` are what CI runs; the tests
 include end-to-end journeys in [`src/e2e/`](src/e2e/mod.rs), which say how to add one.
 `just db` opens psql, `just db prepare` updates the offline query data in `.sqlx/` after
-a query changes, `just db reset` rebuilds the dev database from the migrations, and `just innby` runs the binary's commands, e.g.
-`just innby invite "Kari & Ola" 2`.
+a query changes, `just db reset` rebuilds the dev database from the migrations, and
+`just innby` runs the binary's commands, e.g. `just innby invite "Kari & Ola" 2`.
 
 The shell is zsh with oh-my-zsh and the devcontainers prompt, which shows the git
 branch. It completes `just`, `cargo`, `rustup` and `kubectl`, has `k`, `kz`
@@ -84,6 +84,65 @@ and `just down` stops it all. It uses Docker unless `ENGINE` says otherwise, e.g
 
 To run your own build instead, run `just image` in the dev container, then `just up dev`
 on the host, which loads it first.
+
+## Single sign-on
+
+The admin UI can log hosts in through an OpenID Connect provider such as Authelia, as
+well as or instead of its built-in user. Set `INNBY_OIDC_ISSUER`, `INNBY_OIDC_CLIENT_ID`,
+`INNBY_OIDC_CLIENT_SECRET` and `INNBY_ADMIN_URL` (`.env.example` lists the rest), and
+leave out `INNBY_ADMIN_PASSWORD_HASH` to turn the built-in user off. The login page then
+sends hosts straight to the provider.
+
+The provider says what each host may do, in a claim named after the app, as Grafana's
+`grafana` claim does:
+
+| `innby` claim | May |
+|---|---|
+| `viewer` | See the events, their headcounts and who's coming; not the personal links, the e-mail status or the guest export |
+| `editor` | Also run the events: invitations, group links, guests, reminders, the CSV and the event's details |
+| `admin` | Also create and delete events and style the QR codes. The built-in user is an admin. |
+
+The highest role listed counts, and someone with none can't log in. In Authelia, with
+LLDAP holding a multi-valued string attribute `innby` per user:
+
+```yaml
+authentication_backend:
+  ldap:
+    attributes:
+      extra:
+        innby: { multi_valued: true, value_type: string }
+identity_providers:
+  oidc:
+    claims_policies:
+      innby:
+        custom_claims: { innby: { attribute: innby } }
+    scopes:
+      innby:
+        claims: [ innby ]
+    clients:
+      - client_id: innby
+        client_secret: { path: /secrets/client-innby/client_secret.txt }
+        client_name: Innby
+        public: false
+        authorization_policy: two_factor
+        claims_policy: innby
+        pre_configured_consent_duration: 3 months
+        require_pkce: true
+        pkce_challenge_method: S256
+        redirect_uris: [ https://fest-admin.stonegarden.dev/login/oidc/callback ]
+        scopes: [ openid, profile, email, innby ]
+        response_types: [ code ]
+        grant_types: [ authorization_code ]
+        token_endpoint_auth_method: client_secret_basic
+        id_token_signed_response_alg: ES256
+        userinfo_signed_response_alg: none
+```
+
+Innby uses the authorization code flow with PKCE, `state` and `nonce`, and checks the ID
+token's signature against the provider's published keys and its `iss`, `aud`, `azp`,
+`exp`, `iat`, `nonce` and `at_hash`. Roles come from the ID token if it has them, or else
+from userinfo. A login lasts 12 hours, after which the provider is asked again; logging
+out of Innby doesn't log out of the provider.
 
 ## Deploy
 

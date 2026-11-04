@@ -33,7 +33,13 @@ spec:
       toPorts: [ { ports: [ { port: "5432", protocol: TCP } ] } ]
     - toEndpoints:
         - matchLabels: { k8s:io.kubernetes.pod.namespace: kube-system, k8s-app: kube-dns }
-      toPorts: [ { ports: [ { port: "53", protocol: ANY } ] } ]
+      toPorts:
+        - ports: [ { port: "53", protocol: ANY } ]
+          # Lets Cilium learn the addresses behind the FQDN rule below.
+          rules: { dns: [ { matchPattern: "*" } ] }
+    # Single sign-on: discovery, keys, tokens and userinfo at INNBY_OIDC_ISSUER.
+    - toFQDNs: [ { matchName: authelia.stonegarden.dev } ]
+      toPorts: [ { ports: [ { port: "443", protocol: TCP } ] } ]
 ---
 # The only workload that leaves the cluster, and only to MailerSend.
 apiVersion: cilium.io/v2

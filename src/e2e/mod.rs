@@ -11,8 +11,11 @@
 //! reworded text doesn't break them. Prefer checking what a page shows over what's in
 //! the database; the unit tests next to each module cover the details.
 //!
+//! The admin UI can also be logged in to through a fake OpenID Connect provider
+//! ([`World::with_sso`]), which the browsers visit as they would Authelia.
+//!
 //! To add a journey, add a `#[sqlx::test]` to the file for its area: events, guests,
-//! groups, e-mail or the host.
+//! groups, e-mail, the host or single sign-on.
 
 mod browser;
 mod email;
@@ -21,6 +24,7 @@ mod groups;
 mod guests;
 mod host;
 mod html;
+mod sso;
 
 use std::{collections::HashMap, sync::Mutex, time::Duration};
 
@@ -31,7 +35,7 @@ use sqlx::PgPool;
 pub use browser::Browser;
 
 use crate::{
-    admin::{self, auth},
+    admin::{self, auth, oidc::fake::Fake},
     config::{Config, tests::config},
     i18n::{AdminMessages, Lang, Messages},
     mailer::{self, Mail, Sender},
@@ -50,6 +54,8 @@ pub struct World {
     pub config: Config,
     site: Router,
     admin: Router,
+    /// The identity provider, when the admin UI uses one.
+    pub sso: Option<Fake>,
     /// Mail the mailer has sent.
     sent: Inbox,
     /// How many mails each address has read with `receive`.
@@ -72,11 +78,33 @@ impl World {
         Self {
             site: web::router(config.clone(), db.clone()),
             admin: admin::router(config.clone(), &auth::tests::admin_config(), db.clone()),
+            sso: None,
             sent: Inbox::default(),
             read: Mutex::default(),
             db,
             config,
         }
+    }
+
+    /// A world whose admin UI logs in through a fake provider, where Kari, an editor,
+    /// is logged in. With `password`, the built-in user can log in too.
+    pub async fn with_sso(db: PgPool, password: bool) -> Self {
+        let fake = Fake::start().await;
+        let mut admin_config = auth::tests::admin_config();
+        admin_config.oidc = Some(fake.config(ADMIN));
+        if !password {
+            admin_config.login = None;
+        }
+        let mut world = Self::new(db);
+        world.admin = admin::router(world.config.clone(), &admin_config, world.db.clone());
+        world.sso = Some(fake);
+        world
+    }
+
+    /// The fake provider.
+    #[track_caller]
+    pub fn provider(&self) -> &Fake {
+        self.sso.as_ref().expect("a world made with_sso")
     }
 
     /// A new device, with no cookies and no page open.
@@ -87,7 +115,7 @@ impl World {
     /// The host's browser, logged in to the admin UI, on the list of events.
     pub async fn admin(&self) -> Browser<'_> {
         let mut host = self.browser();
-        host.open(ADMIN).await.expect(&admin().log_in_text);
+        host.open(ADMIN).await.expect(&admin().user_name);
         host.fill(&admin().user_name, USER)
             .fill(&admin().password, PASSWORD);
         host.press(&admin().log_in).await.expect(&admin().events);
@@ -177,6 +205,9 @@ impl World {
     fn router(&self, origin: &str) -> Router {
         match origin {
             ADMIN => self.admin.clone(),
+            origin if self.sso.as_ref().is_some_and(|sso| sso.origin == origin) => {
+                self.provider().router.clone()
+            }
             origin if origin == self.site_origin() => self.site.clone(),
             origin => panic!("the tests have no site at {origin}"),
         }

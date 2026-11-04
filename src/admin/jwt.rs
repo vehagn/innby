@@ -1,6 +1,6 @@
 //! JSON Web Tokens for the host's login, made the way LLDAP makes them: HS512, naming the
-//! user and when the token was issued and expires. Only the header this module writes is
-//! accepted, so a token can't pick its own algorithm.
+//! user, their role, and when the token was issued and expires. Only the header this
+//! module writes is accepted, so a token can't pick its own algorithm.
 
 use std::fmt;
 
@@ -14,6 +14,8 @@ use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha512;
 use uuid::Uuid;
+
+use super::role::Role;
 
 /// `{"alg":"HS512","typ":"JWT"}`, base64url-encoded.
 const HEADER: &str = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9";
@@ -51,6 +53,7 @@ pub struct Claims {
     /// Expires at, in seconds since the epoch.
     pub exp: i64,
     pub user: String,
+    pub role: Role,
     /// Names the token when it's logged out.
     pub jti: Uuid,
 }
@@ -60,11 +63,11 @@ pub struct Claims {
 pub struct Key(Hmac<Sha512>);
 
 impl Key {
-    /// The secret bound to the user name and password hash: changing either logs every
-    /// session out.
-    pub fn new(secret: &Secret, user: &str, password_hash: &str) -> Self {
+    /// The secret bound to these fields, such as the user name and password hash:
+    /// changing any of them logs every session out.
+    pub fn new(secret: &Secret, bound: &[&[u8]]) -> Self {
         let mut derive = mac(&secret.0);
-        for field in [user.as_bytes(), password_hash.as_bytes()] {
+        for field in bound {
             derive.update(&(field.len() as u32).to_be_bytes());
             derive.update(field);
         }
@@ -99,6 +102,30 @@ impl Key {
         mac.finalize().into_bytes().to_vec()
     }
 
+    /// A value and its signature, for a cookie of this purpose.
+    pub fn seal(&self, purpose: &str, value: &[u8]) -> String {
+        let value = URL_SAFE_NO_PAD.encode(value);
+        let tag = self.seal_mac(purpose, &value).finalize().into_bytes();
+        format!("{value}.{}", URL_SAFE_NO_PAD.encode(tag))
+    }
+
+    /// The value, if this key sealed it for this purpose.
+    pub fn open(&self, purpose: &str, sealed: &str) -> Option<Vec<u8>> {
+        let (value, tag) = sealed.split_once('.')?;
+        let tag = URL_SAFE_NO_PAD.decode(tag).ok()?;
+        self.seal_mac(purpose, value).verify_slice(&tag).ok()?;
+        URL_SAFE_NO_PAD.decode(value).ok()
+    }
+
+    fn seal_mac(&self, purpose: &str, value: &str) -> Hmac<Sha512> {
+        // Unlike a JWT's, this message starts with neither a header nor a dot.
+        let mut mac = self.mac(b"sealed:");
+        mac.update(&(purpose.len() as u32).to_be_bytes());
+        mac.update(purpose.as_bytes());
+        mac.update(value.as_bytes());
+        mac
+    }
+
     fn mac(&self, message: &[u8]) -> Hmac<Sha512> {
         let mut mac = self.0.clone();
         mac.update(message);
@@ -122,8 +149,7 @@ pub mod tests {
     fn key_for(password_hash: &str) -> Key {
         Key::new(
             &Secret::from_base64(SECRET).unwrap(),
-            "admin",
-            password_hash,
+            &[b"admin", password_hash.as_bytes()],
         )
     }
 
@@ -132,6 +158,7 @@ pub mod tests {
             iat: now.timestamp(),
             exp: (now + TimeDelta::hours(1)).timestamp(),
             user: "admin".into(),
+            role: Role::Editor,
             jti: Uuid::nil(),
         }
     }
@@ -177,6 +204,19 @@ pub mod tests {
         assert_eq!(key.verify(&format!("{none}.{claims}."), now), None);
         assert_eq!(key.verify(message, now), None);
         assert_eq!(key.verify(&format!("{token}.x"), now), None);
+    }
+
+    #[test]
+    fn seals_values_for_one_purpose() {
+        let key = key_for("hash");
+        let sealed = key.seal("oidc_flow", b"{\"state\":1}");
+        assert_eq!(key.open("oidc_flow", &sealed).unwrap(), b"{\"state\":1}");
+        assert_eq!(key.open("other", &sealed), None);
+        assert_eq!(key_for("new hash").open("oidc_flow", &sealed), None);
+        let (_, tag) = sealed.split_once('.').unwrap();
+        let forged = format!("{}.{tag}", URL_SAFE_NO_PAD.encode(b"{\"state\":2}"));
+        assert_eq!(key.open("oidc_flow", &forged), None);
+        assert_eq!(key.open("oidc_flow", "nonsense"), None);
     }
 
     #[test]

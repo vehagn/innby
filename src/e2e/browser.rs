@@ -195,7 +195,7 @@ impl<'w> Browser<'w> {
             let mut request = Request::builder()
                 .method(method.clone())
                 .uri(path)
-                .header(header::HOST, origin.trim_start_matches("https://"))
+                .header(header::HOST, origin.split("://").last().unwrap())
                 // The tests read the British texts.
                 .header(header::ACCEPT_LANGUAGE, "en-GB");
             let cookies: Vec<String> = self

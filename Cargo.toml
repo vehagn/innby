@@ -16,7 +16,7 @@ chrono-tz = "0.10.4"
 clap = { version = "4.6.7", features = ["derive"] }
 getrandom = "0.4.3"
 hmac = "0.12.1"
-hyper = { version = "1.12.0", features = ["http1", "server"] }
+hyper = { version = "1.12.0", features = ["client", "http1", "server"] }
 hyper-util = { version = "0.1.21", features = ["http1", "server", "server-graceful", "service", "tokio"] }
 lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "webpki-roots"] }
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
@@ -40,11 +40,18 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 uuid = { version = "1.29.0", features = ["serde"] }
 toml = { version = "1.1.8", default-features = false, features = ["std", "parse", "serde"] }
+# Single sign-on: the HTTP client, signatures and URLs, all already in the build through
+# sqlx and lettre. ring rather than aws-lc-rs, as for those.
+http-body-util = "0.1.5"
+ring = "0.17.14"
+subtle = "2.6.1"
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["logging", "ring", "tls12"] }
+url = "2.5.8"
+webpki-roots = "1.0.11"
 
 [dev-dependencies]
 # Reads pages in the end-to-end tests, as a browser would.
 html5gum = "0.9.0"
-http-body-util = "0.1.5"
 
 [profile.release]
 lto = "fat"

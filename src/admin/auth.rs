@@ -1,7 +1,15 @@
-//! The host's login, the way LLDAP does it. The login form checks the password against an
-//! argon2 hash and sets two cookies: a JWT that's good for a day, and a refresh token that
-//! gets new JWTs for a month. Logging out revokes both. The admin listener is only
-//! reachable from the internal gateway; this keeps everyone else on the LAN out too.
+//! The host's login. There are two ways in, and either can be turned off:
+//!
+//! - The built-in user, the way LLDAP does it: the login form checks the password against
+//!   an argon2 hash and sets two cookies, a JWT that's good for a day and a refresh token
+//!   that gets new JWTs for a month. This user is an admin. Leaving out
+//!   `INNBY_ADMIN_PASSWORD_HASH` turns it off.
+//! - An OpenID Connect provider (see `oidc`), which says who the host is and what role
+//!   they have. That login gets a JWT without a refresh token.
+//!
+//! The JWT names the user and their role. Logging out revokes it, and the refresh token
+//! if there is one. The admin listener is only reachable from the internal gateway; this
+//! keeps everyone else on the LAN out too.
 //!
 //! Each argon2 check needs 19 MiB and the admin pod gets 64, so checks run one at a time.
 //! After too many checks, logins are refused for a while; browsers that are logged in
@@ -28,9 +36,13 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use tokio::sync::Semaphore;
 
-use super::{jwt, lang};
+use super::{
+    jwt, lang,
+    oidc::{self, OIDC_SESSION},
+    role::Role,
+};
 use crate::{
-    config::AdminConfig,
+    config::{AdminConfig, PasswordLogin},
     db::admin_login,
     paths,
     web::{RateLimiter, render, render_with, server_error},
@@ -76,7 +88,9 @@ pub fn verify(hash: &str, password: &str) -> bool {
 
 /// Logs the host in and out, and checks their cookies.
 pub struct Auth {
-    credentials: Arc<Credentials>,
+    /// The built-in user, unless it's turned off.
+    credentials: Option<Arc<Credentials>>,
+    oidc: Option<oidc::Provider>,
     key: jwt::Key,
     /// Whether the cookies are only for HTTPS.
     https: bool,
@@ -95,20 +109,45 @@ enum Outcome {
 
 /// What a request's cookies say.
 enum Session {
-    LoggedIn,
-    /// Logged in with the refresh token, which got this new `token` cookie.
+    LoggedIn(Role),
+    /// The built-in user, logged in with the refresh token, which got this new `token`
+    /// cookie.
     Refreshed(HeaderValue),
     LoggedOut,
 }
 
 impl Auth {
     pub fn new(config: &AdminConfig, https: bool, db: PgPool) -> Self {
+        // The key is bound to how the host logs in: changing the user, the password or
+        // the provider logs every session out.
+        let mut bound: Vec<&[u8]> = Vec::new();
+        if let Some(PasswordLogin {
+            user,
+            password_hash,
+        }) = &config.login
+        {
+            bound.extend([
+                b"password".as_slice(),
+                user.as_bytes(),
+                password_hash.as_bytes(),
+            ]);
+        }
+        if let Some(oidc) = &config.oidc {
+            bound.extend([
+                b"oidc".as_slice(),
+                oidc.issuer.as_bytes(),
+                oidc.client_id.as_bytes(),
+            ]);
+        }
         Self {
-            credentials: Arc::new(Credentials {
-                user: config.user.clone(),
-                password_hash: config.password_hash.clone(),
+            credentials: config.login.as_ref().map(|login| {
+                Arc::new(Credentials {
+                    user: login.user.clone(),
+                    password_hash: login.password_hash.clone(),
+                })
             }),
-            key: jwt::Key::new(&config.jwt_secret, &config.user, &config.password_hash),
+            oidc: config.oidc.clone().map(oidc::Provider::new),
+            key: jwt::Key::new(&config.jwt_secret, &bound),
             https,
             db,
             checking: Arc::new(Semaphore::new(1)),
@@ -116,7 +155,23 @@ impl Auth {
         }
     }
 
+    pub fn oidc(&self) -> Option<&oidc::Provider> {
+        self.oidc.as_ref()
+    }
+
+    /// Where a browser that isn't logged in goes: straight to the provider when it's the
+    /// only way in.
+    fn login_path(&self) -> &'static str {
+        match (&self.credentials, &self.oidc) {
+            (None, Some(_)) => paths::LOGIN_OIDC,
+            _ => paths::LOGIN,
+        }
+    }
+
     async fn check(&self, user: String, password: String) -> Outcome {
+        let Some(credentials) = &self.credentials else {
+            return Outcome::Rejected;
+        };
         // The permit moves into the blocking task, so a request that times out can't
         // let another check start while its own still runs.
         let permit = Arc::clone(&self.checking)
@@ -127,7 +182,7 @@ impl Auth {
             tracing::warn!("admin login attempts limit hit");
             return Outcome::TooManyAttempts;
         }
-        let credentials = Arc::clone(&self.credentials);
+        let credentials = Arc::clone(credentials);
         let accepted = tokio::task::spawn_blocking(move || {
             let _permit = permit;
             credentials.accept(&user, &password)
@@ -143,25 +198,40 @@ impl Auth {
     }
 
     /// A new JWT for the host.
-    fn token(&self, now: DateTime<Utc>) -> String {
+    fn token(&self, now: DateTime<Utc>, user: &str, role: Role, lifetime: TimeDelta) -> String {
         self.key.sign(&jwt::Claims {
             iat: now.timestamp(),
-            exp: (now + TOKEN_LIFETIME).timestamp(),
-            user: self.credentials.user.clone(),
+            exp: (now + lifetime).timestamp(),
+            user: user.to_owned(),
+            role,
             jti: uuid::Builder::from_random_bytes(random()).into_uuid(),
         })
     }
 
-    /// The cookies of a new login, once its refresh token is saved.
-    async fn start_session(&self) -> sqlx::Result<[HeaderValue; 2]> {
+    /// A new JWT for the built-in user, who is an admin.
+    fn admin_token(&self, now: DateTime<Utc>) -> Option<HeaderValue> {
+        let user = &self.credentials.as_ref()?.user;
+        let token = self.token(now, user, Role::Admin, TOKEN_LIFETIME);
+        Some(self.cookie(TOKEN, &token, TOKEN_LIFETIME))
+    }
+
+    /// The cookies of a new login of the built-in user, once its refresh token is saved.
+    async fn start_session(&self) -> sqlx::Result<Vec<HeaderValue>> {
         let now = Utc::now();
         let refresh_token = URL_SAFE_NO_PAD.encode(random::<32>());
         let digest = self.key.digest(&refresh_token);
         admin_login::save_refresh_token(&self.db, &digest, now + REFRESH_LIFETIME).await?;
-        Ok([
-            self.cookie(TOKEN, &self.token(now), TOKEN_LIFETIME),
-            self.cookie(REFRESH_TOKEN, &refresh_token, REFRESH_LIFETIME),
-        ])
+        Ok(self
+            .admin_token(now)
+            .into_iter()
+            .chain([self.cookie(REFRESH_TOKEN, &refresh_token, REFRESH_LIFETIME)])
+            .collect())
+    }
+
+    /// The cookie of a login the provider vouched for.
+    pub(super) fn start_oidc_session(&self, login: &oidc::Login) -> HeaderValue {
+        let token = self.token(Utc::now(), &login.user, login.role, OIDC_SESSION);
+        self.cookie(TOKEN, &token, OIDC_SESSION)
     }
 
     async fn session(&self, headers: &HeaderMap) -> sqlx::Result<Session> {
@@ -169,15 +239,26 @@ impl Auth {
         if let Some(claims) = self.claims(headers, now)
             && !admin_login::is_revoked(&self.db, claims.jti).await?
         {
-            return Ok(Session::LoggedIn);
+            return Ok(Session::LoggedIn(claims.role));
         }
-        if let Some(refresh_token) = cookie(headers, REFRESH_TOKEN)
+        if self.credentials.is_some()
+            && let Some(refresh_token) = cookie(headers, REFRESH_TOKEN)
             && admin_login::has_refresh_token(&self.db, &self.key.digest(refresh_token)).await?
+            && let Some(token) = self.admin_token(now)
         {
-            let token = self.cookie(TOKEN, &self.token(now), TOKEN_LIFETIME);
             return Ok(Session::Refreshed(token));
         }
         Ok(Session::LoggedOut)
+    }
+
+    /// Signs a value for a cookie of this purpose, such as a login in progress.
+    pub(super) fn seal(&self, purpose: &str, value: &[u8]) -> String {
+        self.key.seal(purpose, value)
+    }
+
+    /// A value `seal` signed for this purpose.
+    pub(super) fn open(&self, purpose: &str, sealed: &str) -> Option<Vec<u8>> {
+        self.key.open(purpose, sealed)
     }
 
     /// Revokes the request's JWT and refresh token, so copies of the cookies don't work
@@ -200,7 +281,7 @@ impl Auth {
     /// A `Set-Cookie` value. `SameSite=Lax` rather than LLDAP's `Strict`, so a link to
     /// the admin pages from elsewhere opens them logged in; `csrf::protect` turns away
     /// forms posted from other sites.
-    fn cookie(&self, name: &str, value: &str, lifetime: TimeDelta) -> HeaderValue {
+    pub(super) fn cookie(&self, name: &str, value: &str, lifetime: TimeDelta) -> HeaderValue {
         let secure = if self.https { "; Secure" } else { "" };
         let max_age = lifetime.num_seconds();
         format!("{name}={value}; Max-Age={max_age}; Path=/; HttpOnly; SameSite=Lax{secure}")
@@ -224,7 +305,7 @@ fn random<const N: usize>() -> [u8; N] {
 }
 
 /// A cookie the request sent.
-fn cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+pub(super) fn cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
     headers
         .get_all(header::COOKIE)
         .iter()
@@ -240,13 +321,13 @@ pub async fn require_login(
     next: Next,
 ) -> Response {
     match auth.session(request.headers()).await {
-        Ok(Session::LoggedIn) => next.run(request).await,
+        Ok(Session::LoggedIn(role)) => role.scope(next.run(request)).await,
         Ok(Session::Refreshed(token)) => {
-            let mut response = next.run(request).await;
+            let mut response = Role::Admin.scope(next.run(request)).await;
             response.headers_mut().append(header::SET_COOKIE, token);
             response
         }
-        Ok(Session::LoggedOut) => Redirect::to(&paths::admin(paths::LOGIN)).into_response(),
+        Ok(Session::LoggedOut) => Redirect::to(&paths::admin(auth.login_path())).into_response(),
         Err(err) => server_error(err),
     }
 }
@@ -255,9 +336,32 @@ pub async fn require_login(
 #[template(path = "admin/login.html")]
 struct LoginPage {
     logged_out: bool,
+    /// Whether the built-in user may log in.
+    password: bool,
+    /// The provider's name, when there is one.
+    oidc: Option<String>,
     /// The user name typed in, when the login failed.
     user: String,
-    error: Option<&'static str>,
+    error: Option<String>,
+}
+
+impl LoginPage {
+    fn new(auth: &Auth) -> Self {
+        Self {
+            password: auth.credentials.is_some(),
+            oidc: auth.oidc.as_ref().map(|oidc| oidc.name().to_owned()),
+            ..Self::default()
+        }
+    }
+}
+
+/// The login page, with what went wrong.
+pub(super) fn login_error(auth: &Auth, status: StatusCode, error: String) -> Response {
+    let page = LoginPage {
+        error: Some(error),
+        ..LoginPage::new(auth)
+    };
+    render_with(status, page)
 }
 
 #[derive(Deserialize)]
@@ -265,10 +369,13 @@ pub struct LoginQuery {
     logged_out: Option<String>,
 }
 
-pub async fn login_page(Query(query): Query<LoginQuery>) -> Response {
+pub async fn login_page(
+    State(auth): State<Arc<Auth>>,
+    Query(query): Query<LoginQuery>,
+) -> Response {
     render(LoginPage {
         logged_out: query.logged_out.is_some(),
-        ..LoginPage::default()
+        ..LoginPage::new(&auth)
     })
 }
 
@@ -285,20 +392,22 @@ pub async fn log_in(State(auth): State<Arc<Auth>>, Form(form): Form<LoginForm>) 
             return match auth.start_session().await {
                 Ok(cookies) => {
                     tracing::info!("host logged in");
-                    let cookies = cookies.map(|cookie| (header::SET_COOKIE, cookie));
+                    let cookies = cookies
+                        .into_iter()
+                        .map(|cookie| (header::SET_COOKIE, cookie));
                     let home = Redirect::to(&paths::admin(paths::HOME));
                     (AppendHeaders(cookies), home).into_response()
                 }
                 Err(err) => server_error(err),
             };
         }
-        Outcome::Rejected => (StatusCode::UNAUTHORIZED, text.wrong_login.as_str()),
-        Outcome::TooManyAttempts => (StatusCode::TOO_MANY_REQUESTS, text.too_many_logins.as_str()),
+        Outcome::Rejected => (StatusCode::UNAUTHORIZED, &text.wrong_login),
+        Outcome::TooManyAttempts => (StatusCode::TOO_MANY_REQUESTS, &text.too_many_logins),
     };
     let page = LoginPage {
-        logged_out: false,
         user: form.user,
-        error: Some(error),
+        error: Some(error.clone()),
+        ..LoginPage::new(&auth)
     };
     render_with(status, page)
 }
@@ -331,19 +440,22 @@ pub mod tests {
             .to_string()
     }
 
-    /// `admin` with the password `secret`.
+    /// `admin` with the password `secret`, and no provider.
     pub fn admin_config() -> AdminConfig {
         AdminConfig {
             listen: "127.0.0.1:0".parse().unwrap(),
-            user: "admin".into(),
-            password_hash: cheap_hash("secret"),
+            login: Some(PasswordLogin {
+                user: "admin".into(),
+                password_hash: cheap_hash("secret"),
+            }),
+            oidc: None,
             jwt_secret: jwt::Secret::from_base64(jwt::tests::SECRET).unwrap(),
         }
     }
 
-    /// A JWT that's valid now, for tests that don't log in through the form.
-    pub fn token(config: &AdminConfig, db: PgPool) -> String {
-        Auth::new(config, true, db).token(Utc::now())
+    /// A JWT for this role that's valid now, for tests that don't log in through a form.
+    pub fn token(config: &AdminConfig, db: PgPool, role: Role) -> String {
+        Auth::new(config, true, db).token(Utc::now(), "admin", role, TOKEN_LIFETIME)
     }
 
     fn auth() -> Auth {

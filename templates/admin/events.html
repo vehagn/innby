@@ -33,6 +33,7 @@
   {% endif %}
 </section>
 
+{% if crate::admin::role::Role::is_admin() %}
 <section class="card">
   <h2>{{ a.new_event }}</h2>
   <form method="post" action="{{ crate::paths::admin(crate::paths::EVENTS) }}">
@@ -40,4 +41,5 @@
     <button>{{ a.create_event }}</button>
   </form>
 </section>
+{% endif %}
 {% endblock %}

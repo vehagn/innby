@@ -16,6 +16,7 @@
   </form>
 </section>
 
+{% if crate::admin::role::Role::is_admin() %}
 <details>
   <summary>{{ a.delete }}</summary>
   <p class="muted small">{{ crate::i18n::filled(a.event_retention_hint, "days", keep_after_event_days) }}</p>
@@ -24,4 +25,5 @@
     <button class="danger">{{ a.delete }}</button>
   </form>
 </details>
+{% endif %}
 {% endblock %}

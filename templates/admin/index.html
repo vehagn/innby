@@ -6,6 +6,7 @@
 
 {% block content %}
 {% let a = crate::admin::lang::text() %}
+{% let edit = crate::admin::role::Role::can_edit() %}
 {% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
 <h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
 
@@ -36,7 +37,7 @@
     <tbody>
       {% for row in rows %}
       <tr>
-        <td><a href="{{ row.path }}">{{ row.name }}</a></td>
+        <td>{% if edit %}<a href="{{ row.path }}">{{ row.name }}</a>{% else %}{{ row.name }}{% endif %}</td>
         <td><span class="status {{ row.status }}">{{ row.answer }}</span></td>
         <td>{{ row.party }}</td>
         <td>{{ row.source }}</td>
@@ -49,9 +50,10 @@
   </table>
   </div>
   {% endif %}
-  <p><a href="{{ links.csv }}" download>{{ a.download_csv }}</a></p>
+  {% if edit %}<p><a href="{{ links.csv }}" download>{{ a.download_csv }}</a></p>{% endif %}
 </section>
 
+{% if edit %}
 <section class="card">
   <h2>{{ a.reminders }}</h2>
   <p>{{ crate::i18n::count(subscribers, a.subscribers_one, a.subscribers_other) }} {{ a.reminders_hint }}</p>
@@ -59,4 +61,5 @@
     <button class="secondary">{{ a.send_reminders }}</button>
   </form>
 </section>
+{% endif %}
 {% endblock %}

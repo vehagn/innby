@@ -7,7 +7,9 @@ mod events;
 mod groups;
 pub mod jwt;
 pub mod lang;
+pub mod oidc;
 mod qr;
+pub mod role;
 
 use std::sync::Arc;
 
@@ -41,6 +43,7 @@ use crate::{
     web::{self, render, render_with, server_error},
 };
 use qr as admin_qr;
+use role::Role;
 
 #[derive(Clone)]
 struct AdminState {
@@ -66,19 +69,20 @@ pub async fn serve(config: Config, admin: AdminConfig, db: PgPool) -> anyhow::Re
     web::listen(address, router(config, &admin, db)).await
 }
 
-pub(crate) fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router {
+pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> Router {
     // The admin hostname is served the same way as the public one.
     let https = config.is_https();
-    let auth = Arc::new(auth::Auth::new(admin, https, db.clone()));
+    let auth = Arc::new(auth::Auth::new(admin_config, https, db.clone()));
     let state = AdminState {
         config: Arc::new(config),
         db,
         auth: Arc::clone(&auth),
     };
-    let pages = Router::new()
+    // Each path needs one role for all its methods; see `role` for what each may do.
+    let viewer = Router::new()
         .route(paths::HOME, get(events::list))
-        .route(paths::EVENTS, post(events::create))
-        .route(paths::EVENT, get(event_guests))
+        .route(paths::EVENT, get(event_guests));
+    let editor = Router::new()
         .route(
             paths::EVENT_INVITATIONS,
             get(invitations).post(create_invitations),
@@ -88,7 +92,6 @@ pub(crate) fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router 
             paths::EVENT_DETAILS,
             get(events::details).post(events::edit),
         )
-        .route(paths::EVENT_DELETE, post(events::delete))
         .route(paths::EVENT_CSV, get(export_csv))
         .route(paths::EVENT_REMINDERS, post(queue_reminders))
         .route(paths::GROUP, get(groups::show).post(groups::edit))
@@ -99,10 +102,30 @@ pub(crate) fn router(config: Config, admin: &AdminConfig, db: PgPool) -> Router 
         .route(paths::GUEST_DELETE, post(delete))
         .route(paths::GUEST_QR, get(guest_qr))
         .route(paths::GROUP_QR, get(groups::qr))
+        .route_layer(middleware::from_fn(role::editor));
+    let admin = Router::new()
+        .route(paths::EVENTS, post(events::create))
+        .route(paths::EVENT_DELETE, post(events::delete))
         .route(paths::QR_STYLE, get(qr_style).post(save_qr_style))
-        .layer(middleware::from_fn_with_state(auth, auth::require_login))
-        .route(paths::LOGIN, get(auth::login_page).post(auth::log_in))
+        .route_layer(middleware::from_fn(role::admin));
+    let mut pages = viewer
+        .merge(editor)
+        .merge(admin)
+        .layer(middleware::from_fn_with_state(
+            Arc::clone(&auth),
+            auth::require_login,
+        ))
         .route(paths::LOGOUT, post(auth::log_out));
+    pages = if admin_config.login.is_some() {
+        pages.route(paths::LOGIN, get(auth::login_page).post(auth::log_in))
+    } else {
+        pages.route(paths::LOGIN, get(auth::login_page))
+    };
+    if admin_config.oidc.is_some() {
+        pages = pages
+            .route(paths::LOGIN_OIDC, get(oidc::start))
+            .route(paths::LOGIN_OIDC_CALLBACK, get(oidc::callback));
+    }
     let router = web::no_store(pages)
         // Probes don't log in, and the login page has its style before anyone does.
         .route(paths::HEALTH, get(|| async { "ok" }))
@@ -135,22 +158,36 @@ pub struct TabLink {
 /// The tabs of the site, or with `event`, that event's tabs.
 pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
     let text = lang::text();
+    // Only the tabs the host's role may open.
     let tabs = match event {
         None => vec![
-            (Tab::Events, paths::admin(paths::HOME), &text.events),
-            (Tab::Qr, paths::admin(paths::QR_STYLE), &text.qr_heading),
+            (Tab::Events, paths::admin(paths::HOME), &text.events, true),
+            (
+                Tab::Qr,
+                paths::admin(paths::QR_STYLE),
+                &text.qr_heading,
+                Role::is_admin(),
+            ),
         ],
         Some(&id) => {
             let links = EventLinks::new(id);
+            let edit = Role::can_edit();
             vec![
-                (Tab::Guests, links.guests, &text.guests),
-                (Tab::Invitations, links.invitations, &text.invitation_links),
-                (Tab::Groups, links.groups, &text.group_links),
-                (Tab::Details, links.details, &text.details),
+                (Tab::Guests, links.guests, &text.guests, true),
+                (
+                    Tab::Invitations,
+                    links.invitations,
+                    &text.invitation_links,
+                    edit,
+                ),
+                (Tab::Groups, links.groups, &text.group_links, edit),
+                (Tab::Details, links.details, &text.details, edit),
             ]
         }
     };
     tabs.into_iter()
+        .filter(|(_, _, _, allowed)| *allowed)
+        .map(|(tab, href, label, _)| (tab, href, label))
         .map(|(tab, href, label)| TabLink {
             href,
             label,
@@ -866,7 +903,10 @@ pub async fn invite(
 
 #[cfg(test)]
 mod tests {
-    use axum::{body::Body, http::Request};
+    use axum::{
+        body::Body,
+        http::{Method, Request},
+    };
     use tower::ServiceExt;
 
     use super::*;
@@ -886,9 +926,14 @@ mod tests {
 
     impl Admin {
         fn new(db: PgPool) -> Self {
+            Self::as_role(db, Role::Admin)
+        }
+
+        /// A host with this role, as single sign-on would log them in.
+        fn as_role(db: PgPool, role: Role) -> Self {
             let admin = auth::tests::admin_config();
             Self {
-                token: format!("token={}", auth::tests::token(&admin, db.clone())),
+                token: format!("token={}", auth::tests::token(&admin, db.clone(), role)),
                 db,
                 config: config(),
                 admin,
@@ -942,6 +987,85 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    #[sqlx::test]
+    async fn each_role_reaches_only_its_pages(db: PgPool) {
+        let event = crate::db::event::tests::event(&db).await;
+        let invite = rsvp::create_invite(&db, event.id, "Kari", 2).await.unwrap();
+        let group = group::create(&db, event.id, "Climbing club", 2)
+            .await
+            .unwrap();
+        let on = |pattern: &str, id: Uuid| paths::path(pattern, id);
+        let (e, i, g) = (event.id, invite.id, group.id);
+        // Every page behind the login, and the role it needs. Forms are sent empty, so
+        // the ones a role may use turn the request down for lack of a confirmation or
+        // a name, rather than change anything worth checking here.
+        let pages = [
+            (Method::GET, paths::HOME.to_owned(), Role::Viewer),
+            (Method::GET, on(paths::EVENT, e), Role::Viewer),
+            (Method::GET, on(paths::EVENT_INVITATIONS, e), Role::Editor),
+            (Method::POST, on(paths::EVENT_INVITATIONS, e), Role::Editor),
+            (Method::GET, on(paths::EVENT_GROUPS, e), Role::Editor),
+            (Method::POST, on(paths::EVENT_GROUPS, e), Role::Editor),
+            (Method::GET, on(paths::EVENT_DETAILS, e), Role::Editor),
+            (Method::POST, on(paths::EVENT_DETAILS, e), Role::Editor),
+            (Method::GET, on(paths::EVENT_CSV, e), Role::Editor),
+            (Method::POST, on(paths::EVENT_REMINDERS, e), Role::Editor),
+            (Method::GET, on(paths::GUEST, i), Role::Editor),
+            (Method::POST, on(paths::GUEST, i), Role::Editor),
+            (Method::GET, on(paths::GUEST_QR, i), Role::Editor),
+            (Method::POST, on(paths::GUEST_DELETE, i), Role::Editor),
+            (Method::GET, on(paths::GROUP, g), Role::Editor),
+            (Method::POST, on(paths::GROUP, g), Role::Editor),
+            (Method::GET, on(paths::GROUP_QR, g), Role::Editor),
+            (Method::POST, on(paths::GROUP_DELETE, g), Role::Editor),
+            (Method::POST, paths::EVENTS.to_owned(), Role::Admin),
+            (Method::POST, on(paths::EVENT_DELETE, e), Role::Admin),
+            (Method::GET, paths::QR_STYLE.to_owned(), Role::Admin),
+            (Method::POST, paths::QR_STYLE.to_owned(), Role::Admin),
+        ];
+        for role in Role::ALL {
+            let host = Admin::as_role(db.clone(), role);
+            for (method, path, needs) in &pages {
+                let request = Request::builder().method(method.clone()).uri(path);
+                let response = host.send(host.logged_in(request), "").await;
+                let forbidden = response.status() == StatusCode::FORBIDDEN;
+                assert_eq!(forbidden, role < *needs, "{role:?} {method} {path}");
+            }
+        }
+        // The revoking forms change something even when empty, so they're tried last.
+        for (pattern, id) in [(paths::GUEST_REVOKE, i), (paths::GROUP_REVOKE, g)] {
+            let path = on(pattern, id);
+            let viewer = Admin::as_role(db.clone(), Role::Viewer);
+            assert_eq!(viewer.post(&path, "").await.status(), StatusCode::FORBIDDEN);
+            let editor = Admin::as_role(db.clone(), Role::Editor);
+            assert_ne!(editor.post(&path, "").await.status(), StatusCode::FORBIDDEN);
+        }
+
+        // Pages show only what the role may use.
+        let viewer = Admin::as_role(db.clone(), Role::Viewer);
+        let html = body(viewer.get(&on(paths::EVENT, e)).await).await;
+        assert!(html.contains("Kari") && !html.contains(&on(paths::GUEST, i)));
+        for hidden in ["guests.csv", "/reminders\"", "/invitations\"", "/details\""] {
+            assert!(!html.contains(hidden), "{hidden}");
+        }
+        let html = body(viewer.get(paths::HOME).await).await;
+        assert!(!html.contains(paths::QR_STYLE) && !html.contains(r#"action="/events""#));
+
+        let editor = Admin::as_role(db.clone(), Role::Editor);
+        let html = body(editor.get(&on(paths::EVENT, e)).await).await;
+        assert!(html.contains(&on(paths::GUEST, i)) && html.contains("guests.csv"));
+        let html = body(editor.get(&on(paths::EVENT_DETAILS, e)).await).await;
+        assert!(!html.contains("/delete"));
+        let html = body(editor.get(paths::HOME).await).await;
+        assert!(!html.contains(paths::QR_STYLE) && !html.contains(r#"action="/events""#));
+
+        let admin = Admin::new(db);
+        let html = body(admin.get(&on(paths::EVENT_DETAILS, e)).await).await;
+        assert!(html.contains("/delete"));
+        let html = body(admin.get(paths::HOME).await).await;
+        assert!(html.contains(paths::QR_STYLE) && html.contains(r#"action="/events""#));
     }
 
     #[sqlx::test]

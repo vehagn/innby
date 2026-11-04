@@ -18,9 +18,13 @@ These manifests follow the `vehagn/homelab` conventions: one directory per app u
    add an image pull secret. Pin `newTag` in `kustomization.yaml` to that tag.
 2. **Config.** Edit `config.env`: your name and contact address for the privacy notice,
    and the sender address. Events are made in the admin UI once it runs.
+   For single sign-on, uncomment the `INNBY_OIDC_*` settings and `INNBY_ADMIN_URL`, and
+   register the client in Authelia as the top-level README's "Single sign-on" shows.
+   The admin's network policy lets it reach `authelia.stonegarden.dev`.
 3. **Secrets.** `cp secrets.example.env secrets.env` and fill it in: the link key, the
-   admin password hash (`just innby hash-password`) and JWT secret, and the SMTP
-   credentials from step 4. Then from the repository root run `just seal` and uncomment
+   admin password hash (`just innby hash-password`; leave it out to log in only through
+   Authelia) and JWT secret, the OIDC client secret if you use single sign-on, and the
+   SMTP credentials from step 4. Then from the repository root run `just seal` and uncomment
    `sealed-secrets.yaml` in `kustomization.yaml`. `secrets.env` is gitignored; never
    commit it.
 4. **MailerSend.** Verify the sender domain (SPF, DKIM, DMARC), accept the DPA, and

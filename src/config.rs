@@ -2,7 +2,10 @@ use std::net::SocketAddr;
 
 use anyhow::{Context, Result, anyhow, ensure};
 
-use crate::{admin::jwt, link::LinkKey};
+use crate::{
+    admin::{jwt, oidc::OidcConfig},
+    link::LinkKey,
+};
 
 /// Secrets that `.env.example` publishes. Anyone could sign links or log in with them,
 /// so a public site, one with an https base URL, refuses them.
@@ -132,12 +135,23 @@ impl Config {
 #[derive(Debug, Clone)]
 pub struct AdminConfig {
     pub listen: SocketAddr,
-    pub user: String,
-    /// An argon2 PHC string from `innby hash-password`.
-    pub password_hash: String,
+    /// The built-in user, unless `INNBY_ADMIN_PASSWORD_HASH` is left out.
+    pub login: Option<PasswordLogin>,
+    /// Single sign-on, when `INNBY_OIDC_ISSUER` is set.
+    pub oidc: Option<OidcConfig>,
     /// Signs the login's JWTs.
     pub jwt_secret: jwt::Secret,
 }
+
+#[derive(Debug, Clone)]
+pub struct PasswordLogin {
+    pub user: String,
+    /// An argon2 PHC string from `innby hash-password`.
+    pub password_hash: String,
+}
+
+/// Where the provider sends the host back to, under `INNBY_ADMIN_URL`.
+pub const OIDC_CALLBACK: &str = "/login/oidc/callback";
 
 impl AdminConfig {
     pub fn from_env(config: &Config) -> Result<Self> {
@@ -146,13 +160,29 @@ impl AdminConfig {
 
     fn from_lookup(get: impl Fn(&str) -> Option<String>, config: &Config) -> Result<Self> {
         let env = Env(get);
-        let password_hash = env.required("INNBY_ADMIN_PASSWORD_HASH")?;
-        crate::admin::auth::check_hash(&password_hash).context("INNBY_ADMIN_PASSWORD_HASH")?;
+        let login = env
+            .optional("INNBY_ADMIN_PASSWORD_HASH")
+            .map(|password_hash| -> Result<PasswordLogin> {
+                crate::admin::auth::check_hash(&password_hash)
+                    .context("INNBY_ADMIN_PASSWORD_HASH")?;
+                ensure!(
+                    !config.is_https()
+                        || !crate::admin::auth::verify(&password_hash, EXAMPLE_ADMIN_PASSWORD),
+                    "INNBY_ADMIN_PASSWORD_HASH: that's a hash of the example password from \
+                     .env.example; make one for a real password with `just innby hash-password`"
+                );
+                Ok(PasswordLogin {
+                    user: env
+                        .optional("INNBY_ADMIN_USER")
+                        .unwrap_or_else(|| "admin".into()),
+                    password_hash,
+                })
+            })
+            .transpose()?;
+        let oidc = env.oidc()?;
         ensure!(
-            !config.is_https()
-                || !crate::admin::auth::verify(&password_hash, EXAMPLE_ADMIN_PASSWORD),
-            "INNBY_ADMIN_PASSWORD_HASH: that's a hash of the example password from \
-             .env.example; make one for a real password with `just innby hash-password`"
+            login.is_some() || oidc.is_some(),
+            "nobody could log in: set INNBY_ADMIN_PASSWORD_HASH, INNBY_OIDC_ISSUER or both"
         );
         let jwt_secret = env.required("INNBY_ADMIN_JWT_SECRET")?;
         ensure!(
@@ -161,12 +191,44 @@ impl AdminConfig {
         );
         Ok(Self {
             listen: env.socket_address("INNBY_ADMIN_LISTEN", "0.0.0.0:8081")?,
-            user: env
-                .optional("INNBY_ADMIN_USER")
-                .unwrap_or_else(|| "admin".into()),
-            password_hash,
+            login,
+            oidc,
             jwt_secret: jwt::Secret::from_base64(&jwt_secret).context("INNBY_ADMIN_JWT_SECRET")?,
         })
+    }
+}
+
+impl<F: Fn(&str) -> Option<String>> Env<F> {
+    fn oidc(&self) -> Result<Option<OidcConfig>> {
+        let Some(issuer) = self.optional("INNBY_OIDC_ISSUER") else {
+            return Ok(None);
+        };
+        let admin_url = self.required("INNBY_ADMIN_URL")?;
+        let admin_url = admin_url.trim_end_matches('/');
+        let redirect_uri = format!("{admin_url}{OIDC_CALLBACK}")
+            .parse::<url::Url>()
+            .ok()
+            .filter(|url| url.path() == OIDC_CALLBACK && url.query().is_none())
+            .ok_or_else(|| {
+                anyhow!("INNBY_ADMIN_URL: expected an origin like https://admin.example.com")
+            })?;
+        let config = OidcConfig {
+            issuer: issuer.trim().to_owned(),
+            client_id: self.required("INNBY_OIDC_CLIENT_ID")?,
+            client_secret: self.required("INNBY_OIDC_CLIENT_SECRET")?,
+            name: self
+                .optional("INNBY_OIDC_NAME")
+                .unwrap_or_else(|| "SSO".into()),
+            scopes: self
+                .optional("INNBY_OIDC_SCOPES")
+                .unwrap_or_else(|| "openid profile email innby".into()),
+            roles_claim: self
+                .optional("INNBY_OIDC_ROLES_CLAIM")
+                .unwrap_or_else(|| "innby".into()),
+            redirect_uri,
+        };
+        config.check().context("INNBY_OIDC_ISSUER")?;
+        Ok(Some(config))
     }
 }
 
@@ -263,6 +325,54 @@ pub mod tests {
         )
     }
 
+    const OIDC: &[(&str, &str)] = &[
+        ("INNBY_ADMIN_JWT_SECRET", crate::link::tests::KEY),
+        ("INNBY_ADMIN_URL", "https://admin.fest.example.com/"),
+        ("INNBY_OIDC_ISSUER", "https://authelia.example.com"),
+        ("INNBY_OIDC_CLIENT_ID", "innby"),
+        ("INNBY_OIDC_CLIENT_SECRET", "s3cret"),
+    ];
+
+    fn admin_oidc(overrides: &[(&str, &str)]) -> Result<AdminConfig> {
+        let mut env: HashMap<&str, &str> = OIDC.iter().copied().collect();
+        env.extend(overrides.iter().copied());
+        AdminConfig::from_lookup(|key| env.get(key).map(|value| value.to_string()), &config())
+    }
+
+    #[test]
+    fn single_sign_on_can_replace_the_built_in_user() {
+        let admin = admin_oidc(&[]).unwrap();
+        assert!(admin.login.is_none());
+        let oidc = admin.oidc.unwrap();
+        assert_eq!(
+            oidc.redirect_uri.as_str(),
+            "https://admin.fest.example.com/login/oidc/callback"
+        );
+        assert_eq!(
+            (
+                oidc.scopes.as_str(),
+                oidc.roles_claim.as_str(),
+                oidc.name.as_str()
+            ),
+            ("openid profile email innby", "innby", "SSO")
+        );
+        assert!(!format!("{oidc:?}").contains("s3cret"));
+
+        let hash = crate::admin::auth::tests::cheap_hash("secret");
+        let both = admin_oidc(&[("INNBY_ADMIN_PASSWORD_HASH", &hash)]).unwrap();
+        assert!(both.login.is_some() && both.oidc.is_some());
+
+        let err = |overrides: &[(&str, &str)]| format!("{:#}", admin_oidc(overrides).unwrap_err());
+        assert!(err(&[("INNBY_OIDC_ISSUER", "")]).starts_with("nobody could log in"));
+        assert!(err(&[("INNBY_ADMIN_URL", "")]).contains("INNBY_ADMIN_URL"));
+        assert!(err(&[("INNBY_ADMIN_URL", "https://admin.example.com/admin")]).contains("origin"));
+        assert!(err(&[("INNBY_OIDC_CLIENT_SECRET", "")]).contains("INNBY_OIDC_CLIENT_SECRET"));
+        assert!(err(&[("INNBY_OIDC_ISSUER", "http://authelia.example.com")]).contains("https"));
+        assert!(err(&[("INNBY_OIDC_SCOPES", "profile innby")]).contains("openid"));
+        // A provider on this machine, while developing.
+        admin_oidc(&[("INNBY_OIDC_ISSUER", "http://127.0.0.1:9091")]).unwrap();
+    }
+
     fn admin_with_hash(hash: &str, config: &Config) -> Result<AdminConfig> {
         admin_with(hash, crate::link::tests::KEY, config)
     }
@@ -272,7 +382,7 @@ pub mod tests {
         let config = config();
         let hash = crate::admin::auth::tests::cheap_hash("secret");
         let admin = admin_with_hash(&hash, &config).unwrap();
-        assert_eq!(admin.user, "admin");
+        assert_eq!(admin.login.unwrap().user, "admin");
         assert_eq!(admin.listen, "0.0.0.0:8081".parse().unwrap());
 
         assert!(AdminConfig::from_lookup(|_| None, &config).is_err());

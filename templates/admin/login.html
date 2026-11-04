@@ -8,12 +8,17 @@
 {% let a = crate::admin::lang::text() %}
 {% if logged_out %}<p class="notice success" role="status">{{ a.logged_out }}</p>{% endif %}
 <h1>{{ a.log_in }}</h1>
-<p>{{ a.log_in_text }}</p>
+{% if let Some(name) = oidc %}
+<p><a class="button" href="{{ crate::paths::admin(crate::paths::LOGIN_OIDC) }}">{{ crate::i18n::filled(a.log_in_with, "name", name) }}</a></p>
+{% endif %}
+{% if password %}
+<p>{% if oidc.is_some() %}{{ a.log_in_or }}{% else %}{{ a.log_in_text }}{% endif %}</p>
 <form method="post" action="{{ crate::paths::admin(crate::paths::LOGIN) }}">
   <label for="user">{{ a.user_name }}</label>
-  <input id="user" name="user" required autocomplete="username" autocapitalize="none" value="{{ user }}"{% if user.is_empty() %} autofocus{% endif %}>
+  <input id="user" name="user" required autocomplete="username" autocapitalize="none" value="{{ user }}"{% if user.is_empty() && oidc.is_none() %} autofocus{% endif %}>
   <label for="password">{{ a.password }}</label>
   <input id="password" name="password" type="password" required autocomplete="current-password"{% if !user.is_empty() %} autofocus{% endif %}>
   <button>{{ a.log_in }}</button>
 </form>
+{% endif %}
 {% endblock %}
