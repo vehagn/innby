@@ -142,17 +142,9 @@ mod tests {
         },
         i18n::{Texts, filled},
         link::Purpose,
+        testing::set_cookies,
         web::testing::{Site, body, en, escape, form_post, location},
     };
-
-    fn set_cookies(response: &Response) -> Vec<&str> {
-        response
-            .headers()
-            .get_all(header::SET_COOKIE)
-            .iter()
-            .map(|value| value.to_str().unwrap())
-            .collect()
-    }
 
     fn with_cookie(mut request: Request<Body>, cookie: &str) -> Request<Body> {
         let cookie = HeaderValue::from_str(cookie).unwrap();

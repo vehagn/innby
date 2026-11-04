@@ -8,6 +8,7 @@ mod remember;
 mod rsvp;
 #[cfg(test)]
 pub(crate) mod testing;
+mod views;
 
 use std::{sync::Arc, time::Duration};
 

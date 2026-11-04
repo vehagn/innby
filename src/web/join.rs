@@ -13,7 +13,8 @@ use serde::Deserialize;
 
 use super::{
     AppState, PRIVACY_VERSION,
-    pages::{DisplayChoice, EventView, GuestList, GuestsPage, PartySize, gone},
+    pages::gone,
+    views::{DisplayChoice, EventView, GuestList, GuestsPage, PartySize},
 };
 use crate::{
     db::{

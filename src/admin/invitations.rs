@@ -238,7 +238,7 @@ mod tests {
         admin::testing::{Admin, links},
         config::tests::config,
         link::{IdLink, Purpose},
-        web::testing::{body, location},
+        testing::{body, location},
     };
 
     #[sqlx::test]

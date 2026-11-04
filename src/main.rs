@@ -10,6 +10,8 @@ mod link;
 mod mailer;
 mod paths;
 mod random;
+#[cfg(test)]
+mod testing;
 mod theme;
 mod web;
 

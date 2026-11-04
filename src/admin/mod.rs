@@ -164,7 +164,7 @@ mod tests {
             testing::{Admin, set_cookies},
         },
         db::{group, rsvp},
-        web::testing::{body, escape, location},
+        testing::{body, escape, location},
     };
 
     #[sqlx::test]

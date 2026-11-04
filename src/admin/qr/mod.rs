@@ -123,7 +123,7 @@ mod tests {
     use crate::{
         admin::testing::Admin,
         db::rsvp,
-        web::testing::{body, location},
+        testing::{body, location},
     };
 
     #[sqlx::test]

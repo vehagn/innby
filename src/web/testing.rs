@@ -1,15 +1,11 @@
-//! Helpers for driving the public site's router in tests.
+//! Helpers for driving the public site's router in tests. The generic HTTP ones are in
+//! `crate::testing`, and re-exported here.
 
-use axum::{
-    Router,
-    body::Body,
-    http::{Request, header},
-    response::Response,
-};
-use http_body_util::BodyExt;
+use axum::{Router, body::Body, http::Request, response::Response};
 use sqlx::PgPool;
 use tower::ServiceExt;
 
+pub use crate::testing::{body, escape, form_post, location};
 use crate::{
     config::{Config, tests::parse},
     db::{
@@ -84,33 +80,7 @@ impl Site {
     }
 }
 
-pub fn form_post(uri: &str, form: &str, fetch_site: &str) -> Request<Body> {
-    Request::post(uri)
-        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-        .header("sec-fetch-site", fetch_site)
-        .body(Body::from(form.to_owned()))
-        .unwrap()
-}
-
-pub async fn body(response: Response) -> String {
-    let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    String::from_utf8(bytes.to_vec()).unwrap()
-}
-
 /// The British English texts, which tests ask for with `?lang=en`.
 pub fn en() -> &'static Messages {
     Lang::EnGb.messages()
-}
-
-/// A text as a template writes it into HTML.
-pub fn escape(text: &str) -> String {
-    text.replace('&', "&#38;")
-        .replace('<', "&#60;")
-        .replace('>', "&#62;")
-        .replace('"', "&#34;")
-        .replace('\'', "&#39;")
-}
-
-pub fn location(response: &Response) -> &str {
-    response.headers()[header::LOCATION].to_str().unwrap()
 }

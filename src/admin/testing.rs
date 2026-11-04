@@ -74,12 +74,9 @@ impl Admin {
 
 /// The `name=value` of each cookie the response sets, and the whole header.
 pub fn set_cookies(response: &Response) -> Vec<(String, String)> {
-    response
-        .headers()
-        .get_all(header::SET_COOKIE)
-        .iter()
+    crate::testing::set_cookies(response)
+        .into_iter()
         .map(|value| {
-            let value = value.to_str().unwrap();
             (
                 value.split(';').next().unwrap().to_owned(),
                 value.to_owned(),

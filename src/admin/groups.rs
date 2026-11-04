@@ -299,7 +299,7 @@ mod tests {
     use super::*;
     use crate::{
         admin::testing::{Admin, links},
-        web::testing::{body, location},
+        testing::{body, location},
     };
 
     #[sqlx::test]
