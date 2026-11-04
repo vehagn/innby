@@ -335,6 +335,7 @@ pub struct AdminMessages {
     // Errors
     pub error_party_size: String,
     pub error_name: String,
+    pub error_group_name: String,
     /// A batch line that needs fixing: "Line {n}: {error}".
     pub error_line: String,
     pub error_no_names: String,

@@ -26,7 +26,7 @@ use crate::{
         event::Event,
         group::{self, Group},
         outbox,
-        rsvp::{self, EmailStatus, Headcount, MAX_PARTY_SIZE, NameDisplay, Rsvp, Source},
+        rsvp::{self, EmailStatus, Headcount, MAX_PARTY_SIZE, NameDisplay, NameKind, Rsvp, Source},
     },
     http::{render, render_with},
     i18n::{count, filled},
@@ -292,7 +292,7 @@ pub(super) async fn edit(
     Path(id): Path<Uuid>,
     Form(form): Form<InviteForm>,
 ) -> Result<Response, PageError> {
-    let name = match form.validate() {
+    let name = match form.validate(NameKind::Person) {
         Ok(name) => name,
         Err(error) => return GuestPage::render_error(&state, id, error).await,
     };

@@ -324,7 +324,7 @@ pub async fn rename(
     guest: Guest,
     Form(form): Form<NameForm>,
 ) -> Response {
-    let Some(name) = rsvp::normalize_name(&form.name) else {
+    let Some(name) = rsvp::normalize_name(&form.name, rsvp::NameKind::Person) else {
         return RsvpPage::new(lang, &guest)
             .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name);
     };

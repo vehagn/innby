@@ -140,7 +140,7 @@ join_button = "我會參加！"
 
 # Errors and outcomes
 invalid_party_size = "請選擇有效的人數。"
-invalid_name = "姓名須為 1 到 100 個字元。"
+invalid_name = "名字只能使用字母、空格以及 - ' . , &，最多 100 個字元。"
 confirm_delete = "請勾選方框以確認刪除。"
 gone_title = "此連結無效"
 gone_text = "連結可能打錯了、已被新連結取代，或回覆已被刪除。請向主人索取新連結。"
@@ -331,7 +331,8 @@ listed_hidden = "不顯示"
 
 # Errors
 error_party_size = "人數須在 1 到 {max} 之間。"
-error_name = "請輸入不超過 100 個字元的姓名。"
+error_name = "名字只能使用字母、空格以及 - ' . , &，最多 100 個字元。"
+error_group_name = "群組名稱只能使用字母、數字、空格以及 - ' . , &，最多 100 個字元。"
 # A line of a batch that needs fixing.
 error_line = "第 {n} 行：{error}"
 error_no_names = "請至少輸入一個姓名。"

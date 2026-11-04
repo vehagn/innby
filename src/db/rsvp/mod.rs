@@ -10,7 +10,7 @@ mod guest_list;
 mod names;
 
 pub use guest_list::{Headcount, guest_list, headcount};
-pub use names::{NameDisplay, normalize_email, normalize_name};
+pub use names::{NameDisplay, NameKind, normalize_email, normalize_name};
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;

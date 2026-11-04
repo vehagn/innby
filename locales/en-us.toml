@@ -145,7 +145,7 @@ join_button = "I'm going!"
 
 # Errors and outcomes
 invalid_party_size = "Pick a number."
-invalid_name = "Enter a name (100 characters max)."
+invalid_name = "Use letters and spaces for the name, plus - ' . , & if you need them, up to 100 characters."
 confirm_delete = "Check the box to delete."
 gone_title = "This link doesn't work"
 gone_text = """
@@ -353,7 +353,8 @@ listed_hidden = "hidden"
 
 # Errors
 error_party_size = "Party size must be 1 to {max}."
-error_name = "Enter a name (100 characters max)."
+error_name = "Use letters and spaces for the name, plus - ' . , & if you need them, up to 100 characters."
+error_group_name = "Use letters, numbers, and spaces for the group name, plus - ' . , & if you need them, up to 100 characters."
 # A line of a batch that needs fixing.
 error_line = "Line {n}: {error}"
 error_no_names = "Enter at least one name."

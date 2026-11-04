@@ -152,7 +152,7 @@ join_button = "Eg kjem!"
 
 # Errors and outcomes
 invalid_party_size = "Vel eit gyldig tal."
-invalid_name = "Namnet må vere mellom 1 og 100 teikn."
+invalid_name = "Skriv namnet med bokstavar, mellomrom og eventuelt - ' . , &, opptil 100 teikn."
 confirm_delete = "Kryss av i boksen for å stadfeste slettinga."
 gone_title = "Denne lenkja verkar ikkje"
 gone_text = """
@@ -363,7 +363,8 @@ listed_hidden = "ikkje på lista"
 
 # Errors
 error_party_size = "Talet på personar må vere mellom 1 og {max}."
-error_name = "Skriv inn eit namn på opptil 100 teikn."
+error_name = "Skriv namnet med bokstavar, mellomrom og eventuelt - ' . , &, opptil 100 teikn."
+error_group_name = "Skriv gruppenamnet med bokstavar, tal, mellomrom og eventuelt - ' . , &, opptil 100 teikn."
 # A line of a batch that needs fixing.
 error_line = "Linje {n}: {error}"
 error_no_names = "Skriv inn minst eitt namn."

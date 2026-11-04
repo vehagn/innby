@@ -154,7 +154,10 @@ async fn limits_sign_ups_per_client(db: PgPool) {
     let join = format!("/join/{link}");
     for n in 0..10 {
         let response = site
-            .post(&join, &format!("name=Guest+{n}&party_size=1"))
+            .post(
+                &join,
+                &format!("name=Guest+{}&party_size=1", char::from(b'A' + n)),
+            )
             .await;
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
     }

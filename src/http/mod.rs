@@ -73,6 +73,9 @@ pub(crate) const HSTS: [(header::HeaderName, &str); 1] =
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 /// The same for a request's headers, which come before `REQUEST_TIMEOUT` starts.
 const HEADER_TIMEOUT: Duration = Duration::from_secs(10);
+/// The most a request's line and headers may take, rather than hyper's 400 KiB: plenty
+/// for the few cookies Innby sets, and little memory per slow or hostile connection.
+const MAX_HEADER_BYTES: usize = 16 * 1024;
 
 /// Pages addressed by a secret link must not be stored by browsers or proxies.
 const LINK_HEADERS: [(header::HeaderName, &str); 1] = [(header::CACHE_CONTROL, "no-store")];
@@ -88,7 +91,8 @@ pub async fn listen(address: SocketAddr, app: Router) -> anyhow::Result<()> {
     tracing::info!(address = %listener.local_addr()?, "listening");
     let mut http = http1::Builder::new();
     http.timer(TokioTimer::new())
-        .header_read_timeout(HEADER_TIMEOUT);
+        .header_read_timeout(HEADER_TIMEOUT)
+        .max_buf_size(MAX_HEADER_BYTES);
     let connections = GracefulShutdown::new();
     let mut shutdown = pin!(shutdown_signal());
     loop {

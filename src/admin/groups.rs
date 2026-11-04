@@ -23,7 +23,7 @@ use crate::{
         event::Event,
         group::{self, Group},
         qr,
-        rsvp::{self, MAX_PARTY_SIZE, Rsvp},
+        rsvp::{self, MAX_PARTY_SIZE, NameKind, Rsvp},
     },
     http::{render, render_with},
     i18n::count,
@@ -136,7 +136,7 @@ pub(super) async fn create(
     Form(form): Form<BatchForm>,
 ) -> Result<Response, PageError> {
     let event = load_event(&state, id).await?;
-    let entries = match form.parse() {
+    let entries = match form.parse(NameKind::Group) {
         Ok(entries) => entries,
         Err(error) => return groups_page(&state, event, form.names, None, Some(error)).await,
     };
@@ -246,7 +246,7 @@ pub(super) async fn edit(
     Path(id): Path<Uuid>,
     Form(form): Form<InviteForm>,
 ) -> Result<Response, PageError> {
-    let name = match form.validate() {
+    let name = match form.validate(NameKind::Group) {
         Ok(name) => name,
         Err(error) => return GroupPage::render_error(&state, id, error).await,
     };

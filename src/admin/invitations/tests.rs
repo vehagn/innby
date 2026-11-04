@@ -5,7 +5,7 @@ use crate::{
     admin::testing::{Admin, links},
     config::tests::config,
     link::{IdLink, Purpose},
-    testing::{body, location},
+    testing::{body, escape, location},
 };
 
 #[sqlx::test]
@@ -77,7 +77,7 @@ async fn rejects_a_batch_with_an_invalid_line(db: PgPool) {
         ),
         (
             "names=Kari%0D%0A+-+%0D%0A&max_party_size=2",
-            "Line 2: Enter a name of up to 100 characters.",
+            "Line 2: Write the name in letters and spaces, with - ' . , & if need be, up to 100 characters.",
         ),
         ("names=+%0D%0A&max_party_size=2", "Enter at least one name."),
         (
@@ -92,7 +92,7 @@ async fn rejects_a_batch_with_an_invalid_line(db: PgPool) {
             "{form}"
         );
         let html = body(response).await;
-        assert!(html.contains(error), "{form}: {html}");
+        assert!(html.contains(&escape(error)), "{form}: {html}");
     }
     // The text stays in the form to fix.
     let html = body(

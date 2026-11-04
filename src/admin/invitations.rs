@@ -21,7 +21,7 @@ use crate::{
     config::Config,
     db::{
         event::{self, Event},
-        rsvp::{self, MAX_PARTY_SIZE, Source},
+        rsvp::{self, MAX_PARTY_SIZE, NameKind, Source},
     },
     http::render_with,
     i18n::fill,
@@ -36,17 +36,21 @@ pub(super) struct InviteForm {
 }
 
 impl InviteForm {
-    pub(super) fn validate(&self) -> Result<String, String> {
-        validate(&self.name, self.max_party_size)
+    pub(super) fn validate(&self, kind: NameKind) -> Result<String, String> {
+        validate(&self.name, self.max_party_size, kind)
     }
 }
 
-pub(super) fn validate(name: &str, max_party_size: i32) -> Result<String, String> {
+pub(super) fn validate(name: &str, max_party_size: i32, kind: NameKind) -> Result<String, String> {
     let text = lang::text();
     if !(1..=MAX_PARTY_SIZE).contains(&max_party_size) {
         return Err(fill(&text.error_party_size, &[("max", &MAX_PARTY_SIZE)]));
     }
-    rsvp::normalize_name(name).ok_or_else(|| text.error_name.clone())
+    let error = match kind {
+        NameKind::Person => &text.error_name,
+        NameKind::Group => &text.error_group_name,
+    };
+    rsvp::normalize_name(name, kind).ok_or_else(|| error.clone())
 }
 
 /// Several names at once, one per line.
@@ -60,7 +64,7 @@ pub(super) struct BatchForm {
 impl BatchForm {
     /// Each line's name and party size. A line can end in a comma and its own party size;
     /// blank lines are skipped. One invalid line fails the whole batch.
-    pub(super) fn parse(&self) -> Result<Vec<(String, i32)>, String> {
+    pub(super) fn parse(&self, kind: NameKind) -> Result<Vec<(String, i32)>, String> {
         let mut entries = Vec::new();
         for (index, line) in self.names.lines().enumerate() {
             if line.trim().is_empty() {
@@ -70,7 +74,7 @@ impl BatchForm {
                 .rsplit_once(',')
                 .and_then(|(name, size)| Some((name, size.trim().parse().ok()?)))
                 .unwrap_or((line, self.max_party_size));
-            let name = validate(name, max_party_size).map_err(|error| {
+            let name = validate(name, max_party_size, kind).map_err(|error| {
                 let line = index + 1;
                 fill(&lang::text().error_line, &[("n", &line), ("error", &error)])
             })?;
@@ -90,7 +94,7 @@ pub(super) async fn create_invitations(
     Form(form): Form<BatchForm>,
 ) -> Result<Response, PageError> {
     let event = load_event(&state, id).await?;
-    let entries = match form.parse() {
+    let entries = match form.parse(NameKind::Person) {
         Ok(entries) => entries,
         Err(error) => {
             return invitations_page(&state, event, None, form.names, Some(error)).await;
@@ -200,7 +204,9 @@ pub async fn invite(
         name: name.to_owned(),
         max_party_size,
     };
-    let name = form.validate().map_err(anyhow::Error::msg)?;
+    let name = form
+        .validate(NameKind::Person)
+        .map_err(anyhow::Error::msg)?;
     let event = match event {
         Some(id) => event::find(db, id)
             .await?

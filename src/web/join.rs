@@ -168,7 +168,7 @@ pub async fn join(
     if !page.accepts_answers {
         return render_with(StatusCode::FORBIDDEN, page);
     }
-    let Some(name) = rsvp::normalize_name(&form.name) else {
+    let Some(name) = rsvp::normalize_name(&form.name, rsvp::NameKind::Person) else {
         return page.render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name);
     };
     if !(1..=group.max_party_size).contains(&form.party_size) {

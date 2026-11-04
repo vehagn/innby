@@ -371,6 +371,7 @@ Hidden from the list, for other recipes and CI: `run`, `migrate`, `build` (cargo
 24. ✅ **Helm chart:** `charts/innby`, general purpose and without CRDs, with optional HTTPRoutes, Ingresses, standard or Cilium NetworkPolicies, and a CloudNativePG cluster by name, published to GHCR as an OCI artifact with each release. The admin UI can live under `/admin` on the site's hostname. `deploy/` is now the homelab's values for it.
 25. ✅ **Structure:** shared listener plumbing in `http/`; `admin/` split by tab with logging in under `auth/`; `config/`, `i18n/` and `db/rsvp/` split into parts; tests beside the code they cover, with shared helpers; a `//!` map atop every module and AGENTS.md for the whole.
 26. ✅ **Languages as modules:** each `locales/*.toml` declares what its language is and which languages fill in the texts it leaves out; the Rust side keeps only the list.
+27. ✅ **Second pentest:** names (guests', invitations' and groups') are letters in any script with their accents, spaces and name punctuation (`- ' . , & ·`), and digits in a group's name, refused otherwise rather than stripped; request headers are capped at 16 KiB. Stored markup, CSV formulas, CSRF from other sites and `Origin: null`, forged and tampered links and JWTs, `?lang=`/`?theme=`/`?notice=` injection, oversized bodies, path tricks, e-mail header injection, party sizes and the rate limits all held.
 
 ## 14. Decisions
 
