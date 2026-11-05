@@ -80,7 +80,7 @@ down:
 [group("dev")]
 test: migrate games
     cargo test --locked
-    for manifest in games/*/Cargo.toml; do cargo test --quiet --locked --manifest-path "$manifest"; done
+    for manifest in games/*/Cargo.toml; do cargo test --quiet --locked --manifest-path "$manifest" --target-dir "{{ target_dir }}"; done
     node --test games/
 
 [doc("Check formatting, lints, the offline query data and dependencies")]
@@ -90,7 +90,7 @@ lint:
     cargo clippy --locked --all-targets -- -D warnings
     for manifest in games/*/Cargo.toml; do \
       cargo fmt --check --manifest-path "$manifest" && \
-      cargo clippy --quiet --locked --all-targets --manifest-path "$manifest" -- -D warnings; \
+      cargo clippy --quiet --locked --all-targets --manifest-path "$manifest" --target-dir "{{ target_dir }}" -- -D warnings; \
     done
     cargo sqlx prepare --check -- --all-targets
     cargo deny check
@@ -351,7 +351,9 @@ games:
     for manifest in games/*/Cargo.toml; do
       dir=$(dirname "$manifest")
       name=$(basename "$dir")
-      cargo build --quiet --locked --release --target wasm32-unknown-unknown --manifest-path "$manifest"
+      # Into the repository's target directory, not the game's own workspace's.
+      cargo build --quiet --locked --release --target wasm32-unknown-unknown \
+        --manifest-path "$manifest" --target-dir "{{ target_dir }}"
       cp "{{ target_dir }}/wasm32-unknown-unknown/release/$name.wasm" "$dir/$name.wasm"
     done
 
