@@ -90,7 +90,8 @@ migrations/          the schema, applied by `innby migrate`: 0001_schema.sql, an
 bench/               `just bench`: run.sh, and data.sql, an event of 1500 guests
 games/               example minigames on an origin of their own (docs/games.md): reaction/
                      in the browser; snake/ and tetris/ with a server that replays the
-                     moves to score them; lib/ what they share; serve.js serves them
+                     moves to score them; balloon/ the same, its rules in Rust built to
+                     WebAssembly (`just games`); lib/ what they share; serve.js serves them
 charts/innby/        the Helm chart; deploy/ is one homelab's install of it
 docs/                the guides for people, and ropa.md, the GDPR record of processing
 ```

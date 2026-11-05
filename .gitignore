@@ -1,4 +1,6 @@
 /target
+# Built by `just games`
+/games/*/*.wasm
 .env
 
 # Real secrets for `just seal`

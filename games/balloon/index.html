@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- Balloon, an example of a game whose rules are Rust: src/lib.rs, built to
+     balloon.wasm, which this page plays with and the server replays to score a round.
+     See docs/games.md. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Balloon</title>
+  <link rel="stylesheet" href="../lib/style.css">
+  <script type="module" src="page.js"></script>
+</head>
+<body>
+  <h1>Balloon</h1>
+  <p class="muted">Puff to rise, and steer through the gaps in the clouds. Space, ↑, or tap the board.</p>
+  <div class="bar">
+    <strong>Score: <span id="score">0</span></strong>
+    <button id="start">Play</button>
+  </div>
+  <canvas id="board" width="320" height="240"></canvas>
+  <div class="pad">
+    <span></span><button data-move="puff" aria-label="Puff">⇧</button><span></span>
+  </div>
+  <p id="result" aria-live="polite"></p>
+  <h2>High scores</h2>
+  <p id="note" class="muted"></p>
+  <table><tbody id="scores"></tbody></table>
+</body>
+</html>

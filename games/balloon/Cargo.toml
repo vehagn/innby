@@ -1,0 +1,21 @@
+# Balloon, an example game whose rules are Rust: built to WebAssembly, the same rules
+# run in the guest's browser and on the games' server, which replays a round to score
+# it. See docs/games.md. Its own workspace, apart from Innby's, with no dependencies.
+[package]
+name = "balloon"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[lib]
+# cdylib for balloon.wasm, rlib for the tests.
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+strip = true
+
+[workspace]

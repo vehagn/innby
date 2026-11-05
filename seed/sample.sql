@@ -150,7 +150,8 @@ insert into event_access (event_id, user_name, role) values
 insert into event_game (event_id, game) values
     ('00000000-5eed-7000-8000-000000000001', 'reaction'),
     ('00000000-5eed-7000-8000-000000000001', 'snake'),
-    ('00000000-5eed-7000-8000-000000000001', 'tetris');
+    ('00000000-5eed-7000-8000-000000000001', 'tetris'),
+    ('00000000-5eed-7000-8000-000000000001', 'balloon');
 insert into game_score (rsvp_id, game, score, scored_at) values
     ('00000000-5eed-7000-8000-000000001001', 'reaction', 287, now() - interval '3 days'),
     ('00000000-5eed-7000-8000-000000001006', 'reaction', 241, now() - interval '2 days'),

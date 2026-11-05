@@ -103,7 +103,7 @@ RUN arch="$(dpkg --print-architecture)"; \
     rm /tmp/helm.tar.gz /tmp/kubeconform.tar.gz
 
 RUN rustup component add clippy rustfmt rust-src rust-analyzer; \
-    rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl
+    rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl wasm32-unknown-unknown
 
 # Non-root user with passwordless sudo. Directories that compose mounts volumes onto
 # are created here so the volumes inherit the user's ownership.

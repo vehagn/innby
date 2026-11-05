@@ -29,14 +29,15 @@ const TYPES = {
   ".css": "text/css; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
+  ".wasm": "application/wasm",
 };
 
 // Scripts and styles from this origin only; Innby's site too, for the browser-only
-// games, which call it from the page.
+// games, which call it from the page; and WebAssembly, for games written in Rust.
 const policy = [
   "default-src 'self'",
   `connect-src 'self' ${process.env.INNBY_URL || ""}`.trim(),
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "frame-ancestors 'none'",
   "base-uri 'none'",
@@ -48,7 +49,11 @@ async function games() {
   for (const entry of await readdir(root, { withFileTypes: true })) {
     const logicFile = join(root, entry.name, "logic.js");
     if (!entry.isDirectory() || !(await stat(logicFile).catch(() => null))) continue;
-    const logic = await import(logicFile);
+    // A game in Rust needs its .wasm built first: `just games`.
+    const logic = await import(logicFile).catch((error) => {
+      console.warn(`${entry.name}: its rules didn't load, so it's left out: ${error.message}`);
+    });
+    if (!logic) continue;
     const key = process.env[`INNBY_GAME_KEY_${entry.name.toUpperCase().replaceAll("-", "_")}`];
     if (!key) console.warn(`${entry.name}: no INNBY_GAME_KEY, so its scores aren't kept`);
     apis.set(entry.name, gameApi(logic, key ? new Innby(internal, entry.name, key) : null));

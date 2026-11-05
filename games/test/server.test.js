@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { random } from "../lib/random.js";
 import { Rounds } from "../lib/server.js";
+import * as balloon from "../balloon/logic.js";
 import * as snake from "../snake/logic.js";
 import * as tetris from "../tetris/logic.js";
 
@@ -19,7 +20,7 @@ function play(logic, seed) {
   return { state, moves };
 }
 
-for (const logic of [snake, tetris]) {
+for (const logic of [snake, tetris, balloon]) {
   test(`${logic.TICK_MS} ms ticks: the server scores a round as the browser played it`, () => {
     const rounds = new Rounds();
     const { round, seed } = rounds.start(0);

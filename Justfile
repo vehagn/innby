@@ -77,8 +77,9 @@ down:
 # Database tests get a throwaway database each.
 [doc("Run all tests")]
 [group("dev")]
-test: migrate
+test: migrate games
     cargo test --locked
+    for manifest in games/*/Cargo.toml; do cargo test --quiet --locked --manifest-path "$manifest"; done
     node --test games/
 
 [doc("Check formatting, lints, the offline query data and dependencies")]
@@ -86,6 +87,10 @@ test: migrate
 lint:
     cargo fmt --check
     cargo clippy --locked --all-targets -- -D warnings
+    for manifest in games/*/Cargo.toml; do \
+      cargo fmt --check --manifest-path "$manifest" && \
+      cargo clippy --quiet --locked --all-targets --manifest-path "$manifest" -- -D warnings; \
+    done
     cargo sqlx prepare --check -- --all-targets
     cargo deny check
 
@@ -308,7 +313,7 @@ seal:
 
 # Run the site (:8080), the admin UI (:8081), the mailer and the example games (:8082) from this checkout (reads .env)
 [private]
-run: migrate
+run: migrate games
     #!/usr/bin/env bash
     set -euo pipefail
     cargo build --quiet
@@ -322,6 +327,19 @@ run: migrate
     done
     INNBY_URL="${INNBY_BASE_URL:-}" node games/serve.js &
     cargo run --quiet -- serve
+
+# Builds the example games written in Rust (games/*/Cargo.toml) to WebAssembly, beside
+# their pages, where games/serve.js finds them
+[private]
+games:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for manifest in games/*/Cargo.toml; do
+      dir=$(dirname "$manifest")
+      name=$(basename "$dir")
+      cargo build --quiet --locked --release --target wasm32-unknown-unknown --manifest-path "$manifest"
+      cp "{{ target_dir }}/wasm32-unknown-unknown/release/$name.wasm" "$dir/$name.wasm"
+    done
 
 # Apply the migrations to $DATABASE_URL (the query macros check against it at compile time)
 [private]

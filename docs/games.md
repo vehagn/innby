@@ -14,7 +14,8 @@ own, that talks to Innby's scores API. There are two kinds:
   to Innby's internal API with the game's key. The browser never says what it scored.
   [`games/snake/`](../games/snake/) and [`games/tetris/`](../games/tetris/) are two,
   meant to be copied: the browser plays with the game's rules, and the server replays
-  the moves with the same rules to score them.
+  the moves with the same rules to score them. [`games/balloon/`](../games/balloon/) is
+  a third, with its rules in Rust, built to WebAssembly that both run.
 
 [`games/serve.js`](../games/serve.js) serves the examples, with Node.js and no packages,
 and `just up` runs it on :8082.
@@ -160,6 +161,23 @@ Copy `games/snake/` and change three files:
 `games/serve.js` finds a game by its `logic.js` and serves its API; add tests beside
 those in `games/test/`, which `just test` runs with `node --test`. List the game in
 `INNBY_GAMES` with `server:`, and give its server the key.
+
+### Writing one in Rust
+
+[`games/balloon/`](../games/balloon/) has its rules in Rust, built to WebAssembly, which
+the page and the server both run, so the rules are still one thing. Copy it and change:
+
+| File | |
+|---|---|
+| `src/lib.rs` | The rules, in whole numbers, with every random number from the seed. Its own crate and workspace, with tests beside the rules. |
+| `src/wasm.rs` | The rules as plain WebAssembly exports: `start(seed)`, `step(moves)`, `tick`, `score` and `over`, and whatever the page needs to draw. No bindings or generated code. |
+| `logic.js` | Loads the `.wasm` and wraps it in `start` and `step`, as `../lib/replay.js` expects; a round gets an instance of its own. |
+| `page.js`, `index.html` | As for a game in JavaScript. |
+
+`just games` builds every `games/*/Cargo.toml` for `wasm32-unknown-unknown` and puts
+`{id}.wasm` beside its page (it isn't committed); `just up` and `just test` run it first,
+and `just test` and `just lint` cover the crates too. Any language that compiles to
+WebAssembly can do the same.
 
 ### The game's key
 

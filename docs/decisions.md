@@ -80,6 +80,6 @@ main steps, oldest first:
 20. More password users with roles, roles for one event, and a benchmark with a memory
     budget, run on every release, which led to mimalloc.
 21. Remembering a device with a box on the answer, and minigames with high scores, with
-    Snake and Tetris scored by their own server.
+    Snake, Tetris and Balloon (in Rust) scored by their own server.
 
 `git log` has the details.
