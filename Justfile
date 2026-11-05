@@ -81,7 +81,7 @@ down:
 test: migrate games
     cargo test --locked
     for manifest in games/*/Cargo.toml; do cargo test --quiet --locked --manifest-path "$manifest" --target-dir "{{ target_dir }}"; done
-    node --test games/
+    node --test games/test/*.test.js
 
 [doc("Check formatting, lints, the offline query data and dependencies")]
 [group("dev")]

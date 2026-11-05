@@ -151,7 +151,7 @@ agents, but it's the quickest tour for people too. In short:
   own. Mail lands in an inbox the test reads, and single sign-on runs against a fake
   provider. `src/e2e/mod.rs` explains how to add a journey.
 - **The example games' tests**, in `games/test/`, with Node.js's own runner
-  (`node --test games/`): their rules, and their servers' rounds; and those of the games
+  (`node --test games/test/*.test.js`): their rules, and their servers' rounds; and those of the games
   in Rust, beside their rules. `just games` builds those to WebAssembly first.
 
 Router-level helpers: `web::testing::Site` for the public site, `admin::testing::Admin`
