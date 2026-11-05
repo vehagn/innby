@@ -21,6 +21,7 @@ env:
   CARGO_ZIGBUILD_VERSION: 0.24.0
   SQLX_CLI_VERSION: 0.9.0
   OHA_VERSION: 1.16.0
+  NODE_VERSION: 26.13.0
   ZIG_VERSION: 0.16.0
   ZIG_SHA256: 70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
   HELM_VERSION: 4.3.1
@@ -51,6 +52,9 @@ jobs:
       - name: Install the Rust toolchain from rust-toolchain.toml
         run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
       - uses: taiki-e/install-action@v2
         with:
           tool: just@${{ env.JUST_VERSION }},cargo-deny@${{ env.CARGO_DENY_VERSION }}
@@ -59,7 +63,7 @@ jobs:
           cargo install sqlx-cli@"$SQLX_CLI_VERSION" --locked \
             --no-default-features --features rustls,postgres
       # `test` applies the migrations that `lint` checks the offline query data against,
-      # and runs the example games' tests with the runner's Node.js.
+      # and runs the example games' tests with Node.js.
       - run: just test
       - run: just lint
 

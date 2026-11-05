@@ -5,6 +5,9 @@ FROM docker.io/library/rust:1.99.1-trixie
 
 ARG USERNAME=dev
 ARG USER_UID=1000
+ARG NODE_VERSION=26.13.0
+ARG NODE_SHA256_X64=d28a96af6c38596f6d9d97c0ee531c13d238d757742387d1928de822d959e997
+ARG NODE_SHA256_ARM64=406fe3fbde1c054adff8b297c16fdb5af6659db327c1ac8acd46b56ef1af9a92
 ARG ZIG_VERSION=0.16.0
 ARG ZIG_SHA256_X86_64=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
 ARG ZIG_SHA256_AARCH64=ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17
@@ -38,7 +41,7 @@ RUN apt-get update; \
       > /etc/apt/sources.list.d/pgdg.list; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      bash-completion file htop iproute2 jq less locales lsof ncdu neovim nodejs openssh-client \
+      bash-completion file htop iproute2 jq less locales lsof ncdu neovim openssh-client \
       postgresql-client-18 procps psmisc skopeo sudo tree unzip vim xz-utils yamllint zsh; \
     rm -rf /var/lib/apt/lists/*; \
     sed -i 's/^# *\(en_US.UTF-8 UTF-8\)/\1/' /etc/locale.gen; \
@@ -58,6 +61,20 @@ RUN base="https://raw.githubusercontent.com/devcontainers/features/${DEVCONTAINE
 EOF
 RUN cat /usr/local/share/devcontainers/rc_snippet.sh >> /etc/bash.bashrc; \
     cat /usr/local/share/devcontainers/rc_snippet.sh >> /etc/zsh/zshrc
+
+# Node.js LTS from nodejs.org, as CI and the games' image have it, for games/.
+RUN arch="$(dpkg --print-architecture)"; \
+    case "${arch}" in \
+      amd64) node_arch=x64; sha="${NODE_SHA256_X64}" ;; \
+      arm64) node_arch=arm64; sha="${NODE_SHA256_ARM64}" ;; \
+      *) echo "unsupported architecture: ${arch}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/node.tar.xz "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_arch}.tar.xz"; \
+    echo "${sha}  /tmp/node.tar.xz" | sha256sum -c -; \
+    install -d /opt/node; \
+    tar -xJf /tmp/node.tar.xz -C /opt/node --strip-components=1; \
+    ln -s /opt/node/bin/node /usr/local/bin/node; \
+    rm /tmp/node.tar.xz
 
 # Zig is the cross-linker used by cargo-zigbuild.
 RUN arch="$(uname -m)"; \

@@ -372,8 +372,8 @@ build:
 # Node.js, as its own layer. Like Innby's, no Containerfile or build tool: skopeo fetches
 # the base for each architecture, and jq adds the layer to its manifests.
 games_image := env("INNBY_GAMES_IMAGE", image + "-games")
-# nodejs22-debian12:nonroot, by digest.
-games_base := "gcr.io/distroless/nodejs22-debian12@sha256:13593b7570658e8477de39e2f4a1dd25db2f836d68a0ba771251572d23bb4f8e"
+# nodejs26-debian13:nonroot, by digest.
+games_base := "gcr.io/distroless/nodejs26-debian13@sha256:9b945e92c1b5463a4b75f11e8417515e4bea7355f6adfd79ec220fbbe905dda8"
 games_oci_dir := justfile_directory() / "target/oci-games"
 
 # Writes the example games' amd64 and arm64 images as one OCI image index to
