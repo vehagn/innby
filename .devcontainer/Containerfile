@@ -1,6 +1,6 @@
 # Development container for Innby: the Rust toolchain, cross-compilation to static
 # amd64 and arm64 musl binaries, clients for Postgres and Kubernetes, oha for `just
-# bench`, and a zsh with oh-my-zsh. Bump the pinned versions below and rebuild to upgrade.
+# bench`, Node.js for the example games in games/, and a zsh with oh-my-zsh. Bump the pinned versions below and rebuild to upgrade.
 FROM docker.io/library/rust:1.99.1-trixie
 
 ARG USERNAME=dev
@@ -38,7 +38,7 @@ RUN apt-get update; \
       > /etc/apt/sources.list.d/pgdg.list; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      bash-completion file htop iproute2 jq less locales lsof ncdu neovim openssh-client \
+      bash-completion file htop iproute2 jq less locales lsof ncdu neovim nodejs openssh-client \
       postgresql-client-18 procps psmisc skopeo sudo tree unzip vim xz-utils yamllint zsh; \
     rm -rf /var/lib/apt/lists/*; \
     sed -i 's/^# *\(en_US.UTF-8 UTF-8\)/\1/' /etc/locale.gen; \

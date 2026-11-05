@@ -58,7 +58,8 @@ jobs:
         run: |
           cargo install sqlx-cli@"$SQLX_CLI_VERSION" --locked \
             --no-default-features --features rustls,postgres
-      # `test` applies the migrations that `lint` checks the offline query data against.
+      # `test` applies the migrations that `lint` checks the offline query data against,
+      # and runs the example games' tests with the runner's Node.js.
       - run: just test
       - run: just lint
 

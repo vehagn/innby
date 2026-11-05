@@ -1,0 +1,93 @@
+/* The example games' look, kept apart from Innby's: a game is its own site. */
+:root {
+  color-scheme: light dark;
+  --bg: #f6f4ef;
+  --fg: #1d1b16;
+  --muted: #6b665c;
+  --line: #d6d1c4;
+  --accent: #2a7d6f;
+  --board: #1f2a2e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a;
+    --fg: #ece8df;
+    --muted: #9b968b;
+    --line: #34383d;
+    --board: #0b0f11;
+  }
+}
+
+body {
+  margin: 0 auto;
+  max-width: 34rem;
+  padding: 1.5rem 1rem 3rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: 1rem/1.5 system-ui, sans-serif;
+}
+
+h1 {
+  margin: 0 0 0.25rem;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  max-width: 24rem;
+  margin: 1rem auto;
+  border-radius: 0.5rem;
+  background: var(--board);
+  touch-action: none;
+}
+
+.bar {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  align-items: center;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pad {
+  display: grid;
+  grid-template-columns: repeat(3, 4rem);
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.pad button {
+  height: 3.5rem;
+  font-size: 1.4rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+td,
+th {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+tr.you {
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--muted);
+}

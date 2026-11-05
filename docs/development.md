@@ -27,7 +27,7 @@ That builds and runs your checkout:
 |---|---|
 | http://localhost:8080 | the public site |
 | http://localhost:8081 | the admin UI; user `admin`, password `innby` (or `ola`, with a role for two events only) |
-| http://localhost:8082 | the example minigames in `games/`, on an origin of their own |
+| http://localhost:8082 | the example minigames in `games/`, on an origin of their own, with Snake's and Tetris's servers |
 | http://localhost:8025 | Mailpit, the inbox for every mail the site sends |
 
 Ctrl-C stops it. `just dev down`, on your machine, stops the dev container; its database
@@ -139,7 +139,7 @@ agents, but it's the quickest tour for people too. In short:
 
 ## Tests
 
-`just test` runs three kinds:
+`just test` runs four kinds:
 
 - **Unit tests**, in a `tests` module beside the code they test: at the bottom of the
   file, or in a sibling `tests.rs` when they're long (`rsvp.rs`'s are in
@@ -150,6 +150,8 @@ agents, but it's the quickest tour for people too. In short:
   labels, presses buttons by their text, keeps cookies, and has a client address of its
   own. Mail lands in an inbox the test reads, and single sign-on runs against a fake
   provider. `src/e2e/mod.rs` explains how to add a journey.
+- **The example games' tests**, in `games/test/`, with Node.js's own runner
+  (`node --test games/`): their rules, and their servers' rounds.
 
 Router-level helpers: `web::testing::Site` for the public site, `admin::testing::Admin`
 for a logged-in host of any role, or by name with none (`as_user`), with `event()`,

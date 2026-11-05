@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- Snake, an example of a game with a server of its own: the page plays with logic.js,
+     and the server replays the moves with the same file to work out the score. See
+     docs/games.md. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Snake</title>
+  <link rel="stylesheet" href="../lib/style.css">
+  <script type="module" src="page.js"></script>
+</head>
+<body>
+  <h1>Snake</h1>
+  <p class="muted">Eat the apples; don't hit the walls or yourself. Arrow keys or WASD, or the buttons.</p>
+  <div class="bar">
+    <strong>Score: <span id="score">0</span></strong>
+    <button id="start">Play</button>
+  </div>
+  <canvas id="board" width="400" height="400"></canvas>
+  <div class="pad">
+    <span></span><button data-move="up" aria-label="Up">▲</button><span></span>
+    <button data-move="left" aria-label="Left">◀</button>
+    <button data-move="down" aria-label="Down">▼</button>
+    <button data-move="right" aria-label="Right">▶</button>
+  </div>
+  <p id="result" aria-live="polite"></p>
+  <h2>High scores</h2>
+  <p id="note" class="muted"></p>
+  <table><tbody id="scores"></tbody></table>
+</body>
+</html>

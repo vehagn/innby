@@ -1,0 +1,36 @@
+<!doctype html>
+<!-- Tetris, an example of a game with a server of its own: the page plays with
+     logic.js, and the server replays the moves with the same file to work out the
+     score. See docs/games.md. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Tetris</title>
+  <link rel="stylesheet" href="../lib/style.css">
+  <script type="module" src="page.js"></script>
+</head>
+<body>
+  <h1>Tetris</h1>
+  <p class="muted">Fill whole rows to clear them. ← → to move, ↑ to turn, ↓ to drop faster, space to drop, or the buttons.</p>
+  <div class="bar">
+    <strong>Score: <span id="score">0</span></strong>
+    <span class="muted">Level <span id="level">1</span> · <span id="lines">0</span> rows</span>
+    <button id="start">Play</button>
+  </div>
+  <canvas id="board" width="250" height="500"></canvas>
+  <div class="pad">
+    <button data-move="left" aria-label="Left">◀</button>
+    <button data-move="rotate" aria-label="Turn">⟳</button>
+    <button data-move="right" aria-label="Right">▶</button>
+    <span></span>
+    <button data-move="down" aria-label="Down">▼</button>
+    <button data-move="drop" aria-label="Drop">⤓</button>
+  </div>
+  <p id="result" aria-live="polite"></p>
+  <h2>High scores</h2>
+  <p id="note" class="muted"></p>
+  <table><tbody id="scores"></tbody></table>
+</body>
+</html>

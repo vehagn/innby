@@ -16,7 +16,7 @@ Run these in the dev container (`just dev` on the host opens a shell in it).
 
 | Command | Does |
 |---|---|
-| `just test` | All tests, against the dev database |
+| `just test` | All tests, against the dev database, and the games' with `node --test` |
 | `just lint` | rustfmt, clippy with `-D warnings`, the `.sqlx/` query data, cargo-deny |
 | `just chart` | Lints and renders the Helm chart, checks it with kubeconform |
 | `just db prepare` | Regenerates `.sqlx/` after a query changes (commit it) |
@@ -46,7 +46,8 @@ src/
     email.rs         the optional e-mail address: consent, double opt-in, "I lost my link"
     remember.rs      "remember me on this device": one cookie per event
     pages.rs         front page, privacy notice, message pages
-    games.rs         minigames: the guest page's high scores, and the scores API /api/
+    games.rs         minigames: the guest page's high scores, the scores API /api/, and
+                     the internal API for games' servers on its own port
     views.rs         what personal and group pages show alike (event, guest list, choices)
   admin/             the host's UI; mod.rs has the router, grouped by the role each page needs;
                      a module per tab or page, its handlers named list, show, create, edit, revoke, delete
@@ -87,7 +88,9 @@ static/style.css     the one stylesheet: tokens first, then base, layout, compon
 migrations/          the schema, applied by `innby migrate`: 0001_schema.sql, and those after it;
                      seed/sample.sql is sample data for dev
 bench/               `just bench`: run.sh, and data.sql, an event of 1500 guests
-games/               example minigames, served on an origin of their own (docs/games.md)
+games/               example minigames on an origin of their own (docs/games.md): reaction/
+                     in the browser; snake/ and tetris/ with a server that replays the
+                     moves to score them; lib/ what they share; serve.js serves them
 charts/innby/        the Helm chart; deploy/ is one homelab's install of it
 docs/                the guides for people, and ropa.md, the GDPR record of processing
 ```

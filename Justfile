@@ -79,6 +79,7 @@ down:
 [group("dev")]
 test: migrate
     cargo test --locked
+    node --test games/
 
 [doc("Check formatting, lints, the offline query data and dependencies")]
 [group("dev")]
@@ -314,8 +315,12 @@ run: migrate
     trap 'kill 0' EXIT
     cargo run --quiet -- admin &
     cargo run --quiet -- mailer &
-    # The example games, on an origin of their own, as docs/games.md says they must be.
-    python3 -m http.server --bind 0.0.0.0 --directory games 8082 >/dev/null 2>&1 &
+    # The example games, on an origin of their own, as docs/games.md says they must be,
+    # each game with a server given its key.
+    for game in $(tr ';' '\n' <<< "${INNBY_GAMES:-}" | grep ':server:' | cut -d: -f1 | tr -d ' '); do
+      export "INNBY_GAME_KEY_$(tr 'a-z-' 'A-Z_' <<< "$game")=$(cargo run --quiet -- game-key "$game")"
+    done
+    INNBY_URL="${INNBY_BASE_URL:-}" node games/serve.js &
     cargo run --quiet -- serve
 
 # Apply the migrations to $DATABASE_URL (the query macros check against it at compile time)
