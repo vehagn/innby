@@ -169,6 +169,9 @@ responses.
   shell, no CA bundle, no tzdata, all of which are compiled in. They're pushed to
   `ghcr.io/vehagn/innby` as one multi-arch image, tagged `sha-<commit>`, `latest` from
   `main`, and the version for a release.
+- **The example games' image:** CI also builds `ghcr.io/vehagn/innby-games` with the
+  same tags (`just games-image`): `games/` on Google's distroless Node.js, for the
+  chart's `games`.
 - **Releasing:** `just release 0.3.0` bumps the version in `Cargo.toml` and the chart,
   makes a signed tag and pushes it. CI then publishes the image as `:v0.3.0` and the
   chart as `oci://ghcr.io/vehagn/charts/innby` version `0.3.0`.

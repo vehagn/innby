@@ -173,6 +173,17 @@ jobs:
           skopeo inspect --raw "docker://ghcr.io/${GITHUB_REPOSITORY,,}:$TAG" \
             | jq -e '.mediaType == "application/vnd.oci.image.index.v1+json"
                      and ([.manifests[].platform.architecture] | sort) == ["amd64", "arm64"]'
+      # The example games, for the chart's `games`, tagged as Innby's image is.
+      - name: Build and push the example games' image
+        env:
+          TAG: ${{ steps.build.outputs.tag }}
+        run: |
+          export INNBY_GAMES_IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}-games"
+          just games-image "$TAG"
+          also=()
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then also+=(latest); fi
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then also+=("$GITHUB_REF_NAME"); fi
+          just push-games "$TAG" "${also[@]}"
       - name: Keep the amd64 binary for the benchmark
         if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4

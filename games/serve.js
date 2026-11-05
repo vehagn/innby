@@ -69,6 +69,11 @@ createServer(async (request, response) => {
   response.setHeader("X-Content-Type-Options", "nosniff");
   try {
     const path = new URL(request.url, "http://game").pathname;
+    // For the kubelet's probes.
+    if (path === "/healthz") {
+      response.writeHead(200, { "Content-Type": "text/plain" }).end("ok");
+      return;
+    }
     const [, game, rest] = path.match(/^\/([a-z0-9-]+)\/(.*)$/) ?? [];
     if (game && rest.startsWith("api/")) {
       const api = apis.get(game);
