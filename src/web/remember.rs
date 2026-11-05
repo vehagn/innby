@@ -1,7 +1,8 @@
 //! "Remember me on this device": a guest can ask the browser to keep their link in a
 //! cookie, so the front page leads them back to their page. There's one cookie per event,
 //! set only when the guest asks for it, so a device can remember invitations to several
-//! events. A cookie authorises nothing: every change still needs the link in the address,
+//! events. They ask with a box on their answer, unticked until they tick it (a box
+//! ticked for them wouldn't be asking), or once answers close, with a button. A cookie authorises nothing: every change still needs the link in the address,
 //! so it can at most show the way.
 
 use axum::{
@@ -79,7 +80,24 @@ pub(super) fn forget_cookie(https: bool, event: Uuid) -> HeaderValue {
     cookie::set(&name(https, event), "", "/", 0, https)
 }
 
-/// Remembers the guest's link on this device until their data is deleted.
+/// The cookie an answer sets, as its box says: remembering the guest when it's ticked,
+/// and forgetting them when it isn't on a device that remembers them.
+pub(super) fn as_answered(
+    https: bool,
+    headers: &HeaderMap,
+    guest: &Guest,
+    ticked: bool,
+) -> Option<HeaderValue> {
+    if ticked {
+        tracing::info!(rsvp = %guest.rsvp.id, "device remembered");
+        Some(remember_cookie(https, guest))
+    } else {
+        remembers(headers, https, guest).then(|| forget_cookie(https, guest.event.id))
+    }
+}
+
+/// Remembers the guest's link on this device until their data is deleted, once answers
+/// have closed and there's no answer to tick the box on.
 pub async fn remember(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
     let cookie = remember_cookie(state.config.is_https(), &guest);
     tracing::info!(rsvp = %guest.rsvp.id, "device remembered");

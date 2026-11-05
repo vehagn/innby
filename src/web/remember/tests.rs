@@ -100,9 +100,12 @@ async fn the_front_page_leads_back_to_each_remembered_invitation(db: PgPool) {
     // Without cookies, the front page is the same for everyone.
     assert!(!body(site.get("/?lang=en").await).await.contains(&welcome));
 
-    // The guest's page knows, and offers to forget.
+    // The guest's page knows: the box to be remembered is ticked.
     let html = body(site.send(get(&format!("/r/{link}?lang=en"), &cookie)).await).await;
-    assert!(html.contains(&escape(&en().remembered_text)));
+    assert!(
+        html.contains(r#"name="remember" value="yes" checked>"#),
+        "{html}"
+    );
     let response = site.post(&format!("/r/{link}/forget?lang=en"), "").await;
     assert_eq!(
         location(&response),
@@ -130,6 +133,52 @@ async fn the_front_page_leads_back_to_each_remembered_invitation(db: PgPool) {
     );
     let html = body(response).await;
     assert!(!html.contains("Christmas party") && html.contains("Sommerfest"));
+}
+
+#[sqlx::test]
+async fn the_answer_remembers_the_device_only_when_its_box_is_ticked(db: PgPool) {
+    let site = Site::new(db);
+    let (_, link) = site.invite("Kari", 1).await;
+    let party = site.event().await;
+    let cookie = format!("__Host-innby-{}={link}", party.id.simple());
+    let page = format!("/r/{link}?lang=en");
+    let checkbox = r#"<input type="checkbox" name="remember" value="yes""#;
+    let answer = |form: &str, cookie: &str| {
+        let request = form_post(&format!("/r/{link}?lang=en"), form, "same-origin");
+        site.send(with_cookie(request, cookie))
+    };
+
+    // Unticked until the guest ticks it: a box ticked for them wouldn't be asking.
+    let html = body(site.get(&page).await).await;
+    assert!(html.contains(&format!("{checkbox}>")), "{html}");
+    assert!(!html.contains("/remember?"), "{html}");
+    let response = answer("response=attending&party_size=1", "").await;
+    assert_eq!(location(&response), format!("{page}&notice=saved"));
+    assert!(set_cookies(&response).is_empty());
+
+    // Ticked, the answer remembers the device, and the box shows it.
+    let response = answer("response=attending&party_size=1&remember=yes", "").await;
+    let [set] = set_cookies(&response)[..] else {
+        panic!("one cookie")
+    };
+    assert!(
+        set.starts_with(&format!("{cookie}; Path=/; Max-Age=")),
+        "{set}"
+    );
+    let html = body(site.send(get(&page, &cookie)).await).await;
+    assert!(html.contains(&format!("{checkbox} checked>")), "{html}");
+
+    // Unticked again, it forgets it.
+    let response = answer("response=declined&party_size=1", &cookie).await;
+    assert!(set_cookies(&response)[0].contains("Max-Age=0"));
+
+    // Once answers close there's no answer to tick it on, so the button stays.
+    site.close_answers().await;
+    let html = body(site.get(&page).await).await;
+    assert!(
+        !html.contains(checkbox) && html.contains("/remember?"),
+        "{html}"
+    );
 }
 
 #[sqlx::test]

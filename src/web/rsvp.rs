@@ -21,7 +21,7 @@ use crate::{
         event::Event,
         rsvp::{self, NameDisplay, Rsvp},
     },
-    http::{render, render_with, server_error},
+    http::{cookie, render, render_with, server_error},
     i18n::{Lang, Messages},
     link::{IdLink, Purpose},
     paths::{self, GuestLinks},
@@ -280,15 +280,24 @@ pub struct AnswerForm {
     response: Answer,
     party_size: i32,
     name_display: Option<NameDisplay>,
+    /// Ticked to have this device remember the guest; see `remember`.
+    remember: Option<String>,
 }
 
 pub async fn answer(
     State(state): State<AppState>,
     lang: Lang,
     guest: Guest,
+    headers: HeaderMap,
     Form(form): Form<AnswerForm>,
 ) -> Response {
-    let page = || RsvpPage::new(lang, &guest);
+    let https = state.config.is_https();
+    // Shown again to fix, with the box as this device has it.
+    let page = || {
+        let mut page = RsvpPage::new(lang, &guest);
+        page.remembered = remember::remembers(&headers, https, &guest);
+        page
+    };
     if !guest.event.details.accepts_answers(Utc::now()) {
         return page().render_error(StatusCode::FORBIDDEN, |t| &t.answers_closed);
     }
@@ -314,7 +323,11 @@ pub async fn answer(
     {
         Ok(Some(_)) => {
             tracing::info!(rsvp = %id, ?response, "rsvp answered");
-            redirect(&guest.link, lang, Notice::Saved)
+            let saved = redirect(&guest.link, lang, Notice::Saved);
+            match remember::as_answered(https, &headers, &guest, form.remember.is_some()) {
+                Some(cookie) => cookie::with(saved, cookie),
+                None => saved,
+            }
         }
         // Deleted in the meantime.
         Ok(None) => gone(lang),

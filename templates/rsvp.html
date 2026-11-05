@@ -35,6 +35,8 @@
     <input type="hidden" name="party_size" value="1">
     {% endif %}
     {% include "_name_display.html" %}
+    <label class="checkbox"><input type="checkbox" name="remember" value="yes"{% if remembered %} checked{% endif %}> {{ t.remember_device }}</label>
+    <p class="hint">{{ t.remember_hint }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
     <div class="buttons">
       <button name="response" value="attending">{{ t.attend }}</button>
       <button name="response" value="declined" class="secondary">{{ t.decline }}</button>
@@ -46,6 +48,7 @@
   <p class="hint">{{ t.keep_link }}</p>
 </section>
 
+{% if !accepts_answers %}
 <section class="remember">
   {% if remembered %}
   <form method="post" action="{{ links.forget }}">
@@ -59,6 +62,7 @@
   </form>
   {% endif %}
 </section>
+{% endif %}
 
 <p><a class="button secondary" href="{{ links.guests }}" rel="nofollow">{{ t.see_guest_list }}</a></p>
 

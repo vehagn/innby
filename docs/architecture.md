@@ -184,12 +184,15 @@ comes by mail, and later any reminders the host sends.
 ## The front page and remembered devices
 
 `/` is about Innby, not any one event: event details show only on link pages. If a guest
-asks a device to remember them, the browser keeps their link in one cookie per event
+asks a device to remember them, by ticking the box above the answer buttons (unticked
+until they do, since a box ticked for them wouldn't be asking; once answers close, a
+button does it), the browser keeps their link in one cookie per event
 (`__Host-innby-{event}` over HTTPS; `HttpOnly`, `SameSite=Lax`, expiring when the
 event's data is deleted). The front page then lists each remembered invitation, the
 soonest event first, with a button back. The cookie gives no access by itself: pages
 still read the link from the URL. A link that stops working is dropped from the cookie
-the next time the front page sees it, and *Forget this device* drops it on demand. The
+the next time the front page sees it, and answering with the box unticked or *Forget
+this device* drops it on demand. The
 front page reads ten such cookies at most, and looks them all up in one query. These are the public
 site's only cookies; language and colour scheme travel in `?lang=` and
 `?theme=`.

@@ -138,10 +138,9 @@ async fn a_remembered_device_finds_the_way_back(db: PgPool) {
     let link = world.invite("Kari Nordmann", 1).await;
     let mut phone = world.browser();
     phone.open(&link).await;
-    phone
-        .press(&t.remember_device)
-        .await
-        .expect(&t.remembered_notice);
+    // She ticks the box as she answers.
+    phone.check(&t.remember_device);
+    phone.press(&t.attend).await.expect(&t.saved);
 
     // Later, the front page greets Kari and leads back to her page.
     phone

@@ -87,10 +87,8 @@ async fn one_device_remembers_invitations_to_two_events(db: PgPool) {
     let mut phone = world.browser();
     for link in [&christmas, &summer] {
         phone.open(link).await;
-        phone
-            .press(&t.remember_device)
-            .await
-            .expect(&t.remembered_notice);
+        phone.check(&t.remember_device);
+        phone.press(&t.attend).await.expect(&t.saved);
     }
     assert_eq!(phone.cookie_names().len(), 2);
 
@@ -253,7 +251,8 @@ async fn each_event_goes_a_month_after_it_starts(db: PgPool) {
     let mut phone = world.browser();
     for link in [&christmas, &summer] {
         phone.open(link).await;
-        phone.press(&t.remember_device).await;
+        phone.check(&t.remember_device);
+        phone.press(&t.attend).await;
     }
 
     // A month after Christmas, the janitor takes the Christmas party and everything in
