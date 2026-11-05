@@ -32,6 +32,10 @@ data:
   INNBY_MAIL_FROM: {{ required "mailer.from: the sender, e.g. \"Innby <fest@example.com>\"" .Values.mailer.from | quote }}
   INNBY_SMTP_URL: {{ required "mailer.smtpUrl: e.g. smtp://smtp.example.com:587?tls=required" .Values.mailer.smtpUrl | quote }}
   {{- end }}
+  {{- if .Values.games.enabled }}
+  INNBY_GAMES_URL: {{ include "innby.gamesUrl" . | quote }}
+  INNBY_GAMES: {{ required "games.list: the games guests are offered" .Values.games.list | quote }}
+  {{- end }}
   {{- range $name, $value := .Values.extraConfig }}
   {{ $name }}: {{ $value | toString | quote }}
   {{- end }}

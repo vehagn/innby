@@ -1,0 +1,88 @@
+{{- if .Values.games.enabled }}
+{{- $ctx := dict "root" . "component" "games" }}
+{{- $url := include "innby.gamesUrl" . }}
+{{- $keys := .Values.games.keys }}
+# The example games (docs/games.md): their pages, and the servers of those that work
+# their scores out, which send them to the site's internal port.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "innby.component" $ctx }}
+  labels:
+    {{- include "innby.labels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ .Values.games.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "innby.labels" $ctx | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/keys: {{ toJson $keys | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "innby.podSpec" . | nindent 6 }}
+      containers:
+        - name: games
+          image: {{ include "innby.gamesImage" . }}
+          imagePullPolicy: {{ .Values.games.image.pullPolicy }}
+          env:
+            - { name: PORT, value: "8082" }
+            - { name: INNBY_URL, value: {{ include "innby.siteUrl" . | quote }} }
+            - name: INNBY_INTERNAL_URL
+              value: {{ printf "http://%s:8083" (include "innby.component" (dict "root" . "component" "internal")) | quote }}
+          {{- if or $keys.existingSecret $keys.values }}
+          envFrom:
+            - secretRef:
+                name: {{ include "innby.gamesKeysSecret" . }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8082
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.games.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "innby.component" $ctx }}
+  labels:
+    {{- include "innby.labels" $ctx | nindent 4 }}
+spec:
+  type: {{ .Values.games.service.type }}
+  selector:
+    {{- include "innby.selectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.games.service.port }}
+      targetPort: http
+{{- if and $keys.values (not $keys.existingSecret) }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "innby.gamesKeysSecret" . }}
+  labels:
+    {{- include "innby.labels" $ctx | nindent 4 }}
+type: Opaque
+stringData:
+  {{- range $game, $key := $keys.values }}
+  INNBY_GAME_KEY_{{ $game | replace "-" "_" | upper }}: {{ $key | quote }}
+  {{- end }}
+{{- end }}
+{{- end }}

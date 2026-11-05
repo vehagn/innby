@@ -67,15 +67,47 @@ trustForwarded: false
 extraConfig: {}
 #  INNBY_TRUST_FORWARDED: "true"
 
-# Minigames whose own servers send their scores (`server:` in INNBY_GAMES, see
-# docs/games.md) reach the site's internal port, 8083, through the {release}-internal
-# Service. The network policies let only pods with podLabels in, from this namespace.
-# List the games themselves in extraConfig (INNBY_GAMES_URL, INNBY_GAMES).
+# Minigames on the guests' pages (docs/games.md). With enabled, the chart runs the example
+# games' image, Reaction, Snake, Tetris and Balloon, on a hostname of its own, and lists
+# them for Innby. Or run games of your own, list them in extraConfig (INNBY_GAMES_URL,
+# INNBY_GAMES), and open the internal port to their servers with internal below.
 games:
+  enabled: false
+  # Where guests reach the games: a hostname of its own, never the site's, e.g.
+  # https://games.example.com. The routes and Ingresses above serve it too.
+  url: ""
+  # INNBY_GAMES: the games guests are offered, the image's by default. Hosts turn them
+  # on per event in the admin UI.
+  list: "reaction:time:Reaction; snake:points:server:Snake; tetris:points:server:Tetris; balloon:points:server:Balloon"
+  image:
+    repository: ghcr.io/vehagn/innby-games
+    # Defaults to Innby's image's tag.
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  # Rounds are kept in the server's memory, so one replica.
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 80
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { memory: 128Mi }
+  # Each game server's key, from `innby game-key {id}`, as INNBY_GAME_KEY_{ID}: a Secret
+  # you made, or the keys here, by game, which go into one the chart makes. A game
+  # without its key plays, but keeps no scores.
+  keys:
+    existingSecret: ""
+    values: {}
+    #  snake: …
+  # The site's internal port, 8083, for games' servers to send scores to, through the
+  # {release}-internal Service. On with enabled, for the games' pods; for servers of
+  # your own, turn it on and name their pods' labels, which alone the network policies
+  # let in, from this namespace.
   internal:
     enabled: false
     podLabels: {}
-    #  app.kubernetes.io/name: innby-games
+    #  app.kubernetes.io/name: my-games
 
 web:
   replicaCount: 2

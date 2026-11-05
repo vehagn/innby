@@ -149,6 +149,8 @@ chart:
     fails --set ciliumNetworkPolicy.enabled=true --set ciliumNetworkPolicy.cnpg.enabled=true
     fails --set database.cnpg.cluster=innby-postgres --set database.existingSecret=db
     fails --set games.internal.enabled=true --set networkPolicy.enabled=true
+    fails --set games.enabled=true
+    fails --set games.enabled=true --set games.url=https://fest.example.com/games
     fails --set games.internal.enabled=true --set ciliumNetworkPolicy.enabled=true \
       --set ciliumNetworkPolicy.ingressFromEntities[0]=ingress
     echo "The chart refuses the settings that can't work."

@@ -121,21 +121,39 @@ Register `{admin.url}/login/oidc/callback` with the provider.
 
 ## Minigames
 
-To offer minigames on events, serve them on an origin of their own, not the site's, and
-list them in `extraConfig`:
+The example games, Reaction, Snake, Tetris and Balloon, come as an image of their own,
+`ghcr.io/vehagn/innby-games`, tagged as Innby's is. To offer them on a hostname of their
+own, never the site's:
 
 ```yaml
-extraConfig:
-  INNBY_GAMES_URL: https://games.example.com
-  INNBY_GAMES: "reaction:time:Reaction; quiz:points:Quick quiz"
+games:
+  enabled: true
+  url: https://games.example.com
+  keys:
+    existingSecret: innby-games-keys
 ```
 
-Guests' browsers call the site's `/api/games/…` from that origin; no network policy
-changes, since Innby never calls the games. A game with a server of its own
-(`server:` in `INNBY_GAMES`) sends its scores to the site's internal port instead:
-`games.internal.enabled` opens it, behind the `{release}-internal` Service, and the
-network policies let in only pods with `games.internal.podLabels`.
-[docs/games.md](../../docs/games.md) has the details, and what a game must do.
+The chart then runs them (`{release}-games`), routes `games.url` to them with the site's
+routes or Ingresses, lists them for Innby, and opens the site's internal port, 8083, to
+their pods alone: they send the scores of the games that work them out there, through the
+`{release}-internal` Service. Each such game needs its key, from `innby game-key {id}`,
+which proves the game's server to Innby, so keep them in a Secret:
+
+```sh
+kubectl create secret generic innby-games-keys \
+  --from-literal=INNBY_GAME_KEY_SNAKE="$(innby game-key snake)" \
+  --from-literal=INNBY_GAME_KEY_TETRIS="$(innby game-key tetris)" \
+  --from-literal=INNBY_GAME_KEY_BALLOON="$(innby game-key balloon)"
+```
+
+or give them as `games.keys.values` (`snake: …`), which go into one the chart makes. Hosts
+turn games on per event in the admin UI.
+
+For games of your own, serve them on their own origin, list them in `extraConfig`
+(`INNBY_GAMES_URL`, `INNBY_GAMES`), and for any with a server, set
+`games.internal.enabled` and the labels of its pods in `games.internal.podLabels`, which
+alone the network policies let in. [docs/games.md](../../docs/games.md) has the details,
+and what a game must do.
 
 ## Network policies
 

@@ -32,6 +32,7 @@ networkPolicy:
   databasePeers: [{ podSelector: { matchLabels: { cnpg.io/cluster: innby-postgres } } }]
 image: { digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000" }
 games:
-  internal:
-    enabled: true
-    podLabels: { app.kubernetes.io/name: innby-games }
+  enabled: true
+  url: https://games.example.com
+  keys:
+    values: { snake: c25ha2Uta2V5, tetris: dGV0cmlzLWtleQ, balloon: YmFsbG9vbi1rZXk }

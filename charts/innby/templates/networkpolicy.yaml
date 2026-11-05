@@ -1,7 +1,4 @@
 {{- if .Values.networkPolicy.enabled }}
-{{- if and .Values.games.internal.enabled (not .Values.games.internal.podLabels) }}
-{{- fail "games.internal.podLabels: name the labels of the games' servers' pods, which alone may send scores" }}
-{{- end }}
 {{- $policy := .Values.networkPolicy }}
 {{- $web := dict "root" . "component" "web" }}
 apiVersion: networking.k8s.io/v1
@@ -22,12 +19,12 @@ spec:
       {{- end }}
       ports:
         - { port: 8080, protocol: TCP }
-    {{- if .Values.games.internal.enabled }}
+    {{- if include "innby.gamesInternal" . }}
     # Games' servers, sending scores.
     - from:
         - podSelector:
             matchLabels:
-              {{- .Values.games.internal.podLabels | toYaml | nindent 14 }}
+              {{- include "innby.gamesPodLabels" . | nindent 14 }}
       ports:
         - { port: 8083, protocol: TCP }
     {{- end }}
@@ -96,4 +93,37 @@ spec:
   policyTypes: [Ingress, Egress]
   egress:
     {{- include "innby.egressBasics" . | nindent 4 }}
+{{- if .Values.games.enabled }}
+{{- $games := dict "root" . "component" "games" }}
+---
+# The games: guests reach their pages, and they reach only the site's internal port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "innby.component" $games }}
+  labels:
+    {{- include "innby.labels" $games | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $games | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - {{- with $policy.ingressFrom }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      ports:
+        - { port: 8082, protocol: TCP }
+  egress:
+    - ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "innby.selectorLabels" (dict "root" . "component" "web") | nindent 14 }}
+      ports:
+        - { port: 8083, protocol: TCP }
+{{- end }}
 {{- end }}

@@ -18,12 +18,9 @@ spec:
       {{- include "innby.selectorLabels" $web | nindent 6 }}
   ingress:
     {{- include "innby.ciliumIngress" (dict "entities" $policy.ingressFromEntities "endpoints" $policy.ingressFromEndpoints "port" 8080) | nindent 4 }}
-    {{- if .Values.games.internal.enabled }}
+    {{- if include "innby.gamesInternal" . }}
     # Games' servers, sending scores.
-    {{- if not .Values.games.internal.podLabels }}
-    {{- fail "games.internal.podLabels: name the labels of the games' servers' pods, which alone may send scores" }}
-    {{- end }}
-    {{- $games := list (dict "matchLabels" .Values.games.internal.podLabels) }}
+    {{- $games := list (dict "matchLabels" (include "innby.gamesPodLabels" . | fromYaml)) }}
     {{- include "innby.ciliumIngress" (dict "endpoints" $games "port" 8083) | nindent 4 }}
     {{- end }}
   egress:
@@ -96,4 +93,32 @@ spec:
   ingress: [{}]
   egress:
     {{- include "innby.ciliumEgressBasics" . | nindent 4 }}
+{{- if .Values.games.enabled }}
+{{- $games := dict "root" . "component" "games" }}
+---
+# The games: guests reach their pages, and they reach only the site's internal port.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "innby.component" $games }}
+  labels:
+    {{- include "innby.labels" $games | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "innby.selectorLabels" $games | nindent 6 }}
+  ingress:
+    {{- include "innby.ciliumIngress" (dict "entities" $policy.ingressFromEntities "endpoints" $policy.ingressFromEndpoints "port" 8082) | nindent 4 }}
+  egress:
+    - toEndpoints:
+        {{- toYaml $policy.dnsEndpoints | nindent 8 }}
+      toPorts:
+        - ports: [{ port: "53", protocol: ANY }]
+          rules: { dns: [{ matchPattern: "*" }] }
+    - toEndpoints:
+        - matchLabels:
+            {{- include "innby.selectorLabels" (dict "root" . "component" "web") | nindent 12 }}
+      toPorts:
+        - ports: [{ port: "8083", protocol: TCP }]
+{{- end }}
 {{- end }}

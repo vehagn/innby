@@ -204,23 +204,34 @@ sending a score for such a game to the public API gets a 403.
 
 ### In Kubernetes
 
-Run the games' server in the release's namespace, with labels of its own, and tell the
-chart:
+The examples come as an image, `ghcr.io/vehagn/innby-games`, which CI builds with each of
+Innby's (`just games-image` writes it locally): `games/`, with the Rust games built, on
+Google's distroless Node.js, as one layer more. The chart runs it with `games.enabled`,
+on its own hostname (`games.url`), with each game's key from a Secret:
+
+```sh
+kubectl create secret generic innby-games-keys \
+  --from-literal=INNBY_GAME_KEY_SNAKE="$(innby game-key snake)" \
+  --from-literal=INNBY_GAME_KEY_TETRIS="$(innby game-key tetris)" \
+  --from-literal=INNBY_GAME_KEY_BALLOON="$(innby game-key balloon)"
+```
 
 ```yaml
 games:
-  internal:
-    enabled: true
-    podLabels: { app.kubernetes.io/name: innby-games }
-extraConfig:
-  INNBY_GAMES_URL: https://games.example.com
-  INNBY_GAMES: "snake:points:server:Snake; tetris:points:server:Tetris"
+  enabled: true
+  url: https://games.example.com
+  keys:
+    existingSecret: innby-games-keys
 ```
 
-The site's pods then open 8083 behind the `{release}-internal` Service, and the chart's
-network policies, plain or Cilium, let only pods with those labels in. The games' server
-reaches Innby at `http://{release}-internal:8083` (`INNBY_INTERNAL_URL`), and its own
-hostname, `games.example.com`, is a route of its own to it, so it serves the pages too.
+The site's pods then open 8083 behind the `{release}-internal` Service, the chart's
+network policies, plain or Cilium, let only the games' pods in, and the games reach
+nothing else. The games reach Innby at `http://{release}-internal:8083`
+(`INNBY_INTERNAL_URL`), and rounds live in their server's memory, so it runs one replica.
+
+For a games server of your own, run it in the release's namespace with labels of its
+own, list its games in `extraConfig`, and set `games.internal.enabled` with those labels
+in `games.internal.podLabels`.
 
 ## How Innby keeps scores
 

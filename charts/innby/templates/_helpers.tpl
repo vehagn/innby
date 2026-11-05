@@ -223,3 +223,46 @@ securityContext:
   toPorts:
     - ports: [{ port: {{ .port | quote }}, protocol: TCP }]
 {{- end }}
+
+{{/* Whether the site opens its internal port for games' servers. */}}
+{{- define "innby.gamesInternal" -}}
+{{- if or .Values.games.enabled .Values.games.internal.enabled }}true{{ end }}
+{{- end }}
+
+{{/* The labels of the pods that may send scores: the chart's games', or those named. */}}
+{{- define "innby.gamesPodLabels" -}}
+{{- $labels := .Values.games.internal.podLabels }}
+{{- if and (not $labels) .Values.games.enabled }}
+{{- $labels = include "innby.selectorLabels" (dict "root" . "component" "games") | fromYaml }}
+{{- end }}
+{{- if not $labels }}
+{{- fail "games.internal.podLabels: name the labels of the games' servers' pods, which alone may send scores" }}
+{{- end }}
+{{- toYaml $labels }}
+{{- end }}
+
+{{/* Where guests reach the games: an origin of its own, never the site's. */}}
+{{- define "innby.gamesUrl" -}}
+{{- $url := required "games.url: where guests reach the games, a hostname of its own, e.g. https://games.example.com" .Values.games.url }}
+{{- if not (regexMatch "^https?://[^/?#]+(/[^?#]*)?$" $url) }}
+{{- fail (printf "games.url: expected e.g. https://games.example.com, got %q" $url) }}
+{{- end }}
+{{- if eq (urlParse $url).host (urlParse (include "innby.siteUrl" .)).host }}
+{{- fail "games.url: the games need a hostname of their own; on the site's, a game could read guests' links" }}
+{{- end }}
+{{- trimSuffix "/" $url }}
+{{- end }}
+
+{{- define "innby.gamesImage" -}}
+{{- $image := .Values.games.image }}
+{{- if $image.digest }}
+{{- printf "%s@%s" $image.repository $image.digest }}
+{{- else }}
+{{- printf "%s:%s" $image.repository (default (default (printf "v%s" .Chart.AppVersion) .Values.image.tag) $image.tag) }}
+{{- end }}
+{{- end }}
+
+{{/* The Secret with the games' keys. */}}
+{{- define "innby.gamesKeysSecret" -}}
+{{- default (include "innby.component" (dict "root" . "component" "games")) .Values.games.keys.existingSecret }}
+{{- end }}

@@ -34,7 +34,7 @@ spec:
           ports:
             - name: http
               containerPort: 8080
-            {{- if .Values.games.internal.enabled }}
+            {{- if include "innby.gamesInternal" . }}
             # Scores from games' servers; see games.internal.
             - name: internal
               containerPort: 8083
@@ -62,7 +62,7 @@ spec:
     - name: http
       port: {{ .Values.web.service.port }}
       targetPort: http
-{{- if .Values.games.internal.enabled }}
+{{- if include "innby.gamesInternal" . }}
 {{- $internal := dict "root" . "component" "internal" }}
 ---
 # The internal API, for games' servers in the cluster. No route leads here.
