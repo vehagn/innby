@@ -85,6 +85,20 @@
         "resources": { "$ref": "#/definitions/resources" }
       }
     },
+    "games": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "internal": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "podLabels": { "type": "object", "additionalProperties": { "type": "string" } }
+          }
+        }
+      }
+    },
     "admin": {
       "type": "object",
       "additionalProperties": false,

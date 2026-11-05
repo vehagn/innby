@@ -1,6 +1,7 @@
 //! The minigames a host can offer on an event's page: `INNBY_GAMES`, each game's id,
-//! whether it scores points or time, and its name; and `INNBY_GAMES_URL`, the origin
-//! they're served from, under `/{id}/`. See docs/games.md.
+//! whether it scores points or time, whether its own server sends the scores, and its
+//! name; and `INNBY_GAMES_URL`, the origin they're served from, under `/{id}/`. See
+//! docs/games.md.
 //!
 //! The games are JavaScript, so they live on an origin of their own: on the site's,
 //! a game could read a guest's pages, and their link with them.
@@ -48,6 +49,10 @@ pub struct Game {
     /// Its path under `INNBY_GAMES_URL`, and how events and scores name it.
     pub id: String,
     pub kind: ScoreKind,
+    /// Whether the game's own server sends its scores, through the internal API with
+    /// the game's key, having worked them out itself. Browsers can't send them then,
+    /// so a score can't be made up with a request.
+    pub server: bool,
     /// As the pages show it, in every language.
     pub name: String,
 }
@@ -87,7 +92,8 @@ impl Games {
 
 impl<F: Fn(&str) -> Option<String>> Env<F> {
     /// `INNBY_GAMES`: `id:points|time:Name` each, apart by lines or `;`, as in
-    /// `pinball:points:Pinball; quiz:time:Quick quiz`. Needs `INNBY_GAMES_URL`, on an
+    /// `pinball:points:Pinball; quiz:time:Quick quiz`, with `server:` before the name
+    /// for a game whose server sends the scores: `snake:points:server:Snake`. Needs `INNBY_GAMES_URL`, on an
     /// origin other than the site's.
     pub(super) fn games(&self, base_url: &str) -> Result<Games> {
         let Some(list) = self.optional("INNBY_GAMES") else {
@@ -133,8 +139,12 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
 
 fn parse_game(entry: &str) -> Result<Game> {
     let mut fields = entry.splitn(3, ':').map(str::trim);
-    let (Some(id), Some(kind), Some(name)) = (fields.next(), fields.next(), fields.next()) else {
+    let (Some(id), Some(kind), Some(rest)) = (fields.next(), fields.next(), fields.next()) else {
         bail!("expected id:points|time:Name, as pinball:points:Pinball, got {entry:?}");
+    };
+    let (server, name) = match rest.split_once(':') {
+        Some(("server", name)) => (true, name.trim()),
+        _ => (false, rest),
     };
     ensure!(
         (1..=MAX_ID_LEN).contains(&id.len())
@@ -155,6 +165,7 @@ fn parse_game(entry: &str) -> Result<Game> {
     Ok(Game {
         id: id.to_owned(),
         kind,
+        server,
         name: name.to_owned(),
     })
 }
@@ -186,6 +197,7 @@ mod tests {
         assert_eq!(found.origin(), Some("https://games.example.com"));
         assert_eq!(found.list.len(), 2);
         let quiz = found.find("quiz").unwrap();
+        assert!(!quiz.server);
         assert_eq!(
             (quiz.kind, quiz.name.as_str()),
             (ScoreKind::Time, "Quick quiz: round 1")
@@ -201,6 +213,22 @@ mod tests {
         ])
         .unwrap();
         assert_eq!(under.origin(), Some("https://example.org"));
+    }
+
+    #[test]
+    fn a_game_can_have_its_server_send_the_scores() {
+        let found = games(&[
+            ("INNBY_GAMES_URL", "https://games.example.com"),
+            (
+                "INNBY_GAMES",
+                "snake:points:server:Snake; quiz:time:server: the quiz",
+            ),
+        ])
+        .unwrap();
+        let snake = found.find("snake").unwrap();
+        assert!(snake.server && snake.name == "Snake");
+        let quiz = found.find("quiz").unwrap();
+        assert!(quiz.server && quiz.name == "the quiz");
     }
 
     #[test]

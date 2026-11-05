@@ -67,6 +67,16 @@ trustForwarded: false
 extraConfig: {}
 #  INNBY_TRUST_FORWARDED: "true"
 
+# Minigames whose own servers send their scores (`server:` in INNBY_GAMES, see
+# docs/games.md) reach the site's internal port, 8083, through the {release}-internal
+# Service. The network policies let only pods with podLabels in, from this namespace.
+# List the games themselves in extraConfig (INNBY_GAMES_URL, INNBY_GAMES).
+games:
+  internal:
+    enabled: false
+    podLabels: {}
+    #  app.kubernetes.io/name: innby-games
+
 web:
   replicaCount: 2
   service:

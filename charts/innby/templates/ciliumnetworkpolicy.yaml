@@ -18,6 +18,14 @@ spec:
       {{- include "innby.selectorLabels" $web | nindent 6 }}
   ingress:
     {{- include "innby.ciliumIngress" (dict "entities" $policy.ingressFromEntities "endpoints" $policy.ingressFromEndpoints "port" 8080) | nindent 4 }}
+    {{- if .Values.games.internal.enabled }}
+    # Games' servers, sending scores.
+    {{- if not .Values.games.internal.podLabels }}
+    {{- fail "games.internal.podLabels: name the labels of the games' servers' pods, which alone may send scores" }}
+    {{- end }}
+    {{- $games := list (dict "matchLabels" .Values.games.internal.podLabels) }}
+    {{- include "innby.ciliumIngress" (dict "endpoints" $games "port" 8083) | nindent 4 }}
+    {{- end }}
   egress:
     {{- include "innby.ciliumEgressBasics" . | nindent 4 }}
 {{- if .Values.admin.enabled }}

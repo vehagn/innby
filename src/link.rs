@@ -97,6 +97,26 @@ impl LinkKey {
             .is_ok()
     }
 
+    /// The key a game's server proves itself with on the internal scores API. It's
+    /// derived from this key and the game's id, so there's no other secret to keep:
+    /// `innby game-key {id}` prints it for the game's server.
+    pub fn game_key(&self, game: &str) -> String {
+        URL_SAFE_NO_PAD.encode(
+            self.mac("game key", &[game.as_bytes()])
+                .finalize()
+                .into_bytes(),
+        )
+    }
+
+    /// Checks a game's key in constant time.
+    pub fn verify_game_key(&self, game: &str, key: &str) -> bool {
+        URL_SAFE_NO_PAD.decode(key.trim()).is_ok_and(|key| {
+            self.mac("game key", &[game.as_bytes()])
+                .verify_slice(&key)
+                .is_ok()
+        })
+    }
+
     fn score_mac(&self, id: Uuid, nonce: i32, game: &str) -> Hmac<Sha256> {
         self.mac(
             "score",
@@ -242,6 +262,18 @@ pub mod tests {
         assert!(!key().verify(Purpose::Rsvp, &token, 0));
         let rsvp: IdLink = key().link(Purpose::Rsvp, id(), 0).parse().unwrap();
         assert!(!key().verify_score(&rsvp, 0, "quiz"));
+    }
+
+    #[test]
+    fn each_game_has_a_key_of_its_own() {
+        let snake = key().game_key("snake");
+        assert_eq!(snake.len(), 43);
+        assert!(key().verify_game_key("snake", &snake));
+        assert!(!key().verify_game_key("tetris", &snake));
+        assert!(!key().verify_game_key("snake", &snake[..42]));
+        assert!(!key().verify_game_key("snake", "not base64!"));
+        let other = LinkKey::from_base64("YW5vdGhlci1rZXktb2YtYXQtbGVhc3QtMzItYnl0ZXM=").unwrap();
+        assert!(!other.verify_game_key("snake", &snake));
     }
 
     #[test]

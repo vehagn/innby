@@ -74,6 +74,11 @@ enum Command {
     },
     /// Hash a password read from stdin, for INNBY_ADMIN_PASSWORD_HASH or INNBY_ADMIN_USERS.
     HashPassword,
+    /// Print the key a game's server sends its scores with (see docs/games.md).
+    GameKey {
+        /// The game's id in INNBY_GAMES, e.g. "snake".
+        game: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -153,6 +158,15 @@ async fn run() -> anyhow::Result<()> {
                     println!("{}", admin::cli::import_event(&db, &text).await?);
                 }
             }
+            Ok(())
+        }
+        Command::GameKey { game } => {
+            let config = Config::from_env()?;
+            anyhow::ensure!(
+                config.games.find(&game).is_some_and(|game| game.server),
+                "INNBY_GAMES has no game {game:?} with server: before its name"
+            );
+            println!("{}", config.link_key.game_key(&game));
             Ok(())
         }
         Command::HashPassword => {

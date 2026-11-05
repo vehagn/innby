@@ -74,12 +74,28 @@ impl FromRequestParts<AppState> for ClientIp {
     }
 }
 
+/// Serves the site, and the internal API for games' servers on a port of its own when a
+/// game has a server.
 pub async fn serve(config: Config, db: PgPool) -> anyhow::Result<()> {
-    let address = config.listen;
-    http::listen(address, router(config, db)).await
+    let (address, internal_address) = (config.listen, config.internal_listen);
+    match routers(config, db) {
+        (site, None) => http::listen(address, site).await,
+        (site, Some(internal)) => tokio::try_join!(
+            http::listen(address, site),
+            http::listen(internal_address, internal)
+        )
+        .map(drop),
+    }
 }
 
+/// The site alone, for tests that don't need the internal API.
+#[cfg(test)]
 pub(crate) fn router(config: Config, db: PgPool) -> Router {
+    routers(config, db).0
+}
+
+/// The site, and the internal API when a game has a server of its own.
+pub(crate) fn routers(config: Config, db: PgPool) -> (Router, Option<Router>) {
     let https = config.is_https();
     let state = AppState {
         config: Arc::new(config),
@@ -93,6 +109,9 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         score_limiter: Arc::new(RateLimiter::new(600, HOUR)),
     };
     let api = games::router(&state);
+    // Not on any route: only the games' servers reach it, inside the cluster.
+    let internal = games::internal_router(&state)
+        .map(|internal| http::harden(internal.with_state(state.clone()), false));
     let links = Router::new()
         .route(paths::JOIN, get(join::show).post(join::join))
         .route(paths::JOIN_GUESTS, get(join::guests))
@@ -125,7 +144,7 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         .fallback(pages::not_found)
         .layer(middleware::from_fn(crate::theme::scope))
         .with_state(state);
-    http::harden(router, https)
+    (http::harden(router, https), internal)
 }
 
 #[cfg(test)]

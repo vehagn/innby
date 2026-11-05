@@ -6,13 +6,25 @@
 //! server. The token saves and reads only that guest's scores in that game, and stops
 //! working with their link. A game opened any other way plays without saving.
 //!
+//! The public API, which the game's page calls from the guest's browser:
+//!
 //! - `GET /api/games/{game}/scores`: the event's high score table and the guest's best.
 //! - `POST /api/games/{game}/scores` with `{"score": 1234}`: keeps it if it's their
-//!   best, and answers with the table.
+//!   best, and answers with the table. Not for a game whose server sends its scores.
 //!
 //! Both take the token as `Authorization: Bearer {token}`, and only the games' origin
 //! may call them (CORS). The token is what authorises a call, so the site's CSRF check,
 //! which turns away other origins, leaves these paths to it.
+//!
+//! A score from the guest's browser is whatever the browser says. A game with a server
+//! of its own (`server:` in `INNBY_GAMES`) can work the score out there instead, say by
+//! replaying the guest's moves, and send it on the internal API, on a port of its own
+//! that only the games' servers can reach (`INNBY_INTERNAL_LISTEN`):
+//!
+//! - `GET /internal/games/{game}/scores` and `POST` with `{"score": 1234}`, as above,
+//!   with the game's key as `Authorization: Bearer {key}` and the guest's score token
+//!   as `Innby-Token: {token}`. The key (`innby game-key {game}`) proves which game is
+//!   speaking, and the token which guest it's for.
 
 use axum::{
     Json, Router,
@@ -128,6 +140,25 @@ pub(super) fn router(state: &AppState) -> Option<Router<AppState>> {
     )
 }
 
+/// The internal API, for the games' servers, when a game has one.
+pub(super) fn internal_router(state: &AppState) -> Option<Router<AppState>> {
+    state
+        .config
+        .games
+        .list
+        .iter()
+        .any(|game| game.server)
+        .then(|| {
+            Router::new().route(
+                paths::INTERNAL_GAME_SCORES,
+                get(internal_table).post(internal_record),
+            )
+        })
+}
+
+/// The header a game's server sends the guest's score token in.
+const TOKEN_HEADER: &str = "innby-token";
+
 /// What the API answers with.
 #[derive(Serialize)]
 pub struct Table {
@@ -150,6 +181,10 @@ struct Player {
 enum Refusal {
     NoGame,
     Unauthorised,
+    /// A game's server without the game's key.
+    NotTheGame,
+    /// A score from a browser for a game whose server sends them.
+    FromServer,
     BadScore,
     TooMany,
     Database(sqlx::Error),
@@ -161,6 +196,12 @@ impl IntoResponse for Refusal {
             Self::NoGame => (StatusCode::NOT_FOUND, "no such game").into_response(),
             Self::Unauthorised => {
                 (StatusCode::UNAUTHORIZED, "a valid score token is needed").into_response()
+            }
+            Self::NotTheGame => {
+                (StatusCode::UNAUTHORIZED, "the game's key is needed").into_response()
+            }
+            Self::FromServer => {
+                (StatusCode::FORBIDDEN, "this game's server sends its scores").into_response()
             }
             Self::BadScore => (
                 StatusCode::UNPROCESSABLE_ENTITY,
@@ -179,17 +220,21 @@ impl From<sqlx::Error> for Refusal {
     }
 }
 
-async fn player(state: &AppState, game: &str, headers: &HeaderMap) -> Result<Player, Refusal> {
-    let game = state
-        .config
-        .games
-        .find(game)
-        .ok_or(Refusal::NoGame)?
-        .clone();
-    let token: IdLink = headers
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
+fn game(state: &AppState, id: &str) -> Result<Game, Refusal> {
+    state.config.games.find(id).cloned().ok_or(Refusal::NoGame)
+}
+
+fn header<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+    headers.get(name).and_then(|value| value.to_str().ok())
+}
+
+fn bearer(headers: &HeaderMap) -> Option<&str> {
+    header(headers, header::AUTHORIZATION.as_str())?.strip_prefix("Bearer ")
+}
+
+/// The guest whose score token this is, for this game.
+async fn player(state: &AppState, game: Game, token: Option<&str>) -> Result<Player, Refusal> {
+    let token: IdLink = token
         .and_then(|token| token.trim().parse().ok())
         .ok_or(Refusal::Unauthorised)?;
     let rsvp = rsvp::find(&state.db, token.id)
@@ -202,6 +247,19 @@ async fn player(state: &AppState, game: &str, headers: &HeaderMap) -> Result<Pla
         })
         .ok_or(Refusal::Unauthorised)?;
     Ok(Player { rsvp, game })
+}
+
+/// A game's server, with the game's key, and the guest it's sending for.
+async fn server_player(state: &AppState, id: &str, headers: &HeaderMap) -> Result<Player, Refusal> {
+    let game = game(state, id)
+        .ok()
+        .filter(|game| game.server)
+        .ok_or(Refusal::NoGame)?;
+    let key = bearer(headers).ok_or(Refusal::NotTheGame)?;
+    if !state.config.link_key.verify_game_key(&game.id, key) {
+        return Err(Refusal::NotTheGame);
+    }
+    player(state, game, header(headers, TOKEN_HEADER)).await
 }
 
 async fn answer(state: &AppState, lang: Lang, player: Player) -> Result<Json<Table>, Refusal> {
@@ -220,48 +278,31 @@ async fn answer(state: &AppState, lang: Lang, player: Player) -> Result<Json<Tab
     }))
 }
 
-/// The event's high score table for the game, if the event offers it.
-async fn table(
-    State(state): State<AppState>,
-    lang: Lang,
-    Path(game): Path<String>,
-    headers: HeaderMap,
-) -> Result<Json<Table>, Refusal> {
-    let player = player(&state, &game, &headers).await?;
+/// The table, if the guest's event offers the game.
+async fn show(state: &AppState, lang: Lang, player: Player) -> Result<Json<Table>, Refusal> {
     let offered = games::offered(&state.db, player.rsvp.event_id).await?;
     if !offered.contains(&player.game.id) {
         return Err(Refusal::NoGame);
     }
-    answer(&state, lang, player).await
+    answer(state, lang, player).await
 }
 
-#[derive(Deserialize)]
-struct ScoreForm {
-    score: i64,
-}
-
-/// Keeps a score if it's the guest's best, and answers with the table.
-async fn record(
-    State(state): State<AppState>,
+/// Keeps the score if it's the guest's best, and answers with the table.
+async fn keep(
+    state: &AppState,
     lang: Lang,
-    client: ClientIp,
-    Path(game): Path<String>,
-    headers: HeaderMap,
-    Json(form): Json<ScoreForm>,
+    player: Player,
+    score: i64,
 ) -> Result<Json<Table>, Refusal> {
-    if !state.score_limiter.check(client) {
-        return Err(Refusal::TooMany);
-    }
-    if !(0..=MAX_SCORE).contains(&form.score) {
+    if !(0..=MAX_SCORE).contains(&score) {
         return Err(Refusal::BadScore);
     }
-    let player = player(&state, &game, &headers).await?;
     let higher_wins = player.game.kind.higher_wins();
     if !games::record(
         &state.db,
         player.rsvp.id,
         &player.game.id,
-        form.score,
+        score,
         higher_wins,
     )
     .await?
@@ -269,7 +310,66 @@ async fn record(
         return Err(Refusal::NoGame);
     }
     tracing::info!(rsvp = %player.rsvp.id, game = player.game.id, "score sent");
-    answer(&state, lang, player).await
+    answer(state, lang, player).await
+}
+
+#[derive(Deserialize)]
+struct ScoreForm {
+    score: i64,
+}
+
+/// The event's high score table for the game, for the guest's browser.
+async fn table(
+    State(state): State<AppState>,
+    lang: Lang,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<Table>, Refusal> {
+    let player = player(&state, game(&state, &id)?, bearer(&headers)).await?;
+    show(&state, lang, player).await
+}
+
+/// A score from the guest's browser.
+async fn record(
+    State(state): State<AppState>,
+    lang: Lang,
+    client: ClientIp,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    Json(form): Json<ScoreForm>,
+) -> Result<Json<Table>, Refusal> {
+    if !state.score_limiter.check(client) {
+        return Err(Refusal::TooMany);
+    }
+    let game = game(&state, &id)?;
+    if game.server {
+        return Err(Refusal::FromServer);
+    }
+    let player = player(&state, game, bearer(&headers)).await?;
+    keep(&state, lang, player, form.score).await
+}
+
+/// The table, for a game's server.
+async fn internal_table(
+    State(state): State<AppState>,
+    lang: Lang,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<Table>, Refusal> {
+    let player = server_player(&state, &id, &headers).await?;
+    show(&state, lang, player).await
+}
+
+/// A score the game's server worked out.
+async fn internal_record(
+    State(state): State<AppState>,
+    lang: Lang,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    Json(form): Json<ScoreForm>,
+) -> Result<Json<Table>, Refusal> {
+    let player = server_player(&state, &id, &headers).await?;
+    keep(&state, lang, player, form.score).await
 }
 
 #[cfg(test)]

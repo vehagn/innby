@@ -15,3 +15,7 @@ ciliumNetworkPolicy:
   admin:
     ingressFromEndpoints: [{ matchLabels: { k8s:io.kubernetes.pod.namespace: gateway } }]
   databaseEndpoints: [{ matchLabels: { cnpg.io/cluster: innby-postgres } }]
+games:
+  internal:
+    enabled: true
+    podLabels: { app.kubernetes.io/name: innby-games }

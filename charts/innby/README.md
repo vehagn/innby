@@ -131,8 +131,11 @@ extraConfig:
 ```
 
 Guests' browsers call the site's `/api/games/…` from that origin; no network policy
-changes, since Innby never calls the games. [docs/games.md](../../docs/games.md) has the
-details, and what a game must do.
+changes, since Innby never calls the games. A game with a server of its own
+(`server:` in `INNBY_GAMES`) sends its scores to the site's internal port instead:
+`games.internal.enabled` opens it, behind the `{release}-internal` Service, and the
+network policies let in only pods with `games.internal.podLabels`.
+[docs/games.md](../../docs/games.md) has the details, and what a game must do.
 
 ## Network policies
 

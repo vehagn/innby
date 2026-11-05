@@ -230,3 +230,74 @@ async fn the_guests_page_links_each_game_with_its_token(db: PgPool) {
     assert_eq!(export["scores"][0]["game"], "quiz");
     assert_eq!(export["scores"][0]["score"], 4560);
 }
+
+#[sqlx::test]
+async fn a_game_with_a_server_takes_scores_only_from_it(db: PgPool) {
+    let site = Site::with(
+        db,
+        &[
+            ("INNBY_GAMES_URL", "https://games.example.com"),
+            (
+                "INNBY_GAMES",
+                "snake:points:server:Snake; quiz:time:Quick quiz",
+            ),
+        ],
+    );
+    let (kari, _) = site.invite("Kari Nordmann", 1).await;
+    let party = site.event().await;
+    games::offer(&site.db, party.id, &["snake".into(), "quiz".into()])
+        .await
+        .unwrap();
+    let key = &site.config.link_key;
+    let token = key.score_token(kari.id, kari.link_nonce, "snake");
+    let uri = "/api/games/snake/scores";
+
+    // The guest's browser can read the table, but not send a score.
+    let response = site.send(call("POST", uri, &token, Some(500))).await;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let table = json(site.send(call("GET", uri, &token, None)).await).await;
+    assert_eq!(table["scores"], json!([]));
+
+    // The game's server, with the game's key and the guest's token.
+    let internal = |game: &str, game_key: &str, score: Option<i64>| {
+        let request = Request::builder()
+            .method(if score.is_some() { "POST" } else { "GET" })
+            .uri(format!("/internal/games/{game}/scores?lang=en"))
+            .header(header::AUTHORIZATION, format!("Bearer {game_key}"))
+            .header("innby-token", token.as_str())
+            .header(header::CONTENT_TYPE, "application/json");
+        let body = score.map_or_else(Body::empty, |score| {
+            Body::from(json!({ "score": score }).to_string())
+        });
+        site.send_internal(request.body(body).unwrap())
+    };
+    let snake_key = key.game_key("snake");
+    let response = internal("snake", &snake_key, Some(500)).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(json(response).await["yours"], 500);
+    let table = json(internal("snake", &snake_key, None).await).await;
+    assert_eq!(table["scores"][0]["name"], "Kari N.");
+
+    // Without the key, or with another game's, nothing.
+    for wrong in ["", "nonsense", &key.game_key("quiz")] {
+        let response = internal("snake", wrong, Some(900)).await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{wrong}");
+    }
+    // A game the browser scores has no server to speak for it.
+    let response = internal("quiz", &key.game_key("quiz"), Some(900)).await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    // And the internal API isn't on the site.
+    let response = site
+        .send(call(
+            "GET",
+            "/internal/games/snake/scores",
+            &snake_key,
+            None,
+        ))
+        .await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        games::of_guest(&site.db, kari.id).await.unwrap()[0].score,
+        500
+    );
+}

@@ -42,6 +42,9 @@ pub struct Config {
     pub controller: Controller,
     /// The minigames events can offer, if any.
     pub games: Games,
+    /// Where `innby serve` takes scores from games' servers, when a game has one: a
+    /// port inside the cluster, not on any route.
+    pub internal_listen: SocketAddr,
 }
 
 impl Config {
@@ -112,6 +115,7 @@ impl Config {
         let games = env.games(&base_url)?;
         Ok(Self {
             games,
+            internal_listen: env.socket_address("INNBY_INTERNAL_LISTEN", "0.0.0.0:8083")?,
             listen,
             base_url,
             link_key,

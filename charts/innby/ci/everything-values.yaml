@@ -31,3 +31,7 @@ networkPolicy:
   ingressFrom: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: gateway } } }]
   databasePeers: [{ podSelector: { matchLabels: { cnpg.io/cluster: innby-postgres } } }]
 image: { digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000" }
+games:
+  internal:
+    enabled: true
+    podLabels: { app.kubernetes.io/name: innby-games }

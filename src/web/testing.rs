@@ -22,6 +22,8 @@ pub struct Site {
     pub db: PgPool,
     pub config: Config,
     router: Router,
+    /// The internal API, when a game has a server.
+    internal: Option<Router>,
 }
 
 impl Site {
@@ -32,8 +34,10 @@ impl Site {
     /// The site with these settings on top of the tests' own.
     pub fn with(db: PgPool, settings: &[(&str, &str)]) -> Self {
         let config = parse(settings).unwrap();
+        let (router, internal) = super::routers(config.clone(), db.clone());
         Self {
-            router: super::router(config.clone(), db.clone()),
+            router,
+            internal,
             db,
             config,
         }
@@ -71,6 +75,12 @@ impl Site {
 
     pub async fn send(&self, request: Request<Body>) -> Response {
         self.router.clone().oneshot(request).await.unwrap()
+    }
+
+    /// A request to the internal API, as a game's server sends it.
+    pub async fn send_internal(&self, request: Request<Body>) -> Response {
+        let internal = self.internal.clone().expect("a game with a server");
+        internal.oneshot(request).await.unwrap()
     }
 
     pub async fn get(&self, uri: &str) -> Response {

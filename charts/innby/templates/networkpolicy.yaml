@@ -1,4 +1,7 @@
 {{- if .Values.networkPolicy.enabled }}
+{{- if and .Values.games.internal.enabled (not .Values.games.internal.podLabels) }}
+{{- fail "games.internal.podLabels: name the labels of the games' servers' pods, which alone may send scores" }}
+{{- end }}
 {{- $policy := .Values.networkPolicy }}
 {{- $web := dict "root" . "component" "web" }}
 apiVersion: networking.k8s.io/v1
@@ -19,6 +22,15 @@ spec:
       {{- end }}
       ports:
         - { port: 8080, protocol: TCP }
+    {{- if .Values.games.internal.enabled }}
+    # Games' servers, sending scores.
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- .Values.games.internal.podLabels | toYaml | nindent 14 }}
+      ports:
+        - { port: 8083, protocol: TCP }
+    {{- end }}
   egress:
     {{- include "innby.egressBasics" . | nindent 4 }}
 {{- if .Values.admin.enabled }}

@@ -36,7 +36,7 @@ set -a
 . ./.env.example
 set +a
 export DATABASE_URL=$db INNBY_BASE_URL=$site INNBY_LISTEN=127.0.0.1:9080 \
-  INNBY_ADMIN_LISTEN=127.0.0.1:9081 RUST_LOG=info
+  INNBY_ADMIN_LISTEN=127.0.0.1:9081 INNBY_INTERNAL_LISTEN=127.0.0.1:9083 RUST_LOG=info
 # Logging is part of the cost of a request, so it's on, but not kept.
 "$binary" serve 2>/dev/null & serve=$!
 "$binary" admin 2>/dev/null & admin_pid=$!
