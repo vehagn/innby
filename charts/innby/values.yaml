@@ -131,7 +131,9 @@ admin:
     port: 80
   resources:
     requests: { cpu: 10m, memory: 16Mi }
-    limits: { memory: 64Mi }
+    # A login's argon2 check takes 19 MiB on its own, and the biggest pages
+    # some more: `just bench` checks the peak stays 8 MiB under this.
+    limits: { memory: 96Mi }
 
 # Single sign-on to the admin UI through an OpenID Connect provider, such as Authelia.
 # Register {admin.url}/login/oidc/callback with it. Hosts' roles (admin, editor, viewer)

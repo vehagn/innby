@@ -78,9 +78,11 @@ fifteen times what Innby is made for. [`oha`](https://github.com/hatoo/oha) send
 page requests for 10 seconds (`BENCH_DURATION`): 32 at once on the site, where a link
 shared in a big chat can send a crowd (`BENCH_CONCURRENCY`), and 4 on the admin UI, which
 a few hosts use (`BENCH_ADMIN_CONCURRENCY`). It fails if a page answers anything but
-what it should, or if `innby serve` or `innby admin` ever holds more than 56 MiB
-(`BENCH_MEMORY_BUDGET_MIB`), the chart's 64 MiB limit less some room; the peak includes
-a login's 19 MiB password check. Speed is reported, not checked, since it depends on the machine. The table is in
+what it should, or if a process ever holds more than its budget, the chart's memory
+limit for it less 8 MiB: 56 MiB for `innby serve` (`BENCH_SERVE_BUDGET_MIB`) and 88 MiB
+for `innby admin` (`BENCH_ADMIN_BUDGET_MIB`), whose peak includes a login's 19 MiB
+password check. The table shows each process's peak after every page, so a jump points
+at its page. Speed is reported, not checked, since it depends on the machine. The table is in
 `target/bench/results.md`; `just bench path/to/innby` benchmarks another binary.
 
 ## Find your way in the code
