@@ -52,7 +52,7 @@ log_in() {
     $admin/login | sed -n 's/^set-cookie: \(token=[^;]*\).*/\1/ip' | head -1
 }
 host=$(log_in admin)
-ola=$(log_in ola)
+helper=$(log_in helper)
 link=$(DATABASE_URL=$db "$binary" invite --event $wedding 'Bench Gjest' 2 2>/dev/null \
   | grep -o '/r/[^ ]*' | head -1)
 guest=$(psql "$db" -tAc "select id from rsvp where name = 'Bench Gjest'")
@@ -96,7 +96,7 @@ page 'Site: answering'                          303 -m POST "${form[@]}" \
   -d 'response=attending&party_size=2' $site$link
 page 'Admin: events (54)'                       200 -H "Cookie: $host" $admin/
 page 'Admin: Guests tab (1500 guests)'          200 -H "Cookie: $host" $admin/events/$wedding
-page 'Admin: Guests tab, with a role for it'    200 -H "Cookie: $ola" $admin/events/$wedding
+page 'Admin: Guests tab, with a role for it'    200 -H "Cookie: $helper" $admin/events/$wedding
 page 'Admin: invitation links (1000)'           200 -H "Cookie: $host" $admin/events/$wedding/invitations
 page 'Admin: group links'                       200 -H "Cookie: $host" $admin/events/$wedding/groups
 page 'Admin: guests CSV (1500 guests)'          200 -H "Cookie: $host" $admin/events/$wedding/guests.csv

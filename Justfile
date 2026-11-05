@@ -323,6 +323,11 @@ run: migrate games
       name=${setting%%=*}
       [[ -n "${!name+set}" ]] || export "$setting"
     done < <(env -i bash -c 'set -a; . ./.env.example; env -0')
+    # A database with no events gets the sample, and with it the event the helper user
+    # in .env.example may see.
+    if [[ "$(psql "$DATABASE_URL" -tAc 'select count(*) from event')" == 0 ]]; then
+      just db seed
+    fi
     cargo build --quiet
     trap 'kill 0' EXIT
     cargo run --quiet -- admin &

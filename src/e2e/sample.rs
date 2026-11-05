@@ -58,11 +58,15 @@ async fn the_sample_shows_on_the_pages(db: PgPool) {
         .await
         .expect(&t.answers_closed);
 
-    // Ola, a user in .env.example with no role of their own, helps run Sommerfest.
+    // helper, a user in .env.example with no role of their own, may see who's coming to
+    // Julebord, and no other event gives anyone a role.
     host.click(&format!("‹ {}", a.all_events)).await;
-    host.click("Summer party").await;
+    host.click("Christmas party").await;
     host.click(&a.access)
         .await
-        .expect("ola")
-        .expect(&a.role_editor);
+        .expect("helper")
+        .expect(&a.role_viewer);
+    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click("Summer party").await;
+    host.click(&a.access).await.expect(&a.no_access);
 }

@@ -1,7 +1,7 @@
 -- What `just bench` loads on top of seed/sample.sql: an event fifteen times the size
 -- Innby is made for, "Bryllup", with 1000 invitations (a third with a confirmed address,
 -- answers in every state) and 10 group links of 50 sign-ups each; 50 more events, for
--- the list of events; and ola, the user in .env.example with no role of their own, as
+-- the list of events; and helper, a user in .env.example with no role of their own, as
 -- an editor of the wedding.
 insert into event (id, title, description, location, starts_at, rsvp_deadline)
 values ('00000000-be4c-7000-8000-000000000001',
@@ -37,4 +37,4 @@ select jsonb_build_object('nb', 'Fest ' || i), now() + make_interval(days => i)
 from generate_series(1, 50) i;
 
 insert into event_access (event_id, user_name, role)
-values ('00000000-be4c-7000-8000-000000000001', 'ola', 'editor');
+values ('00000000-be4c-7000-8000-000000000001', 'helper', 'editor');

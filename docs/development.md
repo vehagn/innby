@@ -26,7 +26,7 @@ That builds and runs your checkout:
 | | |
 |---|---|
 | http://localhost:8080 | the public site |
-| http://localhost:8081 | the admin UI; user `admin`, password `innby` (or `ola`, with a role for two events only) |
+| http://localhost:8081 | the admin UI; user `admin`, password `innby`, or `editor`, `viewer`, `nobody` (no role) or `helper` (a viewer of the Christmas party only), with the same password |
 | http://localhost:8082 | the example minigames in `games/`, on an origin of their own, with Snake's and Tetris's servers |
 | http://localhost:8025 | Mailpit, the inbox for every mail the site sends |
 

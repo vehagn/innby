@@ -369,6 +369,35 @@ mod tests {
     }
 
     #[test]
+    fn the_dev_users_in_env_example_are_as_it_says() {
+        let example = include_str!("../../.env.example");
+        let users = example
+            .lines()
+            .find_map(|line| line.strip_prefix("INNBY_ADMIN_USERS="))
+            .expect("INNBY_ADMIN_USERS in .env.example")
+            .trim_matches('\'');
+        let local = parse(&[("INNBY_BASE_URL", "http://localhost:8080")]).unwrap();
+        let admin = admin_users(users, &local).unwrap();
+        let found: Vec<_> = admin
+            .users
+            .iter()
+            .map(|login| (login.user.as_str(), login.role))
+            .collect();
+        assert_eq!(
+            found,
+            [
+                ("editor", Some(Role::Editor)),
+                ("viewer", Some(Role::Viewer)),
+                ("nobody", None),
+                ("helper", None),
+            ]
+        );
+        for login in &admin.users {
+            assert!(auth::verify(&login.password_hash, EXAMPLE_ADMIN_PASSWORD));
+        }
+    }
+
+    #[test]
     fn admin_refuses_the_example_secrets_on_a_public_site() {
         let local = parse(&[("INNBY_BASE_URL", "http://localhost:8080")]).unwrap();
         let hash = crate::admin::auth::tests::cheap_hash(EXAMPLE_ADMIN_PASSWORD);

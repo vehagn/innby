@@ -12,8 +12,8 @@
 --   Bursdag      ten days ago, so answers are closed; the janitor deletes it 30 days
 --                after it started.
 --
--- Julebord offers the example minigames, with some scores. Ola, a user in .env.example
--- with no role of their own, helps run Sommerfest and may see who's coming to Julebord.
+-- Julebord offers the example minigames, with some scores. helper, a user in .env.example
+-- with no role of their own, may see who's coming to Julebord, and nothing else.
 --
 -- The ids are fixed, so loading it again replaces the sample (and nothing else) and
 -- every guest keeps the same link. Links are signed from the ids with the
@@ -142,8 +142,7 @@ insert into rsvp (
 
 -- Roles for one event, by the name the host logs in with.
 insert into event_access (event_id, user_name, role) values
-    ('00000000-5eed-7000-8000-000000000001', 'ola', 'viewer'),
-    ('00000000-5eed-7000-8000-000000000002', 'ola', 'editor');
+    ('00000000-5eed-7000-8000-000000000001', 'helper', 'viewer');
 
 -- Julebord offers the example games in games/, which .env.example lists, and some of
 -- its guests have played Reaction: time in milliseconds, the least wins.
