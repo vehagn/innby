@@ -7,7 +7,8 @@ Postgres 18, with no JavaScript and server-rendered HTML.
 Read as needed: [docs/architecture.md](docs/architecture.md) (how it works),
 [docs/development.md](docs/development.md) (how to add a page, text, query, setting or
 test), [docs/translating.md](docs/translating.md), [docs/decisions.md](docs/decisions.md)
-(why), and the chart's [README](charts/innby/README.md).
+(why), [docs/games.md](docs/games.md) (minigames and their API), and the chart's
+[README](charts/innby/README.md).
 
 ## Commands
 
@@ -21,7 +22,7 @@ Run these in the dev container (`just dev` on the host opens a shell in it).
 | `just db prepare` | Regenerates `.sqlx/` after a query changes (commit it) |
 | `just db reset` | Rebuilds the dev database from `migrations/` |
 | `just db seed` | Loads the sample data in `seed/sample.sql` (`just db fresh`: reset, then seed) |
-| `just up` | Serves this checkout: site on :8080, admin on :8081 (`admin`/`innby`), Mailpit on :8025 |
+| `just up` | Serves this checkout: site on :8080, admin on :8081 (`admin`/`innby`), example games on :8082, Mailpit on :8025 |
 | `just bench` | Benchmarks a release build under load, with a memory budget (`bench/run.sh`) |
 
 `just test`, `just lint` and `just chart` are what CI runs; all three must pass. CI also
@@ -45,6 +46,7 @@ src/
     email.rs         the optional e-mail address: consent, double opt-in, "I lost my link"
     remember.rs      "remember me on this device": one cookie per event
     pages.rs         front page, privacy notice, message pages
+    games.rs         minigames: the guest page's high scores, and the scores API /api/
     views.rs         what personal and group pages show alike (event, guest list, choices)
   admin/             the host's UI; mod.rs has the router, grouped by the role each page needs;
                      a module per tab or page, its handlers named list, show, create, edit, revoke, delete
@@ -58,6 +60,7 @@ src/
     invitations.rs   the Invitation links tab: invitations in a batch
     groups.rs        the Group links tab, and each group's page
     qr/              an event's QR code style tab and the SVG downloads; draw.rs draws them
+    games.rs         an event's Games tab: the minigames it offers, and their scores
     access.rs        an event's Access tab: roles for that event alone, by login name
     role.rs          viewer < editor < admin, and the role a request has for its event
     lang.rs          the admin page's language
@@ -69,7 +72,8 @@ src/
                      the row, names.rs and guest_list.rs
   mailer/            the outbox worker; compose.rs writes the mails
   janitor.rs         deletes what retention says is due
-  config/            settings from INNBY_* variables: mod.rs (site), admin.rs, mail.rs, env.rs
+  config/            settings from INNBY_* variables: mod.rs (site), admin.rs, mail.rs,
+                     games.rs (INNBY_GAMES), env.rs
   i18n/              Lang (mod.rs), language.rs (a locale file and its fallbacks), messages.rs, texts.rs, fill.rs
   link.rs            HMAC-signed links: possession is the authorisation
   paths.rs           every route pattern, and links built from them
@@ -83,6 +87,7 @@ static/style.css     the one stylesheet: tokens first, then base, layout, compon
 migrations/          the schema, applied by `innby migrate`: 0001_schema.sql, and those after it;
                      seed/sample.sql is sample data for dev
 bench/               `just bench`: run.sh, and data.sql, an event of 1500 guests
+games/               example minigames, served on an origin of their own (docs/games.md)
 charts/innby/        the Helm chart; deploy/ is one homelab's install of it
 docs/                the guides for people, and ropa.md, the GDPR record of processing
 ```
@@ -112,6 +117,7 @@ parts too, so the top of a file is the way into it.
   library's public API, and Innby is a binary.
 - Style with the components in `static/style.css`; change the look through its tokens.
   No inline styles, and no class without a rule (a test checks both ways).
-- No JavaScript. Say Containerfile and Compose, not Dockerfile and Docker Compose. Docs
+- No JavaScript in Innby; the example games in `games/` are apart from it, on another
+  origin. Say Containerfile and Compose, not Dockerfile and Docker Compose. Docs
   and comments are plain British English and say why rather than what. One change per
   commit, imperative subject, a body that says why.

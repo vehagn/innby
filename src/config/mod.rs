@@ -3,14 +3,17 @@
 //! - `mod.rs`: `Config`, what every workload needs, and `database_url`.
 //! - `admin`: `AdminConfig`, the admin UI's logins and where it's served.
 //! - `mail`: `MailConfig`, the mailer's SMTP server and sender.
+//! - `games`: the minigames an event can offer, and where they're served.
 //! - `env`: reading and checking values, from any lookup so tests needn't touch the
 //!   process environment.
 
 mod admin;
 mod env;
+pub mod games;
 mod mail;
 
 pub use admin::{AdminConfig, OIDC_CALLBACK, PasswordLogin};
+pub use games::{Game, Games, ScoreKind};
 pub use mail::MailConfig;
 
 use std::net::SocketAddr;
@@ -37,6 +40,8 @@ pub struct Config {
     pub trust_forwarded: bool,
     /// Who is responsible for the guests' data, for the privacy notice.
     pub controller: Controller,
+    /// The minigames events can offer, if any.
+    pub games: Games,
 }
 
 impl Config {
@@ -104,7 +109,9 @@ impl Config {
             "INNBY_CONTROLLER_EMAIL: not an e-mail address: {controller_email:?}"
         );
 
+        let games = env.games(&base_url)?;
         Ok(Self {
+            games,
             listen,
             base_url,
             link_key,

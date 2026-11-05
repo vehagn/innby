@@ -120,6 +120,18 @@ pub struct Messages {
     pub guest_list_note: String,
     /// After your own name on the guest list: "(you)".
     pub you: String,
+    // Minigames on the guest's page
+    pub games_heading: String,
+    pub games_hint: String,
+    pub play: String,
+    /// In a high score table, for a guest who isn't on the guest list.
+    pub a_guest: String,
+    pub no_scores: String,
+    pub col_player: String,
+    pub col_score: String,
+    /// Between whole seconds and hundredths: "12.34".
+    pub decimal_mark: String,
+    pub seconds: String,
     pub listed_as: String,
     pub listed_hidden: String,
     pub listed_declined: String,
@@ -298,6 +310,12 @@ pub struct AdminMessages {
     /// Under the example code on the index page.
     pub qr_preview: String,
     pub qr_download: String,
+
+    // Minigames
+    pub games: String,
+    pub games_hint: String,
+    pub games_none: String,
+    pub save_games: String,
 
     // Access: roles for one event
     pub access: String,

@@ -128,6 +128,17 @@ guest_list_empty = "Ingen på lista enno."
 guest_list_note = "Gjester som ikkje kjem, står ikkje på lista."
 # After your own name on the guest list.
 you = "(deg)"
+
+# Minispel på sida til gjesten
+games_heading = "Spel"
+games_hint = "Den beste poengsummen din i kvart spel blir teken vare på, og blir vist her og i spelet med namnet ditt slik det står på gjestelista."
+play = "Spel {name}"
+a_guest = "Ein gjest"
+no_scores = "Ingen resultat enno."
+col_player = "Spelar"
+col_score = "Resultat"
+decimal_mark = ","
+seconds = "{n} s"
 listed_as = "Andre gjester ser deg som {name}"
 listed_hidden = "Namnet ditt står ikkje på lista."
 listed_declined = "Du står ikkje på lista, sidan du ikkje kjem."
@@ -329,6 +340,12 @@ qr_carried = "QR-kodane får same stil som dei hadde."
 # Under the example code on the QR codes page.
 qr_preview = "Den lagra stilen, slik han blir på festsida. Lagre for å sjå ei endring."
 qr_download = "Last ned QR-koden (SVG)"
+
+# Minispel
+games = "Spel"
+games_hint = "Spel gjestene kan spele frå sida si, kvart med ei resultatliste. Slår du av eit spel, blir resultata i det sletta."
+games_none = "Ingen spel er sette opp: list dei i INNBY_GAMES, slik docs/games.md forklarer."
+save_games = "Lagre spela"
 
 # Tilgang: roller for eitt arrangement
 access = "Tilgang"

@@ -1,7 +1,7 @@
 -- Innby's schema. Events hold everything else: their guests' answers, the group links
--- guests sign up through, the mail queued for those guests, and who besides the hosts
--- may see the event; deleting an event deletes all of it. The admin's login tables stand
--- apart and hold no personal data.
+-- guests sign up through, the mail queued for those guests, who besides the hosts may
+-- see the event, and the games it offers with their scores; deleting an event deletes
+-- all of it. The admin's login tables stand apart and hold no personal data.
 --
 -- Released versions after this one change the schema in migrations of their own, beside
 -- this file; this one is never edited once released.
@@ -168,4 +168,22 @@ create table admin_refresh_token (
 create table admin_revoked_jwt (
     jti        uuid primary key,
     expires_at timestamptz not null
+);
+
+-- The minigames an event offers, by their id in INNBY_GAMES. The games themselves are
+-- served elsewhere; see docs/games.md.
+create table event_game (
+    event_id uuid not null references event on delete cascade,
+    game     text not null check (game ~ '^[a-z0-9-]{1,40}$'),
+    primary key (event_id, game)
+);
+
+-- Each guest's best score in each game, and only that: points, or milliseconds taken.
+-- Deleted with the guest, and when the event stops offering the game.
+create table game_score (
+    rsvp_id   uuid not null references rsvp on delete cascade,
+    game      text not null check (game ~ '^[a-z0-9-]{1,40}$'),
+    score     bigint not null check (score between 0 and 1000000000000),
+    scored_at timestamptz not null default now(),
+    primary key (rsvp_id, game)
 );

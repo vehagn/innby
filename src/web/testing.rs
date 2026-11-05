@@ -26,7 +26,12 @@ pub struct Site {
 
 impl Site {
     pub fn new(db: PgPool) -> Self {
-        let config = parse(&[]).unwrap();
+        Self::with(db, &[])
+    }
+
+    /// The site with these settings on top of the tests' own.
+    pub fn with(db: PgPool, settings: &[(&str, &str)]) -> Self {
+        let config = parse(settings).unwrap();
         Self {
             router: super::router(config.clone(), db.clone()),
             db,

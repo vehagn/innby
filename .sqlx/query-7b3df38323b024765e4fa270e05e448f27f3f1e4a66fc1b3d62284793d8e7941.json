@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select game from event_game where event_id = $1 order by game",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "game",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event_game",
+            "name": "game"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7b3df38323b024765e4fa270e05e448f27f3f1e4a66fc1b3d62284793d8e7941"
+}

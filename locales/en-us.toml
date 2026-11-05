@@ -122,6 +122,9 @@ guest_list_empty = "Nobody yet."
 guest_list_note = "People who can't go aren't listed."
 # After your own name on the guest list.
 you = "(you)"
+
+# Minigames on the guest's page
+games_hint = "Your best score in each one is saved, and shows up here and in the game with your name as on the guest list."
 listed_as = "Others see you as {name}"
 listed_hidden = "You're hidden."
 listed_declined = "You're not listed, since you can't go."

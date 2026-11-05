@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into event_game (event_id, game) select $1, unnest($2::text[])\n         on conflict do nothing",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f172239489471b3bcc9e3eacc9754ead6f5339fa1c2294a7b9aeea99f37f3ed4"
+}

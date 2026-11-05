@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from game_score where game <> all($2)\n         and rsvp_id in (select id from rsvp where event_id = $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4bd54299e58f64ea6106682236829519e3580cb64f4a731c6fd0493d3d50f029"
+}

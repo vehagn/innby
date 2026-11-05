@@ -26,7 +26,8 @@ That builds and runs your checkout:
 | | |
 |---|---|
 | http://localhost:8080 | the public site |
-| http://localhost:8081 | the admin UI; user `admin`, password `innby` |
+| http://localhost:8081 | the admin UI; user `admin`, password `innby` (or `ola`, with a role for two events only) |
+| http://localhost:8082 | the example minigames in `games/`, on an origin of their own |
 | http://localhost:8025 | Mailpit, the inbox for every mail the site sends |
 
 Ctrl-C stops it. `just dev down`, on your machine, stops the dev container; its database

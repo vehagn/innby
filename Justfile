@@ -302,7 +302,7 @@ seal:
       > deploy/sealed-secrets.yaml
     @echo "deploy/sealed-secrets.yaml: add it to deploy/kustomization.yaml"
 
-# Run the site (:8080), the admin UI (:8081) and the mailer from this checkout (reads .env)
+# Run the site (:8080), the admin UI (:8081), the mailer and the example games (:8082) from this checkout (reads .env)
 [private]
 run: migrate
     #!/usr/bin/env bash
@@ -311,6 +311,8 @@ run: migrate
     trap 'kill 0' EXIT
     cargo run --quiet -- admin &
     cargo run --quiet -- mailer &
+    # The example games, on an origin of their own, as docs/games.md says they must be.
+    python3 -m http.server --bind 0.0.0.0 --directory games 8082 >/dev/null 2>&1 &
     cargo run --quiet -- serve
 
 # Apply the migrations to $DATABASE_URL (the query macros check against it at compile time)

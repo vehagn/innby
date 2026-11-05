@@ -1,0 +1,114 @@
+<!doctype html>
+<!-- An example minigame for Innby: how quickly can you click once the box turns green?
+     It shows what docs/games.md describes: reading Innby's address and the guest's
+     score token from the fragment, sending a score, and showing the high score table.
+     A game is any page; this one is a single file with nothing to build. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Reaction</title>
+  <style>
+    body { margin: 0 auto; max-width: 32rem; padding: 1.5rem 1rem; font: 1rem/1.5 system-ui, sans-serif; background: #f6f4ef; color: #1d1b16; }
+    #pad { display: grid; place-items: center; height: 12rem; border-radius: 0.75rem; background: #3d5a80; color: #fff; font-size: 1.4rem; cursor: pointer; user-select: none; }
+    #pad.wait { background: #b23a48; }
+    #pad.go { background: #2a9d4b; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    td, th { padding: 0.25rem 0.5rem; border-bottom: 1px solid #ccc; text-align: left; }
+    tr.you { font-weight: 600; }
+    .muted { color: #6b665c; }
+  </style>
+</head>
+<body>
+  <h1>Reaction</h1>
+  <p>Click the box, wait for green, then click again as fast as you can.</p>
+  <div id="pad" role="button" tabindex="0">Click to start</div>
+  <p id="result" aria-live="polite"></p>
+  <h2>High scores</h2>
+  <p id="note" class="muted"></p>
+  <table hidden><thead><tr><th>#</th><th>Player</th><th>Time</th></tr></thead><tbody id="scores"></tbody></table>
+  <script>
+    "use strict";
+    const GAME = "reaction";
+    // Innby's address and the guest's token come in the fragment, which isn't sent to
+    // any server. Take them out of the address bar, so a bookmark or a shared link of
+    // this page doesn't carry the token.
+    const params = new URLSearchParams(location.hash.slice(1));
+    history.replaceState(null, "", location.pathname + location.search);
+    const innby = params.get("innby");
+    const token = params.get("token");
+    const lang = params.get("lang") || "en";
+    const api = innby && token
+      ? `${innby}/api/games/${GAME}/scores?lang=${encodeURIComponent(lang)}`
+      : null;
+
+    const pad = document.getElementById("pad");
+    const result = document.getElementById("result");
+    const note = document.getElementById("note");
+    let state = "idle", timer = 0, shownAt = 0;
+
+    function show(table) {
+      const body = document.getElementById("scores");
+      body.replaceChildren(...table.scores.map((line, i) => {
+        const row = document.createElement("tr");
+        if (line.you) row.className = "you";
+        for (const text of [i + 1, line.name + (line.you ? " (you)" : ""), line.shown]) {
+          const cell = document.createElement("td");
+          cell.textContent = text;
+          row.append(cell);
+        }
+        return row;
+      }));
+      body.parentElement.hidden = table.scores.length === 0;
+      note.textContent = table.scores.length ? "" : "No scores yet.";
+    }
+
+    async function call(method, score) {
+      const response = await fetch(api, {
+        method,
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: score === undefined ? undefined : JSON.stringify({ score }),
+      });
+      if (!response.ok) throw new Error(`${response.status}`);
+      return response.json();
+    }
+
+    pad.addEventListener("click", () => {
+      if (state === "idle") {
+        state = "wait";
+        pad.className = "wait";
+        pad.textContent = "Wait for green…";
+        result.textContent = "";
+        timer = setTimeout(() => {
+          state = "go";
+          pad.className = "go";
+          pad.textContent = "Click!";
+          shownAt = performance.now();
+        }, 1500 + Math.random() * 2500);
+      } else if (state === "wait") {
+        clearTimeout(timer);
+        state = "idle";
+        pad.className = "";
+        pad.textContent = "Too soon! Click to try again";
+      } else if (state === "go") {
+        const ms = Math.round(performance.now() - shownAt);
+        state = "idle";
+        pad.className = "";
+        pad.textContent = "Click to play again";
+        result.textContent = `${ms} ms`;
+        if (api) call("POST", ms).then(show, () => { note.textContent = "Your score couldn't be saved."; });
+      }
+    });
+    pad.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); pad.click(); }
+    });
+
+    if (api) {
+      call("GET").then(show, () => { note.textContent = "The high scores couldn't be loaded."; });
+    } else {
+      note.textContent = "Open this game from your invitation's page to keep your score.";
+    }
+  </script>
+</body>
+</html>

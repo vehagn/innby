@@ -61,6 +61,7 @@ pub enum Tab {
     Invitations,
     Groups,
     Qr,
+    Games,
     Details,
     Access,
 }
@@ -90,6 +91,12 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
                 ),
                 (Tab::Groups, links.groups, &text.group_links, edit),
                 (Tab::Qr, links.qr_style, &text.qr_heading, edit),
+                (
+                    Tab::Games,
+                    links.games,
+                    &text.games,
+                    edit && super::has_games(),
+                ),
                 (Tab::Details, links.details, &text.details, edit),
                 (Tab::Access, links.access, &text.access, admin),
             ]

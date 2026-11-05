@@ -117,6 +117,17 @@ guest_list_empty = "名单上还没有人。"
 guest_list_note = "不参加的宾客不会列在名单上。"
 # After your own name on the guest list.
 you = "（你）"
+
+# Minigames on the guest's page
+games_heading = "小游戏"
+games_hint = "每个游戏只保留你的最好成绩，它会以你在宾客名单上的名字显示在这里和游戏中。"
+play = "玩{name}"
+a_guest = "一位宾客"
+no_scores = "还没有成绩。"
+col_player = "玩家"
+col_score = "成绩"
+decimal_mark = "."
+seconds = "{n} 秒"
 listed_as = "其他宾客看到的你：{name}"
 listed_hidden = "你的名字不在名单上。"
 listed_declined = "你不参加，所以不在名单上。"
@@ -295,6 +306,12 @@ qr_carried = "二维码保留原来的样式。"
 # Under the example code on the QR codes page.
 qr_preview = "已保存的样式，即活动页面上的样子。保存后即可看到更改。"
 qr_download = "下载二维码（SVG）"
+
+# Minigames
+games = "小游戏"
+games_hint = "宾客可以在自己的页面上玩的小游戏，每个都有排行榜。关闭某个游戏会删除它的成绩。"
+games_none = "还没有设置游戏：请按 docs/games.md 的说明在 INNBY_GAMES 中列出。"
+save_games = "保存游戏设置"
 
 # Access: roles for one event
 access = "访问权限"

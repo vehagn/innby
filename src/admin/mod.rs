@@ -5,8 +5,8 @@
 //! - `mod.rs`: `router`, which lists every page and the role it needs. Handlers are
 //!   named for what they do: `list`, `show`, `create`, `edit`, `revoke`, `delete`.
 //! - `page`: what pages share: state, tabs, errors. `forms`: what their forms share.
-//! - `events`, `guests`, `invitations`, `groups`, `qr`, `access`: the pages, one module
-//!   per tab.
+//! - `events`, `guests`, `invitations`, `groups`, `qr`, `games`, `access`: the pages,
+//!   one module per tab.
 //! - `cli`: the host's commands: `innby invite` and `innby event`.
 //! - `auth`: logging in, with a password or through an OIDC provider, and sessions.
 //! - `role`: what each role may do, for every event or for one. `lang`: the page's
@@ -17,6 +17,7 @@ pub mod auth;
 pub mod cli;
 mod events;
 mod forms;
+mod games;
 mod groups;
 mod guests;
 mod invitations;
@@ -51,6 +52,12 @@ pub async fn serve(config: Config, admin: AdminConfig, db: PgPool) -> anyhow::Re
 
 tokio::task_local! {
     static PREFIX: Arc<str>;
+    static GAMES: bool;
+}
+
+/// Whether the config lists any minigames, for the Games tab.
+pub fn has_games() -> bool {
+    GAMES.try_with(|games| *games).unwrap_or(false)
 }
 
 /// The path the admin UI is under, such as `/admin`, or empty at the root of its own
@@ -98,6 +105,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route(paths::GUEST_QR, get(guests::qr))
         .route(paths::GROUP_QR, get(groups::qr))
         .route(paths::EVENT_QR, get(qr::show).post(qr::save))
+        .route(paths::EVENT_GAMES, get(games::show).post(games::edit))
         .route_layer(middleware::from_fn(role::editor));
     let admin = Router::new()
         .route(paths::EVENTS, post(events::create))
@@ -131,6 +139,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
             .route(paths::LOGIN_OIDC_CALLBACK, get(auth::oidc::callback));
     }
     let prefix: Arc<str> = Arc::from(admin_config.path.as_str());
+    let games = !state.config.games.list.is_empty();
     let scoped = Arc::clone(&prefix);
     let router: Router = http::no_store(pages)
         // Probes don't log in, and the login page has its style before anyone does.
@@ -141,7 +150,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .layer(middleware::from_fn(lang::scope))
         .layer(middleware::from_fn(
             move |request, next: middleware::Next| {
-                PREFIX.scope(Arc::clone(&scoped), next.run(request))
+                PREFIX.scope(Arc::clone(&scoped), GAMES.scope(games, next.run(request)))
             },
         ))
         .with_state(state.clone());

@@ -32,6 +32,10 @@ pub const RSVP_EMAIL_REMOVE: &str = "/r/{link}/email/remove";
 pub const JOIN: &str = "/join/{link}";
 pub const JOIN_GUESTS: &str = "/join/{link}/guests";
 pub const CONFIRM_EMAIL: &str = "/e/{link}";
+/// What the minigames call from their own origin, authorised by a score token rather
+/// than the page they're on; see `web::games`.
+pub const API: &str = "/api/";
+pub const GAME_SCORES: &str = "/api/games/{game}/scores";
 
 // The admin site. `HOME` lists the events; each event's pages are under `EVENT`, and its
 // guests and groups have pages of their own. Each parameter is named for what it is,
@@ -47,6 +51,7 @@ pub const EVENT_EXPORT: &str = "/events/{event}/event.toml";
 pub const EVENTS_IMPORT: &str = "/events/import";
 pub const EVENT_REMINDERS: &str = "/events/{event}/reminders";
 pub const EVENT_QR: &str = "/events/{event}/qr-style";
+pub const EVENT_GAMES: &str = "/events/{event}/games";
 pub const EVENT_ACCESS: &str = "/events/{event}/access";
 pub const EVENT_ACCESS_REMOVE: &str = "/events/{event}/access/remove";
 pub const GUEST: &str = "/guests/{guest}";
@@ -217,6 +222,8 @@ pub struct EventLinks {
     pub details: String,
     /// The QR code style.
     pub qr_style: String,
+    /// The minigames the event offers.
+    pub games: String,
     /// Who else may see or run the event.
     pub access: String,
     pub access_remove: String,
@@ -238,6 +245,7 @@ impl EventLinks {
             groups: at(EVENT_GROUPS),
             details: at(EVENT_DETAILS),
             qr_style: at(EVENT_QR),
+            games: at(EVENT_GAMES),
             access: at(EVENT_ACCESS),
             access_remove: at(EVENT_ACCESS_REMOVE),
             delete: at(EVENT_DELETE),

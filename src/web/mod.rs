@@ -2,6 +2,7 @@
 //! privacy notice. `router` lists every route; the shared plumbing is in `crate::http`.
 
 mod email;
+mod games;
 mod join;
 mod pages;
 mod remember;
@@ -28,7 +29,7 @@ use crate::{
 
 /// Version of the privacy notice, recorded with each answer.
 /// Bump it whenever the notice in `templates/privacy/` changes in substance.
-pub const PRIVACY_VERSION: &str = "2026-11-04";
+pub const PRIVACY_VERSION: &str = "2026-11-05";
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
 const DAY: Duration = Duration::from_secs(24 * 60 * 60);
@@ -42,6 +43,8 @@ struct AppState {
     /// clients together.
     mail_limiter: Arc<RateLimiter>,
     mail_limiter_all: Arc<RateLimiter>,
+    /// Scores from the minigames, per client: a game sends one a round.
+    score_limiter: Arc<RateLimiter>,
 }
 
 impl AppState {
@@ -86,7 +89,10 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         mail_limiter: Arc::new(RateLimiter::new(5, HOUR)),
         // About one per guest, so a day's worth of everyone adding an address.
         mail_limiter_all: Arc::new(RateLimiter::new(100, DAY)),
+        // A round every six seconds for an hour, for a household on one address.
+        score_limiter: Arc::new(RateLimiter::new(600, HOUR)),
     };
+    let api = games::router(&state);
     let links = Router::new()
         .route(paths::JOIN, get(join::show).post(join::join))
         .route(paths::JOIN_GUESTS, get(join::guests))
@@ -115,6 +121,7 @@ pub(crate) fn router(config: Config, db: PgPool) -> Router {
         .route(paths::HEALTH, get(|| async { "ok" }))
         .route(paths::READY, get(http::ready))
         .merge(http::no_store(links))
+        .merge(http::no_store(api.unwrap_or_default()))
         .fallback(pages::not_found)
         .layer(middleware::from_fn(crate::theme::scope))
         .with_state(state);

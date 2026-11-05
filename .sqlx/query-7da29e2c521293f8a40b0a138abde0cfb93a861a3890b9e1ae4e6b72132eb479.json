@@ -1,0 +1,101 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select r.id as rsvp_id, r.name, r.response as \"response: Response\",\n            r.name_display as \"name_display: NameDisplay\", s.score\n        from game_score s join rsvp r on r.id = s.rsvp_id\n        where r.event_id = $1 and s.game = $2\n        order by case when $3 then -s.score else s.score end, s.scored_at\n        limit $4\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "rsvp_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "response: Response",
+        "type_info": {
+          "Custom": {
+            "name": "rsvp_response",
+            "kind": {
+              "Enum": [
+                "pending",
+                "attending",
+                "declined"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "response"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "name_display: NameDisplay",
+        "type_info": {
+          "Custom": {
+            "name": "name_display",
+            "kind": {
+              "Enum": [
+                "full",
+                "partial",
+                "hidden"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "name_display"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "score",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "game_score",
+            "name": "score"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Bool",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "7da29e2c521293f8a40b0a138abde0cfb93a861a3890b9e1ae4e6b72132eb479"
+}

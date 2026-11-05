@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        with offered as (\n            select r.id from rsvp r\n            join event_game g on g.event_id = r.event_id and g.game = $2\n            where r.id = $1\n        ), kept as (\n            insert into game_score (rsvp_id, game, score) select id, $2, $3 from offered\n            on conflict (rsvp_id, game) do update set score = excluded.score, scored_at = now()\n            where case when $4 then excluded.score > game_score.score\n                       else excluded.score < game_score.score end\n            returning 1\n        )\n        select exists (select from offered) as \"offered!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "offered!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int8",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "2737235b09a523364f2284b5871f8c5957ccf9de6902c2b6c412c883ad66eecb"
+}

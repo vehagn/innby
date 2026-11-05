@@ -12,6 +12,7 @@ use serde::Deserialize;
 
 use super::{
     AppState, PRIVACY_VERSION,
+    games::{self, GameView},
     pages::{MessagePage, gone},
     remember,
     views::{DisplayChoice, EventView, GuestList, GuestsPage, PartySize, YourListing},
@@ -111,6 +112,8 @@ pub(super) struct RsvpPage<'a> {
     new_link: Option<String>,
     /// Whether this device remembers the guest, for the front page.
     remembered: bool,
+    /// The minigames the event offers, with their best scores.
+    games: Vec<GameView>,
     error: Option<&'static str>,
 }
 
@@ -135,6 +138,7 @@ impl<'a> RsvpPage<'a> {
             celebrate: false,
             new_link: None,
             remembered: false,
+            games: Vec::new(),
             error: None,
         }
     }
@@ -233,6 +237,10 @@ pub async fn show(
 ) -> Response {
     let mut page = RsvpPage::new(lang, &guest);
     page.remembered = remember::remembers(&headers, state.config.is_https(), &guest);
+    page.games = match games::for_page(&state, lang, &guest.event, &guest.rsvp).await {
+        Ok(games) => games,
+        Err(err) => return server_error(err),
+    };
     let notice = query.notice.as_deref().and_then(Notice::from_code);
     page.flash = notice.map(|notice| notice.text(page.t));
     page.celebrate = guest.rsvp.response == rsvp::Response::Attending
@@ -380,13 +388,30 @@ pub async fn listing(
 }
 
 /// Everything stored about the guest, as a download (GDPR Art. 15 and 20).
-pub async fn export(guest: Guest) -> Response {
+/// Everything kept about the guest (GDPR Art. 15 and 20): their reply, and their best
+/// score in each game.
+#[derive(serde::Serialize)]
+struct Export<'a> {
+    #[serde(flatten)]
+    rsvp: &'a Rsvp,
+    scores: Vec<crate::db::games::Best>,
+}
+
+pub async fn export(State(state): State<AppState>, guest: Guest) -> Response {
+    let scores = match crate::db::games::of_guest(&state.db, guest.rsvp.id).await {
+        Ok(scores) => scores,
+        Err(err) => return server_error(err),
+    };
+    let export = Export {
+        rsvp: &guest.rsvp,
+        scores,
+    };
     (
         [(
             header::CONTENT_DISPOSITION,
             r#"attachment; filename="rsvp.json""#,
         )],
-        Json(guest.rsvp),
+        Json(export),
     )
         .into_response()
 }

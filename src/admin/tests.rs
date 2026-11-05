@@ -54,6 +54,8 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
         (Method::POST, paths::EVENTS_IMPORT.to_owned(), Role::Admin),
         (Method::GET, on(paths::EVENT_QR, e), Role::Editor),
         (Method::POST, on(paths::EVENT_QR, e), Role::Editor),
+        (Method::GET, on(paths::EVENT_GAMES, e), Role::Editor),
+        (Method::POST, on(paths::EVENT_GAMES, e), Role::Editor),
         (Method::GET, on(paths::EVENT_ACCESS, e), Role::Admin),
         (Method::POST, on(paths::EVENT_ACCESS, e), Role::Admin),
         (Method::POST, on(paths::EVENT_ACCESS_REMOVE, e), Role::Admin),
@@ -109,6 +111,61 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
     assert!(html.contains("/delete") && html.contains("/access\""));
     let html = body(admin.get(paths::HOME).await).await;
     assert!(html.contains(r#"action="/events#"#));
+}
+
+#[sqlx::test]
+async fn the_host_picks_an_events_games_and_sees_their_scores(db: PgPool) {
+    let mut admin = Admin::new(db.clone());
+    let event = admin.event_id().await;
+    let games_tab = paths::path(paths::EVENT_GAMES, event);
+    // Without games in the config, there's no tab.
+    let html = body(admin.get(&admin.event().await).await).await;
+    assert!(!html.contains(&format!(r#"href="{games_tab}""#)));
+
+    admin.config = crate::config::tests::parse(&[
+        ("INNBY_GAMES_URL", "https://games.example.com"),
+        (
+            "INNBY_GAMES",
+            "quiz:time:Quick quiz; pinball:points:Pinball",
+        ),
+    ])
+    .unwrap();
+    let html = body(admin.get(&admin.event().await).await).await;
+    assert!(html.contains(&format!(r#"href="{games_tab}""#)), "{html}");
+
+    // Ticking the quiz, and a game the config doesn't have, offers only the quiz.
+    let response = admin.post(&games_tab, "game=quiz&game=chess").await;
+    assert_eq!(location(&response), format!("{games_tab}?saved"));
+    assert_eq!(
+        crate::db::games::offered(&db, event).await.unwrap(),
+        ["quiz"]
+    );
+    let kari = admin.invite("Kari Nordmann", 1).await;
+    crate::db::games::record(&db, kari.id, "quiz", 61_500, false)
+        .await
+        .unwrap();
+    let html = body(admin.get(&games_tab).await).await;
+    // The full name, which hosts see.
+    assert!(
+        html.contains("<td>Kari Nordmann</td><td>61.50 s</td>"),
+        "{html}"
+    );
+    assert!(html.contains(r#"value="quiz" checked"#) && html.contains(r#"value="pinball">"#));
+
+    // Unticked, the quiz goes with its scores.
+    admin.post(&games_tab, "").await;
+    assert!(
+        crate::db::games::offered(&db, event)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        crate::db::games::of_guest(&db, kari.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 async fn status(host: &Admin, path: String) -> StatusCode {

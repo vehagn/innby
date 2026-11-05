@@ -119,6 +119,21 @@ An admin can also give anyone a role for one event, on its Access tab.
 [docs/single-sign-on.md](../../docs/single-sign-on.md) shows how to set a provider up.
 Register `{admin.url}/login/oidc/callback` with the provider.
 
+## Minigames
+
+To offer minigames on events, serve them on an origin of their own, not the site's, and
+list them in `extraConfig`:
+
+```yaml
+extraConfig:
+  INNBY_GAMES_URL: https://games.example.com
+  INNBY_GAMES: "reaction:time:Reaction; quiz:points:Quick quiz"
+```
+
+Guests' browsers call the site's `/api/games/…` from that origin; no network policy
+changes, since Innby never calls the games. [docs/games.md](../../docs/games.md) has the
+details, and what a game must do.
+
 ## Network policies
 
 Either kind lets each workload reach only what it needs: the site and the admin UI

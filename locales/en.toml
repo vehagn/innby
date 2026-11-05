@@ -131,6 +131,17 @@ guest_list_empty = "Nobody on the list as yet."
 guest_list_note = "Guests who have sent their regrets are not listed."
 # After your own name on the guest list.
 you = "(you)"
+
+# Minigames on the guest's page
+games_heading = "Games"
+games_hint = "Your best score in each is kept, and shows here and in the game by your name as on the guest list."
+play = "Play {name}"
+a_guest = "A guest"
+no_scores = "No scores yet."
+col_player = "Player"
+col_score = "Score"
+decimal_mark = "."
+seconds = "{n} s"
 listed_as = "Other guests see you as {name}"
 listed_hidden = "Your name does not appear on the list."
 listed_declined = "You are not on the list, having sent your regrets."
@@ -331,6 +342,12 @@ qr_carried = "The QR codes keep the style they had."
 # Under the example code on the QR codes page.
 qr_preview = "The saved style, as on the event page. Save to see a change."
 qr_download = "Download the QR code (SVG)"
+
+# Minigames
+games = "Games"
+games_hint = "Games the guests can play from their page, each with a high score table. Turning a game off deletes its scores."
+games_none = "No games are set up: list them in INNBY_GAMES, as docs/games.md says."
+save_games = "Save the games"
 
 # Access: roles for one event
 access = "Access"

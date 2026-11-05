@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select game, score, scored_at from game_score where rsvp_id = $1 order by game",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "game",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "game_score",
+            "name": "game"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "score",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "game_score",
+            "name": "score"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "scored_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "game_score",
+            "name": "scored_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7de849c043627509ff8326ceb667cfe7a97a491b65f43d960dc5b298dbc7afe8"
+}

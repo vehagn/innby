@@ -27,13 +27,15 @@ no password, no e-mail address. On that page they:
 - see the guest list, on a page of its own (`/r/{link}/guests`);
 - optionally add an e-mail address, to get reminders and their link by mail;
 - optionally have the device remember them, so the front page leads back here;
+- play the minigames the host offers, if any, each with a high score table
+  ([games.md](games.md));
 - change any of it until the event, rename themselves, download everything kept about
   them as JSON, or delete it all.
 
 Someone with a **group link** (`/join/{link}`) types their name and party size, and is
 then sent to a personal link of their own, with a reminder to keep it.
 
-**The host** works in the admin UI (`innby admin`). An event has six tabs:
+**The host** works in the admin UI (`innby admin`). An event has up to seven tabs:
 
 - **Guests:** the headcount (coming, no answer, not coming), every guest in a table,
   a CSV export, and *Send reminders*. A guest's page edits their name and party size,
@@ -44,6 +46,8 @@ then sent to a personal link of their own, with a reminder to keep it.
 - **QR codes:** the style every QR code of the event is drawn in: the module shape, a
   colour, and a heart, star or emoji in the middle. Each event has its own, so each
   party's printed invitations and posters look its own; a new event starts plain.
+- **Games**, when `INNBY_GAMES` lists any: which minigames the event offers, and each
+  one's high scores. Turning a game off deletes its scores.
 - **Details:** the event's title and description (in Bokmål, and optionally in each other
   language), place, start, time zone and answer deadline; the event as a file; or
   deleting the event.
@@ -265,6 +269,7 @@ The schema is one commented file,
 | `rsvp` | each invitation or sign-up: name, answer, party size and its maximum, link nonce, language, optional e-mail and its status and consent time, privacy notice version, how the name shows, the group it came through |
 | `invite_group` | group links: name, maximum party size, link nonce |
 | `event_access` | roles for one event: the name a host logs in with, viewer or editor |
+| `event_game`, `game_score` | the minigames an event offers, and each guest's best score in each |
 | `outbox` | mail to send: kind, attempts, next try, when sent, last error |
 | `admin_refresh_token`, `admin_revoked_jwt` | keyed hashes of refresh tokens, and logged-out JWTs, until they'd expire |
 

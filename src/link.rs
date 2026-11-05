@@ -81,6 +81,29 @@ impl LinkKey {
             .is_ok()
     }
 
+    /// A guest's score token for one game: `{id}.{tag}`, signing the game and the
+    /// guest's link nonce, so it saves only that guest's scores in that game, and stops
+    /// with their link. It goes to the game, on an origin of its own, in place of the
+    /// link, which opens everything else.
+    pub fn score_token(&self, id: Uuid, nonce: i32, game: &str) -> String {
+        let mac = self.score_mac(id, nonce, game);
+        format!("{}.{}", encode_id(id), encode_tag(mac))
+    }
+
+    /// Checks a score token in constant time against the guest's current nonce.
+    pub fn verify_score(&self, token: &IdLink, nonce: i32, game: &str) -> bool {
+        self.score_mac(token.id, nonce, game)
+            .verify_truncated_left(&token.tag)
+            .is_ok()
+    }
+
+    fn score_mac(&self, id: Uuid, nonce: i32, game: &str) -> Hmac<Sha256> {
+        self.mac(
+            "score",
+            &[id.as_bytes(), &nonce.to_be_bytes(), game.as_bytes()],
+        )
+    }
+
     /// The path segment of an e-mail confirmation link: `{id}.{expires}.{tag}`. It signs
     /// the address too, so it stops working as soon as the guest changes it.
     pub fn email_link(&self, id: Uuid, email: &str, expires: DateTime<Utc>) -> String {
@@ -206,6 +229,19 @@ pub mod tests {
         assert!(!key().verify(Purpose::Rsvp, &group, 0));
         let rsvp: IdLink = key().link(Purpose::Rsvp, id(), 0).parse().unwrap();
         assert!(!key().verify(Purpose::Group, &rsvp, 0));
+    }
+
+    #[test]
+    fn a_score_token_saves_one_guests_scores_in_one_game() {
+        let token: IdLink = key().score_token(id(), 0, "quiz").parse().unwrap();
+        assert!(key().verify_score(&token, 0, "quiz"));
+        assert!(!key().verify_score(&token, 0, "pinball"));
+        // A new link for the guest stops it.
+        assert!(!key().verify_score(&token, 1, "quiz"));
+        // It isn't their link, nor is their link a token.
+        assert!(!key().verify(Purpose::Rsvp, &token, 0));
+        let rsvp: IdLink = key().link(Purpose::Rsvp, id(), 0).parse().unwrap();
+        assert!(!key().verify_score(&rsvp, 0, "quiz"));
     }
 
     #[test]

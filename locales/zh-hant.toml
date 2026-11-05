@@ -117,6 +117,17 @@ guest_list_empty = "名單上還沒有人。"
 guest_list_note = "不參加的賓客不會列在名單上。"
 # After your own name on the guest list.
 you = "（你）"
+
+# Minigames on the guest's page
+games_heading = "小遊戲"
+games_hint = "每個遊戲只保留你的最佳成績，它會以你在賓客名單上的名字顯示在這裡和遊戲中。"
+play = "玩{name}"
+a_guest = "一位賓客"
+no_scores = "還沒有成績。"
+col_player = "玩家"
+col_score = "成績"
+decimal_mark = "."
+seconds = "{n} 秒"
 listed_as = "其他賓客看到的你：{name}"
 listed_hidden = "你的名字不在名單上。"
 listed_declined = "你不參加，所以不在名單上。"
@@ -297,6 +308,12 @@ qr_carried = "QR 碼保留原來的樣式。"
 # Under the example code on the QR codes page.
 qr_preview = "已儲存的樣式，即活動頁面上的樣子。儲存後即可看到變更。"
 qr_download = "下載 QR 碼（SVG）"
+
+# Minigames
+games = "小遊戲"
+games_hint = "賓客可以在自己的頁面上玩的小遊戲，每個都有排行榜。關閉某個遊戲會刪除它的成績。"
+games_none = "還沒有設定遊戲：請依 docs/games.md 的說明在 INNBY_GAMES 中列出。"
+save_games = "儲存遊戲設定"
 
 # Access: roles for one event
 access = "存取權限"

@@ -9,9 +9,12 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-/// Rejects unsafe requests that a browser marks as cross-site.
+/// Rejects unsafe requests that a browser marks as cross-site. The API is for another
+/// origin, the games', and a request there needs a token a forged one can't have.
 pub async fn protect(request: Request, next: Next) -> Response {
-    if is_allowed(request.method(), request.headers()) {
+    if request.uri().path().starts_with(crate::paths::API)
+        || is_allowed(request.method(), request.headers())
+    {
         next.run(request).await
     } else {
         tracing::warn!(method = %request.method(), "cross-origin request rejected");

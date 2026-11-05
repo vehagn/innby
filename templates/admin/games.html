@@ -1,0 +1,49 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ crate::admin::lang::text().games }} · {{ event.details.title(crate::admin::lang::current()) }}{% endblock %}
+
+{% block tabs %}{% let tabs = crate::admin::tabs(Some(event.id), crate::admin::Tab::Games) %}{% include "admin/_event_nav.html" %}{% endblock %}
+
+{% block content %}
+{% let a = crate::admin::lang::text() %}
+{% let t = crate::admin::lang::current().messages() %}
+{% if saved %}<p class="notice success" role="status">{{ a.saved }}</p>{% endif %}
+<h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
+<p class="hint">{{ a.games_hint }}</p>
+
+{% if choices.is_empty() %}
+<p class="muted">{{ a.games_none }}</p>
+{% else %}
+<section class="card">
+  <form method="post" action="{{ links.games }}">
+    <fieldset>
+      <legend>{{ a.games }}</legend>
+      {% for choice in choices %}
+      <label class="checkbox"><input type="checkbox" name="game" value="{{ choice.id }}"{% if choice.offered %} checked{% endif %}> {{ choice.name }}</label>
+      {% endfor %}
+    </fieldset>
+    <button>{{ a.save_games }}</button>
+  </form>
+</section>
+
+{% for table in tables %}
+<section class="card">
+  <h2>{{ table.name }}</h2>
+  {% if table.lines.is_empty() %}
+  <p class="muted">{{ t.no_scores }}</p>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>#</th><th>{{ t.col_player }}</th><th>{{ t.col_score }}</th></tr></thead>
+    <tbody>
+      {% for (name, score) in table.lines %}
+      <tr><td>{{ loop.index }}</td><td>{{ name }}</td><td>{{ score }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+{% endfor %}
+{% endif %}
+{% endblock %}
