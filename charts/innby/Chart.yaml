@@ -5,8 +5,8 @@ description: >-
   site, an admin UI for the host, a mailer and an hourly janitor, on your own Postgres.
 type: application
 # The chart is released with the app, under the same version (`just release`).
-version: 0.5.2
-appVersion: "0.5.2"
+version: 0.5.3
+appVersion: "0.5.3"
 # CronJob time zones.
 kubeVersion: ">=1.27.0-0"
 home: https://github.com/vehagn/innby
