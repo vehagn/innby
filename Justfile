@@ -40,10 +40,10 @@ dev command="up":
     {{ dev_compose }} --file "$editor" up --detach --build --wait
     {{ dev_compose }} exec dev zsh
 
-# Site :8080, admin :8081, mail :8025. In the dev container it serves this checkout; on
-# the host it runs the published image with compose.yaml. `just up v1.0.0` runs a given
-# tag, or the one `just image` wrote, and `just up janitor` applies the local copy's
-# retention rules once.
+# Site :8080, admin :8081, games :8082, mail :8025. In the dev container it serves this
+# checkout, with settings from .env and, for the rest, .env.example; on the host it runs
+# the published image with compose.yaml. `just up v1.0.0` runs a given tag, or the one
+# `just image` wrote, and `just up janitor` applies the local copy's retention rules once.
 [doc("Serve this checkout, or on the host run the published image")]
 [group("dev")]
 up tag="latest":
@@ -51,6 +51,7 @@ up tag="latest":
     set -euo pipefail
     urls="http://localhost:8080  http://localhost:8081  http://localhost:8025"
     if [[ -n "${INNBY_DEVCONTAINER:-}" ]]; then
+      urls="http://localhost:8080  http://localhost:8081  http://localhost:8082  http://localhost:8025"
       # In the dev container, which has no container engine: serve this checkout instead,
       # on the ports `just dev` publishes. Ctrl-C stops it.
       echo "$urls"
@@ -311,11 +312,17 @@ seal:
       > deploy/sealed-secrets.yaml
     @echo "deploy/sealed-secrets.yaml: add it to deploy/kustomization.yaml"
 
-# Run the site (:8080), the admin UI (:8081), the mailer and the example games (:8082) from this checkout (reads .env)
+# Run the site (:8080), the admin UI (:8081), the mailer and the example games (:8082) from this checkout (reads .env, then .env.example)
 [private]
 run: migrate games
     #!/usr/bin/env bash
     set -euo pipefail
+    # What neither your shell nor .env sets comes from .env.example, as with Compose on
+    # the host, so a new setting works before your .env has it.
+    while IFS= read -r -d '' setting; do
+      name=${setting%%=*}
+      [[ -n "${!name+set}" ]] || export "$setting"
+    done < <(env -i bash -c 'set -a; . ./.env.example; env -0')
     cargo build --quiet
     trap 'kill 0' EXIT
     cargo run --quiet -- admin &
