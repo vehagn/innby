@@ -40,8 +40,10 @@ offers any, and **Your details** (name, e-mail, this device, their data). There 
   them as JSON, or delete it all.
 
 Someone with a **group link** (`/join/{link}`) types their name and party size, answers
-the host's question if there is one, may have the device remember them, and is then sent to a personal link of their own, with a
-reminder to keep it.
+the host's question if there is one, may have the device remember them, and is then sent
+to a personal link of their own, with a reminder to keep it. The form carries a random
+token of its own: sent again, as when the answer to the first was lost on the way, it
+leads to that first sign-up rather than making a second.
 
 **The host** works in the admin UI (`innby admin`). Its first page lists the **Events**;
 beside it, admins have a **New event** tab and a **Users** tab. Each tab has an icon, and

@@ -119,6 +119,10 @@ create table rsvp (
     -- Their pick among the event's choices, by its place in the list; cleared when the
     -- host changes the list.
     choice           smallint check (choice between 0 and 19),
+    -- For a sign-up: the random token of the form it was sent from, so that the same
+    -- form sent again, as when the answer to the first was lost on the way, leads to
+    -- this sign-up rather than making another.
+    sign_up_token    text check (sign_up_token ~ '^[A-Za-z0-9_-]{16,64}$'),
     foreign key (group_id, event_id) references invite_group (id, event_id),
     check (party_size between 1 and max_party_size),
     check ((email is null) = (email_status = 'none')),
@@ -128,6 +132,8 @@ create table rsvp (
 -- An event's guests, in the order they came (the ids are UUIDv7).
 create index rsvp_event on rsvp (event_id, id);
 create index rsvp_group on rsvp (group_id) where group_id is not null;
+create unique index rsvp_sign_up_token on rsvp (group_id, sign_up_token)
+    where sign_up_token is not null;
 -- An address is unique within an event once it's confirmed, not before. Until then
 -- several RSVPs may hold it, so adding an address never shows whether another guest
 -- already has it. One guest can be invited to several events. Address first, so the

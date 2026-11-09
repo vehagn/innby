@@ -14,7 +14,7 @@ pub use names::{NameDisplay, NameKind, normalize_email, normalize_name};
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use sqlx::PgExecutor;
+use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
 
 use sqlx::types::Json;
@@ -149,18 +149,28 @@ pub struct SignUp<'a> {
     pub lang: Lang,
     /// Their pick for the host's question, if the event asks one.
     pub choice: Option<i16>,
+    /// The sign-up form's token: sent again, it finds this sign-up, not another.
+    pub token: Option<&'a str>,
 }
 
-/// Creates an RSVP through a group link, which is "attending" from the start.
+/// Creates an RSVP through a group link, which is "attending" from the start. A form
+/// whose token made one already gets that one instead, with `false`: its first answer
+/// was lost on the way, or the guest pressed twice.
 pub async fn create_open(
-    db: impl PgExecutor<'_>,
+    db: &PgPool,
     sign_up: &SignUp<'_>,
     privacy_version: &str,
-) -> sqlx::Result<Rsvp> {
-    query_rsvp!(
+) -> sqlx::Result<(Rsvp, bool)> {
+    if let Some(made) = find_signed_up(db, sign_up).await? {
+        return Ok((made, false));
+    }
+    let made = query_rsvp!(
         "insert into rsvp (event_id, group_id, name, response, party_size, \
-            max_party_size, name_display, lang, privacy_version, responded_at, choice) \
-         values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now(), $9)" returning,
+            max_party_size, name_display, lang, privacy_version, responded_at, choice, \
+            sign_up_token) \
+         values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now(), $9, $10) \
+         on conflict (group_id, sign_up_token) where sign_up_token is not null \
+         do nothing" returning,
         sign_up.group.id,
         sign_up.name,
         sign_up.party_size,
@@ -170,8 +180,31 @@ pub async fn create_open(
         privacy_version,
         sign_up.group.event_id,
         sign_up.choice,
+        sign_up.token,
     )
-    .fetch_one(db)
+    .fetch_optional(db)
+    .await?;
+    match made {
+        Some(made) => Ok((made, true)),
+        // The same form, sent twice at once: the other made it.
+        None => find_signed_up(db, sign_up)
+            .await?
+            .map(|made| (made, false))
+            .ok_or(sqlx::Error::RowNotFound),
+    }
+}
+
+/// The sign-up this form's token made already, if any.
+async fn find_signed_up(db: &PgPool, sign_up: &SignUp<'_>) -> sqlx::Result<Option<Rsvp>> {
+    let Some(token) = sign_up.token else {
+        return Ok(None);
+    };
+    query_rsvp!(
+        select "from rsvp where group_id = $1 and sign_up_token = $2",
+        sign_up.group.id,
+        token,
+    )
+    .fetch_optional(db)
     .await
 }
 

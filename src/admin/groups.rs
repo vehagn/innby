@@ -345,6 +345,7 @@ mod tests {
             name_display: rsvp::NameDisplay::Partial,
             lang: crate::i18n::Lang::Nb,
             choice: None,
+            token: None,
         };
         rsvp::create_open(&admin.db, &sign_up, crate::web::PRIVACY_VERSION)
             .await

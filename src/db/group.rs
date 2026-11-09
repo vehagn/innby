@@ -144,6 +144,7 @@ mod tests {
             name_display: NameDisplay::Full,
             lang: Lang::Nb,
             choice: None,
+            token: None,
         };
         rsvp::create_open(&pool, &sign_up, PRIVACY_VERSION).await?;
 

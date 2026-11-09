@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into rsvp (event_id, group_id, name, response, party_size, max_party_size, name_display, lang, privacy_version, responded_at, choice) values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now(), $9) returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice ",
+  "query": "select id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice from rsvp where group_id = $1 and sign_up_token = $2",
   "describe": {
     "columns": [
       {
@@ -241,39 +241,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Text",
-        "Int4",
-        "Int4",
-        {
-          "Custom": {
-            "name": "name_display",
-            "kind": {
-              "Enum": [
-                "full",
-                "partial",
-                "hidden"
-              ]
-            }
-          }
-        },
-        {
-          "Custom": {
-            "name": "lang",
-            "kind": {
-              "Enum": [
-                "nb",
-                "nn",
-                "en",
-                "en-us",
-                "zh-hans",
-                "zh-hant"
-              ]
-            }
-          }
-        },
-        "Text",
-        "Uuid",
-        "Int2"
+        "Text"
       ]
     },
     "nullable": [
@@ -296,5 +264,5 @@
       true
     ]
   },
-  "hash": "24b740e729e72b9c05b75766ff358ce440d3046d27dd150707b866e1ff0e2b2f"
+  "hash": "b8ba3a87596a263401df805fb2d747dde56e8ad79a9ca77d569c6261fc4b4c38"
 }

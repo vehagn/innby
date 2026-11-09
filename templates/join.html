@@ -13,6 +13,7 @@
   <h2 id="join-heading">{{ t.join_heading }}</h2>
   {% if accepts_answers %}
   <form method="post" action="{{ action }}">
+    <input type="hidden" name="token" value="{{ token }}">
     <label for="name">{{ t.your_name }}</label>
     <input id="name" name="name" value="{{ name }}" required maxlength="100" autocomplete="name">
     {% if party_sizes.len() > 1 %}

@@ -19,8 +19,11 @@ pub async fn sign_up(pool: &PgPool, name: &str, party_size: i32) -> sqlx::Result
         name_display: NameDisplay::Full,
         lang: Lang::EnGb,
         choice: None,
+        token: None,
     };
-    create_open(pool, &sign_up, PRIVACY_VERSION).await
+    create_open(pool, &sign_up, PRIVACY_VERSION)
+        .await
+        .map(|(made, _)| made)
 }
 const CHECK_VIOLATION: &str = "23514";
 

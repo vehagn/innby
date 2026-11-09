@@ -234,3 +234,33 @@ async fn closes_at_the_deadline(db: PgPool) {
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
     assert!(all(&site).await.is_empty());
 }
+
+#[sqlx::test]
+async fn the_same_form_sent_twice_signs_up_once(db: PgPool) {
+    let site = Site::new(db);
+    let (_, link) = climbing_club(&site).await;
+    let html = body(site.get(&format!("/join/{link}")).await).await;
+    let token = html
+        .split(r#"name="token" value=""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .unwrap()
+        .to_owned();
+    assert_eq!(token.len(), 43, "{html}");
+
+    // The answer to the first was lost on the way, so Per presses again.
+    let form = format!("name=Per+Hansen&party_size=1&token={token}");
+    let first = site.post(&format!("/join/{link}"), &form).await;
+    let again = site.post(&format!("/join/{link}"), &form).await;
+    assert_eq!(first.status(), StatusCode::SEE_OTHER);
+    assert_eq!(location(&again), location(&first));
+    assert_eq!(all(&site).await.len(), 1);
+
+    // A new form is a new sign-up, and so is one without a token or with a made-up one.
+    for other in ["token=another-form-token-1234", "", "token=%3Cscript%3E"] {
+        let form = format!("name=Kari+Nordmann&party_size=1&{other}");
+        let response = site.post(&format!("/join/{link}"), &form).await;
+        assert_eq!(response.status(), StatusCode::SEE_OTHER, "{other}");
+    }
+    assert_eq!(all(&site).await.len(), 4);
+}

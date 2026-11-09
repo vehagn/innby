@@ -1,6 +1,8 @@
 //! Group sign-up at `/join/{link}`: the host makes a link per group of people, and anyone
 //! with it can say they're coming with just a name, and gets their own RSVP link back,
-//! which their device can remember, as on their page.
+//! which their device can remember, as on their page. Each form carries a token of its
+//! own, so the same form sent twice, as when the answer to the first was lost on the
+//! way, leads to the first sign-up rather than making a second.
 
 use askama::Template;
 use axum::{
@@ -38,6 +40,8 @@ struct JoinPage<'a> {
     event: EventView<'a>,
     group: &'a Group,
     action: String,
+    /// This form's own token, so sending it twice signs up once.
+    token: String,
     name: &'a str,
     party_sizes: Vec<PartySize>,
     display_choices: Vec<DisplayChoice>,
@@ -60,6 +64,7 @@ impl<'a> JoinPage<'a> {
             event: EventView::new(&joining.event.details, lang),
             group,
             action: paths::localized(&paths::path(paths::JOIN, link), lang),
+            token: crate::random::token(),
             name: "",
             party_sizes: PartySize::choices(t, group.max_party_size, 1),
             // Signing up means coming, and coming shows the full name unless chosen otherwise.
@@ -154,6 +159,8 @@ pub struct JoinForm {
     remember: Option<String>,
     /// Their pick for the host's question: empty for none.
     choice: Option<String>,
+    /// The form's token; see `JoinPage::token`.
+    token: Option<String>,
     /// Hidden from people; bots fill it in.
     #[serde(default)]
     website: String,
@@ -181,6 +188,18 @@ pub async fn join(
     page.name = &form.name;
     page.display_choices = DisplayChoice::choices(page.t, None, name_display);
     page.remember = form.remember.is_some();
+    // A token as the form has it, or none from a made-up request: then there's
+    // nothing to find a first sign-up by.
+    let token = form.token.as_deref().filter(|token| {
+        (16..=64).contains(&token.len())
+            && token
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    });
+    if let Some(token) = token {
+        // Shown again to fix, it's still the same form.
+        token.clone_into(&mut page.token);
+    }
     let picked = Question::parse(&joining.event.details, form.choice.as_deref());
     page.question = Question::new(&joining.event.details, lang, picked.unwrap_or(None));
     if !page.accepts_answers {
@@ -208,10 +227,15 @@ pub async fn join(
         name_display,
         lang,
         choice,
+        token,
     };
     match rsvp::create_open(&state.db, &sign_up, PRIVACY_VERSION).await {
-        Ok(rsvp) => {
-            tracing::info!(rsvp = %rsvp.id, group = %group.id, "signed up through a group");
+        Ok((rsvp, created)) => {
+            if created {
+                tracing::info!(rsvp = %rsvp.id, group = %group.id, "signed up through a group");
+            } else {
+                tracing::info!(rsvp = %rsvp.id, group = %group.id, "sign-up sent again");
+            }
             let link = state
                 .config
                 .link_key
