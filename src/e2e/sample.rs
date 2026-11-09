@@ -38,7 +38,7 @@ async fn the_sample_shows_on_the_pages(db: PgPool) {
     kari.open(&kari_link)
         .await
         .expect(&t.answer(Response::Attending, 2));
-    kari.click(&t.see_guest_list)
+    kari.click(&t.tab_guests)
         .await
         .expect("Mari Bakke")
         .expect("Jonas L.")

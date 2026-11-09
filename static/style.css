@@ -577,6 +577,18 @@ td {
     gap: var(--space-1);
     padding-inline: var(--space-2);
   }
+
+  /* A guest's few tabs share the width, each its icon over a small label, as a phone's
+     own tab bars do, so all of them show. */
+  .spread a {
+    --icon-size: 1.25rem;
+    flex: 1;
+    flex-direction: column;
+    padding-inline: var(--space-1);
+    font-size: var(--text-xs);
+    text-align: center;
+    white-space: normal;
+  }
 }
 
 /* The way from an event's pages back to the list of events. */
@@ -1015,11 +1027,6 @@ td {
 .plus {
   color: var(--text-muted);
   white-space: nowrap;
-}
-
-/* Remembering this device, under the answer's card. */
-.remember {
-  margin: 0 0 var(--space-6);
 }
 
 /* The front page: what Innby is, a card per remembered invitation, and a note

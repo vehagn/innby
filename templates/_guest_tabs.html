@@ -1,0 +1,8 @@
+{#- A guest's pages; a lone tab would only repeat the heading below it. #}
+{% if tabs.len() > 1 %}
+<nav class="tabs spread" aria-label="{{ t.tabs_label }}">
+  {% for tab in tabs %}
+  <a href="{{ tab.href }}"{% if tab.current %} aria-current="page"{% endif %}>{{ tab.icon|safe }}{{ tab.label }}</a>
+  {% endfor %}
+</nav>
+{% endif %}

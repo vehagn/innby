@@ -34,6 +34,7 @@ runs `just bench` on every release.
 src/
   main.rs            the CLI: serve | admin | mailer | janitor | migrate | invite | event | hash-password
   alloc.rs           the allocator: mimalloc, giving freed memory back at once
+  icons.rs           the tabs' icons, as inline SVG
   http/              what both listeners share
     mod.rs           listen (timeouts, graceful shutdown), harden (security headers), no_store, ready, Lang extractor
     cookie.rs        reading Cookie headers, writing Set-Cookie
@@ -41,15 +42,18 @@ src/
     rate_limit.rs    in-memory limits per client or for everyone
     render.rs        askama templates to responses (render_form: 422 for a form to fix), the stylesheet
   web/               the public site; mod.rs has the router and every route
-    rsvp.rs          a guest's personal page /r/{link}: answer, rename, export, delete
+    rsvp.rs          a guest's pages /r/{link}: the link's guest, the Reply tab (event, answer)
+                     and the Guest list tab
+    you.rs           the Your details tab: name, e-mail, this device, export, delete
     calendar.rs      /r/{link}/event.ics, for a guest who's coming
     join.rs          group sign-up /join/{link}
     email.rs         the optional e-mail address: consent, double opt-in, "I lost my link"
     remember.rs      "remember me on this device": one cookie per event
     pages.rs         front page, privacy notice, message pages
-    games.rs         minigames: the guest page's high scores, the scores API /api/, and
+    games.rs         minigames: the Games tab and its high scores, the scores API /api/, and
                      the internal API for games' servers on its own port
-    views.rs         what personal and group pages show alike (event, guest list, choices)
+    views.rs         what personal and group pages show alike (event, guest list, choices,
+                     the host's question, a guest's tabs)
   admin/             the host's UI; mod.rs has the router, grouped by the role each page needs;
                      a module per tab or page, its handlers named list, show, create, edit, revoke, delete
     page.rs          shared: AdminState, tabs, PageError, load_event, redirect

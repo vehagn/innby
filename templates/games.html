@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.games_heading }} · {{ title }}{% endblock %}
+
+{% block content %}
+{% include "_guest_tabs.html" %}
+<h1>{{ title }}</h1>
+
+<section class="card" aria-labelledby="games-heading">
+  <h2 id="games-heading">{{ t.games_heading }}</h2>
+  <p class="hint">{{ t.games_hint }}</p>
+  {% for game in games %}
+  <h3>{{ game.name }}</h3>
+  {% if game.lines.is_empty() %}
+  <p class="muted">{{ t.no_scores }}</p>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>#</th><th>{{ t.col_player }}</th><th>{{ t.col_score }}</th></tr></thead>
+    <tbody>
+      {% for line in game.lines %}
+      <tr><td>{{ loop.index }}</td><td>{{ line.name }}{% if line.you %} {{ t.you }}{% endif %}</td><td>{{ line.shown }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+  <p><a class="button" href="{{ game.url }}">{{ crate::i18n::filled(t.play, "name", game.name) }}</a></p>
+  {% endfor %}
+</section>
+{% endblock %}

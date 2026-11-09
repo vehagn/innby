@@ -19,7 +19,9 @@ explains why it's built this way, and [development.md](development.md) how to wo
 ## What guests and hosts do
 
 **A guest** opens their personal link (`/r/{link}`). Nothing else is needed: no account,
-no password, no e-mail address. On that page they:
+no password, no e-mail address. Their pages are tabs, each a page of its own under the
+link: **Your reply** (the event and the answer), **Guest list**, **Games** when the event
+offers any, and **Your details** (name, e-mail, this device, their data). There they:
 
 - answer **Attending** or **Can't come**, with how many are coming, and the host's own
   question if the event asks one, by picking one of its choices;

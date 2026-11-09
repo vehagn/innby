@@ -3,6 +3,7 @@
 {% block title %}{{ event.title }}{% endblock %}
 
 {% block content %}
+{% include "_guest_tabs.html" %}
 {% if let Some(flash) = flash %}<p class="notice success" role="status">{{ flash }}</p>{% endif %}
 {% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
 
@@ -57,89 +58,4 @@
   <p><a class="button secondary" href="{{ links.calendar }}" rel="nofollow">{{ t.add_to_calendar }}</a></p>
 </section>
 {% endif %}
-
-{% if !accepts_answers %}
-<section class="remember">
-  {% if remembered %}
-  <form method="post" action="{{ links.forget }}">
-    <p class="hint">{{ t.remembered_text }}</p>
-    <button class="secondary">{{ t.forget_device }}</button>
-  </form>
-  {% else %}
-  <form method="post" action="{{ links.remember }}">
-    <button class="secondary">{{ t.remember_device }}</button>
-    <p class="hint">{{ t.remember_hint }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
-  </form>
-  {% endif %}
-</section>
-{% endif %}
-
-<p><a class="button secondary" href="{{ links.guests }}" rel="nofollow">{{ t.see_guest_list }}</a></p>
-
-{% if !games.is_empty() %}
-<section class="card" aria-labelledby="games-heading">
-  <h2 id="games-heading">{{ t.games_heading }}</h2>
-  <p class="hint">{{ t.games_hint }}</p>
-  {% for game in games %}
-  <h3>{{ game.name }}</h3>
-  {% if game.lines.is_empty() %}
-  <p class="muted">{{ t.no_scores }}</p>
-  {% else %}
-  <div class="table-wrap">
-  <table>
-    <thead><tr><th>#</th><th>{{ t.col_player }}</th><th>{{ t.col_score }}</th></tr></thead>
-    <tbody>
-      {% for line in game.lines %}
-      <tr><td>{{ loop.index }}</td><td>{{ line.name }}{% if line.you %} {{ t.you }}{% endif %}</td><td>{{ line.shown }}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% endif %}
-  <p><a class="button" href="{{ game.url }}">{{ crate::i18n::filled(t.play, "name", game.name) }}</a></p>
-  {% endfor %}
-</section>
-{% endif %}
-
-<details>
-  <summary>{{ t.name_heading }}</summary>
-  <form method="post" action="{{ links.name }}">
-    <label for="name">{{ t.name_heading }}</label>
-    <input id="name" name="name" value="{{ rsvp.name }}" required maxlength="100" autocomplete="name">
-    <button class="secondary">{{ t.change_name }}</button>
-  </form>
-</details>
-
-<details{% if rsvp.email.is_some() %} open{% endif %}>
-  <summary>{{ t.email_heading }}</summary>
-  {% match rsvp.email %}
-  {% when Some(email) %}
-  {% if email_confirmed %}
-  <p>{{ crate::i18n::bold(t.email_confirmed, "email", email)|safe }}</p>
-  {% else %}
-  <p>{{ crate::i18n::bold(t.email_pending, "email", email)|safe }} {{ t.email_pending_hint }}</p>
-  {% endif %}
-  <form method="post" action="{{ links.email_remove }}">
-    <button class="secondary">{{ t.email_remove }}</button>
-  </form>
-  {% when None %}
-  <p>{{ t.email_intro }}</p>
-  <form method="post" action="{{ links.email }}">
-    <label for="email">{{ t.email_label }}</label>
-    <input id="email" name="email" type="email" required maxlength="254" autocomplete="email">
-    <label class="checkbox"><input type="checkbox" name="consent" value="yes" required> {{ t.email_consent }}</label>
-    <button class="secondary">{{ t.email_add }}</button>
-  </form>
-  {% endmatch %}
-</details>
-
-<details>
-  <summary>{{ t.data_heading }}</summary>
-  <p>{{ t.data_text }}</p>
-  <p><a href="{{ links.export }}" download>{{ t.export }}</a></p>
-  <form method="post" action="{{ links.delete }}">
-    <label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> {{ t.delete_confirm }}</label>
-    <button class="danger">{{ t.delete }}</button>
-  </form>
-</details>
 {% endblock %}

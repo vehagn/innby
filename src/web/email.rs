@@ -5,7 +5,7 @@ use askama::Template;
 use axum::{
     Form,
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::Response,
 };
 use chrono::Utc;
@@ -15,7 +15,8 @@ use sqlx::PgPool;
 use super::{
     AppState, PRIVACY_VERSION,
     pages::MessagePage,
-    rsvp::{Guest, Notice, RsvpPage, redirect},
+    rsvp::{Guest, Notice, redirect_you},
+    you::YouPage,
 };
 use crate::{
     db::{
@@ -42,23 +43,28 @@ pub async fn add(
     lang: Lang,
     client: ClientIp,
     guest: Guest,
+    headers: HeaderMap,
     Form(form): Form<AddForm>,
 ) -> Response {
-    let page = || RsvpPage::new(lang, &guest);
+    // The guest's details again, with what to fix.
+    let refuse = async |status, pick: fn(&'static Messages) -> &'static str| {
+        let page = YouPage::new(&state, lang, &guest, &headers).await;
+        page.render_error(status, pick)
+    };
     if form.consent.is_none() {
-        return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.consent_required);
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.consent_required).await;
     }
     let Some(email) = rsvp::normalize_email(&form.email) else {
-        return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_email);
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_email).await;
     };
     // Each attempt can mail an address the guest typed in, so it's limited like /lost.
     if !state.may_send_mail(client) {
         tracing::warn!("add e-mail rate limit hit");
-        return page().render_error(StatusCode::TOO_MANY_REQUESTS, |t| &t.too_many_attempts);
+        return refuse(StatusCode::TOO_MANY_REQUESTS, |t| &t.too_many_attempts).await;
     }
 
     match add_email(&state.db, &guest.rsvp, &email, lang).await {
-        Ok(()) => redirect(&guest.link, lang, Notice::EmailSent),
+        Ok(()) => redirect_you(&guest.link, lang, Notice::EmailSent),
         Err(err) => server_error(err),
     }
 }
@@ -98,7 +104,7 @@ pub async fn remove(State(state): State<AppState>, lang: Lang, guest: Guest) -> 
     match result {
         Ok(()) => {
             tracing::info!(rsvp = %guest.rsvp.id, "e-mail address removed");
-            redirect(&guest.link, lang, Notice::EmailRemoved)
+            redirect_you(&guest.link, lang, Notice::EmailRemoved)
         }
         Err(err) => server_error(err),
     }
@@ -185,7 +191,7 @@ pub async fn confirm(
                 .config
                 .link_key
                 .link(Purpose::Rsvp, guest.id, guest.link_nonce);
-            redirect(&link, lang, Notice::EmailConfirmed)
+            redirect_you(&link, lang, Notice::EmailConfirmed)
         }
         Ok(false) => invalid_confirmation(lang),
         Err(err) => server_error(err),

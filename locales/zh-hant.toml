@@ -43,6 +43,12 @@ first_visit_notice = """
 你被邀請囉！為了籌備聚會，我們只儲存你的姓名、回覆和同行人數，別無其他，所有內容會在聚會結束 30 天\
 後刪除。在賓客名單上，其他賓客會看到你的部分姓名，你也可以選擇他們看到什麼。"""
 keep_link = "這是你的個人頁面。請保存好連結，以便日後修改回覆，不要分享給別人。"
+# The tabs of a guest's pages, and what the bar is called for screen readers.
+tab_reply = "你的回覆"
+tab_guests = "賓客名單"
+tab_you = "你的資料"
+tabs_label = "你的邀請"
+device_heading = "這台裝置"
 changed_notice = "你回覆之後，時間或地點有了變更。請查看上方資訊，如有需要請修改回覆。"
 # The empty pick for the host's question.
 choice_none = "暫不回答"
@@ -115,7 +121,6 @@ lost_sent_text = "如果該地址已登記並確認，我們已將連結寄給�
 guest_list_heading = "賓客名單"
 # The button to the guest list, which is on a page of its own.
 see_guest_list = "看看誰會來"
-back_to_your_page = "返回你的頁面"
 back_to_sign_up = "返回報名頁面"
 guest_list_coming = "參加"
 guest_list_pending = "尚未回覆"

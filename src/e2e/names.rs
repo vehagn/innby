@@ -32,16 +32,15 @@ async fn the_host_and_guests_type_only_names_as_names(db: PgPool) {
     // Kari can't rename herself to an emoji or a number; the old name stays.
     let mut kari = world.browser();
     kari.open(&link).await;
-    let greeting = filled(&t.greeting, "name", "Kari & Ola Nordmann");
+    kari.click(&t.tab_you).await;
     for name in ["Kari 👋", "Kari2", "<script>alert(1)</script>"] {
         kari.fill(&t.name_heading, name);
-        kari.press(&t.change_name)
-            .await
-            .expect(&t.invalid_name)
-            .expect(&greeting);
+        kari.press(&t.change_name).await.expect(&t.invalid_name);
+        assert_eq!(kari.value(&t.name_heading), "Kari & Ola Nordmann");
     }
     kari.fill(&t.name_heading, "Kari Nordmann-Hansen");
-    kari.press(&t.change_name)
+    kari.press(&t.change_name).await.expect(&t.saved);
+    kari.click(&t.tab_reply)
         .await
         .expect(&filled(&t.greeting, "name", "Kari Nordmann-Hansen"));
 

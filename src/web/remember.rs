@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use super::{
     AppState,
-    rsvp::{Guest, Notice, redirect},
+    rsvp::{Guest, Notice, redirect_you},
 };
 use crate::{
     db::{
@@ -96,13 +96,13 @@ pub(super) fn as_answered(
 pub async fn remember(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
     let cookie = remember_cookie(state.config.is_https(), &guest.event, &guest.link);
     tracing::info!(rsvp = %guest.rsvp.id, "device remembered");
-    cookie::with(redirect(&guest.link, lang, Notice::Remembered), cookie)
+    cookie::with(redirect_you(&guest.link, lang, Notice::Remembered), cookie)
 }
 
 /// Forgets the guest on this device, from their page.
 pub async fn forget_here(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
     let cookie = forget_cookie(state.config.is_https(), guest.event.id);
-    cookie::with(redirect(&guest.link, lang, Notice::Forgotten), cookie)
+    cookie::with(redirect_you(&guest.link, lang, Notice::Forgotten), cookie)
 }
 
 #[derive(Deserialize)]

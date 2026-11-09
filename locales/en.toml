@@ -47,6 +47,12 @@ they see."""
 keep_link = """
 This page is yours alone. Do keep the link should you wish to change your reply, and \
 kindly don't share it."""
+# The tabs of a guest's pages, and what the bar is called for screen readers.
+tab_reply = "Your reply"
+tab_guests = "Guest list"
+tab_you = "Your details"
+tabs_label = "Your invitation"
+device_heading = "This device"
 changed_notice = "The time or place has changed since you replied. Kindly check it above, and change your reply should you need to."
 # The empty pick for the host's question.
 choice_none = "No answer"
@@ -130,7 +136,6 @@ lost_sent_text = "If the address is registered and confirmed, your link is on it
 guest_list_heading = "The guest list"
 # The button to the guest list, which is on a page of its own.
 see_guest_list = "See who else is attending"
-back_to_your_page = "Return to your page"
 back_to_sign_up = "Return to the reply form"
 guest_list_coming = "Attending"
 guest_list_pending = "Yet to reply"

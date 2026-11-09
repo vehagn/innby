@@ -137,8 +137,11 @@ pub async fn guests(
         guests,
         you: None,
         flash: None,
-        back: paths::localized(&paths::path(paths::JOIN, &link), lang),
-        back_label: &t.back_to_sign_up,
+        tabs: Vec::new(),
+        back: Some((
+            paths::localized(&paths::path(paths::JOIN, &link), lang),
+            &t.back_to_sign_up,
+        )),
     })
 }
 

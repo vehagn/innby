@@ -209,7 +209,14 @@ async fn the_guests_page_links_each_game_with_its_token(db: PgPool) {
     games::record(&site.db, kari.id, "quiz", 4_560, false)
         .await
         .unwrap();
+    // The reply has a Games tab, which lists them.
+    let games_tab = format!("/r/{link}/games?lang=en");
     let html = body(site.get(&page).await).await;
+    assert!(
+        html.contains(&format!(r#"<a href="{games_tab}">"#)),
+        "{html}"
+    );
+    let html = body(site.get(&games_tab).await).await;
     let token = site
         .config
         .link_key

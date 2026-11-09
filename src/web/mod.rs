@@ -11,6 +11,7 @@ mod rsvp;
 #[cfg(test)]
 pub(crate) mod testing;
 mod views;
+mod you;
 
 use std::{sync::Arc, time::Duration};
 
@@ -118,11 +119,13 @@ pub(crate) fn routers(config: Config, db: PgPool) -> (Router, Option<Router>) {
         .route(paths::JOIN_GUESTS, get(join::guests))
         .route(paths::RSVP, get(rsvp::show).post(rsvp::answer))
         .route(paths::RSVP_GUESTS, get(rsvp::guests))
-        .route(paths::RSVP_NAME, post(rsvp::rename))
+        .route(paths::RSVP_GAMES, get(games::list))
+        .route(paths::RSVP_YOU, get(you::show))
+        .route(paths::RSVP_NAME, post(you::rename))
         .route(paths::RSVP_LISTING, post(rsvp::listing))
-        .route(paths::RSVP_EXPORT, get(rsvp::export))
+        .route(paths::RSVP_EXPORT, get(you::export))
         .route(paths::RSVP_CALENDAR, get(calendar::show))
-        .route(paths::RSVP_DELETE, post(rsvp::delete))
+        .route(paths::RSVP_DELETE, post(you::delete))
         .route(paths::RSVP_REMEMBER, post(remember::remember))
         .route(paths::RSVP_FORGET, post(remember::forget_here))
         .route(paths::FORGET, post(remember::forget))

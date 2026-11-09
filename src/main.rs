@@ -18,6 +18,7 @@ mod db;
 mod e2e;
 mod http;
 mod i18n;
+mod icons;
 mod janitor;
 mod link;
 mod mailer;

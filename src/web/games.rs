@@ -1,4 +1,5 @@
-//! The minigames: what the guest's page shows of them, and the scores API they call.
+//! The minigames: the Games tab of a guest's pages, `/r/{link}/games`, with each game's
+//! best scores and a way to play it, and the scores API the games call.
 //!
 //! A game is JavaScript on an origin of its own (`INNBY_GAMES_URL`, see docs/games.md),
 //! so it can't read Innby's pages, and the guest's link with them. The guest's page links
@@ -37,7 +38,11 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tower_http::cors::CorsLayer;
 
-use super::AppState;
+use super::{
+    AppState,
+    rsvp::Guest,
+    views::{GuestTab, TabLink, guest_tabs},
+};
 use crate::{
     config::{Game, ScoreKind},
     db::{
@@ -45,10 +50,10 @@ use crate::{
         games::{self, Entry, MAX_SCORE},
         rsvp::{self, NameDisplay, Rsvp},
     },
-    http::{ClientIp, server_error},
+    http::{ClientIp, render, server_error},
     i18n::{Lang, Messages},
     link::IdLink,
-    paths,
+    paths::{self, GuestLinks},
 };
 
 /// The lines of a high score table on the guest's page; a game asks for more.
@@ -74,7 +79,48 @@ pub struct GameView {
     pub lines: Vec<Line>,
 }
 
-/// The event's games, for the guest's page: those it offers that the config still has.
+#[derive(askama::Template)]
+#[template(path = "games.html")]
+struct GamesPage {
+    lang: Lang,
+    t: &'static Messages,
+    title: String,
+    tabs: Vec<TabLink>,
+    games: Vec<GameView>,
+}
+
+/// The Games tab: each game the event offers, with its best scores. An event with none
+/// has no such tab, so this leads back to the guest's reply.
+pub async fn list(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
+    let games = match for_page(&state, lang, &guest.event, &guest.rsvp).await {
+        Ok(games) => games,
+        Err(err) => return server_error(err),
+    };
+    let links = GuestLinks::new(&guest.link, lang);
+    if games.is_empty() {
+        return axum::response::Redirect::to(&links.page).into_response();
+    }
+    let t = lang.messages();
+    render(GamesPage {
+        lang,
+        t,
+        title: guest.event.details.title(lang).to_owned(),
+        tabs: guest_tabs(t, &links, true, GuestTab::Games),
+        games,
+    })
+}
+
+/// Whether the event offers any game the config still has, for the guest's tabs.
+pub(super) async fn offers_any(state: &AppState, event: &Event) -> sqlx::Result<bool> {
+    let games = &state.config.games;
+    if games.list.is_empty() {
+        return Ok(false);
+    }
+    let offered = games::offered(&state.db, event.id).await?;
+    Ok(offered.iter().any(|id| games.find(id).is_some()))
+}
+
+/// The event's games, for the Games tab: those it offers that the config still has.
 pub(super) async fn for_page(
     state: &AppState,
     lang: Lang,

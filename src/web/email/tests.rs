@@ -47,7 +47,7 @@ async fn add_confirm_and_remove(db: PgPool) {
         .await;
     assert_eq!(
         location(&response),
-        format!("/r/{link}?lang=en&notice=email_sent")
+        format!("/r/{link}/you?lang=en&notice=email_sent")
     );
     let added = site.find(&guest).await.unwrap();
     assert_eq!(added.email.as_deref(), Some("kari@example.com"));
@@ -58,7 +58,7 @@ async fn add_confirm_and_remove(db: PgPool) {
     assert_eq!(queued(&site).await, [(guest.id, Kind::ConfirmEmail)]);
 
     let html = body(
-        site.get(&format!("/r/{link}?lang=en&notice=email_sent"))
+        site.get(&format!("/r/{link}/you?lang=en&notice=email_sent"))
             .await,
     )
     .await;
@@ -77,7 +77,7 @@ async fn add_confirm_and_remove(db: PgPool) {
     let response = site.post(&format!("/e/{token}?lang=en"), "").await;
     assert_eq!(
         location(&response),
-        format!("/r/{link}?lang=en&notice=email_confirmed")
+        format!("/r/{link}/you?lang=en&notice=email_confirmed")
     );
     assert_eq!(
         site.find(&guest).await.unwrap().email_status,
@@ -94,7 +94,7 @@ async fn add_confirm_and_remove(db: PgPool) {
     let response = site.post(&format!("/r/{link}/email/remove"), "").await;
     assert_eq!(
         location(&response),
-        format!("/r/{link}?lang=nb&notice=email_removed")
+        format!("/r/{link}/you?lang=nb&notice=email_removed")
     );
     let removed = site.find(&guest).await.unwrap();
     assert_eq!(
@@ -137,7 +137,10 @@ async fn address_in_use_warns_its_owner_and_looks_the_same(db: PgPool) {
 
     let response = site.post(&format!("/r/{other_link}/email"), form).await;
     let page = location(&response).to_owned();
-    assert_eq!(page, format!("/r/{other_link}?lang=nb&notice=email_sent"));
+    assert_eq!(
+        page,
+        format!("/r/{other_link}/you?lang=nb&notice=email_sent")
+    );
     // The page shows the address waiting for confirmation, as for a new address.
     assert!(
         body(site.get(&page).await)

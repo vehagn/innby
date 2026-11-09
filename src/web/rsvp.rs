@@ -1,21 +1,25 @@
-//! The guest's personal page at `/r/{link}`: answer, change, export and delete.
+//! A guest's personal pages under `/r/{link}`, their tabs: the reply (the event, the
+//! answer and the calendar) and the guest list here, the games in `games`, and their
+//! details in `you`. `Guest` finds the guest behind a link for all of them.
 
 use askama::Template;
 use axum::{
-    Form, Json,
+    Form,
     extract::{FromRequestParts, Path, Query, State},
-    http::{HeaderMap, StatusCode, header, request::Parts},
+    http::{HeaderMap, StatusCode, request::Parts},
     response::{IntoResponse, Redirect, Response},
 };
 use chrono::Utc;
 use serde::Deserialize;
 
 use super::{
-    AppState, PRIVACY_VERSION,
-    games::{self, GameView},
-    pages::{MessagePage, gone},
+    AppState, PRIVACY_VERSION, games,
+    pages::gone,
     remember,
-    views::{DisplayChoice, EventView, GuestList, GuestsPage, PartySize, Question, YourListing},
+    views::{
+        DisplayChoice, EventView, GuestList, GuestTab, GuestsPage, PartySize, Question, TabLink,
+        YourListing, guest_tabs,
+    },
 };
 use crate::{
     db::{
@@ -109,7 +113,6 @@ pub(super) struct RsvpPage<'a> {
     /// Whether the event's time or place changed after they answered.
     changed: bool,
     accepts_answers: bool,
-    email_confirmed: bool,
     /// A one-off confirmation after a change, e.g. "Saved!".
     flash: Option<&'static str>,
     /// Confetti, right after the guest says they're coming.
@@ -118,8 +121,8 @@ pub(super) struct RsvpPage<'a> {
     new_link: Option<String>,
     /// Whether this device remembers the guest, for the front page.
     remembered: bool,
-    /// The minigames the event offers, with their best scores.
-    games: Vec<GameView>,
+    /// The guest's tabs, set by the handler, which knows whether the event offers games.
+    tabs: Vec<TabLink>,
     error: Option<&'static str>,
 }
 
@@ -145,12 +148,11 @@ impl<'a> RsvpPage<'a> {
                 (Some(changed), Some(answered)) if changed > answered
             ),
             accepts_answers: guest.event.details.accepts_answers(Utc::now()),
-            email_confirmed: rsvp.email_status == rsvp::EmailStatus::Confirmed,
             flash: None,
             celebrate: false,
             new_link: None,
             remembered: false,
-            games: Vec::new(),
+            tabs: Vec::new(),
             error: None,
         }
     }
@@ -219,6 +221,11 @@ pub(super) fn redirect(link: &str, lang: Lang, notice: Notice) -> Response {
     redirect_to(paths::RSVP, link, lang, notice)
 }
 
+/// Back to the guest's details after a change there.
+pub(super) fn redirect_you(link: &str, lang: Lang, notice: Notice) -> Response {
+    redirect_to(paths::RSVP_YOU, link, lang, notice)
+}
+
 /// Back to one of the guest's pages after a change.
 fn redirect_to(pattern: &str, link: &str, lang: Lang, notice: Notice) -> Response {
     let page = paths::localized(&paths::path(pattern, link), lang);
@@ -226,7 +233,7 @@ fn redirect_to(pattern: &str, link: &str, lang: Lang, notice: Notice) -> Respons
 }
 
 impl Notice {
-    fn flash(notice: Option<&str>, t: &'static Messages) -> Option<&'static str> {
+    pub(super) fn flash(notice: Option<&str>, t: &'static Messages) -> Option<&'static str> {
         notice
             .and_then(Self::from_code)
             .map(|notice| notice.text(t))
@@ -235,7 +242,7 @@ impl Notice {
 
 #[derive(Deserialize)]
 pub struct ShowQuery {
-    notice: Option<String>,
+    pub(super) notice: Option<String>,
     /// Set right after a group sign-up.
     new: Option<String>,
 }
@@ -249,8 +256,8 @@ pub async fn show(
 ) -> Response {
     let mut page = RsvpPage::new(lang, &guest);
     page.remembered = remember::remembers(&headers, state.config.is_https(), &guest);
-    page.games = match games::for_page(&state, lang, &guest.event, &guest.rsvp).await {
-        Ok(games) => games,
+    page.tabs = match games::offers_any(&state, &guest.event).await {
+        Ok(games) => guest_tabs(page.t, &page.links, games, GuestTab::Reply),
         Err(err) => return server_error(err),
     };
     let notice = query.notice.as_deref().and_then(Notice::from_code);
@@ -270,8 +277,12 @@ pub async fn guests(
     guest: Guest,
     Query(query): Query<ShowQuery>,
 ) -> Response {
-    let guests = match GuestList::load(&state.db, guest.event.id, Some(guest.rsvp.id)).await {
-        Ok(guests) => guests,
+    let loaded = tokio::try_join!(
+        GuestList::load(&state.db, guest.event.id, Some(guest.rsvp.id)),
+        games::offers_any(&state, &guest.event),
+    );
+    let (guests, games) = match loaded {
+        Ok(loaded) => loaded,
         Err(err) => return server_error(err),
     };
     let t = lang.messages();
@@ -281,10 +292,10 @@ pub async fn guests(
         t,
         event: EventView::new(&guest.event.details, lang),
         guests,
-        you: Some(YourListing::new(t, &guest.rsvp, links.listing)),
+        you: Some(YourListing::new(t, &guest.rsvp, links.listing.clone())),
         flash: Notice::flash(query.notice.as_deref(), t),
-        back: links.page,
-        back_label: &t.back_to_your_page,
+        tabs: guest_tabs(t, &links, games, GuestTab::Guests),
+        back: None,
     })
 }
 
@@ -367,31 +378,6 @@ pub async fn answer(
 }
 
 #[derive(Deserialize)]
-pub struct NameForm {
-    name: String,
-}
-
-pub async fn rename(
-    State(state): State<AppState>,
-    lang: Lang,
-    guest: Guest,
-    Form(form): Form<NameForm>,
-) -> Response {
-    let Some(name) = rsvp::normalize_name(&form.name, rsvp::NameKind::Person) else {
-        return RsvpPage::new(lang, &guest)
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name);
-    };
-    match rsvp::rename(&state.db, guest.rsvp.id, &name).await {
-        Ok(true) => {
-            tracing::info!(rsvp = %guest.rsvp.id, "rsvp renamed");
-            redirect(&guest.link, lang, Notice::Saved)
-        }
-        Ok(false) => gone(lang),
-        Err(err) => server_error(err),
-    }
-}
-
-#[derive(Deserialize)]
 pub struct ListingForm {
     name_display: NameDisplay,
 }
@@ -406,82 +392,6 @@ pub async fn listing(
     match rsvp::set_name_display(&state.db, guest.rsvp.id, form.name_display).await {
         Ok(true) => redirect_to(paths::RSVP_GUESTS, &guest.link, lang, Notice::Saved),
         Ok(false) => gone(lang),
-        Err(err) => server_error(err),
-    }
-}
-
-/// Everything stored about the guest, as a download (GDPR Art. 15 and 20).
-/// Everything kept about the guest (GDPR Art. 15 and 20): their reply, and their best
-/// score in each game.
-#[derive(serde::Serialize)]
-struct Export<'a> {
-    #[serde(flatten)]
-    rsvp: &'a Rsvp,
-    /// The host's question and the guest's pick, in their words rather than its place.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    question: Option<&'a str>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    picked: Option<&'a str>,
-    scores: Vec<crate::db::games::Best>,
-}
-
-pub async fn export(State(state): State<AppState>, guest: Guest) -> Response {
-    let scores = match crate::db::games::of_guest(&state.db, guest.rsvp.id).await {
-        Ok(scores) => scores,
-        Err(err) => return server_error(err),
-    };
-    let question = guest.event.details.question(guest.rsvp.lang);
-    let picked = guest.rsvp.choice.and_then(|pick| {
-        let choices = &question.as_ref()?.1;
-        choices.get(usize::try_from(pick).ok()?).copied()
-    });
-    let export = Export {
-        rsvp: &guest.rsvp,
-        question: question.as_ref().map(|(question, _)| *question),
-        picked,
-        scores,
-    };
-    (
-        [(
-            header::CONTENT_DISPOSITION,
-            r#"attachment; filename="rsvp.json""#,
-        )],
-        Json(export),
-    )
-        .into_response()
-}
-
-#[derive(Deserialize)]
-pub struct DeleteForm {
-    confirm: Option<String>,
-}
-
-/// Deletes the RSVP for good (GDPR Art. 17).
-pub async fn delete(
-    State(state): State<AppState>,
-    lang: Lang,
-    guest: Guest,
-    headers: HeaderMap,
-    Form(form): Form<DeleteForm>,
-) -> Response {
-    if form.confirm.is_none() {
-        return RsvpPage::new(lang, &guest)
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.confirm_delete);
-    }
-    match rsvp::delete(&state.db, guest.rsvp.id).await {
-        Ok(_) => {
-            tracing::info!(rsvp = %guest.rsvp.id, "rsvp deleted by guest");
-            let mut response = render(MessagePage::new(lang, |t| {
-                (&t.deleted_title, &t.deleted_text)
-            }));
-            // A device that remembers the guest forgets them too.
-            let https = state.config.is_https();
-            if remember::remembers(&headers, https, &guest) {
-                let cookie = remember::forget_cookie(https, guest.event.id);
-                response.headers_mut().append(header::SET_COOKIE, cookie);
-            }
-            response
-        }
         Err(err) => server_error(err),
     }
 }

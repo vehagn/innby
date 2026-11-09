@@ -44,6 +44,12 @@ pub struct Messages {
     /// Shown until the guest has answered: what we store and why (GDPR Art. 13/14).
     pub first_visit_notice: String,
     pub keep_link: String,
+    /// The tabs of a guest's pages, and the bar's name for screen readers.
+    pub tab_reply: String,
+    pub tab_guests: String,
+    pub tab_you: String,
+    pub tabs_label: String,
+    pub device_heading: String,
     /// On the page of a guest who answered before the time or place changed.
     pub changed_notice: String,
     /// The empty pick for the host's question.
@@ -118,7 +124,6 @@ pub struct Messages {
     pub guest_list_heading: String,
     /// The button to the guest list, which is on a page of its own.
     pub see_guest_list: String,
-    pub back_to_your_page: String,
     pub back_to_sign_up: String,
     pub guest_list_coming: String,
     pub guest_list_pending: String,

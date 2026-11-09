@@ -3,6 +3,7 @@
 {% block title %}{{ t.guest_list_heading }} · {{ event.title }}{% endblock %}
 
 {% block content %}
+{% include "_guest_tabs.html" %}
 {% if let Some(flash) = flash %}<p class="notice success" role="status">{{ flash }}</p>{% endif %}
 <h1>{{ event.title }}</h1>
 
@@ -24,5 +25,5 @@
   {% endif %}
 </section>
 
-<p><a href="{{ back }}">{{ back_label }}</a></p>
+{% if let Some((href, label)) = back %}<p><a href="{{ href }}">{{ label }}</a></p>{% endif %}
 {% endblock %}

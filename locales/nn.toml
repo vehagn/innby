@@ -46,6 +46,12 @@ andre gjester førenamnet og initialen din, og du kan velje kva dei ser."""
 keep_link = """
 Dette er den personlege sida di. Ta vare på lenkja for å endre svaret seinare, og ikkje \
 del ho med andre."""
+# The tabs of a guest's pages, and what the bar is called for screen readers.
+tab_reply = "Svaret ditt"
+tab_guests = "Gjestelista"
+tab_you = "Opplysningane dine"
+tabs_label = "Invitasjonen din"
+device_heading = "Denne eininga"
 changed_notice = "Tid eller stad er endra sidan du svarte. Sjekk det over, og endre svaret om du må."
 # The empty pick for the host's question.
 choice_none = "Ikkje svart"
@@ -127,7 +133,6 @@ lost_sent_text = "Om adressa er registrert og stadfesta, har vi sendt deg lenkja
 guest_list_heading = "Gjestelista"
 # The button to the guest list, which is on a page of its own.
 see_guest_list = "Sjå kven som kjem"
-back_to_your_page = "Tilbake til sida di"
 back_to_sign_up = "Tilbake til påmeldinga"
 guest_list_coming = "Kjem"
 guest_list_pending = "Har ikkje svart enno"

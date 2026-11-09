@@ -172,9 +172,10 @@ pub struct GuestsPage<'a> {
     /// For a guest: how they show up, and the other ways they could.
     pub you: Option<YourListing>,
     pub flash: Option<&'static str>,
-    /// The page the list was opened from.
-    pub back: String,
-    pub back_label: &'static str,
+    /// A guest's tabs; none for someone deciding whether to sign up.
+    pub tabs: Vec<TabLink>,
+    /// For someone deciding whether to sign up: back to the form, and what it says.
+    pub back: Option<(String, &'static str)>,
 }
 
 pub struct YourListing {
@@ -244,4 +245,64 @@ impl Question {
         let within = usize::try_from(pick).is_ok_and(|pick| pick < choices.len());
         if within { Ok(Some(pick)) } else { Err(()) }
     }
+}
+
+/// The tabs of a guest's pages, each a page of its own under their link.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum GuestTab {
+    Reply,
+    Guests,
+    Games,
+    You,
+}
+
+pub struct TabLink {
+    pub href: String,
+    pub label: &'static str,
+    /// Inline SVG, hidden from screen readers, which read the label.
+    pub icon: &'static str,
+    pub current: bool,
+}
+
+/// The guest's tabs, with Games only when the event offers any (`_guest_tabs.html`).
+pub fn guest_tabs(
+    t: &'static Messages,
+    links: &crate::paths::GuestLinks,
+    games: bool,
+    current: GuestTab,
+) -> Vec<TabLink> {
+    use crate::icons;
+    [
+        (
+            GuestTab::Reply,
+            &links.page,
+            &t.tab_reply,
+            icons::ENVELOPE,
+            true,
+        ),
+        (
+            GuestTab::Guests,
+            &links.guests,
+            &t.tab_guests,
+            icons::PEOPLE,
+            true,
+        ),
+        (
+            GuestTab::Games,
+            &links.games,
+            &t.games_heading,
+            icons::GAMEPAD,
+            games,
+        ),
+        (GuestTab::You, &links.you, &t.tab_you, icons::PERSON, true),
+    ]
+    .into_iter()
+    .filter(|(.., shown)| *shown)
+    .map(|(tab, href, label, icon, _)| TabLink {
+        href: href.clone(),
+        label,
+        icon,
+        current: tab == current,
+    })
+    .collect()
 }

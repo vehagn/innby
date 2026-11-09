@@ -68,7 +68,7 @@ async fn the_front_page_leads_back_to_each_remembered_invitation(db: PgPool) {
     let response = site.post(&format!("/r/{link}/remember?lang=en"), "").await;
     assert_eq!(
         location(&response),
-        format!("/r/{link}?lang=en&notice=remembered")
+        format!("/r/{link}/you?lang=en&notice=remembered")
     );
     let party_cookie = format!("__Host-innby-{}", party.id.simple());
     let [set] = set_cookies(&response)[..] else {
@@ -109,7 +109,7 @@ async fn the_front_page_leads_back_to_each_remembered_invitation(db: PgPool) {
     let response = site.post(&format!("/r/{link}/forget?lang=en"), "").await;
     assert_eq!(
         location(&response),
-        format!("/r/{link}?lang=en&notice=forgotten")
+        format!("/r/{link}/you?lang=en&notice=forgotten")
     );
     assert!(set_cookies(&response)[0].starts_with(&format!("{party_cookie}=; Path=/; Max-Age=0;")));
 
@@ -172,13 +172,13 @@ async fn the_answer_remembers_the_device_only_when_its_box_is_ticked(db: PgPool)
     let response = answer("response=declined&party_size=1", &cookie).await;
     assert!(set_cookies(&response)[0].contains("Max-Age=0"));
 
-    // Once answers close there's no answer to tick it on, so the button stays.
+    // Once answers close there's no answer to tick it on, but the guest's details
+    // have a button for it.
     site.close_answers().await;
     let html = body(site.get(&page).await).await;
-    assert!(
-        !html.contains(checkbox) && html.contains("/remember?"),
-        "{html}"
-    );
+    assert!(!html.contains(checkbox), "{html}");
+    let html = body(site.get(&format!("/r/{link}/you?lang=en")).await).await;
+    assert!(html.contains("/remember?"), "{html}");
 }
 
 #[sqlx::test]

@@ -40,7 +40,7 @@ async fn an_invited_household_answers_and_shows_on_the_guest_list(db: PgPool) {
 
     // The guest list shows the household with the two Kari brings, and the
     // invitation still waiting for an answer by first name and initial.
-    kari.click(&t.see_guest_list)
+    kari.click(&t.tab_guests)
         .await
         .expect(&format!("{} · {}", t.guest_list_coming, t.people_count(3)))
         .expect(&format!("Kari Nordmann +2 {}", t.you))
@@ -79,23 +79,21 @@ async fn a_guest_hides_their_name_then_declines(db: PgPool) {
     kari.press(&t.attend).await;
 
     // From the guest list Kari asks to be left off it; others then see a count only.
-    kari.click(&t.see_guest_list).await;
+    kari.click(&t.tab_guests).await;
     kari.press(&t.display_hidden).await.expect(&t.listed_hidden);
     let mut ola = world.browser();
     ola.open(&world.invite("Ola", 1).await).await;
-    ola.click(&t.see_guest_list)
+    ola.click(&t.tab_guests)
         .await
         .expect_not("Kari")
         .expect(&t.more_guests(1));
 
     // Then Kari can't come after all, and drops off the list.
-    kari.click(&t.back_to_your_page).await;
+    kari.click(&t.tab_reply).await;
     kari.press(&t.decline)
         .await
         .expect(&t.answer(Response::Declined, 1));
-    kari.click(&t.see_guest_list)
-        .await
-        .expect(&t.listed_declined);
+    kari.click(&t.tab_guests).await.expect(&t.listed_declined);
     let list = ola.page().url.clone();
     ola.open(&list).await.expect_not(&t.more_guests(1));
 }
@@ -108,6 +106,8 @@ async fn a_guest_downloads_and_deletes_their_data(db: PgPool) {
     let mut kari = world.browser();
     kari.open(&link).await;
 
+    // Her data is on her details tab.
+    kari.click(&t.tab_you).await.expect(&t.data_heading);
     let export = kari.download(&t.export).await;
     assert_eq!(export.headers[header::CONTENT_TYPE], "application/json");
     assert!(

@@ -131,7 +131,7 @@ async fn the_host_runs_two_events_side_by_side(db: PgPool) {
 
     // Each event's guest list has only its own guests.
     kari_phone
-        .click(&t.see_guest_list)
+        .click(&t.tab_guests)
         .await
         .expect("Kari Nordmann")
         .expect_not("Per H");
@@ -142,7 +142,7 @@ async fn the_host_runs_two_events_side_by_side(db: PgPool) {
         .expect("Summer party")
         .expect_not("Christmas party");
     per_phone
-        .click(&t.see_guest_list)
+        .click(&t.tab_guests)
         .await
         .expect("Per H.")
         .expect_not("Kari");
@@ -197,6 +197,7 @@ async fn one_address_belongs_to_a_guest_of_two_events(db: PgPool) {
     let mut kari = world.browser();
     for link in &links {
         kari.open(link).await;
+        kari.click(&t.tab_you).await;
         kari.fill(&t.email_label, "kari@example.com")
             .check(t.email_consent.trim());
         kari.press(&t.email_add).await.expect(&t.email_sent_notice);

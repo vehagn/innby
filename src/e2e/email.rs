@@ -15,6 +15,7 @@ async fn a_guest_confirms_their_address_and_gets_a_mislaid_link_again(db: PgPool
     kari.open(&link).await;
 
     // Kari adds her address; the confirmation mail has no name in it.
+    kari.click(&t.tab_you).await;
     kari.fill(&t.email_label, "kari@example.com")
         .check(t.email_consent.trim());
     kari.press(&t.email_add)
@@ -63,6 +64,7 @@ async fn the_host_sends_reminders_to_confirmed_addresses(db: PgPool) {
     for (name, address) in [("Kari", "kari@example.com"), ("Ola", "ola@example.com")] {
         let mut guest = world.browser();
         guest.open(&world.invite(name, 1).await).await;
+        guest.click(&t.tab_you).await;
         guest
             .fill(&t.email_label, address)
             .check(t.email_consent.trim());
@@ -104,6 +106,7 @@ async fn a_guest_hears_when_the_time_or_place_changes(db: PgPool) {
     let link = world.invite("Kari", 1).await;
     let mut kari = world.browser();
     kari.open(&link).await;
+    kari.click(&t.tab_you).await;
     kari.fill(&t.email_label, "kari@example.com")
         .check(t.email_consent.trim());
     kari.press(&t.email_add).await;
