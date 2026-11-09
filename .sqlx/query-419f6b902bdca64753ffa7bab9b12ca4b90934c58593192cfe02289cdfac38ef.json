@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at from event where id = $1",
+  "query": "select id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at from event where id = $1",
   "describe": {
     "columns": [
       {
@@ -90,6 +90,17 @@
             "name": "ends_at"
           }
         }
+      },
+      {
+        "ordinal": 8,
+        "name": "changed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "changed_at"
+          }
+        }
       }
     ],
     "parameters": {
@@ -105,8 +116,9 @@
       false,
       false,
       true,
+      true,
       true
     ]
   },
-  "hash": "fb5a1cdda67ae66540bdab5a299b25d1319322095358c5f1f83751eea72361f0"
+  "hash": "419f6b902bdca64753ffa7bab9b12ca4b90934c58593192cfe02289cdfac38ef"
 }

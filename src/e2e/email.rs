@@ -96,3 +96,45 @@ async fn the_host_sends_reminders_to_confirmed_addresses(db: PgPool) {
         &a.reminders_queued_other,
     ));
 }
+
+#[sqlx::test]
+async fn a_guest_hears_when_the_time_or_place_changes(db: PgPool) {
+    let world = World::new(db);
+    let (t, a) = (en(), admin());
+    let link = world.invite("Kari", 1).await;
+    let mut kari = world.browser();
+    kari.open(&link).await;
+    kari.fill(&t.email_label, "kari@example.com")
+        .check(t.email_consent.trim());
+    kari.press(&t.email_add).await;
+    let confirmation = world.receive("kari@example.com").await;
+    kari.open(link_in(&confirmation)).await;
+    kari.press(&t.confirm_button).await;
+    world.receive("kari@example.com").await;
+    kari.open(&link).await;
+    kari.press(&t.attend).await.expect_not(&t.changed_notice);
+
+    // The host moves the party.
+    let mut host = world.host().await;
+    host.click(&a.details).await.expect(&a.event_change_hint);
+    host.fill(&a.event_location, "Bygdøy");
+    host.press(&a.save)
+        .await
+        .expect(&count(1, &a.change_notices_one, &a.change_notices_other));
+    let notice = world.receive("kari@example.com").await;
+    assert!(notice.subject.contains("A change to"), "{}", notice.subject);
+    assert!(notice.body.contains("Bygdøy"), "{}", notice.body);
+    // She's coming, so the event comes for her calendar again.
+    assert!(notice.calendar.unwrap().contains("LOCATION:Bygdøy"));
+
+    // Her page says so until she answers again.
+    kari.open(&link).await.expect(&t.changed_notice);
+    kari.press(&t.attend).await.expect_not(&t.changed_notice);
+
+    // A new title alone is no change of time or place: no mail, no notice.
+    host.fill(&format!("{} · Bokmål", a.event_title), "Julefest");
+    host.press(&a.save).await.expect(&a.saved);
+    world.deliver_mail().await;
+    assert_eq!(world.inbox("kari@example.com").len(), 3);
+    kari.open(&link).await.expect_not(&t.changed_notice);
+}

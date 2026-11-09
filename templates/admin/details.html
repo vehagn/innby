@@ -6,12 +6,13 @@
 
 {% block content %}
 {% let a = crate::admin::lang::text() %}
-{% if saved %}<p class="notice success" role="status">{{ a.saved }}</p>{% endif %}
+{% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
 <h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
 
 <section class="card">
   <form method="post" action="{{ links.details }}">
     {% include "admin/_event_form.html" %}
+    <p class="hint">{{ a.event_change_hint }}</p>
     <button>{{ a.save }}</button>
   </form>
 </section>

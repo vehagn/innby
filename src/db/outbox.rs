@@ -17,6 +17,8 @@ pub enum Kind {
     /// The guest's own RSVP link.
     RsvpLink,
     Reminder,
+    /// The event's start, end or place changed.
+    EventChanged,
 }
 
 #[derive(Debug, Clone)]
@@ -137,6 +139,31 @@ pub async fn queue_reminders(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::R
             and not exists (select from outbox where rsvp_id = rsvp.id and kind = 'reminder')
         "#,
         event_id,
+    )
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected())
+}
+
+/// Tells every guest with a confirmed address that the event's start, end or place
+/// changed, whatever their answer: a new date may suit one who declined. A guest whose
+/// notice is still waiting isn't queued another; it says what the event is when it goes.
+/// Returns how many were queued.
+pub async fn queue_change_notices(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<u64> {
+    let result = sqlx::query!(
+        r#"
+        insert into outbox (rsvp_id, kind)
+        select id, 'event_changed'
+        from rsvp
+        where event_id = $1 and email_status = 'confirmed'
+            and not exists (
+                select from outbox
+                where rsvp_id = rsvp.id and kind = 'event_changed' and sent_at is null
+                    and attempts < $2
+            )
+        "#,
+        event_id,
+        MAX_ATTEMPTS,
     )
     .execute(db)
     .await?;

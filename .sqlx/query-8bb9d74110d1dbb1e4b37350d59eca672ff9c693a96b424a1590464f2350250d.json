@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into outbox (rsvp_id, kind)\n        select id, 'event_changed'\n        from rsvp\n        where event_id = $1 and email_status = 'confirmed'\n            and not exists (\n                select from outbox\n                where rsvp_id = rsvp.id and kind = 'event_changed' and sent_at is null\n                    and attempts < $2\n            )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8bb9d74110d1dbb1e4b37350d59eca672ff9c693a96b424a1590464f2350250d"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at from event order by starts_at, id",
+  "query": "insert into event (title, description, location, starts_at, time_zone, rsvp_deadline,\n            ends_at)\n         values ($1, $2, $3, $4, $5, $6, $7)\n         returning id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at",
   "describe": {
     "columns": [
       {
@@ -90,10 +90,29 @@
             "name": "ends_at"
           }
         }
+      },
+      {
+        "ordinal": 8,
+        "name": "changed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "changed_at"
+          }
+        }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Jsonb",
+        "Jsonb",
+        "Text",
+        "Timestamptz",
+        "Text",
+        "Timestamptz",
+        "Timestamptz"
+      ]
     },
     "nullable": [
       false,
@@ -103,8 +122,9 @@
       false,
       false,
       true,
+      true,
       true
     ]
   },
-  "hash": "03c8ce45242c921ce6d3de83fe75985218824d83272d0d08a0bb5fe7d0434dc6"
+  "hash": "f01d10129b350852023c7052238c489d61600f99446b5cfa26d1764a0caa71b0"
 }

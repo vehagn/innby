@@ -43,6 +43,9 @@ create table event (
     starts_at           timestamptz not null,
     -- Null for an event with no set end.
     ends_at             timestamptz check (ends_at > starts_at),
+    -- When its start, end or place last changed, once it was made. Guests who answered
+    -- before are told, on their page and by mail.
+    changed_at          timestamptz,
     -- Dates show in the event's time zone, wherever the guest is.
     time_zone           text not null default 'Europe/Oslo',
     -- Guests can answer until then; null means until the event starts.
@@ -123,7 +126,9 @@ create index rsvp_group on rsvp (group_id) where group_id is not null;
 create unique index rsvp_confirmed_email_uq on rsvp (email, event_id)
     where email_status = 'confirmed';
 
-create type outbox_kind as enum ('confirm_email', 'email_in_use', 'rsvp_link', 'reminder');
+create type outbox_kind as enum (
+    'confirm_email', 'email_in_use', 'rsvp_link', 'reminder', 'event_changed'
+);
 
 -- Mail jobs for `innby mailer`, written in the same transaction as the change that
 -- causes them.

@@ -7,6 +7,7 @@ fn event(details: crate::db::event::Details) -> Event {
     Event {
         id: Uuid::nil(),
         details,
+        changed_at: None,
     }
 }
 

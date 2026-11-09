@@ -44,6 +44,8 @@ pub struct Messages {
     /// Shown until the guest has answered: what we store and why (GDPR Art. 13/14).
     pub first_visit_notice: String,
     pub keep_link: String,
+    /// On the page of a guest who answered before the time or place changed.
+    pub changed_notice: String,
     pub calendar_heading: String,
     pub calendar_hint: String,
     pub add_to_calendar: String,
@@ -214,6 +216,8 @@ pub struct AdminMessages {
     pub event_starts: String,
     pub event_ends: String,
     pub event_ends_hint: String,
+    /// Under the Details tab's form: who's told of a new time or place.
+    pub event_change_hint: String,
     pub event_time_zone: String,
     pub event_deadline: String,
     pub event_deadline_hint: String,
@@ -399,6 +403,8 @@ pub struct AdminMessages {
     pub send_reminders: String,
     pub reminders_queued_one: String,
     pub reminders_queued_other: String,
+    pub change_notices_one: String,
+    pub change_notices_other: String,
 
     // Table columns and facts, also the CSV's header
     pub col_name: String,
@@ -480,6 +486,8 @@ pub struct Mails {
     pub email_in_use: MailText,
     pub rsvp_link: MailText,
     pub reminder: MailText,
+    /// The event's start, end or place changed.
+    pub event_changed: MailText,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

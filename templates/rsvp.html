@@ -19,6 +19,7 @@
 
 <section class="card" aria-labelledby="answer-heading">
   <h2 id="answer-heading">{{ crate::i18n::filled(t.greeting, "name", rsvp.name) }}</h2>
+  {% if changed %}<p class="notice" role="status">{{ t.changed_notice }}</p>{% endif %}
   {% if first_visit %}
   <p class="notice">{{ t.first_visit_notice }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
   {% endif %}

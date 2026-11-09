@@ -1,5 +1,6 @@
 //! An event's Details tab (`admin/details.html`): its title, description, place and
-//! times to change, the event as a file to download, and deleting it.
+//! times to change, the event as a file to download, and deleting it. A new start, end
+//! or place is mailed to every guest with a confirmed address.
 
 use std::collections::HashMap;
 
@@ -11,6 +12,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::Utc;
+use serde::Deserialize;
 use uuid::Uuid;
 
 use super::{
@@ -19,15 +21,16 @@ use super::{
 };
 use crate::{
     admin::{
-        forms::{DeleteForm, SavedQuery},
+        forms::DeleteForm,
         lang,
         page::{AdminState, PageError, load_event, redirect},
     },
     db::{
         event::{self, Event},
-        group, qr,
+        group, outbox, qr,
     },
     http::{render, render_with},
+    i18n::count,
     janitor::KEEP_AFTER_EVENT,
     paths::{self, EventLinks},
 };
@@ -39,7 +42,8 @@ struct DetailsPage {
     links: EventLinks,
     form: EventForm,
     keep_after_event_days: i64,
-    saved: bool,
+    /// "Saved", and how many guests are told of a new time or place.
+    notice: Option<String>,
     error: Option<String>,
 }
 
@@ -50,7 +54,7 @@ impl DetailsPage {
             event,
             form,
             keep_after_event_days: KEEP_AFTER_EVENT.num_days(),
-            saved: false,
+            notice: None,
             error: None,
         }
     }
@@ -61,16 +65,33 @@ impl DetailsPage {
     }
 }
 
+#[derive(Deserialize)]
+pub(in crate::admin) struct DetailsQuery {
+    saved: Option<String>,
+    /// How many guests a change of time or place is mailed to.
+    told: Option<usize>,
+}
+
 /// The event's details, to change or to delete it.
 pub(in crate::admin) async fn show(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
-    Query(query): Query<SavedQuery>,
+    Query(query): Query<DetailsQuery>,
 ) -> Result<Response, PageError> {
     let event = load_event(&state, id).await?;
     let form = EventForm::from_details(&event.details);
+    let text = lang::text();
+    let notice = match (query.saved, query.told) {
+        (_, Some(n)) => Some(count(
+            n,
+            &text.change_notices_one,
+            &text.change_notices_other,
+        )),
+        (Some(_), None) => Some(text.saved.clone()),
+        (None, None) => None,
+    };
     Ok(render(DetailsPage {
-        saved: query.saved.is_some(),
+        notice,
         ..DetailsPage::new(event, form)
     }))
 }
@@ -86,12 +107,24 @@ pub(in crate::admin) async fn edit(
         Ok(details) => details,
         Err(error) => return Ok(DetailsPage::new(event, form).render_error(error)),
     };
-    event::update(&state.db, id, &details)
+    let mut tx = state.db.begin().await?;
+    let updated = event::update(&mut *tx, id, &details)
         .await?
         .ok_or(PageError::Missing)?;
-    tracing::info!(event = %id, "event changed");
-    let page = format!("{}?saved", paths::path(paths::EVENT_DETAILS, id));
-    Ok(redirect(&page))
+    // A new start, end or place goes to everyone with an address, in the same
+    // transaction, so a change is never saved without its mails.
+    let told = if updated.changed_at != event.changed_at {
+        Some(outbox::queue_change_notices(&mut *tx, id).await?)
+    } else {
+        None
+    };
+    tx.commit().await?;
+    tracing::info!(event = %id, ?told, "event changed");
+    let base = paths::path(paths::EVENT_DETAILS, id);
+    Ok(redirect(&match told {
+        Some(n) => format!("{base}?told={n}"),
+        None => format!("{base}?saved"),
+    }))
 }
 
 /// The event and its group links as a file, to keep, copy or import as a new event.

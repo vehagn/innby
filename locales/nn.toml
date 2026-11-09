@@ -46,6 +46,7 @@ andre gjester førenamnet og initialen din, og du kan velje kva dei ser."""
 keep_link = """
 Dette er den personlege sida di. Ta vare på lenkja for å endre svaret seinare, og ikkje \
 del ho med andre."""
+changed_notice = "Tid eller stad er endra sidan du svarte. Sjekk det over, og endre svaret om du må."
 # The event for the guest's own calendar, once they're coming.
 calendar_heading = "I kalenderen din"
 calendar_hint = "Ei fil med tid og stad til kalenderen på telefonen eller datamaskina. Blir planane endra, legg du henne til på nytt."
@@ -94,7 +95,8 @@ email_intro = "Vil du få ei påminning og lenkja di på e-post? Det er heilt va
 email_label = "E-postadresse"
 # The consent statement next to the unticked box (GDPR Art. 7).
 email_consent = """
-Ja, send meg påminningar og lenkja mi på e-post. Eg kan fjerne adressa når som helst."""
+Ja, send meg påminningar, endringar i tid eller stad og lenkja mi på e-post. Eg kan \
+fjerne adressa når som helst."""
 email_add = "Legg til"
 email_pending = "Vi har sendt ei stadfestingslenkje til {email}."
 email_pending_hint = "Lenkja verkar i 48 timar."
@@ -224,6 +226,7 @@ event_location = "Stad"
 event_starts = "Startar"
 event_ends = "Sluttar"
 event_ends_hint = "La feltet stå tomt om arrangementet ikkje har nokon fast slutt; kalendrane til gjestene viser det då som tre timar langt."
+event_change_hint = "Ny start, slutt eller stad blir send på e-post til alle gjester med stadfesta adresse, og blir vist på sidene til dei som svarte før endringa."
 event_time_zone = "Tidssone"
 event_deadline = "Svarfrist"
 event_deadline_hint = "La feltet stå tomt for å ta imot svar heilt til arrangementet startar."
@@ -426,6 +429,8 @@ reminders_hint = "Ei påminning går til dei som ikkje har takka nei, éin gong 
 send_reminders = "Send påminningar"
 reminders_queued_one = "{n} påminning lagd i kø."
 reminders_queued_other = "{n} påminningar lagde i kø."
+change_notices_one = "Lagra. {n} gjest med stadfesta adresse får melding om endringa."
+change_notices_other = "Lagra. {n} gjester med stadfesta adresse får melding om endringa."
 
 # Table columns and facts, also the CSV's header
 col_name = "Namn"
@@ -524,5 +529,17 @@ Hei, {name}!
 Ei påminning om {title}: {when}, {place}.
 
 Svaret ditt: {answer}. Endre det her:
+
+{url}"""
+
+# When the host changes the event's start, end or place. `{when}`, `{place}`, `{answer}`.
+[mail.event_changed]
+subject = "Endring: {title}"
+body = """
+Hei, {name}!
+
+{title} er endra: No er det {when}, {place}.
+
+Svaret ditt: {answer}. Endre det her om du må:
 
 {url}"""

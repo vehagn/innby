@@ -104,6 +104,8 @@ pub(super) struct RsvpPage<'a> {
     /// one, since that's the default once they're coming.
     display_choices: Vec<DisplayChoice>,
     first_visit: bool,
+    /// Whether the event's time or place changed after they answered.
+    changed: bool,
     accepts_answers: bool,
     email_confirmed: bool,
     /// A one-off confirmation after a change, e.g. "Saved!".
@@ -135,6 +137,10 @@ impl<'a> RsvpPage<'a> {
             party_sizes: PartySize::choices(t, rsvp.max_party_size, rsvp.party_size),
             display_choices: DisplayChoice::choices(t, Some(&rsvp.name), chosen),
             first_visit: rsvp.privacy_version.is_none(),
+            changed: matches!(
+                (guest.event.changed_at, rsvp.responded_at),
+                (Some(changed), Some(answered)) if changed > answered
+            ),
             accepts_answers: guest.event.details.accepts_answers(Utc::now()),
             email_confirmed: rsvp.email_status == rsvp::EmailStatus::Confirmed,
             flash: None,

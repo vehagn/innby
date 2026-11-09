@@ -25,7 +25,8 @@
                 "confirm_email",
                 "email_in_use",
                 "rsvp_link",
-                "reminder"
+                "reminder",
+                "event_changed"
               ]
             }
           }

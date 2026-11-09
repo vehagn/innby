@@ -59,7 +59,9 @@ seven tabs:
   one's high scores. Turning a game off deletes its scores.
 - **Details:** the event's title and description (in Bokmål, and optionally in each other
   language), place, start and end, time zone and answer deadline; the event as a file; or
-  deleting the event.
+  deleting the event. A new start, end or place is mailed to every guest with a confirmed
+  address, whatever their answer, and noted on the pages of those who answered before it
+  until they answer again.
 - **Access**, for admins: who else may see or run this event alone, by the name they log
   in with, as a viewer or an editor.
 
@@ -180,8 +182,9 @@ saved unconfirmed, and a confirmation mail is queued in the same transaction (th
 **outbox**). The confirmation mail contains nothing a guest typed, so nobody can use it to
 send a message to someone else. The guest confirms by pressing a button on the page the
 mail links to: mail scanners that open links can't confirm for them. Then their link
-comes by mail, and later any reminders the host sends; a reminder to a guest who's
-coming carries the event as a calendar file, as their page offers it.
+comes by mail, and later any reminders the host sends, and word when the event's start,
+end or place changes. A reminder or a change notice to a guest who's coming carries the
+event as a calendar file, as their page offers it.
 
 - Only a *confirmed* address must be unique within an event. If someone else already has
   it, that person gets a mail pointing to `/lost`, and the page looks the same either way,

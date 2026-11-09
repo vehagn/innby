@@ -43,6 +43,7 @@ first_visit_notice = """
 你被邀請囉！為了籌備聚會，我們只儲存你的姓名、回覆和同行人數，別無其他，所有內容會在聚會結束 30 天\
 後刪除。在賓客名單上，其他賓客會看到你的部分姓名，你也可以選擇他們看到什麼。"""
 keep_link = "這是你的個人頁面。請保存好連結，以便日後修改回覆，不要分享給別人。"
+changed_notice = "你回覆之後，時間或地點有了變更。請查看上方資訊，如有需要請修改回覆。"
 # The event for the guest's own calendar, once they're coming.
 calendar_heading = "加入行事曆"
 calendar_hint = "一個包含時間和地點的檔案，可加入手機或電腦的行事曆。如安排有變，請重新加入。"
@@ -86,7 +87,7 @@ email_heading = "電子郵件提醒"
 email_intro = "想透過電子郵件收到提醒和你的連結嗎？完全自願。"
 email_label = "電子郵件地址"
 # The consent statement next to the unticked box (GDPR Art. 7).
-email_consent = "是的，請透過電子郵件寄給我提醒和我的連結。我可以隨時刪除我的地址。"
+email_consent = "是的，請透過電子郵件寄給我提醒、時間或地點的變更和我的連結。我可以隨時刪除我的地址。"
 email_add = "新增"
 email_pending = "我們已寄送確認連結至 {email}。"
 email_pending_hint = "連結 48 小時內有效。"
@@ -208,6 +209,7 @@ event_location = "地點"
 event_starts = "開始時間"
 event_ends = "結束時間"
 event_ends_hint = "如活動沒有固定的結束時間，請留空；賓客的行事曆中將顯示為三小時。"
+event_change_hint = "開始時間、結束時間或地點有變時，會以電子郵件通知所有已確認信箱的賓客，並在變更前已回覆的賓客頁面上顯示。"
 event_time_zone = "時區"
 event_deadline = "回覆截止"
 event_deadline_hint = "留空則在活動開始前都可以回覆。"
@@ -390,6 +392,8 @@ reminders_hint = "提醒會寄給所有沒有婉拒的賓客，每人一次。"
 send_reminders = "寄送提醒"
 reminders_queued_one = "已排定寄送 {n} 則提醒。"
 reminders_queued_other = "已排定寄送 {n} 則提醒。"
+change_notices_one = "已儲存。將通知 {n} 位已確認信箱的賓客。"
+change_notices_other = "已儲存。將通知 {n} 位已確認信箱的賓客。"
 
 # Table columns and facts, also the CSV's header
 col_name = "姓名"
@@ -485,5 +489,17 @@ body = """
 提醒你 {title}：{when}，{place}。
 
 你的回覆：{answer}。在這裡修改：
+
+{url}"""
+
+# When the host changes the event's start, end or place. `{when}`, `{place}`, `{answer}`.
+[mail.event_changed]
+subject = "變更：{title}"
+body = """
+{name}，你好！
+
+{title} 有變更：現在是 {when}，{place}。
+
+你的回覆：{answer}。如需修改，請點這裡：
 
 {url}"""

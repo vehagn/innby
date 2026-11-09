@@ -15,6 +15,8 @@ use crate::{
 pub struct Event {
     pub id: Uuid,
     pub details: Details,
+    /// When its start, end or place last changed, once it was made.
+    pub changed_at: Option<DateTime<Utc>>,
 }
 
 /// What the host says about an event.
@@ -60,6 +62,7 @@ pub(super) struct Row {
     pub(super) time_zone: String,
     pub(super) rsvp_deadline: Option<DateTime<Utc>>,
     pub(super) ends_at: Option<DateTime<Utc>>,
+    pub(super) changed_at: Option<DateTime<Utc>>,
 }
 
 impl From<Row> for Event {
@@ -76,6 +79,7 @@ impl From<Row> for Event {
                 rsvp_deadline: row.rsvp_deadline.map(|at| at.with_timezone(&tz)),
                 ends_at: row.ends_at.map(|at| at.with_timezone(&tz)),
             },
+            changed_at: row.changed_at,
         }
     }
 }
@@ -87,7 +91,7 @@ pub async fn create(db: impl PgExecutor<'_>, details: &Details) -> sqlx::Result<
             ends_at)
          values ($1, $2, $3, $4, $5, $6, $7)
          returning id, title as "title: Json<Texts>", description as "description: Json<Texts>",
-            location, starts_at, time_zone, rsvp_deadline, ends_at"#,
+            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at"#,
         Json(&details.title) as _,
         Json(&details.description) as _,
         details.location,
@@ -110,10 +114,15 @@ pub async fn update(
     sqlx::query_as!(
         Row,
         r#"update event set title = $2, description = $3, location = $4, starts_at = $5,
-            time_zone = $6, rsvp_deadline = $7, ends_at = $8
+            time_zone = $6, rsvp_deadline = $7, ends_at = $8,
+            -- The old values, on the right of each =.
+            changed_at = case
+                when (starts_at, ends_at, location) is distinct from ($5, $8, $4) then now()
+                else changed_at
+            end
          where id = $1
          returning id, title as "title: Json<Texts>", description as "description: Json<Texts>",
-            location, starts_at, time_zone, rsvp_deadline, ends_at"#,
+            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at"#,
         id,
         Json(&details.title) as _,
         Json(&details.description) as _,
@@ -132,7 +141,7 @@ pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Even
     sqlx::query_as!(
         Row,
         r#"select id, title as "title: Json<Texts>", description as "description: Json<Texts>",
-            location, starts_at, time_zone, rsvp_deadline, ends_at from event where id = $1"#,
+            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at from event where id = $1"#,
         id
     )
     .fetch_optional(db)
@@ -145,7 +154,7 @@ pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Event>> {
     sqlx::query_as!(
         Row,
         r#"select id, title as "title: Json<Texts>", description as "description: Json<Texts>",
-            location, starts_at, time_zone, rsvp_deadline, ends_at from event order by starts_at, id"#
+            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at from event order by starts_at, id"#
     )
     .fetch_all(db)
     .await
@@ -158,7 +167,7 @@ pub async fn list_given(db: impl PgExecutor<'_>, user: &str) -> sqlx::Result<Vec
     sqlx::query_as!(
         Row,
         r#"select e.id, e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
-            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at
+            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at
          from event e join event_access a on a.event_id = e.id
          where a.user_name = $1 order by e.starts_at, e.id"#,
         user
@@ -304,6 +313,28 @@ pub(crate) mod tests {
         // Never before it starts.
         details.ends_at = Some(details.starts_at - chrono::Duration::hours(1));
         assert!(update(&db, event.id, &details).await.is_err());
+    }
+
+    #[sqlx::test]
+    async fn notes_when_the_time_or_place_changes(db: PgPool) {
+        let mut details = details();
+        let event = create(&db, &details).await.unwrap();
+        assert_eq!(event.changed_at, None);
+        // Words alone aren't a change of plan.
+        details.title.set(Lang::Nb, "Julefest");
+        details.description.set(Lang::Nb, "Ny tekst");
+        let same = update(&db, event.id, &details).await.unwrap().unwrap();
+        assert_eq!(same.changed_at, None);
+        for change in [
+            |d: &mut Details| d.location = "Bygdøy".into(),
+            |d: &mut Details| d.starts_at += chrono::Duration::hours(1),
+            |d: &mut Details| d.ends_at = Some(d.starts_at + chrono::Duration::hours(4)),
+        ] {
+            let before = find(&db, event.id).await.unwrap().unwrap().changed_at;
+            change(&mut details);
+            let changed = update(&db, event.id, &details).await.unwrap().unwrap();
+            assert!(changed.changed_at > before, "{:?}", changed.details);
+        }
         assert!(update(&db, Uuid::nil(), &details).await.unwrap().is_none());
     }
 

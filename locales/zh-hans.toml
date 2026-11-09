@@ -43,6 +43,7 @@ first_visit_notice = """
 你被邀请啦！为了筹备聚会，我们只保存你的姓名、回复和同行人数，别无其他，所有内容会在聚会结束 30 天\
 后删除。在宾客名单上，其他宾客会看到你的部分姓名，你也可以选择他们看到什么。"""
 keep_link = "这是你的个人页面。请保存好链接，以便日后修改回复，不要分享给别人。"
+changed_notice = "你回复之后，时间或地点有了变更。请查看上方信息，如有需要请修改回复。"
 # The event for the guest's own calendar, once they're coming.
 calendar_heading = "加入日历"
 calendar_hint = "一个包含时间和地点的文件，可加入手机或电脑的日历。如安排有变，请重新添加。"
@@ -86,7 +87,7 @@ email_heading = "邮件提醒"
 email_intro = "想通过电子邮件收到提醒和你的链接吗？完全自愿。"
 email_label = "电子邮件地址"
 # The consent statement next to the unticked box (GDPR Art. 7).
-email_consent = "是的，请通过电子邮件给我发送提醒和我的链接。我可以随时删除我的地址。"
+email_consent = "是的，请通过电子邮件给我发送提醒、时间或地点的变更和我的链接。我可以随时删除我的地址。"
 email_add = "添加"
 email_pending = "我们已向 {email} 发送确认链接。"
 email_pending_hint = "链接 48 小时内有效。"
@@ -208,6 +209,7 @@ event_location = "地点"
 event_starts = "开始时间"
 event_ends = "结束时间"
 event_ends_hint = "如活动没有固定的结束时间，请留空；宾客的日历中将显示为三小时。"
+event_change_hint = "开始时间、结束时间或地点有变时，会通过电子邮件通知所有已确认邮箱的宾客，并在变更前已回复的宾客页面上显示。"
 event_time_zone = "时区"
 event_deadline = "回复截止"
 event_deadline_hint = "留空则在活动开始前都可以回复。"
@@ -388,6 +390,8 @@ reminders_hint = "提醒会发给所有没有谢绝的宾客，每人一次。"
 send_reminders = "发送提醒"
 reminders_queued_one = "已安排发送 {n} 条提醒。"
 reminders_queued_other = "已安排发送 {n} 条提醒。"
+change_notices_one = "已保存。将通知 {n} 位已确认邮箱的宾客。"
+change_notices_other = "已保存。将通知 {n} 位已确认邮箱的宾客。"
 
 # Table columns and facts, also the CSV's header
 col_name = "姓名"
@@ -483,5 +487,17 @@ body = """
 提醒你 {title}：{when}，{place}。
 
 你的回复：{answer}。在这里修改：
+
+{url}"""
+
+# When the host changes the event's start, end or place. `{when}`, `{place}`, `{answer}`.
+[mail.event_changed]
+subject = "变更：{title}"
+body = """
+{name}，你好！
+
+{title} 有变更：现在是 {when}，{place}。
+
+你的回复：{answer}。如需修改，请点这里：
 
 {url}"""

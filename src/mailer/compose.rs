@@ -1,6 +1,6 @@
 //! The mails, in the guest's language. Plain text only: nothing to track, nothing to
-//! render remotely. A reminder to a guest who's coming carries the event as a calendar
-//! file, as their page offers it.
+//! render remotely. A reminder or a change notice to a guest who's coming carries the
+//! event as a calendar file, as their page offers it.
 
 use std::fmt::Display;
 
@@ -43,7 +43,9 @@ pub fn compose(
     let to = rsvp.email.clone().ok_or("address removed")?;
     let needed = match kind {
         Kind::ConfirmEmail => EmailStatus::Unconfirmed,
-        Kind::EmailInUse | Kind::RsvpLink | Kind::Reminder => EmailStatus::Confirmed,
+        Kind::EmailInUse | Kind::RsvpLink | Kind::Reminder | Kind::EventChanged => {
+            EmailStatus::Confirmed
+        }
     };
     if rsvp.email_status != needed {
         return Err("address no longer in the right state");
@@ -72,6 +74,7 @@ pub fn compose(
         Kind::EmailInUse => (&t.mail.email_in_use, url(paths::LOST)),
         Kind::RsvpLink => (&t.mail.rsvp_link, rsvp_url()),
         Kind::Reminder => (&t.mail.reminder, rsvp_url()),
+        Kind::EventChanged => (&t.mail.event_changed, rsvp_url()),
     };
 
     let title = event.title(lang);
@@ -86,7 +89,9 @@ pub fn compose(
         lang.format_when(event.starts_at, event.ends_at),
         t.answer(rsvp.response, rsvp.party_size),
     );
-    if kind == Kind::Reminder {
+    // What the event is now, read as the mail goes out.
+    let about_event = matches!(kind, Kind::Reminder | Kind::EventChanged);
+    if about_event {
         values.extend([
             ("when", &when as &dyn Display),
             ("place", &event.location),
@@ -94,7 +99,7 @@ pub fn compose(
         ]);
     }
     // For their calendar, as their page offers it to those coming.
-    let calendar = (kind == Kind::Reminder && rsvp.response == Response::Attending)
+    let calendar = (about_event && rsvp.response == Response::Attending)
         .then(|| calendar::file(id, lang, &config.base_url));
     let mut body = fill(&text.body, &values);
     if calendar.is_some() {
@@ -146,6 +151,7 @@ mod tests {
                 Kind::EmailInUse,
                 Kind::RsvpLink,
                 Kind::Reminder,
+                Kind::EventChanged,
             ] {
                 let status = match kind {
                     Kind::ConfirmEmail => EmailStatus::Unconfirmed,
@@ -154,18 +160,19 @@ mod tests {
                 let event = Event {
                     id: Uuid::nil(),
                     details: crate::db::event::tests::details(),
+                    changed_at: None,
                 };
                 let mail = compose(&config, kind, &guest(lang, status), &event).unwrap();
                 let text = format!("{}\n{}", mail.subject, mail.body);
                 assert!(!text.contains(['{', '}']), "{lang:?} {kind:?}: {text}");
                 assert!(text.contains("https://fest.example.com/"), "{text}");
-                let greets = matches!(kind, Kind::RsvpLink | Kind::Reminder);
+                let greets = matches!(kind, Kind::RsvpLink | Kind::Reminder | Kind::EventChanged);
                 assert_eq!(text.contains("Kari"), greets, "{lang:?} {kind:?}: {text}");
-                // Only a reminder carries the calendar file, and says so.
-                let reminder = kind == Kind::Reminder;
-                assert_eq!(mail.calendar.is_some(), reminder, "{lang:?} {kind:?}");
+                // Only a reminder or a change notice carries the calendar file, and says so.
+                let about_event = matches!(kind, Kind::Reminder | Kind::EventChanged);
+                assert_eq!(mail.calendar.is_some(), about_event, "{lang:?} {kind:?}");
                 let said = text.contains(&lang.messages().mail.calendar_attached);
-                assert_eq!(said, reminder, "{lang:?} {kind:?}");
+                assert_eq!(said, about_event, "{lang:?} {kind:?}");
             }
         }
     }
@@ -175,6 +182,7 @@ mod tests {
         let event = Event {
             id: Uuid::nil(),
             details: crate::db::event::tests::details(),
+            changed_at: None,
         };
         let mut kari = guest(Lang::EnGb, EmailStatus::Confirmed);
         let mail = compose(&config(), Kind::Reminder, &kari, &event).unwrap();

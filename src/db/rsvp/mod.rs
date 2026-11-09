@@ -191,7 +191,7 @@ pub async fn find_with_events(
             r.privacy_version, r.responded_at, r.created_at, r.group_id,
             r.name_display as "name_display: NameDisplay",
             e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
-            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at
+            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at
         from rsvp r join event e on e.id = r.event_id
         where r.id = any($1)
         "#,
@@ -211,6 +211,7 @@ pub async fn find_with_events(
                 time_zone: row.time_zone,
                 rsvp_deadline: row.rsvp_deadline,
                 ends_at: row.ends_at,
+                changed_at: row.changed_at,
             });
             let rsvp = Rsvp {
                 id: row.id,

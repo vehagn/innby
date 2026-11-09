@@ -44,6 +44,7 @@ You're invited! We save your name, your answer, and how many are coming. That's 
 all deleted 30 days after the party. Other guests see your first name and initial on the \
 guest list. You can change that."""
 keep_link = "This is your page. Keep the link to change your answer. Don't share it."
+changed_notice = "The time or place changed after you RSVPed. Check it above, and change your answer if you need to."
 # The event for the guest's own calendar, once they're coming.
 calendar_heading = "In your calendar"
 calendar_hint = "A file with the time and place for your phone or computer calendar. If plans change, add it again."
@@ -90,7 +91,7 @@ email_heading = "Email reminders"
 email_intro = "Want a reminder and your link by email? Totally optional."
 email_label = "Email"
 # The consent statement next to the unticked box (GDPR Art. 7).
-email_consent = "Yes, email me reminders and my link. I can remove my email anytime."
+email_consent = "Yes, email me reminders, any change of time or place, and my link. I can remove my email anytime."
 email_add = "Add"
 email_pending = "We sent a link to {email}."
 email_pending_hint = "It works for 48 hours."
@@ -208,6 +209,7 @@ event_location = "Place"
 event_starts = "Starts"
 event_ends = "Ends"
 event_ends_hint = "Leave it empty if there's no set end time. Guests' calendars then show it as three hours long."
+event_change_hint = "A new start, end or place gets emailed to every guest with a confirmed address, and shows on the pages of anyone who RSVPed before it."
 event_time_zone = "Time zone"
 event_deadline = "RSVP by"
 event_deadline_hint = "Leave it empty to take RSVPs until the event starts."
@@ -370,6 +372,8 @@ reminders_hint = "Everyone who hasn't said no gets one reminder."
 send_reminders = "Send reminders"
 reminders_queued_one = "{n} reminder queued."
 reminders_queued_other = "{n} reminders queued."
+change_notices_one = "Saved. {n} guest with a confirmed address will be told about the change."
+change_notices_other = "Saved. {n} guests with a confirmed address will be told about the change."
 
 # Table columns and facts, also the CSV's header
 col_name = "Name"
@@ -467,5 +471,17 @@ Hi, {name}!
 {title} is {when} at {place}.
 
 Your answer: {answer}. Change it here:
+
+{url}"""
+
+# When the host changes the event's start, end or place. `{when}`, `{place}`, `{answer}`.
+[mail.event_changed]
+subject = "Update: {title}"
+body = """
+Hi, {name}!
+
+{title} has changed. It's now {when} at {place}.
+
+Your answer: {answer}. Change it here if you need to:
 
 {url}"""
