@@ -268,6 +268,9 @@ closed = "已关闭：回复截止日期已过。"
 no_groups = "还没有群组。"
 # The label of a group's link field, for screen readers.
 link_for = "{name} 的链接"
+open_link = "打开"
+open_link_for = "打开 {name} 的链接"
+copy_link_hint = "要复制链接，请长按或右键点击“打开”，再从菜单中复制。"
 new_groups = "新群组，每行一个"
 # Example lines in the empty box, one per line. Keep the comma before a number.
 groups_placeholder = "攀岩俱乐部\n邻居, 4"

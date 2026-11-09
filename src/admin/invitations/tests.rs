@@ -37,6 +37,10 @@ async fn creates_invitations_in_a_batch(db: PgPool) {
     );
     let urls = links(&html);
     assert_eq!(urls.len(), 3);
+    // Each is a link too, which browsers offer to copy when it's held or right-clicked.
+    for url in &urls {
+        assert!(html.contains(&format!(r#"<a href="{url}""#)), "{html}");
+    }
     let link: IdLink = urls[0]
         .strip_prefix("https://fest.example.com/r/")
         .unwrap()

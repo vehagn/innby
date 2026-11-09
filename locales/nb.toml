@@ -289,6 +289,9 @@ closed = "Stengt: svarfristen har gått ut."
 no_groups = "Ingen grupper ennå."
 # The label of a group's link field, for screen readers.
 link_for = "Lenke for {name}"
+open_link = "Åpne"
+open_link_for = "Åpne lenken for {name}"
+copy_link_hint = "Vil du kopiere en lenke, holder du inne eller høyreklikker på Åpne og kopierer den fra menyen."
 new_groups = "Nye grupper, én per linje"
 # Example lines in the empty box, one per line. Keep the comma before a number.
 groups_placeholder = "Klatreklubben\nNaboer, 4"

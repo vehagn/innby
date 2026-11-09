@@ -293,6 +293,9 @@ closed = "Closed: the answer deadline has passed."
 no_groups = "No groups yet."
 # The label of a group's link field, for screen readers.
 link_for = "Link for {name}"
+open_link = "Open"
+open_link_for = "Open link for {name}"
+copy_link_hint = "To copy a link, hold or right-click Open and copy it from the menu."
 new_groups = "New groups, one per line"
 # Example lines in the empty box, one per line. Keep the comma before a number.
 groups_placeholder = "Climbing club\nNeighbours, 4"

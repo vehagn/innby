@@ -272,6 +272,13 @@ pub struct AdminMessages {
     pub no_groups: String,
     /// The label of a group's link field, for screen readers.
     pub link_for: String,
+    /// A link to a guest's or group's page, beside its field. Browsers offer to copy a
+    /// link that's held or right-clicked, which a button can't do without JavaScript.
+    pub open_link: String,
+    /// The same in a table, for screen readers; it starts with `open_link`.
+    pub open_link_for: String,
+    /// How to copy a link with `open_link`.
+    pub copy_link_hint: String,
     pub new_groups: String,
     /// Example lines in the empty box, one per line.
     pub groups_placeholder: String,

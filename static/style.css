@@ -330,7 +330,24 @@ input[readonly] {
   max-width: none;
 }
 
-td input[readonly] {
+/* A link's field, and the link itself beside it: browsers offer to copy a link that's
+   held or right-clicked, which a copy button couldn't do without JavaScript. */
+.link-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+
+.link-field input[readonly] {
+  margin: 0;
+}
+
+.link-field a {
+  white-space: nowrap;
+}
+
+td .link-field {
   margin: 0;
 }
 

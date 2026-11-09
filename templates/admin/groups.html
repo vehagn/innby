@@ -15,6 +15,7 @@
   {% if groups.is_empty() %}
   <p class="muted">{{ a.no_groups }}</p>
   {% else %}
+  <p class="hint">{{ a.copy_link_hint }}</p>
   <div class="table-wrap">
   <table>
     <thead>
@@ -26,7 +27,10 @@
         <td><a href="{{ group.path }}">{{ group.name }}</a></td>
         <td>{{ group.sign_ups }}</td>
         <td>{{ group.max_party_size }}</td>
-        <td><input type="text" readonly value="{{ group.url }}" aria-label="{{ crate::i18n::filled(a.link_for, "name", group.name) }}"></td>
+        <td><div class="link-field">
+          <input type="text" readonly value="{{ group.url }}" aria-label="{{ crate::i18n::filled(a.link_for, "name", group.name) }}">
+          <a href="{{ group.url }}" target="_blank" aria-label="{{ crate::i18n::filled(a.open_link_for, "name", group.name) }}">{{ a.open_link }}</a>
+        </div></td>
       </tr>
       {% endfor %}
     </tbody>
