@@ -99,6 +99,7 @@ page 'Site: stylesheet'                         200 $site/static/style.css
 page 'Site: privacy notice'                     200 $site/privacy
 page 'Site: guest page'                         200 $site$link
 page 'Site: guest list (1500 guests)'           200 $site$link/guests
+page 'Site: guest details'                      200 $site$link/you
 page 'Site: guest export'                       200 $site$link/export
 page 'Site: group sign-up page'                 200 $site$group
 page 'Site: forged link'                        404 $site/r/AAAAAAAAAAAAAAAAAAAAAA.AAAAAAAAAAAAAAAAAAAAAA
