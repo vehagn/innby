@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,\n            question as \"question: Json<Texts>\", choices as \"choices: Json<Texts>\" from event where id = $1",
+  "query": "select id, lang as \"lang: Lang\", title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,\n            question as \"question: Json<Texts>\", choices as \"choices: Json<Texts>\" from event order by starts_at, id",
   "describe": {
     "columns": [
       {
@@ -16,6 +16,31 @@
       },
       {
         "ordinal": 1,
+        "name": "lang: Lang",
+        "type_info": {
+          "Custom": {
+            "name": "lang",
+            "kind": {
+              "Enum": [
+                "nb",
+                "nn",
+                "en",
+                "en-us",
+                "zh-hans",
+                "zh-hant"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "lang"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
         "name": "title: Json<Texts>",
         "type_info": "Jsonb",
         "origin": {
@@ -26,7 +51,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "description: Json<Texts>",
         "type_info": "Jsonb",
         "origin": {
@@ -37,7 +62,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "location",
         "type_info": "Text",
         "origin": {
@@ -48,7 +73,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "starts_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -59,7 +84,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "time_zone",
         "type_info": "Text",
         "origin": {
@@ -70,7 +95,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "rsvp_deadline",
         "type_info": "Timestamptz",
         "origin": {
@@ -81,7 +106,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "ends_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -92,7 +117,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "changed_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -103,7 +128,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "question: Json<Texts>",
         "type_info": "Jsonb",
         "origin": {
@@ -114,7 +139,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "choices: Json<Texts>",
         "type_info": "Jsonb",
         "origin": {
@@ -126,11 +151,10 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -144,5 +168,5 @@
       false
     ]
   },
-  "hash": "e7798c081ec9c6b2ee7bc6fcb621ee8174ce578ad48bbdbd4f838759d9af49b9"
+  "hash": "1af7fb6adb4fecfb162d738c4a82c768e85e36039b7dd9f8535bf6a201b74565"
 }

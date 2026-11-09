@@ -192,6 +192,7 @@ pub async fn find_with_events(
             r.email_status as "email_status: EmailStatus", r.email_consent_at,
             r.privacy_version, r.responded_at, r.created_at, r.group_id,
             r.name_display as "name_display: NameDisplay",
+            e.lang as "event_lang: Lang",
             e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
             e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,
             e.question as "question: Json<Texts>", e.choices as "choices: Json<Texts>",
@@ -208,6 +209,7 @@ pub async fn find_with_events(
         .map(|row| {
             let event = Event::from(event::Row {
                 id: row.event_id,
+                lang: row.event_lang,
                 title: row.title,
                 description: row.description,
                 location: row.location,

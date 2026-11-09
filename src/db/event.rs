@@ -22,6 +22,8 @@ pub struct Event {
 /// What the host says about an event.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Details {
+    /// The language the host writes the event in, which the others fall back to.
+    pub lang: Lang,
     pub title: Texts,
     pub description: Texts,
     pub location: String,
@@ -44,17 +46,21 @@ impl Details {
     }
 
     pub fn title(&self, lang: Lang) -> &str {
-        self.title.get(lang)
+        self.title.get(lang, self.lang)
+    }
+
+    pub fn description(&self, lang: Lang) -> &str {
+        self.description.get(lang, self.lang)
     }
 
     /// The host's question and its choices in `lang`, if the event asks one.
     pub fn question(&self, lang: Lang) -> Option<(&str, Vec<&str>)> {
-        if self.question.nb.is_empty() {
+        if self.question.own(self.lang).is_empty() {
             return None;
         }
-        let choices = self.choices.get(lang).lines().map(str::trim);
+        let choices = self.choices.get(lang, self.lang).lines().map(str::trim);
         Some((
-            self.question.get(lang),
+            self.question.get(lang, self.lang),
             choices.filter(|line| !line.is_empty()).collect(),
         ))
     }
@@ -71,6 +77,7 @@ impl Event {
 /// same row, but `db::qr` reads and writes it.
 pub(super) struct Row {
     pub(super) id: Uuid,
+    pub(super) lang: Lang,
     pub(super) title: Json<Texts>,
     pub(super) description: Json<Texts>,
     pub(super) location: String,
@@ -90,6 +97,7 @@ impl From<Row> for Event {
         Self {
             id: row.id,
             details: Details {
+                lang: row.lang,
                 title: row.title.0,
                 description: row.description.0,
                 location: row.location,
@@ -108,9 +116,9 @@ pub async fn create(db: impl PgExecutor<'_>, details: &Details) -> sqlx::Result<
     sqlx::query_as!(
         Row,
         r#"insert into event (title, description, location, starts_at, time_zone, rsvp_deadline,
-            ends_at, question, choices)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         returning id, title as "title: Json<Texts>", description as "description: Json<Texts>",
+            ends_at, question, choices, lang)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         returning id, lang as "lang: Lang", title as "title: Json<Texts>", description as "description: Json<Texts>",
             location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,
             question as "question: Json<Texts>", choices as "choices: Json<Texts>""#,
         Json(&details.title) as _,
@@ -122,6 +130,7 @@ pub async fn create(db: impl PgExecutor<'_>, details: &Details) -> sqlx::Result<
         details.ends_at.map(|at| at.to_utc()),
         Json(&details.question) as _,
         Json(&details.choices) as _,
+        details.lang as Lang,
     )
     .fetch_one(db)
     .await
@@ -138,13 +147,14 @@ pub async fn update(
         Row,
         r#"update event set title = $2, description = $3, location = $4, starts_at = $5,
             time_zone = $6, rsvp_deadline = $7, ends_at = $8, question = $9, choices = $10,
+            lang = $11,
             -- The old values, on the right of each =.
             changed_at = case
                 when (starts_at, ends_at, location) is distinct from ($5, $8, $4) then now()
                 else changed_at
             end
          where id = $1
-         returning id, title as "title: Json<Texts>", description as "description: Json<Texts>",
+         returning id, lang as "lang: Lang", title as "title: Json<Texts>", description as "description: Json<Texts>",
             location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,
             question as "question: Json<Texts>", choices as "choices: Json<Texts>""#,
         id,
@@ -157,6 +167,7 @@ pub async fn update(
         details.ends_at.map(|at| at.to_utc()),
         Json(&details.question) as _,
         Json(&details.choices) as _,
+        details.lang as Lang,
     )
     .fetch_optional(db)
     .await
@@ -166,7 +177,7 @@ pub async fn update(
 pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Event>> {
     sqlx::query_as!(
         Row,
-        r#"select id, title as "title: Json<Texts>", description as "description: Json<Texts>",
+        r#"select id, lang as "lang: Lang", title as "title: Json<Texts>", description as "description: Json<Texts>",
             location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,
             question as "question: Json<Texts>", choices as "choices: Json<Texts>" from event where id = $1"#,
         id
@@ -180,7 +191,7 @@ pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Even
 pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Event>> {
     sqlx::query_as!(
         Row,
-        r#"select id, title as "title: Json<Texts>", description as "description: Json<Texts>",
+        r#"select id, lang as "lang: Lang", title as "title: Json<Texts>", description as "description: Json<Texts>",
             location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,
             question as "question: Json<Texts>", choices as "choices: Json<Texts>" from event order by starts_at, id"#
     )
@@ -194,7 +205,7 @@ pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Event>> {
 pub async fn list_given(db: impl PgExecutor<'_>, user: &str) -> sqlx::Result<Vec<Event>> {
     sqlx::query_as!(
         Row,
-        r#"select e.id, e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
+        r#"select e.id, e.lang as "lang: Lang", e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
             e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,
             e.question as "question: Json<Texts>", e.choices as "choices: Json<Texts>"
          from event e join event_access a on a.event_id = e.id
@@ -244,6 +255,7 @@ pub(crate) mod tests {
     /// calendar, so the weekdays are those the tests were written with.
     pub fn details() -> Details {
         Details {
+            lang: Lang::Nb,
             title: Texts {
                 nb: "Julebord".into(),
                 en_gb: Some("Christmas party".into()),
@@ -344,6 +356,28 @@ pub(crate) mod tests {
         // Never before it starts.
         details.ends_at = Some(details.starts_at - chrono::Duration::hours(1));
         assert!(update(&db, event.id, &details).await.is_err());
+    }
+
+    #[sqlx::test]
+    async fn an_event_needs_a_title_in_its_own_language(db: PgPool) {
+        let english = Details {
+            lang: Lang::EnGb,
+            title: Texts {
+                nb: String::new(),
+                en_gb: Some("Summer party".into()),
+                ..Texts::default()
+            },
+            ..details()
+        };
+        let made = create(&db, &english).await.unwrap();
+        assert_eq!(made.details.lang, Lang::EnGb);
+        assert_eq!(made.details.title(Lang::Nn), "Summer party");
+        // The database refuses one without.
+        let untitled = Details {
+            lang: Lang::ZhHans,
+            ..english
+        };
+        assert!(create(&db, &untitled).await.is_err());
     }
 
     #[sqlx::test]

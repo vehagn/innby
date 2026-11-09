@@ -135,7 +135,7 @@ async fn a_guest_hears_when_the_time_or_place_changes(db: PgPool) {
     kari.press(&t.attend).await.expect_not(&t.changed_notice);
 
     // A new title alone is no change of time or place: no mail, no notice.
-    host.fill(&format!("{} · Bokmål", a.event_title), "Julefest");
+    host.fill(&a.event_title, "Julefest");
     host.press(&a.save).await.expect(&a.saved);
     world.deliver_mail().await;
     assert_eq!(world.inbox("kari@example.com").len(), 3);

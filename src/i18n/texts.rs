@@ -1,5 +1,6 @@
-//! Texts the host writes, such as an event's title and description: in Bokmål, and in
-//! any other language the host gives, falling back as the site's own texts do.
+//! Texts the host writes, such as an event's title and description: in the event's own
+//! language, and in any other the host gives, falling back as the site's own texts do,
+//! and in the end to the event's language.
 
 use std::collections::BTreeMap;
 
@@ -7,9 +8,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::Lang;
 
-/// A text the host writes, such as an event's title: in Bokmål, and in other languages
-/// if the host gives them. A language without one falls back as its file says, as the
-/// site's own texts do, and in the end to Bokmål.
+/// A text the host writes, such as an event's title: in the event's language, and in
+/// others if the host gives them. A language without one falls back as its file says,
+/// as the site's own texts do, and in the end to the event's language.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Texts {
     pub nb: String,
@@ -21,13 +22,14 @@ pub struct Texts {
 }
 
 impl Texts {
-    /// The text in this language, or the one it falls back to.
-    pub fn get(&self, lang: Lang) -> &str {
+    /// The text in `lang`, or the one it falls back to, and in the end the one in `main`,
+    /// the language the host writes the event in.
+    pub fn get(&self, lang: Lang, main: Lang) -> &str {
         std::iter::once(lang)
             .chain(lang.fallbacks().iter().copied())
             .map(|lang| self.own(lang))
             .find(|text| !text.is_empty())
-            .unwrap_or(&self.nb)
+            .unwrap_or_else(|| self.own(main))
     }
 
     /// The text written for this language, without falling back; empty if there's none.

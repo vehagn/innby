@@ -61,11 +61,12 @@ seven tabs:
   party's printed invitations and posters look its own; a new event starts plain.
 - **Games**, when `INNBY_GAMES` lists any: which minigames the event offers, and each
   one's high scores. Turning a game off deletes its scores.
-- **Details:** the event's title and description (in Bokmål, and optionally in each other
-  language), place, start and end, time zone and answer deadline; the event as a file; or
-  deleting the event. The host may ask guests one question of their own, with two to
-  twenty choices; other guests never see the picks, and changing the Bokmål choices
-  clears them, since a pick is a place in the list. A new start, end or place is mailed to every guest with a confirmed
+- **Details:** the language the event is written in, its title and description (in that
+  language, and optionally in each other), place, start and end, time zone and answer
+  deadline; the event as a file; or deleting the event. The host may ask guests one
+  question of their own, with two to twenty choices; other guests never see the picks,
+  and changing the choices in the event's language clears them, since a pick is a place
+  in the list. A new start, end or place is mailed to every guest with a confirmed
   address, whatever their answer, and noted on the pages of those who answered before it
   until they answer again.
 - **Access**, for admins: who else may see or run this event alone, by the name they log
@@ -114,7 +115,10 @@ gets a new version, read alongside the old one; until then, `innby/v1` changes i
 
 **Languages:** every page is in Bokmål, Nynorsk, British English (formal), American
 English (plain), and Simplified and Traditional Chinese, from the browser's languages or
-`?lang=`. [translating.md](translating.md) has the details.
+`?lang=`. [translating.md](translating.md) has the details. An event is written in one
+language, the host's own when they make it, and may have its texts in others too; a
+guest reading a language it lacks gets the nearest it has, as the site's texts fall
+back, and in the end the event's own.
 
 ## One binary, several workloads
 
@@ -294,7 +298,7 @@ until Innby is live. In short:
 
 | Table | Holds |
 |---|---|
-| `event` | title and description (maps by language code, Bokmål always there), place, start and any end, time zone, answer deadline, when its time or place last changed, the host's question and its choices, the style of its QR codes |
+| `event` | the language it's written in, title and description (maps by language code, with that language always there), place, start and any end, time zone, answer deadline, when its time or place last changed, the host's question and its choices, the style of its QR codes |
 | `rsvp` | each invitation or sign-up: name, answer, party size and its maximum, link nonce, language, optional e-mail and its status and consent time, privacy notice version, how the name shows, the group it came through, the pick for the host's question |
 | `invite_group` | group links: name, maximum party size, link nonce |
 | `event_access` | roles for one event: the name a host logs in with, viewer or editor |
@@ -305,7 +309,7 @@ until Innby is live. In short:
 
 Deleting an event deletes everything in it, and deleting an answer deletes its mail. Enums
 such as the answer are Postgres enum types, and queries are checked against the schema at
-compile time (`sqlx`). The database checks what the app checks, too: a title in Bokmål,
+compile time (`sqlx`). The database checks what the app checks, too: a title in the event's language,
 texts only in the site's languages and within their lengths, no control characters, a
 lower-case address, and a sign-up's group in the sign-up's own event.
 

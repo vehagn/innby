@@ -32,11 +32,13 @@ create type qr_icon as enum ('none', 'heart', 'star', 'emoji');
 -- One party, as the host describes it, with the style its QR codes are drawn in.
 create table event (
     id                  uuid primary key default uuidv7(),
-    -- Each by language code: 'nb', 'nn', 'en', 'en-us', 'zh-hans', 'zh-hant'. Every
-    -- event has a Bokmål title, which the other languages fall back to, so a new
+    -- The language the host writes the event in: it has a title in it, and the other
+    -- languages fall back to it.
+    lang                lang not null default 'nb',
+    -- Each by language code: 'nb', 'nn', 'en', 'en-us', 'zh-hans', 'zh-hant', so a new
     -- language needs no new column.
     title               jsonb not null
-        check (coalesce(title ->> 'nb', '') <> '' and texts_ok(title, 200, false)),
+        check (coalesce(title ->> lang::text, '') <> '' and texts_ok(title, 200, false)),
     description         jsonb not null default '{}' check (texts_ok(description, 5000, true)),
     location            text not null default ''
         check (length(location) <= 200 and location !~ '[[:cntrl:]]'),
@@ -47,7 +49,7 @@ create table event (
     -- before are told, on their page and by mail.
     changed_at          timestamptz,
     -- The host's own question to guests, by language like the title, and its choices,
-    -- a line each; none when the Bokmål question is empty.
+    -- a line each; none when it's empty in the event's language.
     question            jsonb not null default '{}' check (texts_ok(question, 200, false)),
     choices             jsonb not null default '{}' check (texts_ok(choices, 2000, true)),
     -- Dates show in the event's time zone, wherever the guest is.

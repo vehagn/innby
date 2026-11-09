@@ -55,7 +55,7 @@ fn ics(event: &Event, lang: Lang, host: &str, now: DateTime<Utc>) -> String {
     if !details.location.is_empty() {
         lines.push(format!("LOCATION:{}", text(&details.location)));
     }
-    let description = details.description.get(lang);
+    let description = details.description(lang);
     if !description.is_empty() {
         lines.push(format!("DESCRIPTION:{}", text(description)));
     }

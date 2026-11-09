@@ -30,6 +30,9 @@ pub(super) const LOCAL_TIME: &str = "%Y-%m-%dT%H:%M";
 /// The event form as typed.
 #[derive(Debug)]
 pub(in crate::admin) struct EventForm {
+    /// The language the event is written in: the form's first fields are in it, and
+    /// the other languages fall back to it.
+    lang: Lang,
     title: Texts,
     description: Texts,
     location: String,
@@ -44,7 +47,7 @@ pub(in crate::admin) struct EventForm {
     choices: Texts,
 }
 
-/// The title and description in one of the languages besides Bokmål, for the form.
+/// The texts in one of the languages besides the event's own, for the form.
 pub(in crate::admin) struct Translation {
     pub language: &'static str,
     pub title_field: String,
@@ -57,18 +60,28 @@ pub(in crate::admin) struct Translation {
     pub choices: String,
 }
 
-/// A form field's name for a text in a language: `title` for Bokmål, `title-nn` for
-/// Nynorsk and so on.
-fn field(base: &str, lang: Lang) -> String {
-    match lang {
-        Lang::Nb => base.to_owned(),
-        lang => format!("{base}-{}", lang.code()),
+/// A form field's name for a text in a language: `title` for the event's own language,
+/// `title-nn` for Nynorsk and so on.
+fn field(base: &str, lang: Lang, main: Lang) -> String {
+    if lang == main {
+        base.to_owned()
+    } else {
+        format!("{base}-{}", lang.code())
     }
 }
 
+/// One choice in the form's list of languages.
+pub(in crate::admin) struct LanguageChoice {
+    pub code: &'static str,
+    pub name: &'static str,
+    pub selected: bool,
+}
+
 impl EventForm {
+    /// A form with nothing in it, in the host's own language.
     pub(super) fn blank() -> Self {
         Self {
+            lang: lang::current(),
             title: Texts::default(),
             description: Texts::default(),
             location: String::new(),
@@ -103,6 +116,12 @@ impl EventForm {
         }
     }
 
+    /// The form in this language: its first fields are in it.
+    pub(super) fn in_language(mut self, lang: Lang) -> Self {
+        self.lang = lang;
+        self
+    }
+
     /// The form with the host's question and its choices, a line each.
     pub(super) fn with_question(mut self, question: Texts, choices: Texts) -> Self {
         self.question = question;
@@ -113,6 +132,7 @@ impl EventForm {
     /// A form filled in from an event, to change it.
     pub(super) fn from_details(details: &Details) -> Self {
         Self {
+            lang: details.lang,
             title: details.title.clone(),
             description: details.description.clone(),
             location: details.location.clone(),
@@ -131,10 +151,12 @@ impl EventForm {
         }
     }
 
-    /// The form as posted.
+    /// The form as posted. Without a language, as from an older page, it's Bokmål.
     pub(super) fn from_fields(fields: &HashMap<String, String>) -> Self {
         let get = |name: &str| fields.get(name).map_or("", |value| value.trim());
+        let main = Lang::from_code(get("lang")).unwrap_or(Lang::Nb);
         let mut form = Self {
+            lang: main,
             location: get("location").to_owned(),
             starts_at: get("starts_at").to_owned(),
             ends_at: get("ends_at").to_owned(),
@@ -143,22 +165,34 @@ impl EventForm {
             ..Self::blank()
         };
         for lang in Lang::ALL {
-            form.title.set(lang, get(&field("title", lang)));
-            form.description.set(lang, get(&field("description", lang)));
-            form.question.set(lang, get(&field("question", lang)));
-            form.choices
-                .set(lang, &choice_lines(get(&field("choices", lang))));
+            let field = |base| get(&field(base, lang, main)).to_owned();
+            form.title.set(lang, &field("title"));
+            form.description.set(lang, &field("description"));
+            form.question.set(lang, &field("question"));
+            form.choices.set(lang, &choice_lines(&field("choices")));
         }
         form
     }
 
-    /// The Bokmål title and description, which every other language falls back to.
+    /// The title and description in the event's language, which the others fall back to.
     pub fn title(&self) -> &str {
-        &self.title.nb
+        self.title.own(self.lang)
     }
 
     pub fn description(&self) -> &str {
-        &self.description.nb
+        self.description.own(self.lang)
+    }
+
+    /// The languages the event may be written in, with its own chosen.
+    pub fn languages(&self) -> Vec<LanguageChoice> {
+        Lang::ALL
+            .into_iter()
+            .map(|lang| LanguageChoice {
+                code: lang.code(),
+                name: lang.name(),
+                selected: lang == self.lang,
+            })
+            .collect()
     }
 
     pub fn location(&self) -> &str {
@@ -181,29 +215,29 @@ impl EventForm {
         &self.rsvp_deadline
     }
 
-    /// The Bokmål question and its choices, a line each.
+    /// The question and its choices, a line each, in the event's language.
     pub fn question(&self) -> &str {
-        &self.question.nb
+        self.question.own(self.lang)
     }
 
     pub fn choices(&self) -> &str {
-        &self.choices.nb
+        self.choices.own(self.lang)
     }
 
     /// The other languages' fields, in the order of the language menu.
     pub fn translations(&self) -> Vec<Translation> {
         Lang::ALL
             .into_iter()
-            .filter(|lang| *lang != Lang::Nb)
+            .filter(|lang| *lang != self.lang)
             .map(|lang| Translation {
                 language: lang.name(),
-                title_field: field("title", lang),
+                title_field: field("title", lang, self.lang),
                 title: self.title.own(lang).to_owned(),
-                description_field: field("description", lang),
+                description_field: field("description", lang, self.lang),
                 description: self.description.own(lang).to_owned(),
-                question_field: field("question", lang),
+                question_field: field("question", lang, self.lang),
                 question: self.question.own(lang).to_owned(),
-                choices_field: field("choices", lang),
+                choices_field: field("choices", lang, self.lang),
                 choices: self.choices.own(lang).to_owned(),
             })
             .collect()
@@ -217,7 +251,7 @@ impl EventForm {
         let title_ok = Lang::ALL
             .into_iter()
             .all(|lang| fits(self.title.own(lang), MAX_TITLE))
-            && !self.title.nb.is_empty();
+            && !self.title.own(self.lang).is_empty();
         if !title_ok {
             return Err(text.error_event_title.clone());
         }
@@ -272,6 +306,7 @@ impl EventForm {
             }
         };
         Ok(Details {
+            lang: self.lang,
             title: self.title.clone(),
             description: self.description.clone(),
             location: self.location.clone(),
@@ -283,12 +318,13 @@ impl EventForm {
         })
     }
 
-    /// The host's question: none at all, or a Bokmål question with two choices or more,
-    /// and in each other language either nothing of its own or as many choices. Each is
+    /// The host's question: none at all, or one in the event's language with two choices
+    /// or more, and in each other language either nothing of its own or as many choices. Each is
     /// one plain line, the question as long as a title and a choice as a name.
     fn check_question(&self, plain: &dyn Fn(&str) -> bool) -> Result<(), ()> {
         let count = |lang| self.choices.own(lang).lines().count();
-        let asked = !self.question.nb.is_empty();
+        let main = self.lang;
+        let asked = !self.question.own(main).is_empty();
         let all_fit = Lang::ALL.into_iter().all(|lang| {
             let question = self.question.own(lang);
             let choices = self.choices.own(lang);
@@ -297,10 +333,10 @@ impl EventForm {
                 && choices
                     .lines()
                     .all(|line| line.chars().count() <= MAX_CHOICE && plain(line))
-                && [0, count(Lang::Nb)].contains(&count(lang))
+                && [0, count(main)].contains(&count(lang))
                 && (asked || (question.is_empty() && choices.is_empty()))
         });
-        let enough = !asked || (2..=MAX_CHOICES).contains(&count(Lang::Nb));
+        let enough = !asked || (2..=MAX_CHOICES).contains(&count(main));
         if all_fit && enough { Ok(()) } else { Err(()) }
     }
 }
@@ -406,6 +442,47 @@ mod tests {
             EventForm::from_details(&details).ends_at(),
             "2054-12-13T01:00"
         );
+    }
+
+    #[test]
+    fn an_event_may_be_written_in_any_language() {
+        // In English, with Bokmål among the others: the plain fields are English.
+        let form = EventForm::from_fields(&fields(&[
+            ("lang", "en"),
+            ("title", "Summer party"),
+            ("title-nb", "Sommerfest"),
+            ("starts_at", "2054-06-20T15:00"),
+            ("time_zone", "Europe/Oslo"),
+        ]));
+        let details = form.details(Utc::now()).unwrap();
+        assert_eq!(details.lang, Lang::EnGb);
+        assert_eq!(details.title(Lang::EnGb), "Summer party");
+        assert_eq!(details.title(Lang::Nb), "Sommerfest");
+        // Chinese has none of its own, and falls back in the end to the event's English.
+        assert_eq!(details.title(Lang::ZhHans), "Summer party");
+        let again = EventForm::from_details(&details);
+        assert_eq!(again.title(), "Summer party");
+        assert!(
+            again
+                .languages()
+                .iter()
+                .any(|l| l.code == "en" && l.selected)
+        );
+        assert!(
+            again
+                .translations()
+                .iter()
+                .all(|t| t.title_field != "title-en")
+        );
+
+        // It needs a title in its own language; one in Bokmål alone isn't enough.
+        let missing = EventForm::from_fields(&fields(&[
+            ("lang", "en"),
+            ("title-nb", "Sommerfest"),
+            ("starts_at", "2054-06-20T15:00"),
+            ("time_zone", "Europe/Oslo"),
+        ]));
+        assert!(missing.details(Utc::now()).is_err());
     }
 
     #[test]

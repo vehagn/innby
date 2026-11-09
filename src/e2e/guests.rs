@@ -172,11 +172,11 @@ async fn the_host_asks_a_question_and_sees_what_guests_pick(db: PgPool) {
     let (t, a) = (en(), admin());
     let english = "English (Traditional)";
 
-    // The host asks what each guest brings, in Bokmål and English.
+    // The host asks what each guest brings, in the event's Bokmål and in English.
     let mut host = world.host().await;
     host.click(&a.details).await.expect(&a.event_question_hint);
-    host.fill(&format!("{} · Bokmål", a.event_question), "Hva tar du med?")
-        .fill(&format!("{} · Bokmål", a.event_choices), "Salat\nDessert")
+    host.fill(&a.event_question, "Hva tar du med?")
+        .fill(&a.event_choices, "Salat\nDessert")
         .fill(
             &format!("{} · {english}", a.event_question),
             "What will you bring?",
@@ -219,11 +219,7 @@ async fn the_host_asks_a_question_and_sees_what_guests_pick(db: PgPool) {
 
     // New choices mean the old picks may mean something else, so they're cleared.
     host.click(&a.details).await;
-    host.fill(
-        &format!("{} · Bokmål", a.event_choices),
-        "Salat\nDessert\nDrikke",
-    )
-    .fill(
+    host.fill(&a.event_choices, "Salat\nDessert\nDrikke").fill(
         &format!("{} · {english}", a.event_choices),
         "Salad\nDessert\nDrinks",
     );

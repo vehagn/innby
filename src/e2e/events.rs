@@ -18,12 +18,16 @@ async fn the_host_creates_an_event_invites_to_it_and_deletes_it(db: PgPool) {
 
     let mut host = world.admin().await;
     host.page().expect(&a.no_events);
-    host.click(&a.new_event).await;
-    host.fill(&format!("{} · Bokmål", a.event_title), "Sommerfest")
-        .fill(
-            &format!("{} · English (Traditional)", a.event_title),
-            "Summer party",
-        )
+    // The admin reads English, so the new event starts out written in English, with
+    // Bokmål among the other languages.
+    let form = host.click(&a.new_event).await;
+    assert!(
+        form.body.contains(r#"<option value="en" selected>"#),
+        "{}",
+        form.body
+    );
+    host.fill(&a.event_title, "Summer party")
+        .fill(&format!("{} · Bokmål", a.event_title), "Sommerfest")
         .fill(&a.event_location, "Bygdøy")
         .fill(&a.event_starts, "2054-12-20T15:00");
     host.press(&a.create_event)
@@ -77,7 +81,7 @@ async fn one_device_remembers_invitations_to_two_events(db: PgPool) {
 
     let mut host = world.admin().await;
     host.click(&a.new_event).await;
-    host.fill(&format!("{} · Bokmål", a.event_title), "Sommerfest")
+    host.fill(&a.event_title, "Sommerfest")
         .fill(&a.event_starts, "2055-06-20T15:00");
     host.press(&a.create_event).await;
     host.click(&a.invitation_links).await;

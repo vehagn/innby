@@ -78,8 +78,11 @@ pub struct EventFile {
     pub answer_by: Option<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub location: String,
-    /// By language code: `nb`, which every event has, and any of `nn`, `en`, `en-us`,
-    /// `zh-hans` and `zh-hant`.
+    /// The language code the event is written in, which its title must have and the
+    /// others fall back to; `nb` if the file doesn't say.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    /// By language code: `nb`, `nn`, `en`, `en-us`, `zh-hans` and `zh-hant`.
     #[serde(serialize_with = "in_language_order")]
     pub title: BTreeMap<String, String>,
     #[serde(
@@ -195,7 +198,8 @@ const HEADER: &str = "\
 #
 # apiVersion and kind say what this file is; leave them as they are. starts, ends and
 # answer_by are local times in time_zone, as 2026-12-12T19:00. The title and description
-# are by language: nb (which every event needs), nn, en, en-us, zh-hans, zh-hant. A
+# are by language: nb, nn, en, en-us, zh-hans, zh-hant; language is the one the event is
+# written in, which needs a title and which the others fall back to. A
 # group's max_party_size is how many each sign-up may cover. question is the host's own
 # question to guests, by language, and choices its choices, a list by language. qr is the
 # style of the QR codes: shape (square, rounded, dots), color, and icon (none, heart,
@@ -224,6 +228,7 @@ impl EventFile {
                 .rsvp_deadline
                 .map(|at| at.format(LOCAL_TIME).to_string()),
             location: details.location.clone(),
+            language: Some(details.lang.code().to_owned()),
             title: texts(&details.title),
             description: texts(&details.description),
             question: texts(&details.question),
@@ -282,6 +287,16 @@ impl EventFile {
             }
             Ok(texts)
         };
+        let lang = match self.language {
+            None => Lang::Nb,
+            Some(code) => Lang::ALL
+                .into_iter()
+                .find(|lang| lang.code() == code)
+                .ok_or(FileError::Language {
+                    field: "language",
+                    code,
+                })?,
+        };
         let question = texts("question", self.question)?;
         let choices = self
             .choices
@@ -297,6 +312,7 @@ impl EventFile {
             self.time_zone,
             self.answer_by.unwrap_or_default(),
         )
+        .in_language(lang)
         .with_question(question, texts("choices", choices)?);
         let groups = self
             .groups
@@ -330,7 +346,12 @@ fn syntax(text: &str, err: &toml::de::Error) -> FileError {
 /// year, as `julebord-2026.toml`.
 pub fn file_name(details: &Details) -> String {
     let mut name = String::new();
-    for c in details.title.nb.chars().flat_map(char::to_lowercase) {
+    for c in details
+        .title
+        .own(details.lang)
+        .chars()
+        .flat_map(char::to_lowercase)
+    {
         let c = match c {
             'æ' => "ae".into(),
             'ø' => "o".into(),
@@ -398,6 +419,7 @@ mod tests {
             toml.contains("[title]\nnb = \"Julebord\"\nen = \"Christmas party\""),
             "{toml}"
         );
+        assert!(toml.contains("\nlanguage = \"nb\"\n"), "{toml}");
         assert!(
             toml.contains("starts = \"2054-12-12T19:00\"\nends = \"2054-12-13T01:00\"\n"),
             "{toml}"

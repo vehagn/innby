@@ -26,7 +26,7 @@ use crate::{
         page::{AdminState, PageError, load_event, redirect},
     },
     db::{
-        event::{self, Event},
+        event::{self, Details, Event},
         group, outbox, qr, rsvp,
     },
     http::{render, render_with},
@@ -114,8 +114,13 @@ pub(in crate::admin) async fn edit(
     // A new start, end or place goes to everyone with an address, in the same
     // transaction, so a change is never saved without its mails.
     // A pick is a place in the list, so a changed list would give it another meaning.
-    if updated.details.choices.nb != event.details.choices.nb
-        || updated.details.question.nb.is_empty()
+    let choices = |details: &Details| details.choices.own(details.lang).to_owned();
+    if choices(&updated.details) != choices(&event.details)
+        || updated
+            .details
+            .question
+            .own(updated.details.lang)
+            .is_empty()
     {
         rsvp::clear_choices(&mut *tx, id).await?;
     }

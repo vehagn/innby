@@ -1,8 +1,14 @@
 {% let a = crate::admin::lang::text() %}
-{% let bokmal = crate::i18n::Lang::Nb.name() %}
-<label for="title">{{ a.event_title }} · {{ bokmal }}</label>
+<label for="lang">{{ a.event_language }}</label>
+<select id="lang" name="lang">
+  {% for language in form.languages() %}
+  <option value="{{ language.code }}"{% if language.selected %} selected{% endif %}>{{ language.name }}</option>
+  {% endfor %}
+</select>
+<p class="hint">{{ a.event_language_hint }}</p>
+<label for="title">{{ a.event_title }}</label>
 <input id="title" name="title" required maxlength="200" value="{{ form.title() }}">
-<label for="description">{{ a.event_description }} · {{ bokmal }}</label>
+<label for="description">{{ a.event_description }}</label>
 <textarea id="description" name="description" rows="4">{{ form.description() }}</textarea>
 <label for="location">{{ a.event_location }}</label>
 <input id="location" name="location" maxlength="200" value="{{ form.location() }}">
@@ -19,9 +25,9 @@
 <details{% if !form.question().is_empty() %} open{% endif %}>
   <summary>{{ a.event_question }}</summary>
   <p class="hint">{{ a.event_question_hint }}</p>
-  <label for="question">{{ a.event_question }} · {{ bokmal }}</label>
+  <label for="question">{{ a.event_question }}</label>
   <input id="question" name="question" maxlength="200" value="{{ form.question() }}">
-  <label for="choices">{{ a.event_choices }} · {{ bokmal }}</label>
+  <label for="choices">{{ a.event_choices }}</label>
   <textarea id="choices" name="choices" rows="3">{{ form.choices() }}</textarea>
 </details>
 <details>

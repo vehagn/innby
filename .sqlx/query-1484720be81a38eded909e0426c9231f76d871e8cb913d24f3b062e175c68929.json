@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select e.id, e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,\n            e.question as \"question: Json<Texts>\", e.choices as \"choices: Json<Texts>\"\n         from event e join event_access a on a.event_id = e.id\n         where a.user_name = $1 order by e.starts_at, e.id",
+  "query": "insert into event (title, description, location, starts_at, time_zone, rsvp_deadline,\n            ends_at, question, choices, lang)\n         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n         returning id, lang as \"lang: Lang\", title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,\n            question as \"question: Json<Texts>\", choices as \"choices: Json<Texts>\"",
   "describe": {
     "columns": [
       {
@@ -16,6 +16,31 @@
       },
       {
         "ordinal": 1,
+        "name": "lang: Lang",
+        "type_info": {
+          "Custom": {
+            "name": "lang",
+            "kind": {
+              "Enum": [
+                "nb",
+                "nn",
+                "en",
+                "en-us",
+                "zh-hans",
+                "zh-hant"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "lang"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
         "name": "title: Json<Texts>",
         "type_info": "Jsonb",
         "origin": {
@@ -26,7 +51,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "description: Json<Texts>",
         "type_info": "Jsonb",
         "origin": {
@@ -37,7 +62,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "location",
         "type_info": "Text",
         "origin": {
@@ -48,7 +73,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "starts_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -59,7 +84,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "time_zone",
         "type_info": "Text",
         "origin": {
@@ -70,7 +95,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "rsvp_deadline",
         "type_info": "Timestamptz",
         "origin": {
@@ -81,7 +106,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "ends_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -92,7 +117,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "changed_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -103,7 +128,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "question: Json<Texts>",
         "type_info": "Jsonb",
         "origin": {
@@ -114,7 +139,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "choices: Json<Texts>",
         "type_info": "Jsonb",
         "origin": {
@@ -127,10 +152,34 @@
     ],
     "parameters": {
       "Left": [
-        "Text"
+        "Jsonb",
+        "Jsonb",
+        "Text",
+        "Timestamptz",
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Jsonb",
+        "Jsonb",
+        {
+          "Custom": {
+            "name": "lang",
+            "kind": {
+              "Enum": [
+                "nb",
+                "nn",
+                "en",
+                "en-us",
+                "zh-hans",
+                "zh-hant"
+              ]
+            }
+          }
+        }
       ]
     },
     "nullable": [
+      false,
       false,
       false,
       false,
@@ -144,5 +193,5 @@
       false
     ]
   },
-  "hash": "f74ee171fa98644e40ad565f53cd28aff5ade4708143a27410d8c4fc0d765a70"
+  "hash": "1484720be81a38eded909e0426c9231f76d871e8cb913d24f3b062e175c68929"
 }

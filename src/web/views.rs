@@ -27,8 +27,8 @@ pub struct EventView<'a> {
 impl<'a> EventView<'a> {
     pub fn new(event: &'a Details, lang: Lang) -> Self {
         Self {
-            title: event.title.get(lang),
-            description: event.description.get(lang),
+            title: event.title(lang),
+            description: event.description(lang),
             location: &event.location,
             when: lang.format_when(event.starts_at, event.ends_at),
             starts_at_iso: event.starts_at.to_rfc3339(),
@@ -240,7 +240,7 @@ impl Question {
         let Some(sent) = sent.filter(|sent| !sent.is_empty()) else {
             return Ok(None);
         };
-        let (_, choices) = event.question(Lang::Nb).ok_or(())?;
+        let (_, choices) = event.question(event.lang).ok_or(())?;
         let pick: i16 = sent.parse().map_err(drop)?;
         let within = usize::try_from(pick).is_ok_and(|pick| pick < choices.len());
         if within { Ok(Some(pick)) } else { Err(()) }

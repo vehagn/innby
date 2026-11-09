@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select r.id, r.event_id, r.name, r.response as \"response: Response\", r.party_size,\n            r.max_party_size, r.link_nonce, r.lang as \"lang: Lang\", r.email,\n            r.email_status as \"email_status: EmailStatus\", r.email_consent_at,\n            r.privacy_version, r.responded_at, r.created_at, r.group_id,\n            r.name_display as \"name_display: NameDisplay\",\n            e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,\n            e.question as \"question: Json<Texts>\", e.choices as \"choices: Json<Texts>\",\n            r.choice\n        from rsvp r join event e on e.id = r.event_id\n        where r.id = any($1)\n        ",
+  "query": "\n        select r.id, r.event_id, r.name, r.response as \"response: Response\", r.party_size,\n            r.max_party_size, r.link_nonce, r.lang as \"lang: Lang\", r.email,\n            r.email_status as \"email_status: EmailStatus\", r.email_consent_at,\n            r.privacy_version, r.responded_at, r.created_at, r.group_id,\n            r.name_display as \"name_display: NameDisplay\",\n            e.lang as \"event_lang: Lang\",\n            e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,\n            e.question as \"question: Json<Texts>\", e.choices as \"choices: Json<Texts>\",\n            r.choice\n        from rsvp r join event e on e.id = r.event_id\n        where r.id = any($1)\n        ",
   "describe": {
     "columns": [
       {
@@ -228,6 +228,31 @@
       },
       {
         "ordinal": 16,
+        "name": "event_lang: Lang",
+        "type_info": {
+          "Custom": {
+            "name": "lang",
+            "kind": {
+              "Enum": [
+                "nb",
+                "nn",
+                "en",
+                "en-us",
+                "zh-hans",
+                "zh-hant"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "lang"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
         "name": "title: Json<Texts>",
         "type_info": "Jsonb",
         "origin": {
@@ -238,7 +263,7 @@
         }
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "description: Json<Texts>",
         "type_info": "Jsonb",
         "origin": {
@@ -249,7 +274,7 @@
         }
       },
       {
-        "ordinal": 18,
+        "ordinal": 19,
         "name": "location",
         "type_info": "Text",
         "origin": {
@@ -260,7 +285,7 @@
         }
       },
       {
-        "ordinal": 19,
+        "ordinal": 20,
         "name": "starts_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -271,7 +296,7 @@
         }
       },
       {
-        "ordinal": 20,
+        "ordinal": 21,
         "name": "time_zone",
         "type_info": "Text",
         "origin": {
@@ -282,7 +307,7 @@
         }
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "rsvp_deadline",
         "type_info": "Timestamptz",
         "origin": {
@@ -293,7 +318,7 @@
         }
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "ends_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -304,7 +329,7 @@
         }
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "changed_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -315,7 +340,7 @@
         }
       },
       {
-        "ordinal": 24,
+        "ordinal": 25,
         "name": "question: Json<Texts>",
         "type_info": "Jsonb",
         "origin": {
@@ -326,7 +351,7 @@
         }
       },
       {
-        "ordinal": 25,
+        "ordinal": 26,
         "name": "choices: Json<Texts>",
         "type_info": "Jsonb",
         "origin": {
@@ -337,7 +362,7 @@
         }
       },
       {
-        "ordinal": 26,
+        "ordinal": 27,
         "name": "choice",
         "type_info": "Int2",
         "origin": {
@@ -375,6 +400,7 @@
       false,
       false,
       false,
+      false,
       true,
       true,
       true,
@@ -383,5 +409,5 @@
       true
     ]
   },
-  "hash": "ca4e1276850ef07de2357db0917c653ab579031827f39896bc91bd510ab81408"
+  "hash": "60fa02f336e0a100d00627acca861c990af108534945ee2f32bd4ad89b44833b"
 }

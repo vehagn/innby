@@ -221,6 +221,9 @@ pub struct AdminMessages {
     pub event_created: String,
     pub event_deleted: String,
     pub details: String,
+    /// The language an event is written in, chosen on its form.
+    pub event_language: String,
+    pub event_language_hint: String,
     pub event_title: String,
     pub event_description: String,
     pub event_location: String,
