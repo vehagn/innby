@@ -33,7 +33,9 @@ Then come the texts, with the admin UI's under `[admin]` and the mails under `[m
 - **Placeholders** such as `{name}` mark where a value goes. Keep them exactly as they
   are; the tests check every language has the same ones as Bokmål.
 - **Punctuation** that differs between scripts, like "：" for ": ", is part of the text.
-- **Dates** use `date_format`, in [chrono's notation](https://docs.rs/chrono/latest/chrono/format/strftime/).
+- **Dates** use `date_format`, and a time alone (an event's end on the day it starts)
+  `time_format`, both in [chrono's notation](https://docs.rs/chrono/latest/chrono/format/strftime/).
+  `when_until` puts a start and an end together.
 
 ## Fallbacks
 

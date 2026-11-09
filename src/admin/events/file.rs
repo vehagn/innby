@@ -26,8 +26,8 @@
 //!
 //! Like a Kubernetes manifest, a file names its format, `apiVersion`, and what it holds,
 //! `kind`. These are read first, so a file from a later format, or of another kind, is
-//! refused by name rather than misread; a change to the format gets a new version, read
-//! alongside the old one.
+//! refused by name rather than misread. Once Innby is live, a change to the format gets a
+//! new version, read alongside the old one; until then, `innby/v1` changes in place.
 //!
 //! Reading a file only fills in the form for a new event, which checks it as it checks
 //! a host's typing; nothing is made until the host creates it.

@@ -127,7 +127,8 @@ agents, but it's the quickest tour for people too. In short:
   and that every rule is used.
 - **Change the schema:** until Innby is live, edit `migrations/0001_schema.sql` and
   `just db reset`; once it's live, add a migration beside it instead. Run
-  `just db prepare`, and commit `.sqlx/`. Update `seed/sample.sql` to match; `src/e2e/sample.rs` loads it, so the tests say when it's out of date.
+  `just db prepare`, and commit `.sqlx/`. Update `seed/sample.sql` to match;
+  `src/e2e/sample.rs` loads it, so the tests say when it's out of date.
 - **Add a setting:** read it in `src/config/`, describe it in `.env.example`, and, if the
   cluster needs it, add it to the chart (`values.yaml`, `values.schema.json` and
   `templates/configmap.yaml`).

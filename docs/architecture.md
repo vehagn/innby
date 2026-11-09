@@ -10,7 +10,7 @@ explains why it's built this way, and [development.md](development.md) how to wo
 |---|---|
 | **Host** | Whoever runs the events, and the admin UI. Several people can be hosts, each with a role. |
 | **Guest** | Anyone invited, or who signed up through a group link. Guests have no accounts. |
-| **Event** | One party, with a title, a place and a start. Everything else belongs to an event. |
+| **Event** | One party, with a title, a place, a start and perhaps an end. Everything else belongs to an event. |
 | **Invitation** | A guest or household the host invites by name. It has a **personal link**. |
 | **Group link** | A link the host makes for a group of people, such as a club's chat. Anyone with it can sign up by giving a name, and then gets a personal link of their own. |
 | **RSVP**, **answer** | A guest's reply: coming or not, how many, and how their name shows. One row in `rsvp` per invitation or sign-up. |
@@ -29,22 +29,28 @@ no password, no e-mail address. On that page they:
   the event alone in it, never their name or link; an event with no set end lasts three
   hours there;
 - optionally add an e-mail address, to get reminders and their link by mail;
-- optionally have the device remember them, so the front page leads back here;
+- optionally have the device remember them, so the front page leads back here
+  ([below](#the-front-page-and-remembered-devices));
 - play the minigames the host offers, if any, each with a high score table
   ([games.md](games.md));
 - change any of it until the event, rename themselves, download everything kept about
   them as JSON, or delete it all.
 
-Someone with a **group link** (`/join/{link}`) types their name and party size, and is
-then sent to a personal link of their own, with a reminder to keep it.
+Someone with a **group link** (`/join/{link}`) types their name and party size, may
+have the device remember them, and is then sent to a personal link of their own, with a
+reminder to keep it.
 
-**The host** works in the admin UI (`innby admin`). An event has up to seven tabs:
+**The host** works in the admin UI (`innby admin`). Its first page lists the **Events**;
+beside it, admins have a **New event** tab and a **Users** tab. Each tab has an icon, and
+a host whose role allows only one tab gets no tab bar, just the page. An event has up to
+seven tabs:
 
 - **Guests:** the headcount (coming, no answer, not coming), every guest in a table,
   a CSV export, and *Send reminders*. A guest's page edits their name and party size,
   makes them a new link (if theirs leaked), shows their QR code, or deletes them.
-- **Invitation links:** many invitations at once, one per line (`Kari & Ola, 2`), with
-  their links to copy.
+- **Invitation links:** many invitations at once, one per line (`Kari & Ola, 2`), each
+  link in a field with an *Open* link beside it: held or right-clicked, the browser offers
+  to copy it, which a copy button couldn't do without JavaScript.
 - **Group links:** the same for groups, each with its link, QR code and sign-ups.
 - **QR codes:** the style every QR code of the event is drawn in: the module shape, a
   colour, and a heart, star or emoji in the middle. Each event has its own, so each
@@ -57,22 +63,25 @@ then sent to a personal link of their own, with a reminder to keep it.
 - **Access**, for admins: who else may see or run this event alone, by the name they log
   in with, as a viewer or an editor.
 
-**New events** are typed into a form on the New event tab, for admins, which also takes group links, a
-line each. The form can be filled in for you: from an **event file** (below), or by
+**New events** are typed into a form on the New event tab, which also takes group links,
+a line each. The form can be filled in for you: from an **event file** (below), or by
 *Copy to a new event* on another event's Details tab, for next year's party. Either way
-the new event's QR codes keep the style they had. A start
-more than 30 days ago is refused, new or changed, since the janitor would delete the
-event at once: an old event file imported without a new date, say.
+the new event's QR codes keep the style they had. A start more than 30 days ago is
+refused, new or changed, since the janitor would delete the event at once: an old event
+file imported without a new date, say. An end is optional, and must come after the
+start; guests see it beside the start, and without one their calendars show the event as
+three hours long.
 
 **Event files** hold an event's details, its group links and its QR codes' style, in
-TOML, but never its guests. *Download as a file* on the Details tab saves one; *Import an event* on the
-New event tab reads one, uploaded or pasted, into the new event's form, to check and
-change before creating it. Like a Kubernetes manifest, a file says what it is:
+TOML, but never its guests. *Download as a file* on the Details tab saves one; *Import
+an event* on the New event tab reads one, uploaded or pasted, into the new event's form,
+to check and change before creating it. Like a Kubernetes manifest, a file says what it is:
 
 ```toml
 apiVersion = "innby/v1"
 kind = "Event"
 starts = "2026-12-12T19:00"
+ends = "2026-12-13T01:00"
 time_zone = "Europe/Oslo"
 location = "Storgata 1, Oslo"
 
@@ -91,9 +100,9 @@ max_party_size = 2
 ```
 
 Innby reads `apiVersion` and `kind` first, so a file in a later format, or of another
-kind, is refused by name rather than misread. A change to the format gets a new version,
-read alongside the old one. `innby event list`, `export` and `import` do the same from the
-command line.
+kind, is refused by name rather than misread. Once Innby is live, a change to the format
+gets a new version, read alongside the old one; until then, `innby/v1` changes in place.
+`innby event list`, `export` and `import` do the same from the command line.
 
 **Languages:** every page is in Bokmål, Nynorsk, British English (formal), American
 English (plain), and Simplified and Traditional Chinese, from the browser's languages or
@@ -191,18 +200,17 @@ comes by mail, and later any reminders the host sends.
 ## The front page and remembered devices
 
 `/` is about Innby, not any one event: event details show only on link pages. If a guest
-asks a device to remember them, by ticking the box above the answer buttons (unticked
-until they do, since a box ticked for them wouldn't be asking; once answers close, a
-button does it), the browser keeps their link in one cookie per event
-(`__Host-innby-{event}` over HTTPS; `HttpOnly`, `SameSite=Lax`, expiring when the
-event's data is deleted). The front page then lists each remembered invitation, the
-soonest event first, with a button back. The cookie gives no access by itself: pages
-still read the link from the URL. A link that stops working is dropped from the cookie
-the next time the front page sees it, and answering with the box unticked or *Forget
-this device* drops it on demand. The
-front page reads ten such cookies at most, and looks them all up in one query. These are the public
-site's only cookies; language and colour scheme travel in `?lang=` and
-`?theme=`.
+asks a device to remember them, by ticking the box above the answer buttons or on the
+group sign-up form (unticked until they do, since a box ticked for them wouldn't be
+asking; once answers close, a button does it), the browser keeps their link in one
+cookie per event (`__Host-innby-{event}` over HTTPS; `HttpOnly`, `SameSite=Lax`,
+expiring when the event's data is deleted). The front page then lists each remembered
+invitation, the soonest event first, with a button back. The cookie gives no access by
+itself: pages still read the link from the URL. A link that stops working is dropped
+from the cookie the next time the front page sees it, and answering with the box
+unticked or *Forget this device* drops it on demand. The front page reads ten such
+cookies at most, and looks them all up in one query. These are the public site's only
+cookies; language and colour scheme travel in `?lang=` and `?theme=`.
 
 ## The guest list
 
@@ -269,7 +277,8 @@ taking it away works at once.
 ## Data and retention
 
 The schema is one commented file,
-[`migrations/0001_schema.sql`](../migrations/0001_schema.sql). In short:
+[`migrations/0001_schema.sql`](../migrations/0001_schema.sql), which changes in place
+until Innby is live. In short:
 
 | Table | Holds |
 |---|---|
@@ -279,6 +288,7 @@ The schema is one commented file,
 | `event_access` | roles for one event: the name a host logs in with, viewer or editor |
 | `event_game`, `game_score` | the minigames an event offers, and each guest's best score in each |
 | `outbox` | mail to send: kind, attempts, next try, when sent, last error |
+| `admin_user` | password users an admin makes: name, role, argon2 hash, and a version that a new password bumps |
 | `admin_refresh_token`, `admin_revoked_jwt` | keyed hashes of refresh tokens, and logged-out JWTs, until they'd expire |
 
 Deleting an event deletes everything in it, and deleting an answer deletes its mail. Enums

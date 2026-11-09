@@ -42,10 +42,12 @@ accounts, a JavaScript front end, and a public list of who's coming.
 | Allocator | mimalloc, purging freed memory at once | The images are static musl binaries, and musl's own allocator keeps what it frees: benchmarked, `innby serve` held 113 MiB and `innby admin` 171 MiB after load, over the chart's 64 MiB, and never shrank. With mimalloc purging at once they stayed under 20 and 34 MiB, as fast or faster (the 1500-guest list went from 990 to 1350 requests a second). jemalloc did about as well, but its arm64 builds must be told the system's page size. `just bench` checks it on every release. |
 | Deployment | A general Helm chart, published to GHCR | No CRDs needed; routes, policies and CloudNativePG are options. |
 | Saving | With a Save button | Saving as you type needs JavaScript. Instead, forms are open rather than folded away, Save is the main button, and the QR code's preview says it shows the saved style. |
+| Calendar | A file from Innby, for guests who are coming | A link to a calendar service would send the event to that service; an iCalendar file reaches any calendar with no third party and no JavaScript. It holds the event alone, never the guest's name or link, which would let whoever sees their calendar answer for them. An end is optional, so without one the entry lasts three hours. |
 | Copying a link | A link beside its field | A copy button needs JavaScript. Browsers already offer to copy a link that's held or right-clicked, so each link field has an Open link beside it, and a hint saying so. |
 | Styling | One stylesheet of tokens and components | The look changes in CSS alone: colours, type and spacing are tokens at the top, and each kind of thing is one class. A test keeps the templates and the stylesheet in step. |
 | Events as code | Import and export, not sync | A file per event, versioned like a Kubernetes manifest, read into the form for a new event. Syncing events from a ConfigMap or Secret was considered, but would put addresses in a public repository or need a watcher; a file the host keeps and imports when needed does what's wanted. Never guests, whose names mustn't outlive the event. |
 | Mail provider | MailerSend, in the homelab | An existing account in the EU. Any SMTP server works. |
+| Compatibility before going live | None kept | Until Innby is live, the one install is a test, so the schema changes in place in its one file and databases are made again, and the event file's format changes within `innby/v1`. Migrations and new format versions come once it's live. |
 
 ## History
 
@@ -82,5 +84,8 @@ main steps, oldest first:
     budget, run on every release, which led to mimalloc.
 21. Remembering a device with a box on the answer, and minigames with high scores, with
     Snake, Tetris and Balloon (in Rust) scored by their own server.
+22. Links to copy without JavaScript, remembering a device on group sign-up, a New event
+    tab, icons on the admin's tabs, an event's end, and the event for guests' calendars;
+    the schema in one file again until going live.
 
 `git log` has the details.
