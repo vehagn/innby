@@ -1,5 +1,6 @@
 //! Group sign-up at `/join/{link}`: the host makes a link per group of people, and anyone
-//! with it can say they're coming with just a name, and gets their own RSVP link back.
+//! with it can say they're coming with just a name, and gets their own RSVP link back,
+//! which their device can remember, as on their page.
 
 use askama::Template;
 use axum::{
@@ -14,6 +15,7 @@ use serde::Deserialize;
 use super::{
     AppState, PRIVACY_VERSION,
     pages::gone,
+    remember,
     views::{DisplayChoice, EventView, GuestList, GuestsPage, PartySize},
 };
 use crate::{
@@ -22,7 +24,7 @@ use crate::{
         group::{self, Group},
         rsvp::{self, NameDisplay, SignUp},
     },
-    http::{ClientIp, render, render_with, server_error},
+    http::{ClientIp, cookie, render, render_with, server_error},
     i18n::{Lang, Messages},
     link::{IdLink, Purpose},
     paths,
@@ -41,6 +43,8 @@ struct JoinPage<'a> {
     display_choices: Vec<DisplayChoice>,
     guests_link: String,
     accepts_answers: bool,
+    /// Whether "remember me on this device" is ticked, as it was sent.
+    remember: bool,
     error: Option<&'static str>,
 }
 
@@ -60,6 +64,7 @@ impl<'a> JoinPage<'a> {
             display_choices: DisplayChoice::choices(t, None, NameDisplay::Full),
             guests_link: paths::localized(&paths::path(paths::JOIN_GUESTS, link), lang),
             accepts_answers: joining.event.details.accepts_answers(Utc::now()),
+            remember: false,
             error: None,
         }
     }
@@ -139,6 +144,8 @@ pub struct JoinForm {
     name: String,
     party_size: i32,
     name_display: Option<NameDisplay>,
+    /// Ticked to have this device remember the new guest's link; see `remember`.
+    remember: Option<String>,
     /// Hidden from people; bots fill it in.
     #[serde(default)]
     website: String,
@@ -165,6 +172,7 @@ pub async fn join(
     let mut page = JoinPage::new(lang, &joining, &link);
     page.name = &form.name;
     page.display_choices = DisplayChoice::choices(page.t, None, name_display);
+    page.remember = form.remember.is_some();
     if !page.accepts_answers {
         return render_with(StatusCode::FORBIDDEN, page);
     }
@@ -194,8 +202,17 @@ pub async fn join(
                 .config
                 .link_key
                 .link(Purpose::Rsvp, rsvp.id, rsvp.link_nonce);
-            let page = paths::localized(&paths::path(paths::RSVP, link), lang);
-            Redirect::to(&format!("{page}&new")).into_response()
+            let page = paths::localized(&paths::path(paths::RSVP, &link), lang);
+            let redirect = Redirect::to(&format!("{page}&new")).into_response();
+            if form.remember.is_none() {
+                return redirect;
+            }
+            tracing::info!(rsvp = %rsvp.id, "device remembered");
+            let https = state.config.is_https();
+            cookie::with(
+                redirect,
+                remember::remember_cookie(https, &joining.event, &link),
+            )
         }
         Err(err) => server_error(err),
     }

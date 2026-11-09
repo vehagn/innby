@@ -73,6 +73,10 @@ async fn guest_joins_and_gets_their_link(db: PgPool) {
     assert!(html.contains(&escape(&t.join_heading)));
     assert!(html.contains(r#"name="website""#));
     assert!(html.contains(&format!(
+        r#"<input type="checkbox" name="remember" value="yes"> {}"#,
+        escape(&t.remember_device)
+    )));
+    assert!(html.contains(&format!(
         r#"<option value="full" selected>{}</option>"#,
         t.display_full
     )));
@@ -98,6 +102,8 @@ async fn guest_joins_and_gets_their_link(db: PgPool) {
     assert_eq!(response.status(), StatusCode::SEE_OTHER);
     let target = location(&response).to_owned();
     assert!(target.starts_with("/r/") && target.ends_with("?lang=en&new"));
+    // Nothing is remembered unless asked.
+    assert!(crate::testing::set_cookies(&response).is_empty());
 
     let guest = all(&site)
         .await
@@ -121,6 +127,52 @@ async fn guest_joins_and_gets_their_link(db: PgPool) {
         r#"Per H. <span class="plus">+1</span> <span class="muted">{}</span>"#,
         t.you
     )));
+}
+
+#[sqlx::test]
+async fn a_device_remembers_the_new_guest_when_asked(db: PgPool) {
+    let site = Site::new(db);
+    let (_, link) = climbing_club(&site).await;
+    // A sign-up to fix keeps the box as it was.
+    let response = site
+        .post(&format!("/join/{link}"), "name=+&party_size=1&remember=yes")
+        .await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(body(response).await.contains(r#"value="yes" checked>"#));
+
+    let response = site
+        .post(
+            &format!("/join/{link}"),
+            "name=Per&party_size=1&remember=yes",
+        )
+        .await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    let page = location(&response).to_owned();
+    let new_link = page
+        .strip_prefix("/r/")
+        .unwrap()
+        .split('?')
+        .next()
+        .unwrap()
+        .to_owned();
+    let cookies = crate::testing::set_cookies(&response);
+    let event = crate::db::event::tests::event(&site.db).await;
+    assert_eq!(cookies.len(), 1, "{cookies:?}");
+    assert!(
+        cookies[0].starts_with(&format!("__Host-innby-{}={new_link};", event.id.simple())),
+        "{cookies:?}"
+    );
+
+    // The front page then leads back to Per's page.
+    let request = axum::http::Request::get("/?lang=en")
+        .header(
+            axum::http::header::COOKIE,
+            cookies[0].split(';').next().unwrap(),
+        )
+        .body(axum::body::Body::empty())
+        .unwrap();
+    let html = body(site.send(request).await).await;
+    assert!(html.contains(&format!("/r/{new_link}")), "{html}");
 }
 
 #[sqlx::test]

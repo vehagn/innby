@@ -21,6 +21,8 @@
     <input type="hidden" name="party_size" value="1">
     {% endif %}
     {% include "_name_display.html" %}
+    <label class="checkbox"><input type="checkbox" name="remember" value="yes"{% if remember %} checked{% endif %}> {{ t.remember_device }}</label>
+    <p class="hint">{{ t.remember_hint }}</p>
     <div class="hp" aria-hidden="true">
       <label for="website">Website</label>
       <input id="website" name="website" tabindex="-1" autocomplete="off">
