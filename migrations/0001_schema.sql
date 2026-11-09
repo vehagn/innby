@@ -1,10 +1,12 @@
 -- Innby's schema. Events hold everything else: their guests' answers, the group links
 -- guests sign up through, the mail queued for those guests, who besides the hosts may
 -- see the event, and the games it offers with their scores; deleting an event deletes
--- all of it. The admin's login tables stand apart and hold no personal data.
+-- all of it. The admin's login tables stand apart; of them, only the password users an
+-- admin makes hold personal data.
 --
--- Released versions after this one change the schema in migrations of their own, beside
--- this file; this one is never edited once released.
+-- Until Innby is live, this file is the whole schema and changes in place, and a
+-- database made from an earlier one is dropped and made again. Once it's live, changes
+-- go in migrations of their own, beside this file.
 
 -- A guest's language, for their mail.
 create type lang as enum ('nb', 'nn', 'en', 'en-us', 'zh-hans', 'zh-hant');
@@ -39,6 +41,8 @@ create table event (
     location            text not null default ''
         check (length(location) <= 200 and location !~ '[[:cntrl:]]'),
     starts_at           timestamptz not null,
+    -- Null for an event with no set end.
+    ends_at             timestamptz check (ends_at > starts_at),
     -- Dates show in the event's time zone, wherever the guest is.
     time_zone           text not null default 'Europe/Oslo',
     -- Guests can answer until then; null means until the event starts.
@@ -168,6 +172,23 @@ create table admin_refresh_token (
 create table admin_revoked_jwt (
     jti        uuid primary key,
     expires_at timestamptz not null
+);
+
+-- Hosts who log in with a password, made by an admin on the admin UI's Users tab, beside
+-- those in the config (INNBY_ADMIN_USER, INNBY_ADMIN_USERS), whose names they can't take.
+-- Unlike the other login tables, this holds personal data, a host's user name, kept until
+-- an admin deletes them.
+create table admin_user (
+    name          text primary key check (name ~ '^[A-Za-z0-9._@-]{1,100}$'),
+    -- Their role for every event; null for none, so they see only the events that give
+    -- them one.
+    role          text check (role in ('admin', 'editor', 'viewer')),
+    -- argon2, as `innby hash-password` makes it.
+    password_hash text not null check (password_hash like '$argon2%'),
+    -- Bumped by a new password. Sessions carry it, so a new password logs the user out
+    -- everywhere.
+    version       int not null default 0,
+    created_at    timestamptz not null default now()
 );
 
 -- The minigames an event offers, by their id in INNBY_GAMES. The games themselves are

@@ -181,3 +181,5 @@ the database's section above.
 The chart is released with the app, under the same version, so `--version` picks both.
 `image.tag` or `image.digest` pins another image. The site's pods run the database
 migrations before they start, taking a lock so that replicas don't run them twice.
+Until Innby is live its one schema file changes in place, so a database made by an
+earlier version won't migrate: drop it and let the pods make it again.

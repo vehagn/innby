@@ -88,8 +88,8 @@ src/
 locales/*.toml       one file per language: what it is, its fallbacks, its texts
 templates/           askama pages: base.html and admin/base.html, partials named _*.html
 static/style.css     the one stylesheet: tokens first, then base, layout, components, pages
-migrations/          the schema, applied by `innby migrate`: 0001_schema.sql (released), and
-                     those after it, such as 0002_admin_users.sql;
+migrations/          the schema, applied by `innby migrate`: 0001_schema.sql, the whole of
+                     it until Innby is live;
                      seed/sample.sql is sample data for dev
 bench/               `just bench`: run.sh, and data.sql, an event of 1500 guests
 games/               example minigames on an origin of their own (docs/games.md): reaction/
@@ -107,8 +107,9 @@ parts too, so the top of a file is the way into it.
 
 - `just test`, `just lint` and `just chart` must pass; CI runs them.
 - After changing a query, run `just db prepare` and commit `.sqlx/`.
-- Never edit a migration that has been released; add a new one. Keep
-  `seed/sample.sql` in step with the schema (`src/e2e/sample.rs` loads it).
+- Until Innby is live, change the schema in `0001_schema.sql` itself, and break
+  compatibility freely: databases are made again. Once it's live, add a migration
+  instead. Keep `seed/sample.sql` in step with the schema (`src/e2e/sample.rs` loads it).
 - A new text goes in `src/i18n/messages.rs` and `locales/nb.toml` at least; placeholders
   must match Bokmål's. Fill them with `i18n::fill` or `filled`, never `format!`.
 - Admin routes go in the router group of the role they need (`admin/mod.rs`), and
