@@ -147,6 +147,8 @@ pub struct SignUp<'a> {
     pub party_size: i32,
     pub name_display: NameDisplay,
     pub lang: Lang,
+    /// Their pick for the host's question, if the event asks one.
+    pub choice: Option<i16>,
 }
 
 /// Creates an RSVP through a group link, which is "attending" from the start.
@@ -157,8 +159,8 @@ pub async fn create_open(
 ) -> sqlx::Result<Rsvp> {
     query_rsvp!(
         "insert into rsvp (event_id, group_id, name, response, party_size, \
-            max_party_size, name_display, lang, privacy_version, responded_at) \
-         values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now())" returning,
+            max_party_size, name_display, lang, privacy_version, responded_at, choice) \
+         values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now(), $9)" returning,
         sign_up.group.id,
         sign_up.name,
         sign_up.party_size,
@@ -167,6 +169,7 @@ pub async fn create_open(
         sign_up.lang as Lang,
         privacy_version,
         sign_up.group.event_id,
+        sign_up.choice,
     )
     .fetch_one(db)
     .await
@@ -178,13 +181,13 @@ pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Rsvp
         .await
 }
 
-/// RSVPs by id, each with its event, in one query: what a link leads to, before its
-/// signature is checked. The front page asks for all its remembered links at once, so
-/// made-up ones cost a single round trip however many there are.
+/// RSVPs by id, each with its event and the games it offers, in one query: what a link
+/// leads to, before its signature is checked. The front page asks for all its remembered
+/// links at once, so made-up ones cost a single round trip however many there are.
 pub async fn find_with_events(
     db: impl PgExecutor<'_>,
     ids: &[Uuid],
-) -> sqlx::Result<Vec<(Rsvp, Event)>> {
+) -> sqlx::Result<Vec<(Rsvp, Event, Vec<String>)>> {
     let rows = sqlx::query!(
         r#"
         select r.id, r.event_id, r.name, r.response as "response: Response", r.party_size,
@@ -196,7 +199,9 @@ pub async fn find_with_events(
             e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
             e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,
             e.question as "question: Json<Texts>", e.choices as "choices: Json<Texts>",
-            r.choice
+            r.choice,
+            array(select g.game from event_game g where g.event_id = e.id order by g.game)
+                as "games!"
         from rsvp r join event e on e.id = r.event_id
         where r.id = any($1)
         "#,
@@ -240,7 +245,7 @@ pub async fn find_with_events(
                 name_display: row.name_display,
                 choice: row.choice,
             };
-            (rsvp, event)
+            (rsvp, event, row.games)
         })
         .collect())
 }
@@ -281,41 +286,38 @@ pub async fn list(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<Vec<R
 /// Records the guest's answer, and their choice for the guest list if they made one. A
 /// party size outside `1..=max_party_size` violates a check constraint, so callers
 /// validate it first.
+/// A guest's answer, as their page sends it.
+pub struct Reply {
+    pub response: Response,
+    pub party_size: i32,
+    /// How their name shows on the guest list; none keeps what they chose before.
+    pub name_display: Option<NameDisplay>,
+    /// Their pick for the host's question, if the event asks one.
+    pub choice: Option<i16>,
+}
+
 pub async fn respond(
     db: impl PgExecutor<'_>,
     id: Uuid,
-    response: Response,
-    party_size: i32,
-    name_display: Option<NameDisplay>,
+    reply: &Reply,
     lang: Lang,
     privacy_version: &str,
 ) -> sqlx::Result<Option<Rsvp>> {
     query_rsvp!(
         "update rsvp \
          set response = $2, party_size = $3, name_display = coalesce($4, name_display), \
-            lang = $5, privacy_version = $6, responded_at = now() \
+            lang = $5, privacy_version = $6, responded_at = now(), choice = $7 \
          where id = $1" returning,
         id,
-        response as Response,
-        party_size,
-        name_display as Option<NameDisplay>,
+        reply.response as Response,
+        reply.party_size,
+        reply.name_display as Option<NameDisplay>,
         lang as Lang,
         privacy_version,
+        reply.choice,
     )
     .fetch_optional(db)
     .await
-}
-
-/// Sets the guest's pick among the event's choices, or none.
-pub async fn set_choice(
-    db: impl PgExecutor<'_>,
-    id: Uuid,
-    choice: Option<i16>,
-) -> sqlx::Result<()> {
-    sqlx::query!("update rsvp set choice = $2 where id = $1", id, choice)
-        .execute(db)
-        .await?;
-    Ok(())
 }
 
 /// Clears every pick for the event, when the host changes its choices: a pick is a

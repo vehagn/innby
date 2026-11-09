@@ -101,7 +101,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        db::rsvp::{create_invite, respond, set_name_display, tests::sign_up},
+        db::rsvp::{Reply, create_invite, respond, set_name_display, tests::sign_up},
         i18n::Lang,
         web::PRIVACY_VERSION,
     };
@@ -125,9 +125,12 @@ mod tests {
         respond(
             &pool,
             ola.id,
-            Response::Declined,
-            1,
-            Some(NameDisplay::Full),
+            &Reply {
+                response: Response::Declined,
+                party_size: 1,
+                name_display: Some(NameDisplay::Full),
+                choice: None,
+            },
             Lang::Nb,
             PRIVACY_VERSION,
         )
@@ -147,9 +150,12 @@ mod tests {
         let answered = respond(
             &pool,
             kari.id,
-            Response::Attending,
-            1,
-            None,
+            &Reply {
+                response: Response::Attending,
+                party_size: 1,
+                name_display: None,
+                choice: None,
+            },
             Lang::Nb,
             PRIVACY_VERSION,
         )
@@ -181,9 +187,12 @@ mod tests {
         respond(
             &pool,
             family.id,
-            Response::Attending,
-            3,
-            None,
+            &Reply {
+                response: Response::Attending,
+                party_size: 3,
+                name_display: None,
+                choice: None,
+            },
             Lang::Nb,
             PRIVACY_VERSION,
         )
@@ -198,9 +207,12 @@ mod tests {
         respond(
             &pool,
             busy.id,
-            Response::Declined,
-            1,
-            None,
+            &Reply {
+                response: Response::Declined,
+                party_size: 1,
+                name_display: None,
+                choice: None,
+            },
             Lang::Nb,
             PRIVACY_VERSION,
         )

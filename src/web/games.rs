@@ -46,7 +46,6 @@ use super::{
 use crate::{
     config::{Game, ScoreKind},
     db::{
-        event::Event,
         games::{self, Entry, MAX_SCORE},
         rsvp::{self, NameDisplay, Rsvp},
     },
@@ -92,7 +91,7 @@ struct GamesPage {
 /// The Games tab: each game the event offers, with its best scores. An event with none
 /// has no such tab, so this leads back to the guest's reply.
 pub async fn list(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
-    let games = match for_page(&state, lang, &guest.event, &guest.rsvp).await {
+    let games = match for_page(&state, lang, &guest).await {
         Ok(games) => games,
         Err(err) => return server_error(err),
     };
@@ -110,30 +109,22 @@ pub async fn list(State(state): State<AppState>, lang: Lang, guest: Guest) -> Re
     })
 }
 
-/// Whether the event offers any game the config still has, for the guest's tabs.
-pub(super) async fn offers_any(state: &AppState, event: &Event) -> sqlx::Result<bool> {
+/// Whether the guest's event offers any game the config still has, for their tabs.
+pub(super) fn offers_any(state: &AppState, guest: &Guest) -> bool {
     let games = &state.config.games;
-    if games.list.is_empty() {
-        return Ok(false);
-    }
-    let offered = games::offered(&state.db, event.id).await?;
-    Ok(offered.iter().any(|id| games.find(id).is_some()))
+    guest.games.iter().any(|id| games.find(id).is_some())
 }
 
 /// The event's games, for the Games tab: those it offers that the config still has.
-pub(super) async fn for_page(
-    state: &AppState,
-    lang: Lang,
-    event: &Event,
-    rsvp: &Rsvp,
-) -> sqlx::Result<Vec<GameView>> {
+async fn for_page(state: &AppState, lang: Lang, guest: &Guest) -> sqlx::Result<Vec<GameView>> {
+    let (event, rsvp) = (&guest.event, &guest.rsvp);
     let games = &state.config.games;
     if games.list.is_empty() {
         return Ok(Vec::new());
     }
     let mut views = Vec::new();
-    for id in games::offered(&state.db, event.id).await? {
-        let Some(game) = games.find(&id) else {
+    for id in &guest.games {
+        let Some(game) = games.find(id) else {
             continue;
         };
         let entries = games::table(

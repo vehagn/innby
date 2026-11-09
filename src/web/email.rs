@@ -47,20 +47,19 @@ pub async fn add(
     Form(form): Form<AddForm>,
 ) -> Response {
     // The guest's details again, with what to fix.
-    let refuse = async |status, pick: fn(&'static Messages) -> &'static str| {
-        let page = YouPage::new(&state, lang, &guest, &headers).await;
-        page.render_error(status, pick)
+    let refuse = |status, pick: fn(&'static Messages) -> &'static str| {
+        YouPage::new(&state, lang, &guest, &headers).render_error(status, pick)
     };
     if form.consent.is_none() {
-        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.consent_required).await;
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.consent_required);
     }
     let Some(email) = rsvp::normalize_email(&form.email) else {
-        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_email).await;
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_email);
     };
     // Each attempt can mail an address the guest typed in, so it's limited like /lost.
     if !state.may_send_mail(client) {
         tracing::warn!("add e-mail rate limit hit");
-        return refuse(StatusCode::TOO_MANY_REQUESTS, |t| &t.too_many_attempts).await;
+        return refuse(StatusCode::TOO_MANY_REQUESTS, |t| &t.too_many_attempts);
     }
 
     match add_email(&state.db, &guest.rsvp, &email, lang).await {

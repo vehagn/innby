@@ -207,15 +207,9 @@ pub async fn join(
         party_size: form.party_size,
         name_display,
         lang,
+        choice,
     };
-    let created = async {
-        let mut tx = state.db.begin().await?;
-        let rsvp = rsvp::create_open(&mut *tx, &sign_up, PRIVACY_VERSION).await?;
-        rsvp::set_choice(&mut *tx, rsvp.id, choice).await?;
-        tx.commit().await?;
-        Ok::<_, sqlx::Error>(rsvp)
-    };
-    match created.await {
+    match rsvp::create_open(&state.db, &sign_up, PRIVACY_VERSION).await {
         Ok(rsvp) => {
             tracing::info!(rsvp = %rsvp.id, group = %group.id, "signed up through a group");
             let link = state

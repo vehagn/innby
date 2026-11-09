@@ -496,9 +496,12 @@ mod tests {
         rsvp::respond(
             &admin.db,
             kari.id,
-            rsvp::Response::Attending,
-            3,
-            None,
+            &rsvp::Reply {
+                response: rsvp::Response::Attending,
+                party_size: 3,
+                name_display: None,
+                choice: None,
+            },
             crate::i18n::Lang::EnGb,
             crate::web::PRIVACY_VERSION,
         )

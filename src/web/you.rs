@@ -44,22 +44,11 @@ pub(super) struct YouPage<'a> {
 }
 
 impl<'a> YouPage<'a> {
-    /// The page for `guest`, as the device the request came from sees it. It looks up
-    /// whether the event offers games, for the tabs, and leaves that tab out if it can't.
-    pub(super) async fn new(
-        state: &AppState,
-        lang: Lang,
-        guest: &'a Guest,
-        headers: &HeaderMap,
-    ) -> Self {
+    /// The page for `guest`, as the device the request came from sees it.
+    pub(super) fn new(state: &AppState, lang: Lang, guest: &'a Guest, headers: &HeaderMap) -> Self {
         let t = lang.messages();
         let links = GuestLinks::new(&guest.link, lang);
-        let games = games::offers_any(state, &guest.event)
-            .await
-            .unwrap_or_else(|err| {
-                tracing::warn!(error = %err, "games not looked up for the tabs");
-                false
-            });
+        let games = games::offers_any(state, guest);
         Self {
             lang,
             t,
@@ -92,7 +81,7 @@ pub async fn show(
     headers: HeaderMap,
     Query(query): Query<ShowQuery>,
 ) -> Response {
-    let mut page = YouPage::new(&state, lang, &guest, &headers).await;
+    let mut page = YouPage::new(&state, lang, &guest, &headers);
     page.flash = Notice::flash(query.notice.as_deref(), page.t);
     render(page)
 }
@@ -111,7 +100,6 @@ pub async fn rename(
 ) -> Response {
     let Some(name) = rsvp::normalize_name(&form.name, rsvp::NameKind::Person) else {
         return YouPage::new(&state, lang, &guest, &headers)
-            .await
             .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name);
     };
     match rsvp::rename(&state.db, guest.rsvp.id, &name).await {
@@ -179,7 +167,6 @@ pub async fn delete(
 ) -> Response {
     if form.confirm.is_none() {
         return YouPage::new(&state, lang, &guest, &headers)
-            .await
             .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.confirm_delete);
     }
     match rsvp::delete(&state.db, guest.rsvp.id).await {

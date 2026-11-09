@@ -145,19 +145,19 @@ impl Remembered {
             .iter()
             .filter_map(|(_, _, parsed)| Some(parsed.as_ref()?.id))
             .collect();
-        let mut found: HashMap<Uuid, (Rsvp, Event)> = if ids.is_empty() {
+        let mut found: HashMap<Uuid, (Rsvp, Event, Vec<String>)> = if ids.is_empty() {
             HashMap::new()
         } else {
             rsvp::find_with_events(&state.db, &ids)
                 .await?
                 .into_iter()
-                .map(|(rsvp, event)| (rsvp.id, (rsvp, event)))
+                .map(|(rsvp, event, games)| (rsvp.id, (rsvp, event, games)))
                 .collect()
         };
         for (cookie_name, link, parsed) in read {
             let guest = parsed.and_then(|parsed| {
-                let (rsvp, event) = found.remove(&parsed.id)?;
-                Guest::checked(state, link, &parsed, rsvp, event)
+                let (rsvp, event, games) = found.remove(&parsed.id)?;
+                Guest::checked(state, link, &parsed, rsvp, event, games)
             });
             let Some(guest) = guest else {
                 remembered

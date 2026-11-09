@@ -143,6 +143,7 @@ mod tests {
             party_size: 1,
             name_display: NameDisplay::Full,
             lang: Lang::Nb,
+            choice: None,
         };
         rsvp::create_open(&pool, &sign_up, PRIVACY_VERSION).await?;
 

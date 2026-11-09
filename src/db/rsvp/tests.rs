@@ -18,6 +18,7 @@ pub async fn sign_up(pool: &PgPool, name: &str, party_size: i32) -> sqlx::Result
         party_size,
         name_display: NameDisplay::Full,
         lang: Lang::EnGb,
+        choice: None,
     };
     create_open(pool, &sign_up, PRIVACY_VERSION).await
 }
@@ -87,9 +88,12 @@ async fn respond_records_the_answer(pool: PgPool) -> sqlx::Result<()> {
     let answered = respond(
         &pool,
         invite.id,
-        Response::Attending,
-        2,
-        None,
+        &Reply {
+            response: Response::Attending,
+            party_size: 2,
+            name_display: None,
+            choice: None,
+        },
         Lang::EnGb,
         PRIVACY_VERSION,
     )
@@ -116,9 +120,12 @@ async fn respond_rejects_party_larger_than_invited(pool: PgPool) -> sqlx::Result
     let err = respond(
         &pool,
         invite.id,
-        Response::Attending,
-        3,
-        None,
+        &Reply {
+            response: Response::Attending,
+            party_size: 3,
+            name_display: None,
+            choice: None,
+        },
         Lang::Nb,
         PRIVACY_VERSION,
     )
@@ -136,9 +143,12 @@ async fn unknown_id_is_not_found(pool: PgPool) -> sqlx::Result<()> {
         respond(
             &pool,
             id,
-            Response::Declined,
-            1,
-            None,
+            &Reply {
+                response: Response::Declined,
+                party_size: 1,
+                name_display: None,
+                choice: None
+            },
             Lang::Nb,
             PRIVACY_VERSION
         )
@@ -259,9 +269,12 @@ async fn shrinking_an_invitation_shrinks_the_party(pool: PgPool) -> sqlx::Result
     respond(
         &pool,
         invite.id,
-        Response::Attending,
-        4,
-        None,
+        &Reply {
+            response: Response::Attending,
+            party_size: 4,
+            name_display: None,
+            choice: None,
+        },
         Lang::Nb,
         PRIVACY_VERSION,
     )

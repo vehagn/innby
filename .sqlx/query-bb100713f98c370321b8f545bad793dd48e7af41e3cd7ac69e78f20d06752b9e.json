@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "update rsvp set response = $2, party_size = $3, name_display = coalesce($4, name_display), lang = $5, privacy_version = $6, responded_at = now() where id = $1 returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice ",
+  "query": "\n        select r.id, r.event_id, r.name, r.response as \"response: Response\", r.party_size,\n            r.max_party_size, r.link_nonce, r.lang as \"lang: Lang\", r.email,\n            r.email_status as \"email_status: EmailStatus\", r.email_consent_at,\n            r.privacy_version, r.responded_at, r.created_at, r.group_id,\n            r.name_display as \"name_display: NameDisplay\",\n            e.lang as \"event_lang: Lang\",\n            e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,\n            e.question as \"question: Json<Texts>\", e.choices as \"choices: Json<Texts>\",\n            r.choice,\n            array(select g.game from event_game g where g.event_id = e.id order by g.game)\n                as \"games!\"\n        from rsvp r join event e on e.id = r.event_id\n        where r.id = any($1)\n        ",
   "describe": {
     "columns": [
       {
@@ -228,45 +228,8 @@
       },
       {
         "ordinal": 16,
-        "name": "choice",
-        "type_info": "Int2",
-        "origin": {
-          "Table": {
-            "table": "rsvp",
-            "name": "choice"
-          }
-        }
-      }
-    ],
-    "parameters": {
-      "Left": [
-        "Uuid",
-        {
-          "Custom": {
-            "name": "rsvp_response",
-            "kind": {
-              "Enum": [
-                "pending",
-                "attending",
-                "declined"
-              ]
-            }
-          }
-        },
-        "Int4",
-        {
-          "Custom": {
-            "name": "name_display",
-            "kind": {
-              "Enum": [
-                "full",
-                "partial",
-                "hidden"
-              ]
-            }
-          }
-        },
-        {
+        "name": "event_lang: Lang",
+        "type_info": {
           "Custom": {
             "name": "lang",
             "kind": {
@@ -281,7 +244,144 @@
             }
           }
         },
-        "Text"
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "lang"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "title: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "description: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "location",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "location"
+          }
+        }
+      },
+      {
+        "ordinal": 20,
+        "name": "starts_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "starts_at"
+          }
+        }
+      },
+      {
+        "ordinal": 21,
+        "name": "time_zone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "time_zone"
+          }
+        }
+      },
+      {
+        "ordinal": 22,
+        "name": "rsvp_deadline",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "rsvp_deadline"
+          }
+        }
+      },
+      {
+        "ordinal": 23,
+        "name": "ends_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "ends_at"
+          }
+        }
+      },
+      {
+        "ordinal": 24,
+        "name": "changed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "changed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 25,
+        "name": "question: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "question"
+          }
+        }
+      },
+      {
+        "ordinal": 26,
+        "name": "choices: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "choices"
+          }
+        }
+      },
+      {
+        "ordinal": 27,
+        "name": "choice",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "choice"
+          }
+        }
+      },
+      {
+        "ordinal": 28,
+        "name": "games!",
+        "type_info": "TextArray",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
       ]
     },
     "nullable": [
@@ -301,8 +401,20 @@
       false,
       true,
       true,
-      true
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      null
     ]
   },
-  "hash": "c29c8cba48c279bf1d1b6a339e8d54f6ce326b349b9a6dcc791f1ce2b9c20d08"
+  "hash": "bb100713f98c370321b8f545bad793dd48e7af41e3cd7ac69e78f20d06752b9e"
 }

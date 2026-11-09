@@ -39,6 +39,8 @@ pub(super) struct Guest {
     pub rsvp: Rsvp,
     /// The event the guest is invited to.
     pub event: Event,
+    /// The games the event offers, by id, which the config may no longer have.
+    pub games: Vec<String>,
 }
 
 impl FromRequestParts<AppState> for Guest {
@@ -64,10 +66,9 @@ impl Guest {
             return Ok(None);
         };
         let found = rsvp::find_with_events(&state.db, &[parsed.id]).await?;
-        Ok(found
-            .into_iter()
-            .next()
-            .and_then(|(rsvp, event)| Self::checked(state, link, &parsed, rsvp, event)))
+        Ok(found.into_iter().next().and_then(|(rsvp, event, games)| {
+            Self::checked(state, link, &parsed, rsvp, event, games)
+        }))
     }
 
     /// The guest, if the link's signature is the one their RSVP has now: not forged, and
@@ -78,6 +79,7 @@ impl Guest {
         parsed: &IdLink,
         rsvp: Rsvp,
         event: Event,
+        games: Vec<String>,
     ) -> Option<Self> {
         let genuine = state
             .config
@@ -87,6 +89,7 @@ impl Guest {
             link: link.to_owned(),
             rsvp,
             event,
+            games,
         })
     }
 }
@@ -256,10 +259,8 @@ pub async fn show(
 ) -> Response {
     let mut page = RsvpPage::new(lang, &guest);
     page.remembered = remember::remembers(&headers, state.config.is_https(), &guest);
-    page.tabs = match games::offers_any(&state, &guest.event).await {
-        Ok(games) => guest_tabs(page.t, &page.links, games, GuestTab::Reply),
-        Err(err) => return server_error(err),
-    };
+    let games = games::offers_any(&state, &guest);
+    page.tabs = guest_tabs(page.t, &page.links, games, GuestTab::Reply);
     let notice = query.notice.as_deref().and_then(Notice::from_code);
     page.flash = notice.map(|notice| notice.text(page.t));
     page.celebrate = guest.rsvp.response == rsvp::Response::Attending
@@ -277,14 +278,11 @@ pub async fn guests(
     guest: Guest,
     Query(query): Query<ShowQuery>,
 ) -> Response {
-    let loaded = tokio::try_join!(
-        GuestList::load(&state.db, guest.event.id, Some(guest.rsvp.id)),
-        games::offers_any(&state, &guest.event),
-    );
-    let (guests, games) = match loaded {
-        Ok(loaded) => loaded,
+    let guests = match GuestList::load(&state.db, guest.event.id, Some(guest.rsvp.id)).await {
+        Ok(guests) => guests,
         Err(err) => return server_error(err),
     };
+    let games = games::offers_any(&state, &guest);
     let t = lang.messages();
     let links = GuestLinks::new(&guest.link, lang);
     render(GuestsPage {
@@ -346,23 +344,13 @@ pub async fn answer(
         Answer::Declined => rsvp::Response::Declined,
     };
     let id = guest.rsvp.id;
-    let answered = async {
-        let mut tx = state.db.begin().await?;
-        let answered = rsvp::respond(
-            &mut *tx,
-            id,
-            response,
-            form.party_size,
-            form.name_display,
-            lang,
-            PRIVACY_VERSION,
-        )
-        .await?;
-        rsvp::set_choice(&mut *tx, id, choice).await?;
-        tx.commit().await?;
-        Ok::<_, sqlx::Error>(answered)
+    let reply = rsvp::Reply {
+        response,
+        party_size: form.party_size,
+        name_display: form.name_display,
+        choice,
     };
-    match answered.await {
+    match rsvp::respond(&state.db, id, &reply, lang, PRIVACY_VERSION).await {
         Ok(Some(_)) => {
             tracing::info!(rsvp = %id, ?response, "rsvp answered");
             let saved = redirect(&guest.link, lang, Notice::Saved);

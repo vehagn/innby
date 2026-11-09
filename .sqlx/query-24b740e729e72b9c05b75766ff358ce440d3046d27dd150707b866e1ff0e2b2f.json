@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into rsvp (event_id, group_id, name, response, party_size, max_party_size, name_display, lang, privacy_version, responded_at) values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now()) returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice ",
+  "query": "insert into rsvp (event_id, group_id, name, response, party_size, max_party_size, name_display, lang, privacy_version, responded_at, choice) values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now(), $9) returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice ",
   "describe": {
     "columns": [
       {
@@ -272,7 +272,8 @@
           }
         },
         "Text",
-        "Uuid"
+        "Uuid",
+        "Int2"
       ]
     },
     "nullable": [
@@ -295,5 +296,5 @@
       true
     ]
   },
-  "hash": "af93e837073416f6075f8e9f3104022d76da6dfbb99100f62d93aad6f115402d"
+  "hash": "24b740e729e72b9c05b75766ff358ce440d3046d27dd150707b866e1ff0e2b2f"
 }
