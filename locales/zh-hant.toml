@@ -34,6 +34,7 @@ place = "地點"
 # The front page, which is about Innby rather than any one event.
 site_intro = "Innby 用來回覆邀請：你是否參加，以及一共幾人。無需註冊帳戶，所有資料會在活動結束 30 天後刪除。"
 your_invitations = "你的邀請"
+past_invitations = "已結束的活動"
 rsvp_hint = "收到邀請了嗎？請用隨邀請收到的連結回覆。"
 
 # RSVP page
@@ -89,6 +90,8 @@ forgotten_notice = "這台裝置已不再記得你。"
 welcome_back = "歡迎回來，{name}！"
 to_your_page = "前往你的頁面"
 not_you = "不是你？"
+# On the front page: forgets this one invitation on this device, not the others.
+forget_here = "在這台裝置上忘記它"
 
 # Optional e-mail
 email_heading = "電子郵件提醒"

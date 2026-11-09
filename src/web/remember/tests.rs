@@ -226,3 +226,52 @@ async fn the_front_page_reads_only_so_many_remembered_links(db: PgPool) {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(set_cookies(&response).len(), MOST_REMEMBERED);
 }
+
+#[sqlx::test]
+async fn the_front_page_lists_events_to_come_before_those_that_are_over(db: PgPool) {
+    let site = Site::new(db);
+    let (_, link) = site.invite("Kari", 1).await;
+    let party = site.event().await;
+    // A party two days ago, over by now, and one that started an hour ago, still on.
+    let past = |title: &str, hours: i64| {
+        let starts_at = chrono::Utc::now().with_timezone(&chrono_tz::Europe::Oslo)
+            - chrono::Duration::hours(hours);
+        event::Details {
+            title: Texts {
+                nb: title.into(),
+                ..Texts::default()
+            },
+            starts_at,
+            ..details()
+        }
+    };
+    let mut cookie = format!("__Host-innby-{}={link}", party.id.simple());
+    for (title, hours) in [("Over", 48), ("Under way", 1)] {
+        let event = event::create(&site.db, &past(title, hours)).await.unwrap();
+        let invite = rsvp::create_invite(&site.db, event.id, "Kari", 1)
+            .await
+            .unwrap();
+        let link = site
+            .config
+            .link_key
+            .link(Purpose::Rsvp, invite.id, invite.link_nonce);
+        cookie.push_str(&format!("; __Host-innby-{}={link}", event.id.simple()));
+    }
+    let html = body(site.send(get("/?lang=en", &cookie)).await).await;
+    let at = |text: &str| {
+        html.find(text)
+            .unwrap_or_else(|| panic!("{text} in {html}"))
+    };
+    // Under way and to come, the soonest first; then the past, under a heading of its own.
+    assert!(
+        at(">Under way</h3>") < at(">Christmas party</h3>"),
+        "{html}"
+    );
+    assert!(
+        at(">Christmas party</h3>") < at(&en().past_invitations),
+        "{html}"
+    );
+    assert!(at(&en().past_invitations) < at(">Over</h3>"), "{html}");
+    // Forgetting one says it's that one alone.
+    assert!(html.contains(&escape(&en().forget_here)));
+}

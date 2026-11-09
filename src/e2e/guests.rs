@@ -158,7 +158,7 @@ async fn a_remembered_device_finds_the_way_back(db: PgPool) {
 
     // "Not you?" makes the phone forget.
     phone.open(&world.site("/")).await;
-    phone.press(&t.forget_device).await.expect(&t.rsvp_hint);
+    phone.press(&t.forget_here).await.expect(&t.rsvp_hint);
     assert!(
         phone.cookie_names().is_empty(),
         "{:?}",

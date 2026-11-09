@@ -34,6 +34,7 @@ place = "Kvar"
 # The front page, which is about Innby rather than any one event.
 site_intro = "Innby er der du svarar på ein invitasjon: om du kjem, og kor mange de blir. Du treng ingen konto, og alt blir sletta 30 dagar etter arrangementet."
 your_invitations = "Invitasjonane dine"
+past_invitations = "Tidlegare"
 rsvp_hint = "Har du fått ein invitasjon? Bruk lenkja du fekk for å svare."
 
 # RSVP page
@@ -96,6 +97,8 @@ forgotten_notice = "Denne eininga hugsar deg ikkje lenger."
 welcome_back = "Velkomen tilbake, {name}!"
 to_your_page = "Til sida di"
 not_you = "Ikkje deg?"
+# On the front page: forgets this one invitation on this device, not the others.
+forget_here = "Gløym ho her"
 
 # Optional e-mail
 email_heading = "Påminning på e-post"

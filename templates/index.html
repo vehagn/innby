@@ -8,24 +8,16 @@
   <p class="intro">{{ t.site_intro }}</p>
 </div>
 
-{% if !remembered.is_empty() %}
+{% if !coming.is_empty() %}
 <h2>{{ t.your_invitations }}</h2>
-{% for welcome in remembered %}
-<section class="card" aria-labelledby="event-{{ welcome.event_id }}">
-  <h3 id="event-{{ welcome.event_id }}">{{ welcome.title }}</h3>
-  <dl class="facts">
-    <div><dt>{{ t.when }}</dt><dd>{{ welcome.when }}</dd></div>
-    {% if !welcome.place.is_empty() %}<div><dt>{{ t.place }}</dt><dd>{{ welcome.place }}</dd></div>{% endif %}
-  </dl>
-  <p>{{ crate::i18n::filled(t.welcome_back, "name", welcome.name) }} {{ crate::i18n::bold(t.your_answer, "answer", welcome.status)|safe }}</p>
-  <p><a class="button" href="{{ welcome.page }}">{{ t.to_your_page }}</a></p>
-  <form method="post" action="{{ lang.forget() }}" class="not-you">
-    <input type="hidden" name="event" value="{{ welcome.event_id }}">
-    <span class="hint">{{ t.not_you }}</span>
-    <button class="link small">{{ t.forget_device }}</button>
-  </form>
-</section>
-{% endfor %}
+{% for welcome in coming %}{% include "_invitation.html" %}{% endfor %}
+{% endif %}
+
+{% if !past.is_empty() %}
+<div class="past">
+  <h2>{{ t.past_invitations }}</h2>
+  {% for welcome in past %}{% include "_invitation.html" %}{% endfor %}
+</div>
 {% endif %}
 
 <p class="footnote">{{ t.rsvp_hint }} <a href="{{ lang.lost() }}">{{ t.lost_link }}</a></p>

@@ -108,7 +108,7 @@ async fn one_device_remembers_invitations_to_two_events(db: PgPool) {
     // Forgetting one leaves the other.
     phone.open(&world.site("/")).await;
     phone
-        .press(&t.forget_device)
+        .press(&t.forget_here)
         .await
         .expect("Sommerfest")
         .expect_not("Christmas party");

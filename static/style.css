@@ -1037,6 +1037,31 @@ td {
   color: var(--text-muted);
 }
 
+/* A remembered invitation: its title, when, the guest's answer, and the way back with
+   forgetting it beside, kept short so several fit on a phone's screen. */
+.invitation {
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+.invitation h3 {
+  margin: 0 0 var(--space-1);
+}
+
+.invitation p {
+  margin: 0 0 var(--space-3);
+}
+
+.invitation .buttons {
+  align-items: center;
+  column-gap: var(--space-4);
+}
+
+/* Invitations to events that are over: still there, but quieter. */
+.past {
+  opacity: 0.75;
+}
+
 .not-you {
   display: flex;
   flex-wrap: wrap;

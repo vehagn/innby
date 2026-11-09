@@ -34,6 +34,7 @@ place = "Venue"
 # The front page, which is about Innby rather than any one event.
 site_intro = "Innby is where you reply to an invitation: whether you shall attend, and with how many. No account is needed, and everything is deleted 30 days after the event."
 your_invitations = "Your invitations"
+past_invitations = "Past events"
 rsvp_hint = "Received an invitation? Kindly reply using the link that came with it."
 
 # RSVP page
@@ -98,6 +99,8 @@ forgotten_notice = "This device no longer remembers you."
 welcome_back = "Welcome back, {name}!"
 to_your_page = "To your page"
 not_you = "Not you?"
+# On the front page: forgets this one invitation on this device, not the others.
+forget_here = "Forget it here"
 
 # Optional e-mail
 email_heading = "Reminders by e-mail"

@@ -215,10 +215,12 @@ group sign-up form (unticked until they do, since a box ticked for them wouldn't
 asking; once answers close, a button does it), the browser keeps their link in one
 cookie per event (`__Host-innby-{event}` over HTTPS; `HttpOnly`, `SameSite=Lax`,
 expiring when the event's data is deleted). The front page then lists each remembered
-invitation, the soonest event first, with a button back. The cookie gives no access by
+invitation, those to come or under way first, the soonest first, and those over after
+them, under a heading of their own, each with a button back. The cookie gives no access by
 itself: pages still read the link from the URL. A link that stops working is dropped
 from the cookie the next time the front page sees it, and answering with the box
-unticked or *Forget this device* drops it on demand. The front page reads ten such
+unticked, *Forget it here* on the front page or *Forget this device* on the guest's
+details drops it on demand. The front page reads ten such
 cookies at most, and looks them all up in one query. These are the public site's only
 cookies; language and colour scheme travel in `?lang=` and `?theme=`.
 

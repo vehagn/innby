@@ -7,11 +7,13 @@ use axum::{
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
+use chrono::Utc;
 use uuid::Uuid;
 
-use super::{AppState, PRIVACY_VERSION, remember::Remembered};
+use super::{AppState, PRIVACY_VERSION, remember::Remembered, rsvp::Guest};
 use crate::{
     config::Controller,
+    db::event::Details,
     http::{render, render_compressed, render_with, server_error},
     i18n::{Lang, Messages},
     janitor::{KEEP_AFTER_EVENT, KEEP_SENT_MAIL},
@@ -23,15 +25,18 @@ use crate::{
 struct IndexPage {
     lang: Lang,
     t: &'static Messages,
-    /// The invitations this device remembers, the soonest event first.
-    remembered: Vec<Welcome>,
+    /// The invitations this device remembers to events still to come, or under way,
+    /// the soonest first.
+    coming: Vec<Welcome>,
+    /// Those to events that are over, the latest first: their pages stay until the
+    /// event's data is deleted, but they matter less.
+    past: Vec<Welcome>,
 }
 
 /// An invitation this device remembers, greeted on the front page.
 struct Welcome {
     title: String,
     when: String,
-    place: String,
     name: String,
     /// Their answer, e.g. "Coming · 2 people".
     status: String,
@@ -50,24 +55,32 @@ pub async fn index(State(state): State<AppState>, lang: Lang, headers: HeaderMap
     };
     let mut guests = remembered.guests;
     guests.sort_by_key(|guest| guest.event.details.starts_at);
+    // An event without a set end is over when a calendar would show it ending.
+    let now = Utc::now();
+    let over = |details: &Details| {
+        details
+            .ends_at
+            .unwrap_or(details.starts_at + crate::calendar::UNSET_LENGTH)
+            < now
+    };
+    let (past, coming): (Vec<_>, Vec<_>) =
+        guests.iter().partition(|guest| over(&guest.event.details));
+    let welcome = |guest: &&Guest| {
+        let event = &guest.event.details;
+        Welcome {
+            title: event.title(lang).to_owned(),
+            when: lang.format_date(event.starts_at),
+            name: guest.rsvp.name.clone(),
+            status: t.answer(guest.rsvp.response, guest.rsvp.party_size),
+            page: paths::localized(&paths::path(paths::RSVP, &guest.link), lang),
+            event_id: guest.event.id,
+        }
+    };
     let mut response = render(IndexPage {
         lang,
         t,
-        remembered: guests
-            .iter()
-            .map(|guest| {
-                let event = &guest.event.details;
-                Welcome {
-                    title: event.title(lang).to_owned(),
-                    when: lang.format_date(event.starts_at),
-                    place: event.location.clone(),
-                    name: guest.rsvp.name.clone(),
-                    status: t.answer(guest.rsvp.response, guest.rsvp.party_size),
-                    page: paths::localized(&paths::path(paths::RSVP, &guest.link), lang),
-                    event_id: guest.event.id,
-                }
-            })
-            .collect(),
+        coming: coming.iter().map(welcome).collect(),
+        past: past.iter().rev().map(welcome).collect(),
     });
     // Links that stopped working are forgotten, and an older cookie gets its new name.
     for cookie in remembered.cookies {

@@ -37,6 +37,8 @@ pub struct Messages {
     pub place: String,
     pub site_intro: String,
     pub your_invitations: String,
+    /// Remembered invitations to events that are over.
+    pub past_invitations: String,
     pub rsvp_hint: String,
 
     // RSVP page
@@ -92,6 +94,8 @@ pub struct Messages {
     pub welcome_back: String,
     pub to_your_page: String,
     pub not_you: String,
+    /// Forgets one invitation on this device, from the front page.
+    pub forget_here: String,
 
     // Optional e-mail
     pub email_heading: String,
