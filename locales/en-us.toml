@@ -54,8 +54,7 @@ device_heading = "This device"
 changed_notice = "The time or place changed after you RSVPed. Check it above, and change your answer if you need to."
 # The empty pick for the host's question.
 choice_none = "No answer"
-# The event for the guest's own calendar, once they're coming.
-calendar_heading = "In your calendar"
+# The event for the guest's own calendar, once they're coming: a button and a hint.
 calendar_hint = "A file with the time and place for your phone or computer calendar. If plans change, add it again."
 add_to_calendar = "Add to calendar"
 saved = "Saved!"

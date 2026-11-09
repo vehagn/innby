@@ -8,14 +8,13 @@
 {% let a = crate::admin::lang::text() %}
 {% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
 <h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
-<p class="hint">{{ a.group_links_hint }}</p>
+<p class="hint">{{ a.group_links_hint }} {{ a.copy_link_hint }}</p>
 {% if !accepts_answers %}<p class="notice" role="status">{{ a.closed }}</p>{% endif %}
 
 <section class="card">
   {% if groups.is_empty() %}
   <p class="muted">{{ a.no_groups }}</p>
   {% else %}
-  <p class="hint">{{ a.copy_link_hint }}</p>
   <div class="table-wrap">
   <table>
     <thead>

@@ -16,11 +16,14 @@
 <label for="rsvp_deadline">{{ a.event_deadline }}</label>
 <input id="rsvp_deadline" name="rsvp_deadline" type="datetime-local" value="{{ form.rsvp_deadline() }}">
 <p class="hint">{{ a.event_deadline_hint }}</p>
-<label for="question">{{ a.event_question }} · {{ bokmal }}</label>
-<input id="question" name="question" maxlength="200" value="{{ form.question() }}">
-<label for="choices">{{ a.event_choices }} · {{ bokmal }}</label>
-<textarea id="choices" name="choices" rows="3">{{ form.choices() }}</textarea>
-<p class="hint">{{ a.event_question_hint }}</p>
+<details{% if !form.question().is_empty() %} open{% endif %}>
+  <summary>{{ a.event_question }}</summary>
+  <p class="hint">{{ a.event_question_hint }}</p>
+  <label for="question">{{ a.event_question }} · {{ bokmal }}</label>
+  <input id="question" name="question" maxlength="200" value="{{ form.question() }}">
+  <label for="choices">{{ a.event_choices }} · {{ bokmal }}</label>
+  <textarea id="choices" name="choices" rows="3">{{ form.choices() }}</textarea>
+</details>
 <details>
   <summary>{{ a.event_languages }}</summary>
   <p class="hint">{{ a.event_languages_hint }}</p>

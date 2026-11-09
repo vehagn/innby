@@ -55,8 +55,7 @@ device_heading = "Denne enheten"
 changed_notice = "Tid eller sted er endret siden du svarte. Sjekk det over, og endre svaret om du må."
 # The empty pick for the host's question.
 choice_none = "Ikke svart"
-# The event for the guest's own calendar, once they're coming.
-calendar_heading = "I kalenderen din"
+# The event for the guest's own calendar, once they're coming: a button and a hint.
 calendar_hint = "En fil med tid og sted til kalenderen på telefonen eller datamaskinen. Endres planene, legger du den til på nytt."
 add_to_calendar = "Legg til i kalenderen"
 saved = "Lagret!"

@@ -25,6 +25,10 @@
   <p class="notice">{{ t.first_visit_notice }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
   {% endif %}
   <p>{{ crate::i18n::bold(t.your_answer, "answer", status)|safe }}</p>
+  {% if attending %}
+  <p><a class="button secondary" href="{{ links.calendar }}" rel="nofollow">{{ t.add_to_calendar }}</a></p>
+  <p class="hint">{{ t.calendar_hint }}</p>
+  {% endif %}
   {% if let Some(deadline) = event.rsvp_deadline %}
   <p class="muted">{{ crate::i18n::filled(t.reply_by, "deadline", deadline) }}</p>
   {% endif %}
@@ -51,11 +55,4 @@
   <p class="hint">{{ t.keep_link }}</p>
 </section>
 
-{% if attending %}
-<section class="card" aria-labelledby="calendar-heading">
-  <h2 id="calendar-heading">{{ t.calendar_heading }}</h2>
-  <p class="hint">{{ t.calendar_hint }}</p>
-  <p><a class="button secondary" href="{{ links.calendar }}" rel="nofollow">{{ t.add_to_calendar }}</a></p>
-</section>
-{% endif %}
 {% endblock %}

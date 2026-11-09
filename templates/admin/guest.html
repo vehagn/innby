@@ -20,13 +20,12 @@
 
 <section class="card">
   <h2>{{ a.link }}</h2>
-  <p class="hint">{{ a.guest_link_hint }}</p>
+  <p class="hint">{{ a.guest_link_hint }} {{ a.copy_link_hint }}</p>
   <label for="url">{{ a.guest_link }}</label>
   <div class="link-field">
     <input id="url" type="text" readonly value="{{ url }}">
     <a href="{{ url }}" target="_blank">{{ a.open_link }}</a>
   </div>
-  <p class="hint">{{ a.copy_link_hint }}</p>
   <div class="qr">{{ qr|safe }}</div>
   <p><a href="{{ links.qr }}" download>{{ a.qr_download }}</a></p>
   <form method="post" action="{{ links.revoke }}">

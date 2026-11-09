@@ -56,7 +56,6 @@ pub struct Messages {
     pub changed_notice: String,
     /// The empty pick for the host's question.
     pub choice_none: String,
-    pub calendar_heading: String,
     pub calendar_hint: String,
     pub add_to_calendar: String,
     pub saved: String,

@@ -9,8 +9,9 @@
 <h1>{{ a.new_event }}</h1>
 
 {% let form = draft.form() %}
-<section class="card" id="import">
-  <h2>{{ a.import_event }}</h2>
+{#- Most new events are typed; reading a file is folded away until it has a message. #}
+<details class="card" id="import"{% if draft.file_notice.is_some() || draft.file_error.is_some() %} open{% endif %}>
+  <summary>{{ a.import_event }}</summary>
   {% if let Some(notice) = draft.file_notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
   {% if let Some(error) = draft.file_error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
   <p class="hint">{{ a.import_hint }}</p>
@@ -21,7 +22,7 @@
     <textarea id="event-text" name="text" rows="6" spellcheck="false">{{ draft.file() }}</textarea>
     <button class="secondary">{{ a.read_file }}</button>
   </form>
-</section>
+</details>
 
 <section class="card" id="new-event">
   <h2>{{ a.details }}</h2>

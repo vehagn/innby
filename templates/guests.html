@@ -7,8 +7,9 @@
 {% if let Some(flash) = flash %}<p class="notice success" role="status">{{ flash }}</p>{% endif %}
 <h1>{{ event.title }}</h1>
 
-<section class="card" aria-labelledby="guests-heading">
-  <h2 id="guests-heading">{{ t.guest_list_heading }}</h2>
+<section class="card" aria-label="{{ t.guest_list_heading }}">
+  {#- A guest's tab says what this is; someone deciding whether to sign up has none. #}
+  {% if tabs.is_empty() %}<h2>{{ t.guest_list_heading }}</h2>{% endif %}
   {% include "_guest_list.html" %}
   {% if let Some(you) = you %}
   <p>{% match you.name %}{% when Some(name) %}{{ crate::i18n::bold(t.listed_as, "name", name)|safe }}{% when None %}{% if you.declined %}{{ t.listed_declined }}{% else %}{{ t.listed_hidden }}{% endif %}{% endmatch %}</p>

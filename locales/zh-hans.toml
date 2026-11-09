@@ -53,8 +53,7 @@ device_heading = "这台设备"
 changed_notice = "你回复之后，时间或地点有了变更。请查看上方信息，如有需要请修改回复。"
 # The empty pick for the host's question.
 choice_none = "暂不回答"
-# The event for the guest's own calendar, once they're coming.
-calendar_heading = "加入日历"
+# The event for the guest's own calendar, once they're coming: a button and a hint.
 calendar_hint = "一个包含时间和地点的文件，可加入手机或电脑的日历。如安排有变，请重新添加。"
 add_to_calendar = "添加到我的日历"
 saved = "已保存！"
