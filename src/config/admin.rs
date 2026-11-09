@@ -42,8 +42,17 @@ pub struct PasswordLogin {
     pub password_hash: String,
 }
 
-/// The longest user name `INNBY_ADMIN_USERS` takes.
-const MAX_USER_LEN: usize = 100;
+/// The longest user name a password user may have.
+pub const MAX_USER_LEN: usize = 100;
+
+/// Whether a password user may have this name: one that can be typed in the login form
+/// and carried in the refresh token's cookie. The database checks the same.
+pub fn valid_user_name(user: &str) -> bool {
+    (1..=MAX_USER_LEN).contains(&user.len())
+        && user
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "._@-".contains(c))
+}
 
 impl PasswordLogin {
     /// One user of `INNBY_ADMIN_USERS`: `name:role:hash`, as `kari:editor:$argon2id$…`.
@@ -73,10 +82,7 @@ impl PasswordLogin {
     fn check(&self, public: bool) -> Result<()> {
         let user = &self.user;
         ensure!(
-            (1..=MAX_USER_LEN).contains(&user.len())
-                && user
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || "._@-".contains(c)),
+            valid_user_name(user),
             "{user:?}: a user name is up to {MAX_USER_LEN} letters a to z, digits and . _ @ -"
         );
         auth::check_hash(&self.password_hash)?;

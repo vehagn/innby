@@ -1,5 +1,6 @@
 //! The password users' passwords: argon2id hashes, each checked in about the same time
-//! whether or not the user exists.
+//! whether or not the user exists. The config's users are here; those made in the admin
+//! UI are in `db::admin_user`.
 
 use anyhow::{Result, anyhow};
 use argon2::{
@@ -38,22 +39,17 @@ pub fn verify(hash: &str, password: &str) -> bool {
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum Outcome {
-    /// The user's name, as configured, and their role.
-    Accepted(String, Option<Role>),
+    /// The user's name, their role, and their password's version: 0 for the config's.
+    Accepted(String, Option<Role>, i32),
     Rejected,
     TooManyAttempts,
 }
 
-impl Credentials {
-    /// The user, if the password is theirs. A password is always verified, against
-    /// another user's hash when nobody has the name, so a wrong user name takes as long
-    /// as a wrong password.
-    pub(super) fn accept(&self, user: &str, password: &str) -> Option<&PasswordLogin> {
-        let found = self.find(user);
-        let hash = &found.or(self.0.first())?.password_hash;
-        verify(hash, password).then_some(found).flatten()
-    }
+/// A hash of a random password, checked when nobody has the name typed, so a wrong name
+/// takes as long as a wrong password. Default strength, as `hash_password` makes them.
+pub(super) const NOBODY: &str = "$argon2id$v=19$m=19456,t=2,p=1$GvRh6oBJLai1yE+E2T5FKA$strZ7kNRumHibu9LDpRbInyNay/v8NMoB/Air/ftO1c";
 
+impl Credentials {
     pub(super) fn find(&self, user: &str) -> Option<&PasswordLogin> {
         self.0.iter().find(|login| login.user == user)
     }
@@ -62,30 +58,11 @@ impl Credentials {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::admin::auth::tests::cheap_hash;
 
     #[test]
-    fn accepts_only_the_right_user_and_password() {
-        let user = |user: &str, role, password| PasswordLogin {
-            user: user.into(),
-            role,
-            password_hash: cheap_hash(password),
-        };
-        let credentials = Credentials(vec![
-            user("admin", Some(Role::Admin), "a:b"),
-            user("ola", None, "c"),
-        ]);
-        let accepted = |user, password| {
-            credentials
-                .accept(user, password)
-                .map(|login| (login.user.as_str(), login.role))
-        };
-        assert_eq!(accepted("admin", "a:b"), Some(("admin", Some(Role::Admin))));
-        assert_eq!(accepted("ola", "c"), Some(("ola", None)));
-        assert_eq!(accepted("admin", "wrong"), None);
-        assert_eq!(accepted("ola", "a:b"), None);
-        // Nobody's name, with the password checked against the first user's.
-        assert_eq!(accepted("root", "a:b"), None);
+    fn nobody_is_a_hash_of_the_default_strength() {
+        check_hash(NOBODY).unwrap();
+        assert!(NOBODY.starts_with("$argon2id$v=19$m=19456,t=2,p=1$"));
     }
 
     #[test]

@@ -16,8 +16,8 @@ ignored, so the same claim can carry other things.
 | `editor` | Also run the events: invitations, group links, guests, reminders, the guest export, each event's details, its QR codes' style and its event file |
 | `admin` | Also create events (by hand, by copying one, or from an event file) and delete them, and give roles for one event |
 
-Hosts who log in with a password have the role `INNBY_ADMIN_USERS` gives them, and the
-built-in user is an admin.
+Hosts who log in with a password have the role `INNBY_ADMIN_USERS` gives them, or the
+one an admin gives them on the admin UI's Users tab, and the built-in user is an admin.
 
 These roles are for every event. An admin can also give a host a role for one event,
 viewer or editor, on that event's Access tab, by the name Innby knows them by: the ID

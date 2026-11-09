@@ -1,0 +1,45 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ user.name }} · {{ crate::admin::lang::text().users }}{% endblock %}
+
+{% block tabs %}{% let tabs = crate::admin::tabs(None, crate::admin::Tab::Users) %}{% include "admin/_tabs.html" %}{% endblock %}
+
+{% block content %}
+{% let a = crate::admin::lang::text() %}
+{% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
+<p class="crumb"><a href="{{ crate::paths::admin(crate::paths::USERS) }}">‹ {{ a.users }}</a></p>
+<h1>{{ user.name }}</h1>
+{% if yourself %}
+<p class="hint">{{ a.error_yourself }}</p>
+{% else %}
+<section class="card">
+  <form method="post" action="{{ links.page }}">
+    <fieldset>
+      <legend>{{ a.col_role }}</legend>
+      {% for choice in roles %}
+      <label class="choice"><input type="radio" name="role" value="{{ choice.code }}"{% if choice.checked %} checked{% endif %}> {{ choice.name }}</label>
+      {% endfor %}
+    </fieldset>
+    <p class="hint">{{ a.users_roles_hint }}</p>
+    <button>{{ a.save_role }}</button>
+  </form>
+</section>
+
+<section class="card">
+  <form method="post" action="{{ links.page }}">
+    <label for="user-password">{{ a.new_password }}</label>
+    <input id="user-password" name="password" type="password" required minlength="10" maxlength="200" autocomplete="new-password">
+    <p class="hint">{{ a.password_hint }} {{ a.new_password_hint }}</p>
+    <button class="secondary">{{ a.set_password }}</button>
+  </form>
+</section>
+
+<details>
+  <summary>{{ a.delete }}</summary>
+  <form method="post" action="{{ links.delete }}">
+    <label class="checkbox"><input type="checkbox" name="confirm" value="yes" required> {{ crate::i18n::filled(a.delete_user, "name", user.name) }}</label>
+    <button class="danger">{{ a.delete }}</button>
+  </form>
+</details>
+{% endif %}
+{% endblock %}

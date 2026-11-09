@@ -42,7 +42,7 @@ pub async fn start(State(auth): State<Arc<Auth>>) -> Response {
         }
         Err(err) => {
             tracing::error!("OIDC login couldn't start: {err:#}");
-            failed(&auth, provider)
+            failed(&auth, provider).await
         }
     }
 }
@@ -96,31 +96,34 @@ pub async fn callback(
         }
         Err(LoginError::Expired) => {
             tracing::warn!("OIDC callback without a login in progress, or a stale one");
-            auth::login_error(&auth, StatusCode::BAD_REQUEST, text.login_expired.clone())
+            auth::login_error(&auth, StatusCode::BAD_REQUEST, text.login_expired.clone()).await
         }
-        Err(LoginError::Cancelled) => auth::login_error(
-            &auth,
-            StatusCode::UNAUTHORIZED,
-            text.login_cancelled.clone(),
-        ),
+        Err(LoginError::Cancelled) => {
+            auth::login_error(
+                &auth,
+                StatusCode::UNAUTHORIZED,
+                text.login_cancelled.clone(),
+            )
+            .await
+        }
         Err(LoginError::NoRole { user }) => {
             tracing::warn!(user, "OIDC login without an Innby role");
             let message = fill(
                 &text.no_role,
                 &[("name", &provider.name()), ("user", &user)],
             );
-            auth::login_error(&auth, StatusCode::FORBIDDEN, message)
+            auth::login_error(&auth, StatusCode::FORBIDDEN, message).await
         }
         Err(LoginError::Failed(err)) => {
             tracing::error!("OIDC login failed: {err:#}");
-            failed(&auth, provider)
+            failed(&auth, provider).await
         }
     };
     response.headers_mut().append(header::SET_COOKIE, clear);
     response
 }
 
-fn failed(auth: &Auth, provider: &Provider) -> Response {
+async fn failed(auth: &Auth, provider: &Provider) -> Response {
     let message = fill(&lang::text().login_failed, &[("name", &provider.name())]);
-    auth::login_error(auth, StatusCode::BAD_GATEWAY, message)
+    auth::login_error(auth, StatusCode::BAD_GATEWAY, message).await
 }

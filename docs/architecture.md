@@ -232,9 +232,14 @@ allowed.
 - **A user name and password**, checked against an argon2 hash. The users are the
   built-in admin (`INNBY_ADMIN_USER` and `INNBY_ADMIN_PASSWORD_HASH`; leave the hash out
   to turn it off) and any in `INNBY_ADMIN_USERS`, each `name:role:hash`, as
-  `ola:editor:$argon2id$…`, apart by spaces or lines; the role may be `none`. A login sets an HS512 JWT good
-  for a day and a refresh token good for 30 days, both `HttpOnly` cookies; logging out
-  revokes both. Changing a user, their role or their password logs every browser out.
+  `ola:editor:$argon2id$…`, apart by spaces or lines; the role may be `none`; and those
+  an admin makes on the **Users** tab, beside Events, with a role and a first password,
+  kept in `admin_user`. A login sets an HS512 JWT good for a day and a refresh token good
+  for 30 days, both `HttpOnly` cookies; logging out revokes both. Changing a config user,
+  their role or their password logs every browser out. A user made on the Users tab has
+  their role read on each request, so a new one counts at once, and a new password or
+  their deletion logs them out everywhere. An admin can't change or delete themselves
+  there.
   Ten attempts in 15 minutes from one address lock that address out for the rest of the
   window, and 100 from all addresses together lock everyone out, which bounds guessing
   from many addresses.

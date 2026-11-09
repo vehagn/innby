@@ -63,13 +63,15 @@ src/
     qr/              an event's QR code style tab and the SVG downloads; draw.rs draws them
     games.rs         an event's Games tab: the minigames it offers, and their scores
     access.rs        an event's Access tab: roles for that event alone, by login name
+    users.rs         the Users tab, for admins: password users kept in the database
     role.rs          viewer < editor < admin, and the role a request has for its event
     lang.rs          the admin page's language
     auth/            logging in: sessions (mod.rs), login.rs, password.rs (argon2), jwt.rs
       oidc/          single sign-on: routes.rs, provider.rs, jws.rs (ID tokens), http.rs, fake.rs (tests)
     cli.rs           the host's commands: `innby invite`, `innby event list|export|import`
     testing.rs       a logged-in test host of any role
-  db/                queries per table (access.rs: roles for one event); rsvp/ splits into
+  db/                queries per table (access.rs: roles for one event; admin_user.rs:
+                     password users made in the admin UI); rsvp/ splits into
                      the row, names.rs and guest_list.rs
   mailer/            the outbox worker; compose.rs writes the mails
   janitor.rs         deletes what retention says is due
@@ -85,7 +87,8 @@ src/
 locales/*.toml       one file per language: what it is, its fallbacks, its texts
 templates/           askama pages: base.html and admin/base.html, partials named _*.html
 static/style.css     the one stylesheet: tokens first, then base, layout, components, pages
-migrations/          the schema, applied by `innby migrate`: 0001_schema.sql, and those after it;
+migrations/          the schema, applied by `innby migrate`: 0001_schema.sql (released), and
+                     those after it, such as 0002_admin_users.sql;
                      seed/sample.sql is sample data for dev
 bench/               `just bench`: run.sh, and data.sql, an event of 1500 guests
 games/               example minigames on an origin of their own (docs/games.md): reaction/

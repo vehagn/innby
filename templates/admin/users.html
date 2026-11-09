@@ -1,0 +1,65 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ crate::admin::lang::text().users }}{% endblock %}
+
+{% block tabs %}{% let tabs = crate::admin::tabs(None, crate::admin::Tab::Users) %}{% include "admin/_tabs.html" %}{% endblock %}
+
+{% block content %}
+{% let a = crate::admin::lang::text() %}
+{% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
+<h1>{{ a.users }}</h1>
+<p class="hint">{{ a.users_hint }}</p>
+
+<section class="card">
+  {% if users.is_empty() %}
+  <p class="muted">{{ a.no_users }}</p>
+  {% else %}
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>{{ a.user_name }}</th><th>{{ a.col_role }}</th></tr></thead>
+    <tbody>
+      {% for user in users %}
+      <tr><td><a href="{{ user.path }}">{{ user.name }}</a></td><td>{{ crate::admin::users_role_name(user.role) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+
+<section class="card" id="new-user">
+  <h2>{{ a.new_user }}</h2>
+  <form method="post" action="{{ crate::paths::admin(crate::paths::USERS) }}#new-user">
+    <label for="user-name">{{ a.user_name }}</label>
+    <input id="user-name" name="name" required maxlength="{{ crate::config::MAX_USER_LEN }}" autocapitalize="none" autocomplete="off" spellcheck="false" value="{{ name }}">
+    <fieldset>
+      <legend>{{ a.col_role }}</legend>
+      {% for choice in roles %}
+      <label class="choice"><input type="radio" name="role" value="{{ choice.code }}"{% if choice.checked %} checked{% endif %}> {{ choice.name }}</label>
+      {% endfor %}
+    </fieldset>
+    <p class="hint">{{ a.users_roles_hint }}</p>
+    <label for="user-password">{{ a.password }}</label>
+    <input id="user-password" name="password" type="password" required minlength="10" maxlength="200" autocomplete="new-password">
+    <p class="hint">{{ a.password_hint }}</p>
+    <button>{{ a.create_user }}</button>
+  </form>
+</section>
+
+{% if !from_config.is_empty() %}
+<section class="card">
+  <h2>{{ a.users_config }}</h2>
+  <p class="hint">{{ a.users_config_hint }}</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>{{ a.user_name }}</th><th>{{ a.col_role }}</th></tr></thead>
+    <tbody>
+      {% for user in from_config %}
+      <tr><td>{{ user.name }}</td><td>{{ crate::admin::users_role_name(user.role) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

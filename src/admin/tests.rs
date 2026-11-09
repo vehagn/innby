@@ -168,6 +168,126 @@ async fn the_host_picks_an_events_games_and_sees_their_scores(db: PgPool) {
     );
 }
 
+#[sqlx::test]
+async fn an_admin_makes_password_users_and_their_changes_count_at_once(db: PgPool) {
+    let admin = Admin::new(db.clone());
+    let app = router(admin.config.clone(), &admin.admin, db.clone());
+    let send = |method: &str, uri: &str, cookie: &str, form: &str| {
+        let request = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header(header::COOKIE, cookie)
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .header(header::ACCEPT_LANGUAGE, "en-GB")
+            .header("sec-fetch-site", "same-origin")
+            .body(Body::from(form.to_owned()))
+            .unwrap();
+        let app = app.clone();
+        async move { app.oneshot(request).await.unwrap() }
+    };
+    let log_in = |user: &str, password: &str| {
+        let form = format!("user={user}&password={password}");
+        async move {
+            let response = send("POST", "/login", "", &form).await;
+            let cookies: Vec<_> = set_cookies(&response).into_iter().map(|(c, _)| c).collect();
+            let to = response.headers().get(header::LOCATION).map_or_else(
+                || response.status().to_string(),
+                |to| to.to_str().unwrap().to_owned(),
+            );
+            (to, cookies.join("; "))
+        }
+    };
+    let event = crate::db::event::tests::event(&db).await;
+    let invitations = paths::path(paths::EVENT_INVITATIONS, event.id);
+
+    // Only admins see users, and the config's are there, to read.
+    let editor = Admin::as_role(db.clone(), Role::Editor);
+    assert_eq!(
+        editor.get(paths::USERS).await.status(),
+        StatusCode::FORBIDDEN
+    );
+    let html = body(admin.get(paths::USERS).await).await;
+    assert!(html.contains("<td>ola.n</td>") && html.contains("No users made here yet."));
+    let editor_page = body(editor.get(paths::HOME).await).await;
+    assert!(!editor_page.contains(r#"href="/users""#));
+
+    // A short password, a config user's name, or a name that can't be typed, refused.
+    for form in [
+        "name=kari&role=editor&password=short",
+        "name=ola.n&role=editor&password=long-enough-1",
+        "name=k%C3%A5re&role=editor&password=long-enough-1",
+        "name=kari&role=owner&password=long-enough-1",
+    ] {
+        let response = admin.post(paths::USERS, form).await;
+        assert_eq!(
+            response.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "{form}"
+        );
+    }
+    let response = admin
+        .post(paths::USERS, "name=kari&role=editor&password=long-enough-1")
+        .await;
+    assert_eq!(
+        response.status(),
+        StatusCode::SEE_OTHER,
+        "{}",
+        body(response).await
+    );
+    let response = admin.get("/users/kari?saved").await;
+    assert!(body(response).await.contains("Saved."));
+
+    // Kari logs in, and runs the event.
+    let (home, kari) = log_in("kari", "long-enough-1").await;
+    assert_eq!(home, "/");
+    assert_eq!(
+        send("GET", &invitations, &kari, "").await.status(),
+        StatusCode::OK
+    );
+
+    // A new role counts on her next request, without logging in again.
+    admin.post("/users/kari", "role=viewer").await;
+    assert_eq!(
+        send("GET", &invitations, &kari, "").await.status(),
+        StatusCode::FORBIDDEN
+    );
+    let guests = paths::path(paths::EVENT, event.id);
+    assert_eq!(
+        send("GET", &guests, &kari, "").await.status(),
+        StatusCode::OK
+    );
+
+    // A new password logs her out everywhere, refresh token and all.
+    admin.post("/users/kari", "password=another-one-2").await;
+    assert_eq!(location(&send("GET", &guests, &kari, "").await), "/login");
+    let (refused, _) = log_in("kari", "long-enough-1").await;
+    assert_ne!(refused, "/");
+    let (home, kari) = log_in("kari", "another-one-2").await;
+    assert_eq!(home, "/");
+
+    // Deleting her ends that too, and takes the roles events gave her.
+    crate::db::access::give(&db, event.id, "kari", crate::db::access::EventRole::Editor)
+        .await
+        .unwrap();
+    let response = admin.post("/users/kari/delete", "").await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    admin.post("/users/kari/delete", "confirm=yes").await;
+    assert_eq!(location(&send("GET", &guests, &kari, "").await), "/login");
+    assert!(!crate::db::access::has_any(&db, "kari").await.unwrap());
+
+    // An admin can't change or delete themselves here.
+    admin
+        .post(paths::USERS, "name=boss&role=admin&password=long-enough-1")
+        .await;
+    let (_, boss) = log_in("boss", "long-enough-1").await;
+    let response = send("POST", "/users/boss", &boss, "role=none").await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let response = send("POST", "/users/boss/delete", &boss, "confirm=yes").await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let html = body(send("GET", paths::USERS, &boss, "").await).await;
+    assert!(html.contains(r#"<a href="/users/boss">boss</a>"#), "{html}");
+}
+
 async fn status(host: &Admin, path: String) -> StatusCode {
     host.get(&path).await.status()
 }

@@ -64,6 +64,10 @@ pub const GROUP: &str = "/groups/{group}";
 pub const GROUP_REVOKE: &str = "/groups/{group}/revoke";
 pub const GROUP_DELETE: &str = "/groups/{group}/delete";
 pub const GROUP_QR: &str = "/groups/{group}/qr.svg";
+/// The password users an admin makes, by name.
+pub const USERS: &str = "/users";
+pub const USER: &str = "/users/{user}";
+pub const USER_DELETE: &str = "/users/{user}/delete";
 pub const LOGIN: &str = "/login";
 /// Logging in through the OpenID Connect provider, and coming back from it.
 pub const LOGIN_OIDC: &str = "/login/oidc";

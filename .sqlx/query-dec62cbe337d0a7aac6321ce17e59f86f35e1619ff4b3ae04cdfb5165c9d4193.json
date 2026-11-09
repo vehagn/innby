@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from admin_user where name = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dec62cbe337d0a7aac6321ce17e59f86f35e1619ff4b3ae04cdfb5165c9d4193"
+}

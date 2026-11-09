@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update admin_user set role = $2 where name = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cc7126cfdcca778582f0b007e06335bc6b6b96aea5004aea80bb7ec4a8d4864b"
+}

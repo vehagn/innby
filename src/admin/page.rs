@@ -52,11 +52,12 @@ impl FromRequestParts<AdminState> for ClientIp {
     }
 }
 
-/// The admin's sections, as tabs under the header: the events, or, within an event,
-/// its own pages.
+/// The admin's sections, as tabs under the header: the events and, for an admin, the
+/// users, or, within an event, its own pages.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Events,
+    Users,
     Guests,
     Invitations,
     Groups,
@@ -77,7 +78,15 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
     let text = lang::text();
     // Only the tabs the host's role may open.
     let tabs = match event {
-        None => vec![(Tab::Events, paths::admin(paths::HOME), &text.events, true)],
+        None => vec![
+            (Tab::Events, paths::admin(paths::HOME), &text.events, true),
+            (
+                Tab::Users,
+                paths::admin(paths::USERS),
+                &text.users,
+                Role::is_admin(),
+            ),
+        ],
         Some(&id) => {
             let links = EventLinks::new(id);
             let (edit, admin) = (Role::can_edit(), Role::is_admin());

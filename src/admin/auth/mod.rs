@@ -4,7 +4,9 @@
 //!   against an argon2 hash and sets two cookies, a JWT that's good for a day and a
 //!   refresh token that gets new JWTs for a month. The users are the built-in admin
 //!   (unless `INNBY_ADMIN_PASSWORD_HASH` is left out) and those in `INNBY_ADMIN_USERS`,
-//!   each with the role it gives them, or none.
+//!   each with the role it gives them, or none; and those an admin makes in the admin
+//!   UI (`db::admin_user`), whose role is read on each request, and whose sessions end
+//!   with a new password or their deletion.
 //! - An OpenID Connect provider (see `oidc`), which says who the host is and what role
 //!   they have. That login gets a JWT without a refresh token.
 //!
@@ -46,13 +48,13 @@ use tokio::sync::Semaphore;
 
 use super::role::{Host, Role};
 use crate::{
-    config::AdminConfig,
-    db::{access, admin_login},
+    config::{AdminConfig, PasswordLogin},
+    db::{access, admin_login, admin_user},
     http::{ClientIp, RateLimiter, cookie, server_error},
     paths, random,
 };
 use oidc::OIDC_SESSION;
-use password::{Credentials, Outcome};
+use password::{Credentials, NOBODY, Outcome};
 
 /// Password checks allowed per client address and window, right or wrong.
 const ATTEMPTS: u32 = 10;
@@ -73,8 +75,8 @@ const REFRESH_TOKEN: &str = "refresh_token";
 
 /// Logs the host in and out, and checks their cookies.
 pub struct Auth {
-    /// The users who log in with a password, if any do.
-    credentials: Option<Arc<Credentials>>,
+    /// The config's users who log in with a password; the database has more.
+    credentials: Arc<Credentials>,
     oidc: Option<oidc::Provider>,
     key: jwt::Key,
     /// Whether the cookies are only for HTTPS.
@@ -119,8 +121,7 @@ impl Auth {
             ]);
         }
         Self {
-            credentials: (!config.users.is_empty())
-                .then(|| Arc::new(Credentials(config.users.clone()))),
+            credentials: Arc::new(Credentials(config.users.clone())),
             oidc: config.oidc.clone().map(oidc::Provider::new),
             key: jwt::Key::new(&config.jwt_secret, &bound),
             https,
@@ -139,19 +140,44 @@ impl Auth {
         self.oidc.as_ref()
     }
 
+    /// The config's password users, which the admin UI shows but can't change.
+    pub(in crate::admin) fn config_users(&self) -> &[PasswordLogin] {
+        &self.credentials.0
+    }
+
+    /// Whether anyone may log in with a password: from the config, or the database.
+    pub(in crate::admin) async fn has_passwords(&self) -> bool {
+        !self.credentials.0.is_empty()
+            || admin_user::any(&self.db).await.unwrap_or_else(|err| {
+                tracing::error!("admin users: {err}");
+                true
+            })
+    }
+
     /// Where a browser that isn't logged in goes: straight to the provider when it's the
     /// only way in.
-    fn login_path(&self) -> &'static str {
-        match (&self.credentials, &self.oidc) {
-            (None, Some(_)) => paths::LOGIN_OIDC,
-            _ => paths::LOGIN,
+    async fn login_path(&self) -> &'static str {
+        if self.oidc.is_some() && !self.has_passwords().await {
+            paths::LOGIN_OIDC
+        } else {
+            paths::LOGIN
         }
     }
 
+    /// Hashes a password for a database user, one at a time, as logins are checked.
+    pub(in crate::admin) async fn hash(&self, password: String) -> anyhow::Result<String> {
+        let permit = Arc::clone(&self.checking)
+            .acquire_owned()
+            .await
+            .expect("the semaphore is never closed");
+        tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            password::hash_password(&password)
+        })
+        .await?
+    }
+
     async fn check(&self, client: ClientIp, user: String, password: String) -> Outcome {
-        let Some(credentials) = &self.credentials else {
-            return Outcome::Rejected;
-        };
         // The permit moves into the blocking task, so a request that times out can't
         // let another check start while its own still runs.
         let permit = Arc::clone(&self.checking)
@@ -167,18 +193,37 @@ impl Auth {
             tracing::warn!("admin login attempts limit hit for all clients");
             return Outcome::TooManyAttempts;
         }
-        let credentials = Arc::clone(credentials);
-        let accepted = tokio::task::spawn_blocking(move || {
+        // The config's user by the name, else the database's, else nobody, whose dummy
+        // hash is checked all the same.
+        let (hash, login) = match self.credentials.find(&user) {
+            Some(login) => (
+                login.password_hash.clone(),
+                Some((login.user.clone(), login.role, 0)),
+            ),
+            None => match admin_user::find(&self.db, &user).await {
+                Ok(Some(stored)) => (
+                    stored.password_hash,
+                    Some((
+                        stored.name,
+                        stored_role(stored.role.as_deref()),
+                        stored.version,
+                    )),
+                ),
+                Ok(None) => (NOBODY.to_owned(), None),
+                Err(err) => {
+                    tracing::error!("admin users: {err}");
+                    return Outcome::Rejected;
+                }
+            },
+        };
+        let matches = tokio::task::spawn_blocking(move || {
             let _permit = permit;
-            credentials
-                .accept(&user, &password)
-                .map(|login| (login.user.clone(), login.role))
+            password::verify(&hash, &password)
         })
         .await
-        .ok()
-        .flatten();
-        match accepted {
-            Some((user, role)) => Outcome::Accepted(user, role),
+        .unwrap_or(false);
+        match login.filter(|_| matches) {
+            Some((user, role, version)) => Outcome::Accepted(user, role, version),
             None => {
                 tracing::warn!("admin login failed");
                 Outcome::Rejected
@@ -187,44 +232,55 @@ impl Auth {
     }
 
     /// A new JWT for the host.
-    fn token(
-        &self,
-        now: DateTime<Utc>,
-        user: &str,
-        role: Option<Role>,
-        lifetime: TimeDelta,
-    ) -> String {
+    fn token(&self, now: DateTime<Utc>, signed: Signed<'_>, lifetime: TimeDelta) -> String {
         self.key.sign(&jwt::Claims {
             iat: now.timestamp(),
             exp: (now + lifetime).timestamp(),
-            user: user.to_owned(),
-            role,
+            user: signed.user.to_owned(),
+            role: signed.role,
+            provider: signed.provider,
+            version: signed.version,
             jti: uuid::Builder::from_random_bytes(random::bytes()).into_uuid(),
         })
     }
 
     /// The `token` cookie of a password user.
-    fn password_token(&self, now: DateTime<Utc>, user: &str, role: Option<Role>) -> HeaderValue {
-        let token = self.token(now, user, role, TOKEN_LIFETIME);
+    fn password_token(&self, now: DateTime<Utc>, user: &str, version: i32) -> HeaderValue {
+        let signed = Signed {
+            user,
+            role: None,
+            provider: false,
+            version,
+        };
+        let token = self.token(now, signed, TOKEN_LIFETIME);
         self.cookie(TOKEN, &token, TOKEN_LIFETIME)
     }
 
     /// The cookies of a password user's new login, once its refresh token is saved. The
-    /// refresh token starts with the user's name, `ola.{random}`, so it can renew their
-    /// JWT; the database keeps only its keyed digest, which covers the name too.
-    async fn start_session(
-        &self,
-        user: &str,
-        role: Option<Role>,
-    ) -> sqlx::Result<[HeaderValue; 2]> {
+    /// refresh token starts with the user's name and password version,
+    /// `ola.3.{random}`, so it can renew their JWT while the password stands; the
+    /// database keeps only its keyed digest, which covers both.
+    async fn start_session(&self, user: &str, version: i32) -> sqlx::Result<[HeaderValue; 2]> {
         let now = Utc::now();
-        let refresh_token = format!("{user}.{}", random::token());
+        let refresh_token = format!("{user}.{version}.{}", random::token());
         let digest = self.key.digest(&refresh_token);
         admin_login::save_refresh_token(&self.db, &digest, now + REFRESH_LIFETIME).await?;
         Ok([
-            self.password_token(now, user, role),
+            self.password_token(now, user, version),
             self.cookie(REFRESH_TOKEN, &refresh_token, REFRESH_LIFETIME),
         ])
+    }
+
+    /// A password user as they are now, if their password is still the one of `version`:
+    /// the config's, at version 0, or the database's.
+    async fn password_host(&self, user: &str, version: i32) -> sqlx::Result<Option<Host>> {
+        if let Some(login) = self.credentials.find(user) {
+            return Ok((version == 0).then(|| Host::new(&login.user, login.role)));
+        }
+        Ok(admin_user::find(&self.db, user)
+            .await?
+            .filter(|stored| stored.version == version)
+            .map(|stored| Host::new(&stored.name, stored_role(stored.role.as_deref()))))
     }
 
     /// Whether a host the provider vouched for may log in: with a role of their own, or
@@ -235,7 +291,13 @@ impl Auth {
 
     /// The cookie of a login the provider vouched for.
     pub(super) fn start_oidc_session(&self, login: &oidc::Login) -> HeaderValue {
-        let token = self.token(Utc::now(), &login.user, login.role, OIDC_SESSION);
+        let signed = Signed {
+            user: &login.user,
+            role: login.role,
+            provider: true,
+            version: 0,
+        };
+        let token = self.token(Utc::now(), signed, OIDC_SESSION);
         self.cookie(TOKEN, &token, OIDC_SESSION)
     }
 
@@ -244,20 +306,24 @@ impl Auth {
         if let Some(claims) = self.claims(headers, now)
             && !admin_login::is_revoked(&self.db, claims.jti).await?
         {
-            return Ok(Session::LoggedIn(Host::new(&claims.user, claims.role)));
+            // The provider's role stands for the login; a password user's is read now.
+            if claims.provider {
+                return Ok(Session::LoggedIn(Host::new(&claims.user, claims.role)));
+            }
+            if let Some(host) = self.password_host(&claims.user, claims.version).await? {
+                return Ok(Session::LoggedIn(host));
+            }
         }
-        // The random part never has a dot; a name may.
-        if let Some(credentials) = &self.credentials
-            && let Some(refresh_token) = cookie::get(headers, REFRESH_TOKEN)
-            && let Some((user, _)) = refresh_token.rsplit_once('.')
-            && let Some(login) = credentials.find(user)
+        // `{user}.{version}.{random}`: the random part never has a dot; a name may.
+        if let Some(refresh_token) = cookie::get(headers, REFRESH_TOKEN)
+            && let Some((rest, _)) = refresh_token.rsplit_once('.')
+            && let Some((user, version)) = rest.rsplit_once('.')
+            && let Ok(version) = version.parse()
+            && let Some(host) = self.password_host(user, version).await?
             && admin_login::has_refresh_token(&self.db, &self.key.digest(refresh_token)).await?
         {
-            let token = self.password_token(now, &login.user, login.role);
-            return Ok(Session::Refreshed(
-                token,
-                Host::new(&login.user, login.role),
-            ));
+            let token = self.password_token(now, user, version);
+            return Ok(Session::Refreshed(token, host));
         }
         Ok(Session::LoggedOut)
     }
@@ -303,6 +369,19 @@ impl Auth {
     }
 }
 
+/// What a JWT says about its host.
+struct Signed<'a> {
+    user: &'a str,
+    role: Option<Role>,
+    provider: bool,
+    version: i32,
+}
+
+/// A database user's role, as stored.
+fn stored_role(role: Option<&str>) -> Option<Role> {
+    role.and_then(Role::from_name)
+}
+
 /// Lets a request through if it's logged in, and sends it to the login page otherwise.
 pub async fn require_login(
     State(auth): State<Arc<Auth>>,
@@ -316,7 +395,9 @@ pub async fn require_login(
             response.headers_mut().append(header::SET_COOKIE, token);
             response
         }
-        Ok(Session::LoggedOut) => Redirect::to(&paths::admin(auth.login_path())).into_response(),
+        Ok(Session::LoggedOut) => {
+            Redirect::to(&paths::admin(auth.login_path().await)).into_response()
+        }
         Err(err) => server_error(err),
     }
 }
@@ -327,7 +408,6 @@ pub mod tests {
     use sqlx::postgres::PgPoolOptions;
 
     use super::*;
-    use crate::config::PasswordLogin;
 
     /// A hash with tiny argon2 parameters, so tests stay fast.
     pub fn cheap_hash(password: &str) -> String {
@@ -359,10 +439,16 @@ pub mod tests {
         }
     }
 
-    /// A JWT for this user and role that's valid now, for tests that don't log in
-    /// through a form.
+    /// A JWT for this user and role that's valid now, as the provider would vouch for
+    /// them, for tests that don't log in through a form.
     pub fn token(config: &AdminConfig, db: PgPool, user: &str, role: Option<Role>) -> String {
-        Auth::new(config, true, db).token(Utc::now(), user, role, TOKEN_LIFETIME)
+        let signed = Signed {
+            user,
+            role,
+            provider: true,
+            version: 0,
+        };
+        Auth::new(config, true, db).token(Utc::now(), signed, TOKEN_LIFETIME)
     }
 
     fn auth() -> Auth {
@@ -379,7 +465,7 @@ pub mod tests {
         let client = |last: u8| ClientIp([192, 0, 2, last].into());
         let check =
             |last: u8, password: &str| auth.check(client(last), "admin".into(), password.into());
-        let admin = Outcome::Accepted("admin".into(), Some(Role::Admin));
+        let admin = Outcome::Accepted("admin".into(), Some(Role::Admin), 0);
         assert_eq!(check(1, "secret").await, admin);
         // The login above was the first of the attempts.
         for i in 1..ATTEMPTS {

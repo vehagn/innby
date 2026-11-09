@@ -54,7 +54,14 @@ pub struct Claims {
     pub exp: i64,
     pub user: String,
     /// Their role for every event; without one, they see the events that give them one.
+    /// Only a provider's login is taken at its word: a password user's is read afresh.
     pub role: Option<Role>,
+    /// Whether the identity provider vouched for them, rather than a password.
+    #[serde(default)]
+    pub provider: bool,
+    /// A database user's password version: a new password ends the session.
+    #[serde(default)]
+    pub version: i32,
     /// Names the token when it's logged out.
     pub jti: Uuid,
 }
@@ -160,6 +167,8 @@ pub mod tests {
             exp: (now + TimeDelta::hours(1)).timestamp(),
             user: "admin".into(),
             role: Some(Role::Editor),
+            provider: false,
+            version: 0,
             jti: Uuid::nil(),
         }
     }

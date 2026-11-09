@@ -330,6 +330,29 @@ pub struct AdminMessages {
     pub error_user_name: String,
     pub no_events_given: String,
 
+    // Users: password users an admin makes
+    pub users: String,
+    pub users_hint: String,
+    pub no_users: String,
+    pub new_user: String,
+    pub create_user: String,
+    pub role_admin: String,
+    pub role_none: String,
+    pub users_roles_hint: String,
+    pub password_hint: String,
+    pub new_password: String,
+    pub new_password_hint: String,
+    pub set_password: String,
+    pub save_role: String,
+    pub delete_user: String,
+    pub users_config: String,
+    pub users_config_hint: String,
+    pub error_role: String,
+    pub error_password: String,
+    pub error_new_user_name: String,
+    pub error_user_taken: String,
+    pub error_yourself: String,
+
     // Guests
     pub guests: String,
     /// Under the guests' heading when the table shows one answer only.

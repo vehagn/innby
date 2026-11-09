@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into admin_user (name, role, password_hash) values ($1, $2, $3)\n         on conflict (name) do nothing",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8e07e0026ba0d8ed7fb2b9c853d3fe94e80b09a56693c21fccbeed55987e00c8"
+}

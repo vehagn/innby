@@ -33,9 +33,9 @@ struct LoginPage {
 }
 
 impl LoginPage {
-    fn new(auth: &Auth) -> Self {
+    async fn new(auth: &Auth) -> Self {
         Self {
-            password: auth.credentials.is_some(),
+            password: auth.has_passwords().await,
             oidc: auth.oidc.as_ref().map(|oidc| oidc.name().to_owned()),
             ..Self::default()
         }
@@ -43,10 +43,14 @@ impl LoginPage {
 }
 
 /// The login page, with what went wrong.
-pub(in crate::admin) fn login_error(auth: &Auth, status: StatusCode, error: String) -> Response {
+pub(in crate::admin) async fn login_error(
+    auth: &Auth,
+    status: StatusCode,
+    error: String,
+) -> Response {
     let page = LoginPage {
         error: Some(error),
-        ..LoginPage::new(auth)
+        ..LoginPage::new(auth).await
     };
     render_with(status, page)
 }
@@ -62,7 +66,7 @@ pub async fn login_page(
 ) -> Response {
     render(LoginPage {
         logged_out: query.logged_out.is_some(),
-        ..LoginPage::new(&auth)
+        ..LoginPage::new(&auth).await
     })
 }
 
@@ -79,8 +83,8 @@ pub async fn log_in(
 ) -> Response {
     let text = lang::text();
     let (status, error) = match auth.check(client, form.user.clone(), form.password).await {
-        Outcome::Accepted(user, role) => {
-            return match auth.start_session(&user, role).await {
+        Outcome::Accepted(user, role, version) => {
+            return match auth.start_session(&user, version).await {
                 Ok(cookies) => {
                     let role = role.map_or("none", Role::name);
                     tracing::info!(user, role, "host logged in");
@@ -99,7 +103,7 @@ pub async fn log_in(
     let page = LoginPage {
         user: form.user,
         error: Some(error.clone()),
-        ..LoginPage::new(&auth)
+        ..LoginPage::new(&auth).await
     };
     render_with(status, page)
 }

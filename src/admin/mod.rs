@@ -6,7 +6,7 @@
 //!   named for what they do: `list`, `show`, `create`, `edit`, `revoke`, `delete`.
 //! - `page`: what pages share: state, tabs, errors. `forms`: what their forms share.
 //! - `events`, `guests`, `invitations`, `groups`, `qr`, `games`, `access`: the pages,
-//!   one module per tab.
+//!   one module per tab; `users`, the password users, for admins.
 //! - `cli`: the host's commands: `innby invite` and `innby event`.
 //! - `auth`: logging in, with a password or through an OIDC provider, and sessions.
 //! - `role`: what each role may do, for every event or for one. `lang`: the page's
@@ -27,8 +27,10 @@ mod qr;
 pub mod role;
 #[cfg(test)]
 pub(crate) mod testing;
+mod users;
 
 pub use page::{Tab, tabs};
+pub use users::role_name as users_role_name;
 
 use std::sync::Arc;
 
@@ -113,6 +115,9 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route(paths::EVENT_DELETE, post(events::details::delete))
         .route(paths::EVENT_ACCESS, get(access::list).post(access::create))
         .route(paths::EVENT_ACCESS_REMOVE, post(access::delete))
+        .route(paths::USERS, get(users::list).post(users::create))
+        .route(paths::USER, get(users::show).post(users::edit))
+        .route(paths::USER_DELETE, post(users::delete))
         .route_layer(middleware::from_fn(role::admin));
     let mut pages = anyone
         .merge(viewer)
@@ -128,11 +133,8 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
             auth::require_login,
         ))
         .route(paths::LOGOUT, post(auth::log_out));
-    pages = if !admin_config.users.is_empty() {
-        pages.route(paths::LOGIN, get(auth::login_page).post(auth::log_in))
-    } else {
-        pages.route(paths::LOGIN, get(auth::login_page))
-    };
+    // Password users can be made in the admin UI too, so the form is always there.
+    pages = pages.route(paths::LOGIN, get(auth::login_page).post(auth::log_in));
     if admin_config.oidc.is_some() {
         pages = pages
             .route(paths::LOGIN_OIDC, get(auth::oidc::start))

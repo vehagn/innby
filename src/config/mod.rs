@@ -12,7 +12,7 @@ mod env;
 pub mod games;
 mod mail;
 
-pub use admin::{AdminConfig, OIDC_CALLBACK, PasswordLogin};
+pub use admin::{AdminConfig, MAX_USER_LEN, OIDC_CALLBACK, PasswordLogin, valid_user_name};
 pub use games::{Game, Games, ScoreKind};
 pub use mail::MailConfig;
 

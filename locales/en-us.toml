@@ -328,6 +328,9 @@ for just this event, by the username they log in with."""
 no_access = "No one has a role for just this event."
 error_user_name = "Enter the username they log in with, on one line, in {max} characters or less."
 
+# Users: password users an admin makes
+password_hint = "At least 10 characters. Tell them the password, and how to get to this page."
+
 # Guests
 guests = "Guests"
 show_all = "Show all"
