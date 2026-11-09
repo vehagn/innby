@@ -28,6 +28,11 @@ pub struct Messages {
     // Event
     /// `chrono` format for dates and times.
     pub date_format: String,
+    /// The same for a time alone, when an event ends on the day it starts.
+    pub time_format: String,
+    /// When an event starts and ends: `{start}`, and `{end}` as a time alone or as a date
+    /// and time.
+    pub when_until: String,
     pub when: String,
     pub place: String,
     pub site_intro: String,
@@ -204,6 +209,8 @@ pub struct AdminMessages {
     pub event_description: String,
     pub event_location: String,
     pub event_starts: String,
+    pub event_ends: String,
+    pub event_ends_hint: String,
     pub event_time_zone: String,
     pub event_deadline: String,
     pub event_deadline_hint: String,
@@ -216,6 +223,7 @@ pub struct AdminMessages {
     pub error_event_control: String,
     pub error_event_time: String,
     pub error_event_deadline: String,
+    pub error_event_ends: String,
     pub error_event_past: String,
     pub error_time_zone: String,
     pub col_event: String,

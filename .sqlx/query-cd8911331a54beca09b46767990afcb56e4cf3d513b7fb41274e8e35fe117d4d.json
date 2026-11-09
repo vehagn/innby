@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline from event order by starts_at, id",
+  "query": "select e.id, e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at\n         from event e join event_access a on a.event_id = e.id\n         where a.user_name = $1 order by e.starts_at, e.id",
   "describe": {
     "columns": [
       {
@@ -79,10 +79,23 @@
             "name": "rsvp_deadline"
           }
         }
+      },
+      {
+        "ordinal": 7,
+        "name": "ends_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "ends_at"
+          }
+        }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Text"
+      ]
     },
     "nullable": [
       false,
@@ -91,8 +104,9 @@
       false,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "17f2bac996887299f0970137dbaef06d67980df50d8a8c4c4dc65acd791929c1"
+  "hash": "cd8911331a54beca09b46767990afcb56e4cf3d513b7fb41274e8e35fe117d4d"
 }

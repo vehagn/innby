@@ -3,7 +3,7 @@
   <dl class="facts">
     <div>
       <dt>{{ t.when }}</dt>
-      <dd><time datetime="{{ event.starts_at_iso }}">{{ event.starts_at }}</time></dd>
+      <dd><time datetime="{{ event.starts_at_iso }}">{{ event.when }}</time></dd>
     </div>
     {% if !event.location.is_empty() %}
     <div>

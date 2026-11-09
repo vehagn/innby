@@ -27,6 +27,8 @@ pub struct Details {
     pub starts_at: DateTime<Tz>,
     /// Guests can answer until then; `None` means until the event starts.
     pub rsvp_deadline: Option<DateTime<Tz>>,
+    /// After `starts_at`; `None` for an event with no set end.
+    pub ends_at: Option<DateTime<Tz>>,
 }
 
 impl Details {
@@ -57,6 +59,7 @@ pub(super) struct Row {
     pub(super) starts_at: DateTime<Utc>,
     pub(super) time_zone: String,
     pub(super) rsvp_deadline: Option<DateTime<Utc>>,
+    pub(super) ends_at: Option<DateTime<Utc>>,
 }
 
 impl From<Row> for Event {
@@ -71,6 +74,7 @@ impl From<Row> for Event {
                 location: row.location,
                 starts_at: row.starts_at.with_timezone(&tz),
                 rsvp_deadline: row.rsvp_deadline.map(|at| at.with_timezone(&tz)),
+                ends_at: row.ends_at.map(|at| at.with_timezone(&tz)),
             },
         }
     }
@@ -79,16 +83,18 @@ impl From<Row> for Event {
 pub async fn create(db: impl PgExecutor<'_>, details: &Details) -> sqlx::Result<Event> {
     sqlx::query_as!(
         Row,
-        r#"insert into event (title, description, location, starts_at, time_zone, rsvp_deadline)
-         values ($1, $2, $3, $4, $5, $6)
+        r#"insert into event (title, description, location, starts_at, time_zone, rsvp_deadline,
+            ends_at)
+         values ($1, $2, $3, $4, $5, $6, $7)
          returning id, title as "title: Json<Texts>", description as "description: Json<Texts>",
-            location, starts_at, time_zone, rsvp_deadline"#,
+            location, starts_at, time_zone, rsvp_deadline, ends_at"#,
         Json(&details.title) as _,
         Json(&details.description) as _,
         details.location,
         details.starts_at.to_utc(),
         details.starts_at.timezone().name(),
         details.rsvp_deadline.map(|at| at.to_utc()),
+        details.ends_at.map(|at| at.to_utc()),
     )
     .fetch_one(db)
     .await
@@ -104,10 +110,10 @@ pub async fn update(
     sqlx::query_as!(
         Row,
         r#"update event set title = $2, description = $3, location = $4, starts_at = $5,
-            time_zone = $6, rsvp_deadline = $7
+            time_zone = $6, rsvp_deadline = $7, ends_at = $8
          where id = $1
          returning id, title as "title: Json<Texts>", description as "description: Json<Texts>",
-            location, starts_at, time_zone, rsvp_deadline"#,
+            location, starts_at, time_zone, rsvp_deadline, ends_at"#,
         id,
         Json(&details.title) as _,
         Json(&details.description) as _,
@@ -115,6 +121,7 @@ pub async fn update(
         details.starts_at.to_utc(),
         details.starts_at.timezone().name(),
         details.rsvp_deadline.map(|at| at.to_utc()),
+        details.ends_at.map(|at| at.to_utc()),
     )
     .fetch_optional(db)
     .await
@@ -125,7 +132,7 @@ pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Even
     sqlx::query_as!(
         Row,
         r#"select id, title as "title: Json<Texts>", description as "description: Json<Texts>",
-            location, starts_at, time_zone, rsvp_deadline from event where id = $1"#,
+            location, starts_at, time_zone, rsvp_deadline, ends_at from event where id = $1"#,
         id
     )
     .fetch_optional(db)
@@ -138,7 +145,7 @@ pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Event>> {
     sqlx::query_as!(
         Row,
         r#"select id, title as "title: Json<Texts>", description as "description: Json<Texts>",
-            location, starts_at, time_zone, rsvp_deadline from event order by starts_at, id"#
+            location, starts_at, time_zone, rsvp_deadline, ends_at from event order by starts_at, id"#
     )
     .fetch_all(db)
     .await
@@ -151,7 +158,7 @@ pub async fn list_given(db: impl PgExecutor<'_>, user: &str) -> sqlx::Result<Vec
     sqlx::query_as!(
         Row,
         r#"select e.id, e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
-            e.location, e.starts_at, e.time_zone, e.rsvp_deadline
+            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at
          from event e join event_access a on a.event_id = e.id
          where a.user_name = $1 order by e.starts_at, e.id"#,
         user
@@ -213,6 +220,7 @@ pub(crate) mod tests {
                 .with_ymd_and_hms(2054, 12, 12, 19, 0, 0)
                 .unwrap(),
             rsvp_deadline: None,
+            ends_at: None,
         }
     }
 
@@ -289,8 +297,13 @@ pub(crate) mod tests {
         );
 
         details.location = "Storgata 2".into();
+        details.ends_at = Some(details.starts_at + chrono::Duration::hours(5));
         let updated = update(&db, event.id, &details).await.unwrap().unwrap();
         assert_eq!(updated.details.location, "Storgata 2");
+        assert_eq!(updated.details.ends_at, details.ends_at);
+        // Never before it starts.
+        details.ends_at = Some(details.starts_at - chrono::Duration::hours(1));
+        assert!(update(&db, event.id, &details).await.is_err());
         assert!(update(&db, Uuid::nil(), &details).await.unwrap().is_none());
     }
 

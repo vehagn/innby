@@ -156,8 +156,30 @@ impl Lang {
 
     /// A date and time as people write it, e.g. "lørdag 12. desember 2026 kl. 19:00".
     pub fn format_date(self, date: DateTime<Tz>) -> String {
+        self.format(date, &self.messages().date_format)
+    }
+
+    /// When an event is: its start, and its end if it has one, as a time alone when
+    /// it's the same day, e.g. "lørdag 12. desember 2026 kl. 19:00 til 23:00".
+    pub fn format_when(self, starts: DateTime<Tz>, ends: Option<DateTime<Tz>>) -> String {
+        let Some(ends) = ends else {
+            return self.format_date(starts);
+        };
+        let t = self.messages();
+        let end = if ends.date_naive() == starts.date_naive() {
+            self.format(ends, &t.time_format)
+        } else {
+            self.format_date(ends)
+        };
+        fill(
+            &t.when_until,
+            &[("start", &self.format_date(starts)), ("end", &end)],
+        )
+    }
+
+    fn format(self, date: DateTime<Tz>, format: &str) -> String {
         let date = date
-            .format_localized(&self.messages().date_format, language::of(self).locale)
+            .format_localized(format, language::of(self).locale)
             .to_string();
         // Some locales' day and month names end in a space ("laurdag ").
         date.split_whitespace().collect::<Vec<_>>().join(" ")
@@ -219,6 +241,35 @@ mod tests {
                 "2026年12月12日（星期六）19:00",
                 "2026年12月12日（週六）19:00",
             ]
+        );
+    }
+
+    #[test]
+    fn says_when_an_event_ends_the_short_way_on_the_same_day() {
+        let at = |day, hour| {
+            chrono_tz::Europe::Oslo
+                .with_ymd_and_hms(2026, 12, day, hour, 0, 0)
+                .unwrap()
+        };
+        assert_eq!(
+            Lang::EnGb.format_when(at(12, 19), None),
+            "Saturday 12 December 2026 at 7.00 pm"
+        );
+        assert_eq!(
+            Lang::EnGb.format_when(at(12, 19), Some(at(12, 23))),
+            "Saturday 12 December 2026 at 7.00 pm until 11.00 pm"
+        );
+        assert_eq!(
+            Lang::Nb.format_when(at(12, 19), Some(at(13, 1))),
+            "lørdag 12. desember 2026 kl. 19:00 til søndag 13. desember 2026 kl. 01:00"
+        );
+        assert_eq!(
+            Lang::EnUs.format_when(at(12, 19), Some(at(12, 23))),
+            "Sat, Dec 12, 2026, 7:00 PM – 11:00 PM"
+        );
+        assert_eq!(
+            Lang::ZhHans.format_when(at(12, 19), Some(at(12, 23))),
+            "2026年12月12日（星期六）19:00至23:00"
         );
     }
 }

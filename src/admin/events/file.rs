@@ -6,6 +6,7 @@
 //! apiVersion = "innby/v1"
 //! kind = "Event"
 //! starts = "2026-12-12T19:00"
+//! ends = "2026-12-13T01:00"
 //! time_zone = "Europe/Oslo"
 //! location = "Storgata 1, Oslo"
 //!
@@ -69,6 +70,9 @@ pub struct EventFile {
     pub kind: String,
     /// Local time in `time_zone`, as `2026-12-12T19:00`.
     pub starts: String,
+    /// The same, after `starts`; none for an event with no set end.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ends: Option<String>,
     pub time_zone: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub answer_by: Option<String>,
@@ -176,7 +180,7 @@ const HEADER: &str = "\
 # An Innby event: its details and group links, but none of its guests. Import it on the
 # admin's New event tab, or with `innby event import`, to make a new event from it.
 #
-# apiVersion and kind say what this file is; leave them as they are. starts and
+# apiVersion and kind say what this file is; leave them as they are. starts, ends and
 # answer_by are local times in time_zone, as 2026-12-12T19:00. The title and description
 # are by language: nb (which every event needs), nn, en, en-us, zh-hans, zh-hant. A
 # group's max_party_size is how many each sign-up may cover. qr is the style of the QR
@@ -199,6 +203,7 @@ impl EventFile {
             api_version: API_VERSION.into(),
             kind: KIND.into(),
             starts: details.starts_at.format(LOCAL_TIME).to_string(),
+            ends: details.ends_at.map(|at| at.format(LOCAL_TIME).to_string()),
             time_zone: details.starts_at.timezone().name().to_owned(),
             answer_by: details
                 .rsvp_deadline
@@ -260,6 +265,7 @@ impl EventFile {
             texts("description", self.description)?,
             self.location,
             self.starts,
+            self.ends.unwrap_or_default(),
             self.time_zone,
             self.answer_by.unwrap_or_default(),
         );
@@ -315,6 +321,8 @@ pub fn file_name(details: &Details) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
+
     use crate::db::event::tests::details_with_deadline;
 
     fn group(name: &str, max_party_size: i32) -> Group {
@@ -331,6 +339,11 @@ mod tests {
     #[test]
     fn an_event_goes_into_a_file_and_back() {
         let mut details = details_with_deadline();
+        details.ends_at = Some(
+            chrono_tz::Europe::Oslo
+                .with_ymd_and_hms(2054, 12, 13, 1, 0, 0)
+                .unwrap(),
+        );
         details
             .description
             .set(Lang::EnUs, "Come one,\ncome all \"friends\"!");
@@ -350,6 +363,10 @@ mod tests {
         );
         assert!(
             toml.contains("[title]\nnb = \"Julebord\"\nen = \"Christmas party\""),
+            "{toml}"
+        );
+        assert!(
+            toml.contains("starts = \"2054-12-12T19:00\"\nends = \"2054-12-13T01:00\"\n"),
             "{toml}"
         );
         assert!(

@@ -8,6 +8,9 @@
 <input id="location" name="location" maxlength="200" value="{{ form.location() }}">
 <label for="starts_at">{{ a.event_starts }}</label>
 <input id="starts_at" name="starts_at" type="datetime-local" required value="{{ form.starts_at() }}">
+<label for="ends_at">{{ a.event_ends }}</label>
+<input id="ends_at" name="ends_at" type="datetime-local" value="{{ form.ends_at() }}">
+<p class="hint">{{ a.event_ends_hint }}</p>
 <label for="time_zone">{{ a.event_time_zone }}</label>
 <input id="time_zone" name="time_zone" required value="{{ form.time_zone() }}">
 <label for="rsvp_deadline">{{ a.event_deadline }}</label>

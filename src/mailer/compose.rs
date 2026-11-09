@@ -78,7 +78,7 @@ pub fn compose(
         values.push(("name", &rsvp.name));
     }
     let (when, answer) = (
-        lang.format_date(event.starts_at),
+        lang.format_when(event.starts_at, event.ends_at),
         t.answer(rsvp.response, rsvp.party_size),
     );
     if kind == Kind::Reminder {

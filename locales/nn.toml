@@ -26,6 +26,9 @@ privacy_link = "Personvern"
 # Event
 # `chrono` format for dates and times.
 date_format = "%A %-d. %B %Y kl. %H:%M"
+# The same for a time alone, when an event ends on the day it starts.
+time_format = "%H:%M"
+when_until = "{start} til {end}"
 when = "Når"
 place = "Kvar"
 # The front page, which is about Innby rather than any one event.
@@ -215,6 +218,8 @@ event_title = "Tittel"
 event_description = "Skildring"
 event_location = "Stad"
 event_starts = "Startar"
+event_ends = "Sluttar"
+event_ends_hint = "La feltet stå tomt om arrangementet ikkje har nokon fast slutt."
 event_time_zone = "Tidssone"
 event_deadline = "Svarfrist"
 event_deadline_hint = "La feltet stå tomt for å ta imot svar heilt til arrangementet startar."
@@ -227,6 +232,7 @@ error_event_text = "Skildringa kan vere opptil 5000 teikn, og staden opptil 200.
 error_event_control = "Tittel, skildring og stad kan ikkje innehalde kontrollteikn."
 error_event_time = "Skriv når arrangementet startar, som dato og klokkeslett."
 error_event_deadline = "Skriv svarfristen som dato og klokkeslett, eller la feltet stå tomt."
+error_event_ends = "Skriv når arrangementet sluttar, som dato og klokkeslett etter starten, eller la feltet stå tomt."
 error_event_past = "Eit arrangement blir sletta {days} dagar etter at det startar, så dette ville blitt sletta med ein gong. Sjekk datoen."
 error_time_zone = "Skriv ei tidssone, til dømes Europe/Oslo."
 col_event = "Arrangement"

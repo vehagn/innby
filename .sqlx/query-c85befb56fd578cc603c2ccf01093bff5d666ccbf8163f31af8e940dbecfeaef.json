@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select r.id, r.event_id, r.name, r.response as \"response: Response\", r.party_size,\n            r.max_party_size, r.link_nonce, r.lang as \"lang: Lang\", r.email,\n            r.email_status as \"email_status: EmailStatus\", r.email_consent_at,\n            r.privacy_version, r.responded_at, r.created_at, r.group_id,\n            r.name_display as \"name_display: NameDisplay\",\n            e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline\n        from rsvp r join event e on e.id = r.event_id\n        where r.id = any($1)\n        ",
+  "query": "\n        select r.id, r.event_id, r.name, r.response as \"response: Response\", r.party_size,\n            r.max_party_size, r.link_nonce, r.lang as \"lang: Lang\", r.email,\n            r.email_status as \"email_status: EmailStatus\", r.email_consent_at,\n            r.privacy_version, r.responded_at, r.created_at, r.group_id,\n            r.name_display as \"name_display: NameDisplay\",\n            e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at\n        from rsvp r join event e on e.id = r.event_id\n        where r.id = any($1)\n        ",
   "describe": {
     "columns": [
       {
@@ -291,6 +291,17 @@
             "name": "rsvp_deadline"
           }
         }
+      },
+      {
+        "ordinal": 22,
+        "name": "ends_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "ends_at"
+          }
+        }
       }
     ],
     "parameters": {
@@ -320,8 +331,9 @@
       false,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "eab3addc270b73643826d0589120fe3edac2a51ae8c890a476dbc1bbe005d103"
+  "hash": "c85befb56fd578cc603c2ccf01093bff5d666ccbf8163f31af8e940dbecfeaef"
 }

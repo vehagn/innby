@@ -49,7 +49,7 @@ then sent to a personal link of their own, with a reminder to keep it.
 - **Games**, when `INNBY_GAMES` lists any: which minigames the event offers, and each
   one's high scores. Turning a game off deletes its scores.
 - **Details:** the event's title and description (in Bokmål, and optionally in each other
-  language), place, start, time zone and answer deadline; the event as a file; or
+  language), place, start and end, time zone and answer deadline; the event as a file; or
   deleting the event.
 - **Access**, for admins: who else may see or run this event alone, by the name they log
   in with, as a viewer or an editor.
@@ -270,7 +270,7 @@ The schema is one commented file,
 
 | Table | Holds |
 |---|---|
-| `event` | title and description (maps by language code, Bokmål always there), place, start, time zone, answer deadline, the style of its QR codes |
+| `event` | title and description (maps by language code, Bokmål always there), place, start and any end, time zone, answer deadline, the style of its QR codes |
 | `rsvp` | each invitation or sign-up: name, answer, party size and its maximum, link nonce, language, optional e-mail and its status and consent time, privacy notice version, how the name shows, the group it came through |
 | `invite_group` | group links: name, maximum party size, link nonce |
 | `event_access` | roles for one event: the name a host logs in with, viewer or editor |

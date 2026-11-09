@@ -18,7 +18,8 @@ pub struct EventView<'a> {
     pub title: &'a str,
     pub description: &'a str,
     pub location: &'a str,
-    pub starts_at: String,
+    /// When it starts, and ends if it has a set end.
+    pub when: String,
     pub starts_at_iso: String,
     pub rsvp_deadline: Option<String>,
 }
@@ -29,7 +30,7 @@ impl<'a> EventView<'a> {
             title: event.title.get(lang),
             description: event.description.get(lang),
             location: &event.location,
-            starts_at: lang.format_date(event.starts_at),
+            when: lang.format_when(event.starts_at, event.ends_at),
             starts_at_iso: event.starts_at.to_rfc3339(),
             rsvp_deadline: event
                 .rsvp_deadline

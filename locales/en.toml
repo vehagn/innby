@@ -26,6 +26,9 @@ privacy_link = "Privacy"
 # Event
 # `chrono` format for dates and times: "Saturday 12 December 2026 at 7.00 pm".
 date_format = "%A %-d %B %Y at %-I.%M %P"
+# The same for a time alone, when an event ends on the day it starts.
+time_format = "%-I.%M %P"
+when_until = "{start} until {end}"
 when = "When"
 place = "Venue"
 # The front page, which is about Innby rather than any one event.
@@ -218,6 +221,8 @@ event_title = "Title"
 event_description = "Description"
 event_location = "Place"
 event_starts = "Starts"
+event_ends = "Ends"
+event_ends_hint = "Leave it empty if the event has no set end."
 event_time_zone = "Time zone"
 event_deadline = "Answers close"
 event_deadline_hint = "Leave it empty to take answers until the event starts."
@@ -230,6 +235,7 @@ error_event_text = "The description can be up to 5000 characters, and the place 
 error_event_control = "The title, description and place can't contain control characters."
 error_event_time = "Enter when the event starts, as a date and a time."
 error_event_deadline = "Enter when answers close as a date and a time, or leave it empty."
+error_event_ends = "Enter when the event ends, as a date and a time after it starts, or leave it empty."
 error_event_past = "An event is deleted {days} days after it starts, so this one would be deleted at once. Kindly check the date."
 error_time_zone = "Enter a time zone such as Europe/Oslo."
 col_event = "Event"

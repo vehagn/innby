@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "update event set title = $2, description = $3, location = $4, starts_at = $5,\n            time_zone = $6, rsvp_deadline = $7\n         where id = $1\n         returning id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline",
+  "query": "insert into event (title, description, location, starts_at, time_zone, rsvp_deadline,\n            ends_at)\n         values ($1, $2, $3, $4, $5, $6, $7)\n         returning id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at",
   "describe": {
     "columns": [
       {
@@ -79,16 +79,27 @@
             "name": "rsvp_deadline"
           }
         }
+      },
+      {
+        "ordinal": 7,
+        "name": "ends_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "ends_at"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
         "Jsonb",
         "Jsonb",
         "Text",
         "Timestamptz",
         "Text",
+        "Timestamptz",
         "Timestamptz"
       ]
     },
@@ -99,8 +110,9 @@
       false,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "c9e2fd2af39cf54a44f44953e21c5c8342d84b03b31b62584e6b66c37c0c88a8"
+  "hash": "e4663ab4ab7cc612b18b1b1319064367f02c339448ada191e9752af1f2e40cac"
 }

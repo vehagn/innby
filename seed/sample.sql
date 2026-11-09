@@ -29,7 +29,7 @@ delete from event where id in (
     '00000000-5eed-7000-8000-000000000003'
 );
 
-insert into event (id, title, description, location, starts_at, time_zone, rsvp_deadline)
+insert into event (id, title, description, location, starts_at, time_zone, rsvp_deadline, ends_at)
 values (
     '00000000-5eed-7000-8000-000000000001',
     '{"nb": "Julebord", "nn": "Julebord", "en": "Christmas party", "en-us": "Holiday party",
@@ -40,19 +40,20 @@ values (
       "en-us": "Welcome to this year''s holiday party!\n\nMulled wine at seven, and dinner at seven thirty. Dress up.",
       "zh-hans": "欢迎参加今年的圣诞晚会！\n\n七点供应热红酒，七点半开席。请着正装。",
       "zh-hant": "歡迎參加今年的聖誕晚會！\n\n七點供應熱紅酒，七點半開席。請著正裝。"}',
-    'Storgata 1, 0155 Oslo', pg_temp.oslo(35, '19:00'), 'Europe/Oslo', pg_temp.oslo(28, '23:59')
+    'Storgata 1, 0155 Oslo', pg_temp.oslo(35, '19:00'), 'Europe/Oslo', pg_temp.oslo(28, '23:59'),
+    pg_temp.oslo(36, '01:00')
 ), (
     '00000000-5eed-7000-8000-000000000002',
     '{"nb": "Sommerfest", "en": "Summer party"}',
     '{"nb": "Grill, bading og lange kvelder. Ta med badetøy!",
       "en": "Barbecue, swimming and long evenings. Bring your swimwear!"}',
-    'Huk, Bygdøy', pg_temp.oslo(182, '15:00'), 'Europe/Oslo', null
+    'Huk, Bygdøy', pg_temp.oslo(182, '15:00'), 'Europe/Oslo', null, pg_temp.oslo(182, '21:00')
 ), (
     '00000000-5eed-7000-8000-000000000003',
     '{"nb": "Bursdag", "en": "Birthday party"}',
     '{"nb": "Kake og kaffe, og leker for de minste.",
       "en": "Cake and coffee, and games for the little ones."}',
-    '', pg_temp.oslo(-10, '18:00'), 'Europe/Oslo', null
+    '', pg_temp.oslo(-10, '18:00'), 'Europe/Oslo', null, null
 );
 
 -- Each event's QR codes look their own.

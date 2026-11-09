@@ -31,6 +31,8 @@ pub(in crate::admin) struct EventForm {
     location: String,
     /// In `LOCAL_TIME`, in `time_zone`.
     starts_at: String,
+    /// The same, or empty for no set end.
+    ends_at: String,
     time_zone: String,
     rsvp_deadline: String,
 }
@@ -60,6 +62,7 @@ impl EventForm {
             description: Texts::default(),
             location: String::new(),
             starts_at: String::new(),
+            ends_at: String::new(),
             time_zone: "Europe/Oslo".into(),
             rsvp_deadline: String::new(),
         }
@@ -71,6 +74,7 @@ impl EventForm {
         description: Texts,
         location: String,
         starts_at: String,
+        ends_at: String,
         time_zone: String,
         rsvp_deadline: String,
     ) -> Self {
@@ -79,6 +83,7 @@ impl EventForm {
             description,
             location,
             starts_at,
+            ends_at,
             time_zone,
             rsvp_deadline,
         }
@@ -91,6 +96,10 @@ impl EventForm {
             description: details.description.clone(),
             location: details.location.clone(),
             starts_at: details.starts_at.format(LOCAL_TIME).to_string(),
+            ends_at: details
+                .ends_at
+                .map(|at| at.format(LOCAL_TIME).to_string())
+                .unwrap_or_default(),
             time_zone: details.starts_at.timezone().name().to_owned(),
             rsvp_deadline: details
                 .rsvp_deadline
@@ -105,6 +114,7 @@ impl EventForm {
         let mut form = Self {
             location: get("location").to_owned(),
             starts_at: get("starts_at").to_owned(),
+            ends_at: get("ends_at").to_owned(),
             time_zone: get("time_zone").to_owned(),
             rsvp_deadline: get("rsvp_deadline").to_owned(),
             ..Self::blank()
@@ -131,6 +141,10 @@ impl EventForm {
 
     pub fn starts_at(&self) -> &str {
         &self.starts_at
+    }
+
+    pub fn ends_at(&self) -> &str {
+        &self.ends_at
     }
 
     pub fn time_zone(&self) -> &str {
@@ -202,6 +216,14 @@ impl EventForm {
             let days = KEEP_AFTER_EVENT.num_days();
             return Err(filled(&text.error_event_past, "days", days));
         }
+        let ends_at = match self.ends_at.as_str() {
+            "" => None,
+            ends => Some(
+                local_time(ends, tz)
+                    .filter(|ends| *ends > starts_at)
+                    .ok_or_else(|| text.error_event_ends.clone())?,
+            ),
+        };
         let rsvp_deadline = match self.rsvp_deadline.as_str() {
             "" => None,
             deadline => {
@@ -214,6 +236,7 @@ impl EventForm {
             location: self.location.clone(),
             starts_at,
             rsvp_deadline,
+            ends_at,
         })
     }
 }
@@ -269,6 +292,10 @@ mod tests {
             ("starts_at", "next Friday"),
             ("time_zone", "Europe/Atlantis"),
             ("rsvp_deadline", "soon"),
+            ("ends_at", "late"),
+            // An end must come after the start.
+            ("ends_at", "2054-12-12T19:00"),
+            ("ends_at", "2054-12-12T18:00"),
         ] {
             let mut bad = fields(&[
                 ("title", "Julebord"),
@@ -289,6 +316,23 @@ mod tests {
             ("time_zone", "Europe/Oslo"),
         ]));
         assert!(lines.details(Utc::now()).is_ok());
+
+        // An end, after midnight, goes into the event and back into the form.
+        let ending = EventForm::from_fields(&fields(&[
+            ("title", "Julebord"),
+            ("starts_at", "2054-12-12T19:00"),
+            ("ends_at", "2054-12-13T01:00"),
+            ("time_zone", "Europe/Oslo"),
+        ]));
+        let details = ending.details(Utc::now()).unwrap();
+        assert_eq!(
+            details.ends_at.unwrap().to_rfc3339(),
+            "2054-12-13T01:00:00+01:00"
+        );
+        assert_eq!(
+            EventForm::from_details(&details).ends_at(),
+            "2054-12-13T01:00"
+        );
     }
 
     #[test]
