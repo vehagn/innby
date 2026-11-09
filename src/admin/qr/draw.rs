@@ -17,6 +17,9 @@ const QUIET_ZONE: usize = 4;
 const FINDER: usize = 7;
 
 const HEART: &str = "M12 21s-7.6-4.7-9.6-9.3C.9 8.3 3 4.8 6.6 4.8c2.1 0 3.6 1.2 5.4 3.3 1.8-2.1 3.3-3.3 5.4-3.3 3.6 0 5.7 3.5 4.2 6.9C19.6 16.3 12 21 12 21z";
+/// A dot, from the left of its module's middle: a circle as two half arcs, back where it
+/// began. The fill closes it.
+const DOT: &str = "a.45.45 0 1 0 .9 0a.45.45 0 1 0-.9 0";
 const STAR: &str = "M12 2.5l2.9 6.1 6.7.8-5 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-5-4.6 6.7-.8z";
 
 /// `data` as an SVG QR code in `style`. Without a size, it fills what the page gives it.
@@ -55,15 +58,44 @@ pub fn svg(data: &str, style: &Style, pixels: Option<u32>) -> String {
         r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}"{dimensions} aria-hidden="true"><rect width="{size}" height="{size}" fill="#fff"/><g transform="translate({QUIET_ZONE} {QUIET_ZONE})" fill="{color}"><path d=""##,
         color = style.color,
     );
+    let drawn = |x: usize, y: usize| dark(x, y) && !in_finder(x, y) && !in_hole(x, y);
     for y in 0..n {
-        for x in 0..n {
-            if dark(x, y) && !in_finder(x, y) && !in_hole(x, y) {
-                let neighbour = |dx: isize, dy: isize| {
-                    let (x, y) = (x.checked_add_signed(dx), y.checked_add_signed(dy));
-                    matches!((x, y), (Some(x), Some(y)) if x < n && y < n && dark(x, y))
-                };
-                module(&mut svg, style.shape, x, y, neighbour);
+        let mut x = 0;
+        // The last dot drawn in this row: a dot's two arcs end where they began, so the
+        // next can be placed from it, in fewer characters.
+        let mut last_dot = None;
+        while x < n {
+            if !drawn(x, y) {
+                x += 1;
+                continue;
             }
+            // Squares in a row are one rectangle; the other shapes go one by one.
+            if style.shape == Shape::Square {
+                let run = (x..n).take_while(|&x| drawn(x, y)).count();
+                let _ = write!(svg, "M{x} {y}h{run}v1h-{run}z");
+                x += run;
+                continue;
+            }
+            if style.shape == Shape::Dots {
+                match last_dot {
+                    Some(last) => {
+                        let _ = write!(svg, "m{} 0", x - last);
+                    }
+                    None => {
+                        let _ = write!(svg, "M{x}.05 {y}.5");
+                    }
+                }
+                svg.push_str(DOT);
+                last_dot = Some(x);
+                x += 1;
+                continue;
+            }
+            let neighbour = |dx: isize, dy: isize| {
+                let (x, y) = (x.checked_add_signed(dx), y.checked_add_signed(dy));
+                matches!((x, y), (Some(x), Some(y)) if x < n && y < n && dark(x, y))
+            };
+            rounded_module(&mut svg, x, y, neighbour);
+            x += 1;
         }
     }
     svg.push_str(r#""/><path fill-rule="evenodd" d=""#);
@@ -78,39 +110,39 @@ pub fn svg(data: &str, style: &Style, pixels: Option<u32>) -> String {
     svg
 }
 
-/// One dark module, added to a path.
-fn module(svg: &mut String, shape: Shape, x: usize, y: usize, dark: impl Fn(isize, isize) -> bool) {
-    match shape {
-        Shape::Square => {
-            let _ = write!(svg, "M{x} {y}h1v1h-1z");
+/// One rounded module, added to a path, as short as the path syntax allows: a code holds
+/// a thousand modules, and the guest and group pages draw one inline. Each corner is
+/// round, half a module across, unless a dark neighbour joins it on either side; a
+/// straight side between is drawn only where it has length.
+fn rounded_module(svg: &mut String, x: usize, y: usize, dark: impl Fn(isize, isize) -> bool) {
+    let round = |dx, dy| !(dark(dx, 0) || dark(0, dy));
+    let (tl, tr, br, bl) = (round(-1, -1), round(1, -1), round(1, 1), round(-1, 1));
+    if !(tl || tr || br || bl) {
+        let _ = write!(svg, "M{x} {y}h1v1h-1z");
+        return;
+    }
+    // A side's length: a whole module, less half for each round corner at its ends.
+    let side = |a: bool, b: bool| match u8::from(a) + u8::from(b) {
+        0 => Some("1"),
+        1 => Some(".5"),
+        _ => None,
+    };
+    let _ = write!(svg, "M{x}{} {y}", if tl { ".5" } else { "" });
+    // Clockwise from the top left: each side, then the round corner after it.
+    for (side, line, corner, arc) in [
+        (side(tl, tr), "h", tr, "a.5.5 0 0 1 .5.5"),
+        (side(tr, br), "v", br, "a.5.5 0 0 1-.5.5"),
+        (side(br, bl), "h-", bl, "a.5.5 0 0 1-.5-.5"),
+        (side(bl, tl), "v-", tl, "a.5.5 0 0 1 .5-.5"),
+    ] {
+        if let Some(length) = side {
+            let _ = write!(svg, "{line}{length}");
         }
-        Shape::Dots => {
-            let _ = write!(svg, "M{x}.05 {y}.5a.45 .45 0 1 0 .9 0a.45 .45 0 1 0-.9 0z");
-        }
-        // Each corner is round unless a dark neighbour joins it on either side.
-        Shape::Rounded => {
-            let round = |dx, dy| {
-                if dark(dx, 0) || dark(0, dy) { 0.0 } else { 0.5 }
-            };
-            let (tl, tr, br, bl) = (round(-1, -1), round(1, -1), round(1, 1), round(-1, 1));
-            let (x, y) = (x as f32, y as f32);
-            let _ = write!(
-                svg,
-                "M{} {y}H{}A{tr} {tr} 0 0 1 {} {}V{}A{br} {br} 0 0 1 {} {}H{}A{bl} {bl} 0 0 1 {x} {}V{}A{tl} {tl} 0 0 1 {} {y}z",
-                x + tl,
-                x + 1.0 - tr,
-                x + 1.0,
-                y + tr,
-                y + 1.0 - br,
-                x + 1.0 - br,
-                y + 1.0,
-                x + bl,
-                y + 1.0 - bl,
-                y + tl,
-                x + tl,
-            );
+        if corner {
+            svg.push_str(arc);
         }
     }
+    svg.push('z');
 }
 
 /// A finder pattern: a ring of 7 by 7 modules around a 3 by 3 square.
@@ -289,6 +321,44 @@ mod tests {
         }
         let sized = svg("x", &style(Shape::Square, Icon::None), Some(512));
         assert!(sized.contains(r#"width="512" height="512""#));
+    }
+
+    #[test]
+    fn draws_each_module_as_shortly_as_it_can() {
+        // Alone, a rounded module is a circle of four half-module corners.
+        let mut path = String::new();
+        rounded_module(&mut path, 3, 4, |_, _| false);
+        assert_eq!(
+            path,
+            "M3.5 4a.5.5 0 0 1 .5.5a.5.5 0 0 1-.5.5a.5.5 0 0 1-.5-.5a.5.5 0 0 1 .5-.5z"
+        );
+        // Joined on every side, a square.
+        path.clear();
+        rounded_module(&mut path, 3, 4, |_, _| true);
+        assert_eq!(path, "M3 4h1v1h-1z");
+        // Joined on the left only: round on the right, straight on the left.
+        path.clear();
+        rounded_module(&mut path, 3, 4, |dx, dy| (dx, dy) == (-1, 0));
+        assert_eq!(path, "M3 4h.5a.5.5 0 0 1 .5.5a.5.5 0 0 1-.5.5h-.5v-1z");
+
+        // Squares in a row are one rectangle: far fewer moves than dark modules.
+        let square = svg(
+            "https://fest.example.com/r/abc",
+            &style(Shape::Square, Icon::None),
+            None,
+        );
+        let modules = QrCode::new(b"https://fest.example.com/r/abc")
+            .unwrap()
+            .to_colors();
+        let dark = modules.iter().filter(|c| **c == Color::Dark).count();
+        assert!(square.matches('M').count() < dark / 2, "{square}");
+        // Dots after the first in a row are placed from the one before.
+        let dots = svg(
+            "https://fest.example.com/r/abc",
+            &style(Shape::Dots, Icon::None),
+            None,
+        );
+        assert!(dots.contains(&format!("{DOT}m1 0{DOT}")), "{dots}");
     }
 
     #[test]
