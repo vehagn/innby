@@ -1,17 +1,47 @@
 //! What the admin's forms send, where several pages share it: a name with a party size
 //! (a guest's, or a group's), a batch of them a line each (invitations, group links, and
 //! a new event's group links), and a delete the host has confirmed. Also `?saved`,
-//! which a page gets after a change so it can say so.
+//! which a page gets after a change so it can say so, and the token a form that makes
+//! something carries, so that sending it twice makes it once.
 //!
 //! Every check answers in the page's language, ready to show beside the form.
 
+use axum::response::Response;
 use serde::Deserialize;
+use sqlx::PgExecutor;
 
-use super::lang;
+use super::{lang, page::redirect};
 use crate::{
-    db::rsvp::{self, MAX_PARTY_SIZE, NameKind},
+    db::{
+        admin_form,
+        rsvp::{self, MAX_PARTY_SIZE, NameKind},
+    },
     i18n::fill,
 };
+
+/// A form's own token, as the page put it in a hidden field (`form_token`), if what was
+/// sent looks like one.
+pub(super) fn form_token(sent: Option<&str>) -> Option<&str> {
+    sent.filter(|token| {
+        (16..=64).contains(&token.len())
+            && token
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    })
+}
+
+/// The way to what the form with this token made, if it was sent before: its answer was
+/// lost on the way, or the host pressed twice.
+pub(super) async fn sent_before(
+    db: impl PgExecutor<'_>,
+    token: Option<&str>,
+) -> sqlx::Result<Option<Response>> {
+    let Some(token) = token else {
+        return Ok(None);
+    };
+    let page = admin_form::sent(db, token).await?;
+    Ok(page.map(|page| redirect(&page)))
+}
 
 /// A name and how many people it covers: a guest's invitation, or a group's for each
 /// sign-up.
@@ -47,6 +77,9 @@ pub(super) struct BatchForm {
     pub(super) names: String,
     /// For lines that don't give their own.
     pub(super) max_party_size: i32,
+    /// See `form_token`.
+    #[serde(default)]
+    pub(super) form_token: Option<String>,
 }
 
 impl BatchForm {

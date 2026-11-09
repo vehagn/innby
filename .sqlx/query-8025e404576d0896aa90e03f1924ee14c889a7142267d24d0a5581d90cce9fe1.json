@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select page from admin_form_sent where token = $1 and sent_at > now() - interval '1 day'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "page",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "admin_form_sent",
+            "name": "page"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8025e404576d0896aa90e03f1924ee14c889a7142267d24d0a5581d90cce9fe1"
+}

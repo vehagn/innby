@@ -76,8 +76,9 @@ src/
     cli.rs           the host's commands: `innby invite`, `innby event list|export|import`
     testing.rs       a logged-in test host of any role
   db/                queries per table (access.rs: roles for one event; admin_user.rs:
-                     password users made in the admin UI); rsvp/ splits into
-                     the row, names.rs and guest_list.rs
+                     password users made in the admin UI; admin_form.rs: create forms
+                     sent, so one sent twice makes once); rsvp/ splits into the row,
+                     names.rs and guest_list.rs
   mailer/            the outbox worker; compose.rs writes the mails
   janitor.rs         deletes what retention says is due
   config/            settings from INNBY_* variables: mod.rs (site), admin.rs, mail.rs,

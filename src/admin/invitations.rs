@@ -11,12 +11,13 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use super::{
-    forms::BatchForm,
+    forms::{BatchForm, form_token, sent_before},
     guests::{GuestRow, guest_url},
     page::{AdminState, PageError, load_event, redirect},
 };
 use crate::{
     db::{
+        admin_form,
         event::Event,
         rsvp::{self, MAX_PARTY_SIZE, NameKind},
     },
@@ -31,6 +32,10 @@ pub(super) async fn create(
     Form(form): Form<BatchForm>,
 ) -> Result<Response, PageError> {
     let event = load_event(&state, id).await?;
+    let token = form_token(form.form_token.as_deref());
+    if let Some(first) = sent_before(&state.db, token).await? {
+        return Ok(first);
+    }
     let entries = match form.parse(NameKind::Person) {
         Ok(entries) => entries,
         Err(error) => {
@@ -46,14 +51,23 @@ pub(super) async fn create(
                 .id,
         );
     }
-    tx.commit().await?;
-    tracing::info!(count = ids.len(), event = %id, "invitations created");
     // The ids are UUIDv7, so the new ones are those from the first on.
     let page = format!(
         "{}?from={}",
         paths::path(paths::EVENT_INVITATIONS, id),
         ids[0]
     );
+    // The same form sent twice at once: the other one made them, so these go.
+    if let Some(token) = token
+        && !admin_form::note(&mut *tx, token, &page).await?
+    {
+        tx.rollback().await?;
+        return Ok(sent_before(&state.db, Some(token))
+            .await?
+            .unwrap_or_else(|| redirect(&paths::path(paths::EVENT_INVITATIONS, id))));
+    }
+    tx.commit().await?;
+    tracing::info!(count = ids.len(), event = %id, "invitations created");
     Ok(redirect(&page))
 }
 

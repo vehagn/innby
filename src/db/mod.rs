@@ -8,9 +8,11 @@
 //! - `games`: the minigames an event offers, and the guests' best scores.
 //! - `admin_login`: refresh tokens and revoked JWTs. `admin_user`: hosts who log in with
 //!   a password, made in the admin UI.
+//! - `admin_form`: admin forms that made something, so one sent twice makes it once.
 //! - `retention`: deleting what's no longer needed.
 
 pub mod access;
+pub mod admin_form;
 pub mod admin_login;
 pub mod admin_user;
 pub mod event;

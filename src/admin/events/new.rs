@@ -22,12 +22,13 @@ use super::{
 };
 use crate::{
     admin::{
+        forms::{form_token, sent_before},
         lang,
         page::{AdminState, PageError, load_event, redirect},
         qr as admin_qr,
     },
     db::{
-        group,
+        admin_form, group,
         qr::{self, Icon, Shape, Style},
     },
     http::render_form,
@@ -130,6 +131,10 @@ pub(in crate::admin) async fn create(
     State(state): State<AdminState>,
     Form(fields): Form<HashMap<String, String>>,
 ) -> Result<Response, PageError> {
+    let token = form_token(fields.get("form_token").map(String::as_str));
+    if let Some(first) = sent_before(&state.db, token).await? {
+        return Ok(first);
+    }
     let mut draft = Draft {
         qr: carried_style(&fields),
         ..Draft::new(
@@ -151,6 +156,9 @@ pub(in crate::admin) async fn create(
     let event = create_event(&state.db, &details, &groups, style.as_ref()).await?;
     tracing::info!(event = %event.id, groups = groups.len(), "event created");
     let page = format!("{}?created", paths::path(paths::EVENT, event.id));
+    if let Some(token) = token {
+        admin_form::note(&state.db, token, &page).await?;
+    }
     Ok(redirect(&page))
 }
 

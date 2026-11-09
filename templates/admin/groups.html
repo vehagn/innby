@@ -41,6 +41,8 @@
 <section class="card">
   <h2>{{ a.new_groups }}</h2>
   <form method="post" action="{{ links.groups }}">
+    {#- Sent twice, this form makes things once; see admin::forms. #}
+    <input type="hidden" name="form_token" value="{{ crate::random::token() }}">
     <label for="group-names">{{ a.names }}</label>
     <textarea id="group-names" name="names" rows="3" required placeholder="{{ a.groups_placeholder }}">{{ names }}</textarea>
     <label for="group-size">{{ a.max_per_sign_up }}</label>

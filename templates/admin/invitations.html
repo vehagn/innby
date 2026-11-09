@@ -44,6 +44,8 @@
   <h2>{{ a.new_invitations }}</h2>
   <p class="hint">{{ a.new_invitations_hint }}</p>
   <form method="post" action="{{ links.invitations }}">
+    {#- Sent twice, this form makes things once; see admin::forms. #}
+    <input type="hidden" name="form_token" value="{{ crate::random::token() }}">
     <label for="names">{{ a.names }}</label>
     <textarea id="names" name="names" rows="5" required placeholder="{{ a.names_placeholder }}">{{ names }}</textarea>
     <label for="max_party_size">{{ a.max_per_invitation }}</label>

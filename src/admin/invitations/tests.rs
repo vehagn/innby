@@ -105,3 +105,31 @@ async fn rejects_a_batch_with_an_invalid_line(db: PgPool) {
     assert!(html.contains(">Kari\r\nOla, 21</textarea>"), "{html}");
     assert!(admin.guests().await.is_empty());
 }
+
+#[sqlx::test]
+async fn the_same_form_sent_twice_makes_its_invitations_once(db: PgPool) {
+    let admin = Admin::new(db);
+    let e = admin.event().await;
+    let html = body(admin.get(&format!("{e}/invitations")).await).await;
+    let token = html
+        .split(r#"name="form_token" value=""#)
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .unwrap()
+        .to_owned();
+
+    // The answer to the first was lost on the way, so the host presses again.
+    let form = format!("names=Kari%0D%0AOla&max_party_size=1&form_token={token}");
+    let first = admin.post(&format!("{e}/invitations"), &form).await;
+    let again = admin.post(&format!("{e}/invitations"), &form).await;
+    assert_eq!(location(&again), location(&first));
+    assert_eq!(admin.guests().await.len(), 2);
+
+    // A new form makes new ones, as does one without a token.
+    for other in ["form_token=another-form-token-123", ""] {
+        let form = format!("names=Per&max_party_size=1&{other}");
+        let response = admin.post(&format!("{e}/invitations"), &form).await;
+        assert_eq!(response.status(), StatusCode::SEE_OTHER, "{other}");
+    }
+    assert_eq!(admin.guests().await.len(), 4);
+}

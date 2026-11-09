@@ -307,6 +307,7 @@ until Innby is live. In short:
 | `event_game`, `game_score` | the minigames an event offers, and each guest's best score in each |
 | `outbox` | mail to send: kind, attempts, next try, when sent, last error |
 | `admin_user` | password users an admin makes: name, role, argon2 hash, and a version that a new password bumps |
+| `admin_form_sent` | for a day, the token of each admin form that made something, and where it led, so the same form sent twice makes it once |
 | `admin_refresh_token`, `admin_revoked_jwt` | keyed hashes of refresh tokens, and logged-out JWTs, until they'd expire |
 
 Deleting an event deletes everything in it, and deleting an answer deletes its mail. Enums

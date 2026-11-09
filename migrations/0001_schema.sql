@@ -179,6 +179,16 @@ create table event_access (
 -- The events a host has access to, for their list of events.
 create index event_access_user on event_access (user_name);
 
+-- Admin forms that made something, by the random token each form carries, for a day:
+-- the same form sent again, as when the answer to the first was lost on the way, goes
+-- where the first went rather than making it all again. No personal data.
+create table admin_form_sent (
+    token   text primary key check (token ~ '^[A-Za-z0-9_-]{16,64}$'),
+    -- The admin page the form led to.
+    page    text not null check (length(page) <= 200),
+    sent_at timestamptz not null default now()
+);
+
 -- The host's logins, kept as LLDAP keeps them. A login gets a JWT that lasts a day and a
 -- refresh token that gets new JWTs for a month.
 

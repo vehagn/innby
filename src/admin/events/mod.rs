@@ -112,6 +112,7 @@ pub(super) fn group_lines(lines: &str) -> Result<Vec<(String, i32)>, String> {
         return Ok(Vec::new());
     }
     let batch = BatchForm {
+        form_token: None,
         names: lines.to_owned(),
         max_party_size: 2,
     };

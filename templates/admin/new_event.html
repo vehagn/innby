@@ -29,6 +29,8 @@
   {% if let Some(notice) = draft.notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
   {% if let Some(error) = draft.error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
   <form method="post" action="{{ crate::paths::admin(crate::paths::EVENTS_NEW) }}#new-event">
+    {#- Sent twice, this form makes things once; see admin::forms. #}
+    <input type="hidden" name="form_token" value="{{ crate::random::token() }}">
     {% include "admin/_event_form.html" %}
     <label for="groups">{{ a.event_groups }}</label>
     <textarea id="groups" name="groups" rows="3" placeholder="{{ a.groups_placeholder }}">{{ draft.groups() }}</textarea>

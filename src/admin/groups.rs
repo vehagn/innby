@@ -11,7 +11,7 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use super::{
-    forms::{BatchForm, DeleteForm, NameForm, SavedQuery},
+    forms::{BatchForm, DeleteForm, NameForm, SavedQuery, form_token, sent_before},
     guests::GuestRow,
     lang,
     page::{AdminState, PageError, load_event, redirect, timestamp},
@@ -20,6 +20,7 @@ use super::{
 use crate::{
     config::Config,
     db::{
+        admin_form,
         event::Event,
         group::{self, Group},
         qr,
@@ -133,6 +134,10 @@ pub(super) async fn create(
     Form(form): Form<BatchForm>,
 ) -> Result<Response, PageError> {
     let event = load_event(&state, id).await?;
+    let token = form_token(form.form_token.as_deref());
+    if let Some(first) = sent_before(&state.db, token).await? {
+        return Ok(first);
+    }
     let entries = match form.parse(NameKind::Group) {
         Ok(entries) => entries,
         Err(error) => return groups_page(&state, event, form.names, None, Some(error)).await,
@@ -141,13 +146,22 @@ pub(super) async fn create(
     for (name, max_party_size) in &entries {
         group::create(&mut *tx, id, name, *max_party_size).await?;
     }
-    tx.commit().await?;
-    tracing::info!(count = entries.len(), event = %id, "groups created");
     let page = format!(
         "{}?created={}",
         paths::path(paths::EVENT_GROUPS, id),
         entries.len()
     );
+    // The same form sent twice at once: the other one made them, so these go.
+    if let Some(token) = token
+        && !admin_form::note(&mut *tx, token, &page).await?
+    {
+        tx.rollback().await?;
+        return Ok(sent_before(&state.db, Some(token))
+            .await?
+            .unwrap_or_else(|| redirect(&paths::path(paths::EVENT_GROUPS, id))));
+    }
+    tx.commit().await?;
+    tracing::info!(count = entries.len(), event = %id, "groups created");
     Ok(redirect(&page))
 }
 
