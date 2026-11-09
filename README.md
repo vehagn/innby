@@ -5,7 +5,8 @@ An RSVP site for a host's events that keeps as little about its guests as it can
 - **Guests need nothing but a link.** No account, no password, no e-mail address. They
   answer through a personal invitation link, or sign up by name through a link the host
   makes for a group, such as a club's chat. Once they're coming, they can add the event
-  to their calendar.
+  to their calendar, and hear by e-mail, if they gave an address, when its time or place
+  changes.
 - **Everyone sees who's coming**, each name shown as its guest chose: in full, as first
   name and initial, or not at all.
 - **E-mail is optional**, for reminders and a guest's own link, with double opt-in.
@@ -14,7 +15,7 @@ An RSVP site for a host's events that keeps as little about its guests as it can
 - **Six languages:** Bokmål, Nynorsk, British and American English, and Simplified and
   Traditional Chinese. No JavaScript.
 - **For the host:** an admin UI for events, invitations and group links in batches, QR
-  codes, the headcount and reminders, with a built-in login or single sign-on. An event
+  codes, the headcount and reminders, a question of their own for guests, with a built-in login or single sign-on. An event
   and its group links go into a versioned TOML file, to keep, or to import as next
   year's.
 - **Minigames, if the host wants them:** any web page on an origin of its own can be one,

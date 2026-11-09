@@ -89,5 +89,7 @@ main steps, oldest first:
 22. Links to copy without JavaScript, remembering a device on group sign-up, a New event
     tab, icons on the admin's tabs, an event's end, and the event for guests' calendars;
     the schema in one file again until going live.
+23. Telling guests of a new time or place, the host's own question, the calendar file in
+    reminders, and gzip where it's safe.
 
 `git log` has the details.
