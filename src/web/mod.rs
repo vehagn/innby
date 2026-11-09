@@ -30,7 +30,7 @@ use crate::{
 
 /// Version of the privacy notice, recorded with each answer.
 /// Bump it whenever the notice in `templates/privacy/` changes in substance.
-pub const PRIVACY_VERSION: &str = "2026-11-05";
+pub const PRIVACY_VERSION: &str = "2026-11-09";
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
 const DAY: Duration = Duration::from_secs(24 * 60 * 60);
