@@ -1,4 +1,4 @@
-//! The event form, on the events page for a new event and on an event's Details tab: what
+//! The event form, on the New event tab for a new event and on an event's Details tab: what
 //! the host typed, kept to show again when something needs fixing, and checked into an
 //! event's `Details`.
 

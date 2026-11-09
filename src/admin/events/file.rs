@@ -174,7 +174,7 @@ impl FileError {
 
 const HEADER: &str = "\
 # An Innby event: its details and group links, but none of its guests. Import it on the
-# admin's Events page, or with `innby event import`, to make a new event from it.
+# admin's New event tab, or with `innby event import`, to make a new event from it.
 #
 # apiVersion and kind say what this file is; leave them as they are. starts and
 # answer_by are local times in time_zone, as 2026-12-12T19:00. The title and description

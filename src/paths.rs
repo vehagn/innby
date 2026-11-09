@@ -239,7 +239,7 @@ pub struct EventLinks {
     pub reminders: String,
     /// The event as a file.
     pub export: String,
-    /// The events page, with the new event's form filled in from this one.
+    /// The New event tab, with the new event's form filled in from this one.
     pub copy: String,
 }
 
