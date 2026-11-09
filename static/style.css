@@ -549,6 +549,10 @@ td {
 }
 
 .tabs a {
+  --icon-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
   border-bottom: 2px solid transparent;
   color: var(--text-muted);
@@ -565,6 +569,14 @@ td {
   color: var(--text);
   font-weight: 600;
   border-bottom-color: var(--accent-text);
+}
+
+/* On a phone, closer together, so more fit before the bar scrolls. */
+@media (max-width: 30rem) {
+  .tabs a {
+    gap: var(--space-1);
+    padding-inline: var(--space-2);
+  }
 }
 
 /* The way from an event's pages back to the list of events. */

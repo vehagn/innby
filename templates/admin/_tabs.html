@@ -2,7 +2,7 @@
 {% if tabs.len() > 1 %}
 <nav class="tabs" aria-label="Innby {{ crate::admin::lang::text().admin }}">
   {% for tab in tabs %}
-  <a href="{{ tab.href }}"{% if tab.current %} aria-current="page"{% endif %}>{{ tab.label }}</a>
+  <a href="{{ tab.href }}"{% if tab.current %} aria-current="page"{% endif %}>{{ tab.icon|safe }}{{ tab.label }}</a>
   {% endfor %}
 </nav>
 {% endif %}

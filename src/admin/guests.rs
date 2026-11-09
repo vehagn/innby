@@ -459,7 +459,7 @@ mod tests {
         assert!(html.contains("<strong>3</strong> people coming"), "{html}");
         assert!(html.contains("<strong>1</strong> no answer"), "{html}");
         assert!(
-            html.contains(&format!(r#"<a href="{e}" aria-current="page">Guests</a>"#)),
+            html.contains(&format!(r#"<a href="{e}" aria-current="page"><svg"#)),
             "{html}"
         );
         assert!(html.contains("Kari") && html.contains("Ola"));
