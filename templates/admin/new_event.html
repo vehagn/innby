@@ -24,7 +24,7 @@
 </section>
 
 <section class="card" id="new-event">
-  <h2>{{ a.new_event }}</h2>
+  <h2>{{ a.details }}</h2>
   {% if let Some(notice) = draft.notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
   {% if let Some(error) = draft.error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
   <form method="post" action="{{ crate::paths::admin(crate::paths::EVENTS_NEW) }}#new-event">

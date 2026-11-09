@@ -96,6 +96,10 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
     }
     let html = body(viewer.get(paths::HOME).await).await;
     assert!(!html.contains(r#"href="/events/new""#));
+    // With one tab each, there's no tab bar to repeat the heading.
+    assert!(!html.contains(r#"class="tabs""#));
+    let html = body(viewer.get(&on(paths::EVENT, e)).await).await;
+    assert!(!html.contains(r#"class="tabs""#));
 
     let editor = Admin::as_role(db.clone(), Role::Editor);
     let html = body(editor.get(&on(paths::EVENT, e)).await).await;
@@ -111,7 +115,7 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
     let html = body(admin.get(&on(paths::EVENT_DETAILS, e)).await).await;
     assert!(html.contains("/delete") && html.contains("/access\""));
     let html = body(admin.get(paths::HOME).await).await;
-    assert!(html.contains(r#"href="/events/new""#));
+    assert!(html.contains(r#"href="/events/new""#) && html.contains(r#"class="tabs""#));
 }
 
 #[sqlx::test]
