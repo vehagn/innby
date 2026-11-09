@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use axum::{body::Body, response::Response};
 
 use axum::http::{Request, StatusCode, header};
@@ -176,6 +178,66 @@ async fn serves_stylesheet() {
         response.headers()[header::CACHE_CONTROL],
         "public, max-age=31536000, immutable"
     );
+}
+
+/// What a browser gets for `uri`, asking for gzip.
+async fn gzipped(db: PgPool, uri: &str) -> Response {
+    let request = Request::get(uri)
+        .header(header::ACCEPT_ENCODING, "gzip, deflate, br")
+        .body(Body::empty())
+        .unwrap();
+    router(crate::config::tests::config(), db)
+        .oneshot(request)
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn gzips_the_stylesheet_and_the_privacy_notice() {
+    for uri in ["/static/style.css", "/privacy?lang=en"] {
+        let response = gzipped(unreachable_db(), uri).await;
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        assert_eq!(
+            response.headers()[header::CONTENT_ENCODING],
+            "gzip",
+            "{uri}"
+        );
+        assert_eq!(response.headers()[header::VARY], "accept-encoding", "{uri}");
+        let packed = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let mut text = String::new();
+        flate2::read::GzDecoder::new(&packed[..])
+            .read_to_string(&mut text)
+            .unwrap();
+        assert!(
+            text.len() > packed.len() * 2,
+            "{uri}: {} from {}",
+            packed.len(),
+            text.len()
+        );
+    }
+    // Not for a browser that doesn't ask.
+    let response = get("/static/style.css", None).await;
+    assert!(response.headers().get(header::CONTENT_ENCODING).is_none());
+}
+
+#[sqlx::test]
+async fn never_gzips_a_page_that_holds_a_link(db: PgPool) {
+    let site = testing::Site::new(db.clone());
+    let (_, link) = site.invite("Kari", 2).await;
+    for uri in [
+        format!("/r/{link}"),
+        format!("/r/{link}/guests"),
+        "/".into(),
+    ] {
+        let response = gzipped(db.clone(), &uri).await;
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        assert!(
+            response.headers().get(header::CONTENT_ENCODING).is_none(),
+            "{uri}"
+        );
+    }
 }
 
 #[tokio::test]

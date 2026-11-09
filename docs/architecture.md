@@ -326,6 +326,8 @@ processing, with the legal bases; the privacy notice is at `/privacy` in every l
   isolation, `noindex`, and HSTS over HTTPS.
 - **Forms:** cross-site form posts are refused using the browser's `Sec-Fetch-Site`
   header (or `Origin` on older browsers), so no CSRF tokens are needed.
+- **Compression:** only the stylesheet and the privacy notice are gzipped. A page that
+  holds a link is never compressed, so its size can't give the link away (BREACH).
 - **Limits:** requests time out after 15 seconds and their headers after 10, headers are
   capped at 16 KiB and bodies at 2 MB.
 - **Containers:** non-root, read-only, no capabilities, no service account token.

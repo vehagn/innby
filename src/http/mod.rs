@@ -1,14 +1,18 @@
 //! What both listeners share, the public site's and the admin UI's: serving with
 //! timeouts and graceful shutdown, security headers, CSRF protection, rate limits,
-//! cookies, rendering templates and the stylesheet, and the request's language.
+//! cookies, rendering templates and the stylesheet, gzip where it's safe, and the
+//! request's language.
 
+mod compress;
 pub mod cookie;
 mod csrf;
 mod rate_limit;
 mod render;
 
 pub use rate_limit::{ClientIp, RateLimiter};
-pub use render::{render, render_form, render_with, server_error, stylesheet, stylesheet_link};
+pub use render::{
+    render, render_compressed, render_form, render_with, server_error, stylesheet, stylesheet_link,
+};
 
 use std::{
     convert::Infallible,

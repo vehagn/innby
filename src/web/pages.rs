@@ -12,7 +12,7 @@ use uuid::Uuid;
 use super::{AppState, PRIVACY_VERSION, remember::Remembered};
 use crate::{
     config::Controller,
-    http::{render, render_with, server_error},
+    http::{render, render_compressed, render_with, server_error},
     i18n::{Lang, Messages},
     janitor::{KEEP_AFTER_EVENT, KEEP_SENT_MAIL},
     paths,
@@ -88,15 +88,19 @@ struct PrivacyPage<'a> {
 }
 
 /// The privacy notice (GDPR Art. 13 and 14). Its version is recorded with each answer.
-pub async fn privacy(State(state): State<AppState>, lang: Lang) -> Response {
-    render(PrivacyPage {
-        lang,
-        t: lang.messages(),
-        version: PRIVACY_VERSION,
-        controller: &state.config.controller,
-        keep_after_event_days: KEEP_AFTER_EVENT.num_days(),
-        keep_sent_mail_days: KEEP_SENT_MAIL.num_days(),
-    })
+/// The notice holds nothing secret or typed by a visitor, so it may be gzipped.
+pub async fn privacy(State(state): State<AppState>, lang: Lang, headers: HeaderMap) -> Response {
+    render_compressed(
+        &headers,
+        PrivacyPage {
+            lang,
+            t: lang.messages(),
+            version: PRIVACY_VERSION,
+            controller: &state.config.controller,
+            keep_after_event_days: KEEP_AFTER_EVENT.num_days(),
+            keep_sent_mail_days: KEEP_SENT_MAIL.num_days(),
+        },
+    )
 }
 
 /// A page with a heading, a paragraph and a way back to the event.

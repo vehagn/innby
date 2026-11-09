@@ -5,12 +5,13 @@ use std::{fmt::Display, sync::LazyLock};
 use askama::Template;
 use axum::{
     extract::RawQuery,
-    http::{StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{Html, IntoResponse, Response},
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use sha2::{Digest, Sha256};
 
+use super::compress;
 use crate::paths;
 
 const STYLE: &str = include_str!("../../static/style.css");
@@ -20,24 +21,32 @@ const STYLE: &str = include_str!("../../static/style.css");
 static STYLE_VERSION: LazyLock<String> =
     LazyLock::new(|| format!("v={}", URL_SAFE_NO_PAD.encode(&Sha256::digest(STYLE)[..6])));
 
+/// The stylesheet, gzipped once, for the browsers that take it, which is all of them.
+static STYLE_GZIP: LazyLock<Vec<u8>> = LazyLock::new(|| compress::gzip(STYLE.as_bytes()));
+
 /// The stylesheet's link, for templates.
 pub fn stylesheet_link() -> String {
     format!("{}?{}", paths::STYLESHEET, *STYLE_VERSION)
 }
 
-pub async fn stylesheet(RawQuery(query): RawQuery) -> impl IntoResponse {
+pub async fn stylesheet(RawQuery(query): RawQuery, headers: HeaderMap) -> impl IntoResponse {
     let cache = if query.as_deref() == Some(STYLE_VERSION.as_str()) {
         "public, max-age=31536000, immutable"
     } else {
         "public, max-age=300"
     };
-    (
-        [
-            (header::CONTENT_TYPE, "text/css; charset=utf-8"),
-            (header::CACHE_CONTROL, cache),
-        ],
-        STYLE,
-    )
+    let css = "text/css; charset=utf-8";
+    let response = compress::maybe_gzip(&headers, css, STYLE, Some(&STYLE_GZIP));
+    ([(header::CACHE_CONTROL, cache)], response)
+}
+
+/// A page that holds no secret and nothing a visitor typed, gzipped if the request takes
+/// it; see `compress` for why only such pages are.
+pub fn render_compressed(headers: &HeaderMap, template: impl Template) -> Response {
+    match template.render() {
+        Ok(html) => compress::maybe_gzip(headers, "text/html; charset=utf-8", html, None),
+        Err(err) => server_error(err),
+    }
 }
 
 pub fn render(template: impl Template) -> Response {
