@@ -6,7 +6,12 @@
 //! together lets whoever can choose that text and watch the response's size guess the
 //! link a few characters at a time (BREACH). Those pages stay uncompressed.
 
-use std::io::Write;
+use std::{
+    collections::HashMap,
+    hash::{BuildHasher, RandomState},
+    io::Write,
+    sync::{Arc, LazyLock, Mutex},
+};
 
 use axum::{
     http::{HeaderMap, HeaderValue, header},
@@ -41,8 +46,41 @@ pub fn gzip(bytes: &[u8]) -> Vec<u8> {
     encoder.finish().expect("writing to memory")
 }
 
-/// A response of `content_type` with `body`, or with `gzipped` (or `body` gzipped now)
-/// if the request takes gzip. Caches keep both, by the request's `Accept-Encoding`.
+/// The pages gzipped so far, by a hash of what they hold. Those that may be gzipped are
+/// the same for everyone in a language and colour scheme, so there are a few dozen at
+/// most; past that, it starts again.
+static GZIPPED: LazyLock<Mutex<Gzipped>> = LazyLock::new(Mutex::default);
+const MOST_GZIPPED: usize = 64;
+
+#[derive(Default)]
+struct Gzipped {
+    /// Keyed afresh on each start, so nobody can make two pages share a key.
+    hasher: RandomState,
+    pages: HashMap<u64, Arc<[u8]>>,
+}
+/// `body`, gzipped, from the cache or now. Gzipping a page as tightly as gzip goes
+/// costs more than rendering it, so it's done once per page.
+fn gzip_cached(body: &[u8]) -> Arc<[u8]> {
+    let key = {
+        let cache = GZIPPED.lock().expect("gzip cache");
+        let key = cache.hasher.hash_one(body);
+        if let Some(gzipped) = cache.pages.get(&key) {
+            return Arc::clone(gzipped);
+        }
+        key
+    };
+    let gzipped: Arc<[u8]> = gzip(body).into();
+    let mut cache = GZIPPED.lock().expect("gzip cache");
+    if cache.pages.len() >= MOST_GZIPPED {
+        cache.pages.clear();
+    }
+    cache.pages.insert(key, Arc::clone(&gzipped));
+    gzipped
+}
+
+/// A response of `content_type` with `body`, or with `gzipped` (or `body` gzipped, once
+/// for each different body) if the request takes gzip. Caches keep both, by the
+/// request's `Accept-Encoding`.
 pub fn maybe_gzip(
     headers: &HeaderMap,
     content_type: &'static str,
@@ -54,7 +92,7 @@ pub fn maybe_gzip(
     if accepts_gzip(headers) {
         let body = match gzipped {
             Some(gzipped) => gzipped.to_vec(),
-            None => gzip(&body.into()),
+            None => gzip_cached(&body.into()).to_vec(),
         };
         let encoding = (header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
         return ([vary, content_type, encoding], body).into_response();
@@ -84,6 +122,15 @@ mod tests {
         assert!(!accepts_gzip(&with("gzip;q=0, br")));
         assert!(!accepts_gzip(&with("identity")));
         assert!(!accepts_gzip(&HeaderMap::new()));
+    }
+
+    #[test]
+    fn gzips_each_page_once() {
+        let page = "<p>The same page for everyone.</p>".repeat(50);
+        let first = gzip_cached(page.as_bytes());
+        assert!(Arc::ptr_eq(&first, &gzip_cached(page.as_bytes())));
+        let other = gzip_cached(b"<p>Another page.</p>");
+        assert!(!Arc::ptr_eq(&first, &other));
     }
 
     #[test]
