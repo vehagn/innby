@@ -23,6 +23,7 @@ pub const RSVP_NAME: &str = "/r/{link}/name";
 pub const RSVP_GUESTS: &str = "/r/{link}/guests";
 pub const RSVP_LISTING: &str = "/r/{link}/listing";
 pub const RSVP_EXPORT: &str = "/r/{link}/export";
+pub const RSVP_CALENDAR: &str = "/r/{link}/event.ics";
 pub const RSVP_DELETE: &str = "/r/{link}/delete";
 pub const RSVP_REMEMBER: &str = "/r/{link}/remember";
 pub const RSVP_FORGET: &str = "/r/{link}/forget";
@@ -170,6 +171,8 @@ pub struct GuestLinks {
     pub email_remove: String,
     pub delete: String,
     pub export: String,
+    /// The event as a calendar file, in the guest's language.
+    pub calendar: String,
     pub remember: String,
     pub forget: String,
 }
@@ -186,6 +189,7 @@ impl GuestLinks {
             email_remove: at(RSVP_EMAIL_REMOVE),
             delete: at(RSVP_DELETE),
             export: path(RSVP_EXPORT, link),
+            calendar: at(RSVP_CALENDAR),
             remember: at(RSVP_REMEMBER),
             forget: at(RSVP_FORGET),
         }

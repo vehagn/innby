@@ -97,6 +97,8 @@ pub(super) struct RsvpPage<'a> {
     rsvp: &'a Rsvp,
     /// The guest's current answer, e.g. "Coming · 2 people".
     status: String,
+    /// Whether they're coming, and so are offered the event for their calendar.
+    attending: bool,
     party_sizes: Vec<PartySize>,
     /// For the answer form: the guest's choice, or their full name if they haven't made
     /// one, since that's the default once they're coming.
@@ -129,6 +131,7 @@ impl<'a> RsvpPage<'a> {
             links: GuestLinks::new(&guest.link, lang),
             rsvp,
             status: t.answer(rsvp.response, rsvp.party_size),
+            attending: rsvp.response == rsvp::Response::Attending,
             party_sizes: PartySize::choices(t, rsvp.max_party_size, rsvp.party_size),
             display_choices: DisplayChoice::choices(t, Some(&rsvp.name), chosen),
             first_visit: rsvp.privacy_version.is_none(),

@@ -25,6 +25,9 @@ no password, no e-mail address. On that page they:
 - choose how their name shows on the guest list: in full, as first name and initial, or
   not at all;
 - see the guest list, on a page of its own (`/r/{link}/guests`);
+- once coming, add the event to their calendar, as a file (`/r/{link}/event.ics`) with
+  the event alone in it, never their name or link; an event with no set end lasts three
+  hours there;
 - optionally add an e-mail address, to get reminders and their link by mail;
 - optionally have the device remember them, so the front page leads back here;
 - play the minigames the host offers, if any, each with a high score table

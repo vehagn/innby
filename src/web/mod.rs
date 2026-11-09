@@ -1,6 +1,7 @@
 //! The public site: the front page, guests' personal and group link pages, e-mail, the
-//! privacy notice. `router` lists every route; the shared plumbing is in `crate::http`.
+//! event as a calendar file, the privacy notice. `router` lists every route; the shared plumbing is in `crate::http`.
 
+mod calendar;
 mod email;
 mod games;
 mod join;
@@ -120,6 +121,7 @@ pub(crate) fn routers(config: Config, db: PgPool) -> (Router, Option<Router>) {
         .route(paths::RSVP_NAME, post(rsvp::rename))
         .route(paths::RSVP_LISTING, post(rsvp::listing))
         .route(paths::RSVP_EXPORT, get(rsvp::export))
+        .route(paths::RSVP_CALENDAR, get(calendar::show))
         .route(paths::RSVP_DELETE, post(rsvp::delete))
         .route(paths::RSVP_REMEMBER, post(remember::remember))
         .route(paths::RSVP_FORGET, post(remember::forget_here))

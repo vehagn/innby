@@ -44,6 +44,9 @@ pub struct Messages {
     /// Shown until the guest has answered: what we store and why (GDPR Art. 13/14).
     pub first_visit_notice: String,
     pub keep_link: String,
+    pub calendar_heading: String,
+    pub calendar_hint: String,
+    pub add_to_calendar: String,
     pub saved: String,
     pub your_answer: String,
     pub answer_pending: String,

@@ -42,6 +42,7 @@ src/
     render.rs        askama templates to responses (render_form: 422 for a form to fix), the stylesheet
   web/               the public site; mod.rs has the router and every route
     rsvp.rs          a guest's personal page /r/{link}: answer, rename, export, delete
+    calendar.rs      the event as a calendar file, for a guest who's coming
     join.rs          group sign-up /join/{link}
     email.rs         the optional e-mail address: consent, double opt-in, "I lost my link"
     remember.rs      "remember me on this device": one cookie per event
