@@ -16,6 +16,7 @@ fn rejects_unusable_recipients() {
         to: to.into(),
         subject: "Hei".into(),
         body: "Hei".into(),
+        calendar: None,
     };
     assert!(message(&from(), mail("kari@example.com")).is_ok());
     assert!(message(&from(), mail("not an address")).is_err());
@@ -29,6 +30,7 @@ fn a_subject_cant_add_headers() {
         to: "kari@example.com".into(),
         subject: "Julebord\r\nBcc: editor@example.com\nX-Evil: 1".into(),
         body: "Hei".into(),
+        calendar: None,
     };
     let sent = String::from_utf8(message(&from(), mail).unwrap().formatted()).unwrap();
     let headers = sent.split("\r\n\r\n").next().unwrap();
@@ -38,6 +40,30 @@ fn a_subject_cant_add_headers() {
             "{headers}"
         );
     }
+}
+
+#[test]
+fn a_calendar_file_goes_beside_the_text() {
+    let mail = Mail {
+        to: "kari@example.com".into(),
+        subject: "Julebord".into(),
+        body: "Hei Kari".into(),
+        calendar: Some("BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n".into()),
+    };
+    let sent = String::from_utf8(message(&from(), mail).unwrap().formatted()).unwrap();
+    assert!(sent.contains("Content-Type: multipart/mixed"), "{sent}");
+    assert!(
+        sent.contains("Content-Type: text/plain; charset=utf-8"),
+        "{sent}"
+    );
+    assert!(
+        sent.contains("Content-Type: text/calendar; charset=utf-8"),
+        "{sent}"
+    );
+    assert!(
+        sent.contains(r#"Content-Disposition: attachment; filename="event.ics""#),
+        "{sent}"
+    );
 }
 
 /// Collects mails instead of sending them, or fails every send.

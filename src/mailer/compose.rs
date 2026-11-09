@@ -1,16 +1,18 @@
 //! The mails, in the guest's language. Plain text only: nothing to track, nothing to
-//! render remotely.
+//! render remotely. A reminder to a guest who's coming carries the event as a calendar
+//! file, as their page offers it.
 
 use std::fmt::Display;
 
 use chrono::{Duration, Utc};
 
 use crate::{
+    calendar,
     config::Config,
     db::{
-        event::Details,
+        event::Event,
         outbox::Kind,
-        rsvp::{EmailStatus, Rsvp},
+        rsvp::{EmailStatus, Response, Rsvp},
     },
     i18n::fill,
     link::Purpose,
@@ -25,6 +27,8 @@ pub struct Mail {
     pub to: String,
     pub subject: String,
     pub body: String,
+    /// The event as a calendar file, attached.
+    pub calendar: Option<String>,
 }
 
 /// The mail for a job, or why there's nothing to send any more: the guest may have
@@ -33,8 +37,9 @@ pub fn compose(
     config: &Config,
     kind: Kind,
     rsvp: &Rsvp,
-    event: &Details,
+    event: &Event,
 ) -> Result<Mail, &'static str> {
+    let (id, event) = (event, &event.details);
     let to = rsvp.email.clone().ok_or("address removed")?;
     let needed = match kind {
         Kind::ConfirmEmail => EmailStatus::Unconfirmed,
@@ -88,14 +93,18 @@ pub fn compose(
             ("answer", &answer),
         ]);
     }
+    // For their calendar, as their page offers it to those coming.
+    let calendar = (kind == Kind::Reminder && rsvp.response == Response::Attending)
+        .then(|| calendar::file(id, lang, &config.base_url));
+    let mut body = fill(&text.body, &values);
+    if calendar.is_some() {
+        body = format!("{body}\n\n{}", t.mail.calendar_attached);
+    }
     Ok(Mail {
         to,
         subject: fill(&text.subject, &values),
-        body: format!(
-            "{}\n\n-- \n{}\n",
-            fill(&text.body, &values),
-            fill(&t.mail.footer, &values)
-        ),
+        body: format!("{body}\n\n-- \n{}\n", fill(&t.mail.footer, &values)),
+        calendar,
     })
 }
 
@@ -105,7 +114,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::*;
-    use crate::{config::tests::config, db::rsvp::Response, i18n::Lang};
+    use crate::{config::tests::config, i18n::Lang};
 
     fn guest(lang: Lang, email_status: EmailStatus) -> Rsvp {
         Rsvp {
@@ -142,14 +151,38 @@ mod tests {
                     Kind::ConfirmEmail => EmailStatus::Unconfirmed,
                     _ => EmailStatus::Confirmed,
                 };
-                let event = crate::db::event::tests::details();
+                let event = Event {
+                    id: Uuid::nil(),
+                    details: crate::db::event::tests::details(),
+                };
                 let mail = compose(&config, kind, &guest(lang, status), &event).unwrap();
                 let text = format!("{}\n{}", mail.subject, mail.body);
                 assert!(!text.contains(['{', '}']), "{lang:?} {kind:?}: {text}");
                 assert!(text.contains("https://fest.example.com/"), "{text}");
                 let greets = matches!(kind, Kind::RsvpLink | Kind::Reminder);
                 assert_eq!(text.contains("Kari"), greets, "{lang:?} {kind:?}: {text}");
+                // Only a reminder carries the calendar file, and says so.
+                let reminder = kind == Kind::Reminder;
+                assert_eq!(mail.calendar.is_some(), reminder, "{lang:?} {kind:?}");
+                let said = text.contains(&lang.messages().mail.calendar_attached);
+                assert_eq!(said, reminder, "{lang:?} {kind:?}");
             }
         }
+    }
+
+    #[test]
+    fn a_reminder_carries_the_calendar_file_only_for_those_coming() {
+        let event = Event {
+            id: Uuid::nil(),
+            details: crate::db::event::tests::details(),
+        };
+        let mut kari = guest(Lang::EnGb, EmailStatus::Confirmed);
+        let mail = compose(&config(), Kind::Reminder, &kari, &event).unwrap();
+        let file = mail.calendar.unwrap();
+        assert!(file.contains("\r\nSUMMARY:Christmas party\r\n"), "{file}");
+        assert!(!file.contains("Kari"), "{file}");
+        kari.response = Response::Pending;
+        let mail = compose(&config(), Kind::Reminder, &kari, &event).unwrap();
+        assert!(mail.calendar.is_none());
     }
 }

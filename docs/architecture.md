@@ -180,7 +180,8 @@ saved unconfirmed, and a confirmation mail is queued in the same transaction (th
 **outbox**). The confirmation mail contains nothing a guest typed, so nobody can use it to
 send a message to someone else. The guest confirms by pressing a button on the page the
 mail links to: mail scanners that open links can't confirm for them. Then their link
-comes by mail, and later any reminders the host sends.
+comes by mail, and later any reminders the host sends; a reminder to a guest who's
+coming carries the event as a calendar file, as their page offers it.
 
 - Only a *confirmed* address must be unique within an event. If someone else already has
   it, that person gets a mail pointing to `/lost`, and the page looks the same either way,

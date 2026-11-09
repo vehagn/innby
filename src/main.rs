@@ -11,6 +11,7 @@
 
 mod admin;
 mod alloc;
+mod calendar;
 mod config;
 mod db;
 #[cfg(test)]

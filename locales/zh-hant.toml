@@ -435,6 +435,8 @@ error_qr_emoji = "請輸入一個放在中間的表情符號。"
 [mail]
 # Under every mail. `{base}` is the site's address.
 footer = "你收到這封郵件，是因為有人在 {base} 上新增了這個地址。你可以隨時在回覆頁面上刪除它。"
+# After a reminder, when the event is attached for the guest's calendar.
+calendar_attached = "活動已作為行事曆檔案附上，你可以把它加入自己的行事曆。"
 
 # To an address a guest typed in, before it's confirmed. Anyone can type in
 # any address, so this mail must not include anything a guest wrote, such as `{name}`.

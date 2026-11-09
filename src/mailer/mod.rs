@@ -10,7 +10,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
-    message::{Mailbox, header::ContentType},
+    message::{Attachment, Mailbox, MultiPart, SinglePart, header::ContentType},
     transport::smtp::authentication::Credentials,
 };
 use sqlx::PgPool;
@@ -29,12 +29,21 @@ pub trait Sender: Send + Sync {
 }
 
 fn message(from: &Mailbox, mail: Mail) -> Result<Message> {
-    Ok(Message::builder()
+    let builder = Message::builder()
         .from(from.clone())
         .to(mail.to.parse()?)
-        .subject(mail.subject)
-        .header(ContentType::TEXT_PLAIN)
-        .body(mail.body)?)
+        .subject(mail.subject);
+    let Some(calendar) = mail.calendar else {
+        return Ok(builder.header(ContentType::TEXT_PLAIN).body(mail.body)?);
+    };
+    // The text, and the event for the guest's calendar beside it.
+    let file = Attachment::new("event.ics".into())
+        .body(calendar, ContentType::parse(crate::calendar::CONTENT_TYPE)?);
+    Ok(builder.multipart(
+        MultiPart::mixed()
+            .singlepart(SinglePart::plain(mail.body))
+            .singlepart(file),
+    )?)
 }
 
 struct Smtp(AsyncSmtpTransport<Tokio1Executor>);
@@ -103,7 +112,7 @@ pub async fn process_batch(
         let Some(event) = event::find(&mut *tx, guest.event_id).await? else {
             continue;
         };
-        let mail = match compose::compose(config, job.kind, &guest, &event.details) {
+        let mail = match compose::compose(config, job.kind, &guest, &event) {
             Ok(mail) => mail,
             Err(reason) => {
                 tracing::info!(job = job.id, rsvp = %guest.id, kind = ?job.kind, reason, "mail dropped");

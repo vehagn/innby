@@ -474,6 +474,8 @@ impl AdminMessages {
 pub struct Mails {
     /// Under every mail.
     pub footer: String,
+    /// After a reminder's text, when the event's calendar file is attached.
+    pub calendar_attached: String,
     pub confirm_email: MailText,
     pub email_in_use: MailText,
     pub rsvp_link: MailText,

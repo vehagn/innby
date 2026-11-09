@@ -472,6 +472,8 @@ error_qr_emoji = "Skriv inn én emoji til midten."
 footer = """
 Du får denne e-posten fordi adressen ble lagt til på {base}. Du kan fjerne den fra siden \
 din når som helst."""
+# After a reminder, when the event is attached for the guest's calendar.
+calendar_attached = "Arrangementet ligger ved som en kalenderfil, så du kan legge det til i kalenderen din."
 
 # To an address a guest typed in, before it's confirmed. Anyone can type in
 # any address, so this mail must not include anything a guest wrote, such as `{name}`.
