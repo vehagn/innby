@@ -199,3 +199,49 @@ impl YourListing {
         }
     }
 }
+
+/// The host's question, as the answer and sign-up forms ask it (`_question.html`).
+pub struct Question {
+    pub text: String,
+    pub choices: Vec<Choice>,
+}
+
+/// One choice, or none, in the question's list.
+pub struct Choice {
+    /// The choice's place in the list, or empty for none.
+    pub value: String,
+    pub label: String,
+    pub selected: bool,
+}
+
+impl Question {
+    /// The event's question in `lang`, with `picked` selected, if the event asks one.
+    pub fn new(event: &crate::db::event::Details, lang: Lang, picked: Option<i16>) -> Option<Self> {
+        let (text, choices) = event.question(lang)?;
+        let none = Choice {
+            value: String::new(),
+            label: lang.messages().choice_none.clone(),
+            selected: picked.is_none(),
+        };
+        let choices = choices.into_iter().enumerate().map(|(i, label)| Choice {
+            value: i.to_string(),
+            label: label.to_owned(),
+            selected: picked == i16::try_from(i).ok(),
+        });
+        Some(Self {
+            text: text.to_owned(),
+            choices: std::iter::once(none).chain(choices).collect(),
+        })
+    }
+
+    /// A pick as the form sends it: none, or a place in the event's list.
+    pub fn parse(event: &crate::db::event::Details, sent: Option<&str>) -> Result<Option<i16>, ()> {
+        let Some(sent) = sent.filter(|sent| !sent.is_empty()) else {
+            return Ok(None);
+        };
+        let (_, choices) = event.question(Lang::Nb).ok_or(())?;
+        let pick: i16 = sent.parse().map_err(drop)?;
+        let within = usize::try_from(pick).is_ok_and(|pick| pick < choices.len());
+        if within { Ok(Some(pick)) } else { Err(()) }
+    }
+}

@@ -52,6 +52,8 @@ pub(super) struct GuestRow {
     pub(super) listed: &'static str,
     pub(super) responded: String,
     pub(super) created: String,
+    /// Their pick for the host's question, if the event asks one; see `with_choice`.
+    pub(super) choice: String,
 }
 
 impl GuestRow {
@@ -90,8 +92,24 @@ impl GuestRow {
                 .map(|at| timestamp(at, tz))
                 .unwrap_or_default(),
             created: timestamp(rsvp.created_at, tz),
+            choice: String::new(),
         }
     }
+
+    /// The row with the guest's pick among `choices`, as the host reads them.
+    pub(super) fn with_choice(mut self, choices: &[&str], rsvp: &Rsvp) -> Self {
+        let pick = rsvp.choice.and_then(|pick| usize::try_from(pick).ok());
+        self.choice = pick
+            .and_then(|pick| choices.get(pick))
+            .map_or_else(String::new, |choice| (*choice).to_owned());
+        self
+    }
+}
+
+/// The host's question and how many coming picked each choice, for the Guests tab.
+pub(super) struct Tally {
+    pub(super) question: String,
+    pub(super) counts: Vec<(String, usize)>,
 }
 
 #[derive(Template)]
@@ -106,6 +124,8 @@ pub(super) struct GuestsTab {
     pub(super) rows: Vec<GuestRow>,
     /// The answer the table is filtered to, as in `?show=`.
     pub(super) show: Option<&'static str>,
+    /// The host's question, if the event asks one, with its picks among those coming.
+    pub(super) tally: Option<Tally>,
     pub(super) notice: Option<String>,
     pub(super) error: Option<String>,
 }
@@ -149,6 +169,27 @@ pub(super) async fn list(
         .find(|response| query.show.as_deref() == Some(response.code()));
     let tz = event.details.starts_at.timezone();
     let text = lang::text();
+    let question = event.details.question(lang::current());
+    let choices = question
+        .as_ref()
+        .map_or(&[][..], |(_, choices)| &choices[..]);
+    let tally = question.as_ref().map(|(question, choices)| Tally {
+        question: (*question).to_owned(),
+        counts: (0..choices.len())
+            .map(|i| {
+                let picked = rsvps.iter().filter(|rsvp| {
+                    rsvp.response == rsvp::Response::Attending
+                        && rsvp.choice.and_then(|pick| usize::try_from(pick).ok()) == Some(i)
+                });
+                (choices[i].to_owned(), picked.count())
+            })
+            .collect(),
+    });
+    let rows = rsvps
+        .iter()
+        .filter(|rsvp| show.is_none_or(|show| rsvp.response == show))
+        .map(|rsvp| GuestRow::new(rsvp, tz, &groups).with_choice(choices, rsvp))
+        .collect();
     Ok(render(GuestsTab {
         links: EventLinks::new(id),
         event,
@@ -157,12 +198,9 @@ pub(super) async fn list(
             .iter()
             .filter(|rsvp| rsvp.email_status == EmailStatus::Confirmed)
             .count(),
-        rows: rsvps
-            .iter()
-            .filter(|rsvp| show.is_none_or(|show| rsvp.response == show))
-            .map(|rsvp| GuestRow::new(rsvp, tz, &groups))
-            .collect(),
+        rows,
         show: show.map(rsvp::Response::code),
+        tally,
         notice: match (query.reminders, query.created) {
             (Some(n), _) => Some(count(
                 n,
@@ -321,38 +359,50 @@ pub(super) async fn csv(
     let (rsvps, groups) = tokio::try_join!(rsvp::list(&state.db, id), group::list(&state.db, id))?;
     let tz = event.details.starts_at.timezone();
     let text = lang::text();
+    let question = event.details.question(lang::current());
     // The byte order mark makes spreadsheet apps read the file as UTF-8 (æ, ø, å).
     let mut csv = String::from("\u{feff}");
-    csv_line(
-        &mut csv,
-        &[
-            &text.col_name,
-            &text.col_source,
-            &text.col_answer,
-            &text.col_people,
-            &text.col_max_people,
-            &text.col_email,
-            &text.col_guest_list,
-            &text.col_answered,
-            &text.col_link,
-        ],
-    );
+    let mut header = vec![
+        text.col_name.as_str(),
+        &text.col_source,
+        &text.col_answer,
+        &text.col_people,
+        &text.col_max_people,
+        &text.col_email,
+        &text.col_guest_list,
+        &text.col_answered,
+        &text.col_link,
+    ];
+    // The host's question, as its own column, when the event asks one.
+    if let Some((question, _)) = &question {
+        header.push(question);
+    }
+    csv_line(&mut csv, &header);
+    let choices = question
+        .as_ref()
+        .map_or(&[][..], |(_, choices)| &choices[..]);
     for rsvp in &rsvps {
-        let row = GuestRow::new(rsvp, tz, &groups);
-        csv_line(
-            &mut csv,
-            &[
-                &row.name,
-                &row.source,
-                row.answer,
-                &rsvp.party_size.to_string(),
-                &rsvp.max_party_size.to_string(),
-                row.email,
-                row.listed,
-                &row.responded,
-                &guest_url(&state.config, rsvp),
-            ],
+        let row = GuestRow::new(rsvp, tz, &groups).with_choice(choices, rsvp);
+        let (party, max, url) = (
+            rsvp.party_size.to_string(),
+            rsvp.max_party_size.to_string(),
+            guest_url(&state.config, rsvp),
         );
+        let mut line = vec![
+            row.name.as_str(),
+            &row.source,
+            row.answer,
+            &party,
+            &max,
+            row.email,
+            row.listed,
+            &row.responded,
+            &url,
+        ];
+        if question.is_some() {
+            line.push(&row.choice);
+        }
+        csv_line(&mut csv, &line);
     }
     Ok((
         [

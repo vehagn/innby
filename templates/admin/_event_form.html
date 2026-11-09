@@ -16,6 +16,11 @@
 <label for="rsvp_deadline">{{ a.event_deadline }}</label>
 <input id="rsvp_deadline" name="rsvp_deadline" type="datetime-local" value="{{ form.rsvp_deadline() }}">
 <p class="hint">{{ a.event_deadline_hint }}</p>
+<label for="question">{{ a.event_question }} · {{ bokmal }}</label>
+<input id="question" name="question" maxlength="200" value="{{ form.question() }}">
+<label for="choices">{{ a.event_choices }} · {{ bokmal }}</label>
+<textarea id="choices" name="choices" rows="3">{{ form.choices() }}</textarea>
+<p class="hint">{{ a.event_question_hint }}</p>
 <details>
   <summary>{{ a.event_languages }}</summary>
   <p class="hint">{{ a.event_languages_hint }}</p>
@@ -26,6 +31,10 @@
     <input id="{{ translation.title_field }}" name="{{ translation.title_field }}" maxlength="200" value="{{ translation.title }}">
     <label for="{{ translation.description_field }}">{{ a.event_description }} · {{ translation.language }}</label>
     <textarea id="{{ translation.description_field }}" name="{{ translation.description_field }}" rows="3">{{ translation.description }}</textarea>
+    <label for="{{ translation.question_field }}">{{ a.event_question }} · {{ translation.language }}</label>
+    <input id="{{ translation.question_field }}" name="{{ translation.question_field }}" maxlength="200" value="{{ translation.question }}">
+    <label for="{{ translation.choices_field }}">{{ a.event_choices }} · {{ translation.language }}</label>
+    <textarea id="{{ translation.choices_field }}" name="{{ translation.choices_field }}" rows="3">{{ translation.choices }}</textarea>
   </fieldset>
   {% endfor %}
 </details>

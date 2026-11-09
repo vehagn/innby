@@ -79,6 +79,8 @@ pub struct Rsvp {
     pub group_id: Option<Uuid>,
     /// The guest's choice for the guest list, if they've made one.
     pub name_display: Option<NameDisplay>,
+    /// Their pick among the event's choices, by its place in the list.
+    pub choice: Option<i16>,
 }
 
 impl Rsvp {
@@ -114,7 +116,7 @@ macro_rules! query_rsvp {
                 party_size, max_party_size, link_nonce, lang as "lang: Lang", email,
                 email_status as "email_status: EmailStatus", email_consent_at,
                 privacy_version, responded_at, created_at, group_id,
-                name_display as "name_display: NameDisplay" "#
+                name_display as "name_display: NameDisplay", choice "#
             $(+ $tail)*
             $(, $arg)*
         )
@@ -191,7 +193,9 @@ pub async fn find_with_events(
             r.privacy_version, r.responded_at, r.created_at, r.group_id,
             r.name_display as "name_display: NameDisplay",
             e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
-            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at
+            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,
+            e.question as "question: Json<Texts>", e.choices as "choices: Json<Texts>",
+            r.choice
         from rsvp r join event e on e.id = r.event_id
         where r.id = any($1)
         "#,
@@ -212,6 +216,8 @@ pub async fn find_with_events(
                 rsvp_deadline: row.rsvp_deadline,
                 ends_at: row.ends_at,
                 changed_at: row.changed_at,
+                question: row.question,
+                choices: row.choices,
             });
             let rsvp = Rsvp {
                 id: row.id,
@@ -230,6 +236,7 @@ pub async fn find_with_events(
                 created_at: row.created_at,
                 group_id: row.group_id,
                 name_display: row.name_display,
+                choice: row.choice,
             };
             (rsvp, event)
         })
@@ -295,6 +302,30 @@ pub async fn respond(
     )
     .fetch_optional(db)
     .await
+}
+
+/// Sets the guest's pick among the event's choices, or none.
+pub async fn set_choice(
+    db: impl PgExecutor<'_>,
+    id: Uuid,
+    choice: Option<i16>,
+) -> sqlx::Result<()> {
+    sqlx::query!("update rsvp set choice = $2 where id = $1", id, choice)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
+/// Clears every pick for the event, when the host changes its choices: a pick is a
+/// place in the list, which may now mean something else.
+pub async fn clear_choices(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<u64> {
+    let result = sqlx::query!(
+        "update rsvp set choice = null where event_id = $1 and choice is not null",
+        event_id
+    )
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected())
 }
 
 pub async fn set_name_display(

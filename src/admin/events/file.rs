@@ -88,6 +88,19 @@ pub struct EventFile {
         serialize_with = "in_language_order"
     )]
     pub description: BTreeMap<String, String>,
+    /// The host's question to guests, by language like the title, and its choices.
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        serialize_with = "in_language_order"
+    )]
+    pub question: BTreeMap<String, String>,
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        serialize_with = "in_language_order"
+    )]
+    pub choices: BTreeMap<String, Vec<String>>,
     /// The style of the event's QR codes, for the new event's codes to look the same.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub qr: Option<QrEntry>,
@@ -121,8 +134,8 @@ fn default_party_size() -> i32 {
 }
 
 /// Texts in the language menu's order, Bokmål first, rather than alphabetically.
-fn in_language_order<S: serde::Serializer>(
-    texts: &BTreeMap<String, String>,
+fn in_language_order<S: serde::Serializer, T: Serialize>(
+    texts: &BTreeMap<String, T>,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
     let order = |code: &str| Lang::ALL.iter().position(|lang| lang.code() == code);
@@ -183,8 +196,10 @@ const HEADER: &str = "\
 # apiVersion and kind say what this file is; leave them as they are. starts, ends and
 # answer_by are local times in time_zone, as 2026-12-12T19:00. The title and description
 # are by language: nb (which every event needs), nn, en, en-us, zh-hans, zh-hant. A
-# group's max_party_size is how many each sign-up may cover. qr is the style of the QR
-# codes: shape (square, rounded, dots), color, and icon (none, heart, star, emoji).
+# group's max_party_size is how many each sign-up may cover. question is the host's own
+# question to guests, by language, and choices its choices, a list by language. qr is the
+# style of the QR codes: shape (square, rounded, dots), color, and icon (none, heart,
+# star, emoji).
 
 ";
 
@@ -211,6 +226,13 @@ impl EventFile {
             location: details.location.clone(),
             title: texts(&details.title),
             description: texts(&details.description),
+            question: texts(&details.question),
+            choices: texts(&details.choices)
+                .into_iter()
+                .map(|(code, lines): (String, String)| {
+                    (code, lines.lines().map(str::to_owned).collect())
+                })
+                .collect(),
             qr: Some(QrEntry {
                 shape: qr.shape,
                 color: qr.color.clone(),
@@ -260,6 +282,12 @@ impl EventFile {
             }
             Ok(texts)
         };
+        let question = texts("question", self.question)?;
+        let choices = self
+            .choices
+            .into_iter()
+            .map(|(code, lines)| (code, lines.join("\n")))
+            .collect();
         let form = EventForm::from_parts(
             texts("title", self.title)?,
             texts("description", self.description)?,
@@ -268,7 +296,8 @@ impl EventFile {
             self.ends.unwrap_or_default(),
             self.time_zone,
             self.answer_by.unwrap_or_default(),
-        );
+        )
+        .with_question(question, texts("choices", choices)?);
         let groups = self
             .groups
             .iter()
@@ -347,6 +376,10 @@ mod tests {
         details
             .description
             .set(Lang::EnUs, "Come one,\ncome all \"friends\"!");
+        details.question.set(Lang::Nb, "Hva tar du med?");
+        details.question.set(Lang::EnGb, "What will you bring?");
+        details.choices.set(Lang::Nb, "Salat\nDessert");
+        details.choices.set(Lang::EnGb, "Salad\nDessert");
         let groups = [group("Climbing club", 2), group("Naboer", 4)];
         let style = Style {
             shape: Shape::Dots,
@@ -367,6 +400,10 @@ mod tests {
         );
         assert!(
             toml.contains("starts = \"2054-12-12T19:00\"\nends = \"2054-12-13T01:00\"\n"),
+            "{toml}"
+        );
+        assert!(
+            toml.contains("[choices]\nnb = [\n    \"Salat\",\n    \"Dessert\",\n]"),
             "{toml}"
         );
         assert!(

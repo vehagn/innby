@@ -21,7 +21,8 @@ explains why it's built this way, and [development.md](development.md) how to wo
 **A guest** opens their personal link (`/r/{link}`). Nothing else is needed: no account,
 no password, no e-mail address. On that page they:
 
-- answer **Attending** or **Can't come**, with how many are coming;
+- answer **Attending** or **Can't come**, with how many are coming, and the host's own
+  question if the event asks one, by picking one of its choices;
 - choose how their name shows on the guest list: in full, as first name and initial, or
   not at all;
 - see the guest list, on a page of its own (`/r/{link}/guests`);
@@ -36,8 +37,8 @@ no password, no e-mail address. On that page they:
 - change any of it until the event, rename themselves, download everything kept about
   them as JSON, or delete it all.
 
-Someone with a **group link** (`/join/{link}`) types their name and party size, may
-have the device remember them, and is then sent to a personal link of their own, with a
+Someone with a **group link** (`/join/{link}`) types their name and party size, answers
+the host's question if there is one, may have the device remember them, and is then sent to a personal link of their own, with a
 reminder to keep it.
 
 **The host** works in the admin UI (`innby admin`). Its first page lists the **Events**;
@@ -46,7 +47,8 @@ a host whose role allows only one tab gets no tab bar, just the page. An event h
 seven tabs:
 
 - **Guests:** the headcount (coming, no answer, not coming), every guest in a table,
-  a CSV export, and *Send reminders*. A guest's page edits their name and party size,
+  how many of those coming picked each of the host's choices, a CSV export, and *Send
+  reminders*. A guest's page edits their name and party size,
   makes them a new link (if theirs leaked), shows their QR code, or deletes them.
 - **Invitation links:** many invitations at once, one per line (`Kari & Ola, 2`), each
   link in a field with an *Open* link beside it: held or right-clicked, the browser offers
@@ -59,7 +61,9 @@ seven tabs:
   one's high scores. Turning a game off deletes its scores.
 - **Details:** the event's title and description (in Bokmål, and optionally in each other
   language), place, start and end, time zone and answer deadline; the event as a file; or
-  deleting the event. A new start, end or place is mailed to every guest with a confirmed
+  deleting the event. The host may ask guests one question of their own, with two to
+  twenty choices; other guests never see the picks, and changing the Bokmål choices
+  clears them, since a pick is a place in the list. A new start, end or place is mailed to every guest with a confirmed
   address, whatever their answer, and noted on the pages of those who answered before it
   until they answer again.
 - **Access**, for admins: who else may see or run this event alone, by the name they log
@@ -286,8 +290,8 @@ until Innby is live. In short:
 
 | Table | Holds |
 |---|---|
-| `event` | title and description (maps by language code, Bokmål always there), place, start and any end, time zone, answer deadline, the style of its QR codes |
-| `rsvp` | each invitation or sign-up: name, answer, party size and its maximum, link nonce, language, optional e-mail and its status and consent time, privacy notice version, how the name shows, the group it came through |
+| `event` | title and description (maps by language code, Bokmål always there), place, start and any end, time zone, answer deadline, when its time or place last changed, the host's question and its choices, the style of its QR codes |
+| `rsvp` | each invitation or sign-up: name, answer, party size and its maximum, link nonce, language, optional e-mail and its status and consent time, privacy notice version, how the name shows, the group it came through, the pick for the host's question |
 | `invite_group` | group links: name, maximum party size, link nonce |
 | `event_access` | roles for one event: the name a host logs in with, viewer or editor |
 | `event_game`, `game_score` | the minigames an event offers, and each guest's best score in each |
@@ -318,9 +322,9 @@ Innby is built to keep as little as it can. [ropa.md](ropa.md) is the GDPR recor
 processing, with the legal bases; the privacy notice is at `/privacy` in every language
 (`templates/privacy/`).
 
-- **Kept:** a name or label, the answer and party size, the language, and, only if the
-  guest adds one, an e-mail address. No notes, no dietary needs (that would be health
-  data), no IP addresses.
+- **Kept:** a name or label, the answer and party size, the language, the pick for the
+  host's question if there is one, and, only if the guest adds one, an e-mail address.
+  No notes, no dietary needs (that would be health data), no IP addresses.
 - **Shown to others:** the guest list, as each guest chose. Hosts see everything; how much
   of it depends on their role.
 - **No third parties:** no CDNs, fonts, analytics or CAPTCHAs; a honeypot field and rate

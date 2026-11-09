@@ -18,6 +18,10 @@ use crate::{
 const MAX_TITLE: usize = 200;
 const MAX_DESCRIPTION: usize = 5000;
 const MAX_LOCATION: usize = 200;
+/// The longest question, and the most choices it may have, each as long as a name.
+const MAX_QUESTION: usize = 200;
+pub(super) const MAX_CHOICES: usize = 20;
+const MAX_CHOICE: usize = 100;
 
 /// A time as `<input type="datetime-local">` has it, and event files too:
 /// `2026-12-12T19:00`.
@@ -35,6 +39,9 @@ pub(in crate::admin) struct EventForm {
     ends_at: String,
     time_zone: String,
     rsvp_deadline: String,
+    question: Texts,
+    /// A line each.
+    choices: Texts,
 }
 
 /// The title and description in one of the languages besides Bokmål, for the form.
@@ -44,6 +51,10 @@ pub(in crate::admin) struct Translation {
     pub title: String,
     pub description_field: String,
     pub description: String,
+    pub question_field: String,
+    pub question: String,
+    pub choices_field: String,
+    pub choices: String,
 }
 
 /// A form field's name for a text in a language: `title` for Bokmål, `title-nn` for
@@ -65,6 +76,8 @@ impl EventForm {
             ends_at: String::new(),
             time_zone: "Europe/Oslo".into(),
             rsvp_deadline: String::new(),
+            question: Texts::default(),
+            choices: Texts::default(),
         }
     }
 
@@ -86,7 +99,15 @@ impl EventForm {
             ends_at,
             time_zone,
             rsvp_deadline,
+            ..Self::blank()
         }
+    }
+
+    /// The form with the host's question and its choices, a line each.
+    pub(super) fn with_question(mut self, question: Texts, choices: Texts) -> Self {
+        self.question = question;
+        self.choices = choices;
+        self
     }
 
     /// A form filled in from an event, to change it.
@@ -105,6 +126,8 @@ impl EventForm {
                 .rsvp_deadline
                 .map(|at| at.format(LOCAL_TIME).to_string())
                 .unwrap_or_default(),
+            question: details.question.clone(),
+            choices: details.choices.clone(),
         }
     }
 
@@ -122,6 +145,9 @@ impl EventForm {
         for lang in Lang::ALL {
             form.title.set(lang, get(&field("title", lang)));
             form.description.set(lang, get(&field("description", lang)));
+            form.question.set(lang, get(&field("question", lang)));
+            form.choices
+                .set(lang, &choice_lines(get(&field("choices", lang))));
         }
         form
     }
@@ -155,6 +181,15 @@ impl EventForm {
         &self.rsvp_deadline
     }
 
+    /// The Bokmål question and its choices, a line each.
+    pub fn question(&self) -> &str {
+        &self.question.nb
+    }
+
+    pub fn choices(&self) -> &str {
+        &self.choices.nb
+    }
+
     /// The other languages' fields, in the order of the language menu.
     pub fn translations(&self) -> Vec<Translation> {
         Lang::ALL
@@ -166,6 +201,10 @@ impl EventForm {
                 title: self.title.own(lang).to_owned(),
                 description_field: field("description", lang),
                 description: self.description.own(lang).to_owned(),
+                question_field: field("question", lang),
+                question: self.question.own(lang).to_owned(),
+                choices_field: field("choices", lang),
+                choices: self.choices.own(lang).to_owned(),
             })
             .collect()
     }
@@ -203,6 +242,8 @@ impl EventForm {
         if !texts_ok {
             return Err(text.error_event_control.clone());
         }
+        self.check_question(&plain)
+            .map_err(|()| text.error_event_question.clone())?;
         let tz: Tz = self
             .time_zone
             .parse()
@@ -237,8 +278,40 @@ impl EventForm {
             starts_at,
             rsvp_deadline,
             ends_at,
+            question: self.question.clone(),
+            choices: self.choices.clone(),
         })
     }
+
+    /// The host's question: none at all, or a Bokmål question with two choices or more,
+    /// and in each other language either nothing of its own or as many choices. Each is
+    /// one plain line, the question as long as a title and a choice as a name.
+    fn check_question(&self, plain: &dyn Fn(&str) -> bool) -> Result<(), ()> {
+        let count = |lang| self.choices.own(lang).lines().count();
+        let asked = !self.question.nb.is_empty();
+        let all_fit = Lang::ALL.into_iter().all(|lang| {
+            let question = self.question.own(lang);
+            let choices = self.choices.own(lang);
+            question.chars().count() <= MAX_QUESTION
+                && plain(question)
+                && choices
+                    .lines()
+                    .all(|line| line.chars().count() <= MAX_CHOICE && plain(line))
+                && [0, count(Lang::Nb)].contains(&count(lang))
+                && (asked || (question.is_empty() && choices.is_empty()))
+        });
+        let enough = !asked || (2..=MAX_CHOICES).contains(&count(Lang::Nb));
+        if all_fit && enough { Ok(()) } else { Err(()) }
+    }
+}
+
+/// Choices as typed, a line each, trimmed, without the empty lines.
+fn choice_lines(text: &str) -> String {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// A time in `LOCAL_TIME`, in the event's time zone. A time that the clocks skip, or
@@ -333,6 +406,56 @@ mod tests {
             EventForm::from_details(&details).ends_at(),
             "2054-12-13T01:00"
         );
+    }
+
+    #[test]
+    fn checks_the_hosts_question() {
+        let form = |extra: &[(&str, &str)]| {
+            let mut all = fields(&[
+                ("title", "Sommerfest"),
+                ("starts_at", "2054-06-20T15:00"),
+                ("time_zone", "Europe/Oslo"),
+            ]);
+            all.extend(fields(extra));
+            EventForm::from_fields(&all).details(Utc::now())
+        };
+        // None at all is fine, and so is a question with choices, trimmed a line each.
+        assert!(form(&[]).unwrap().question(Lang::Nb).is_none());
+        let asked = form(&[
+            ("question", "Hva tar du med?"),
+            ("choices", " Salat \r\n\nDessert\n"),
+            ("question-en", "What will you bring?"),
+            ("choices-en", "Salad\nDessert"),
+        ])
+        .unwrap();
+        assert_eq!(asked.choices.nb, "Salat\nDessert");
+        assert_eq!(
+            asked.question(Lang::EnGb),
+            Some(("What will you bring?", vec!["Salad", "Dessert"]))
+        );
+        // Nynorsk has none of its own, so it falls back to Bokmål.
+        assert_eq!(asked.question(Lang::Nn).unwrap().1, ["Salat", "Dessert"]);
+
+        let many = (0..=MAX_CHOICES)
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
+        let long = "x".repeat(MAX_CHOICE + 1);
+        for bad in [
+            vec![("question", "Hva tar du med?")],
+            vec![("question", "Hva tar du med?"), ("choices", "Salat")],
+            vec![("choices", "Salat\nDessert")],
+            vec![("question", "Hva?"), ("choices", many.as_str())],
+            vec![("question", "Hva?"), ("choices", &format!("Salat\n{long}"))],
+            vec![("question", "Hva?\u{1}"), ("choices", "Salat\nDessert")],
+            vec![
+                ("question", "Hva tar du med?"),
+                ("choices", "Salat\nDessert"),
+                ("choices-en", "Salad\nDessert\nDrinks"),
+            ],
+        ] {
+            assert!(form(&bad).is_err(), "{bad:?}");
+        }
     }
 
     #[test]

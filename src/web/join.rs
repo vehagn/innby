@@ -16,7 +16,7 @@ use super::{
     AppState, PRIVACY_VERSION,
     pages::gone,
     remember,
-    views::{DisplayChoice, EventView, GuestList, GuestsPage, PartySize},
+    views::{DisplayChoice, EventView, GuestList, GuestsPage, PartySize, Question},
 };
 use crate::{
     db::{
@@ -41,6 +41,8 @@ struct JoinPage<'a> {
     name: &'a str,
     party_sizes: Vec<PartySize>,
     display_choices: Vec<DisplayChoice>,
+    /// The host's question, if the event asks one.
+    question: Option<Question>,
     guests_link: String,
     accepts_answers: bool,
     /// Whether "remember me on this device" is ticked, as it was sent.
@@ -62,6 +64,7 @@ impl<'a> JoinPage<'a> {
             party_sizes: PartySize::choices(t, group.max_party_size, 1),
             // Signing up means coming, and coming shows the full name unless chosen otherwise.
             display_choices: DisplayChoice::choices(t, None, NameDisplay::Full),
+            question: Question::new(&joining.event.details, lang, None),
             guests_link: paths::localized(&paths::path(paths::JOIN_GUESTS, link), lang),
             accepts_answers: joining.event.details.accepts_answers(Utc::now()),
             remember: false,
@@ -146,6 +149,8 @@ pub struct JoinForm {
     name_display: Option<NameDisplay>,
     /// Ticked to have this device remember the new guest's link; see `remember`.
     remember: Option<String>,
+    /// Their pick for the host's question: empty for none.
+    choice: Option<String>,
     /// Hidden from people; bots fill it in.
     #[serde(default)]
     website: String,
@@ -173,6 +178,8 @@ pub async fn join(
     page.name = &form.name;
     page.display_choices = DisplayChoice::choices(page.t, None, name_display);
     page.remember = form.remember.is_some();
+    let picked = Question::parse(&joining.event.details, form.choice.as_deref());
+    page.question = Question::new(&joining.event.details, lang, picked.unwrap_or(None));
     if !page.accepts_answers {
         return render_with(StatusCode::FORBIDDEN, page);
     }
@@ -182,6 +189,9 @@ pub async fn join(
     if !(1..=group.max_party_size).contains(&form.party_size) {
         return page.render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size);
     }
+    let Ok(choice) = picked else {
+        return page.render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_choice);
+    };
     // Only valid submissions count, so a typo doesn't use up a household's allowance.
     if !state.join_limiter.check(client) {
         tracing::warn!("group sign-up rate limit hit");
@@ -195,7 +205,14 @@ pub async fn join(
         name_display,
         lang,
     };
-    match rsvp::create_open(&state.db, &sign_up, PRIVACY_VERSION).await {
+    let created = async {
+        let mut tx = state.db.begin().await?;
+        let rsvp = rsvp::create_open(&mut *tx, &sign_up, PRIVACY_VERSION).await?;
+        rsvp::set_choice(&mut *tx, rsvp.id, choice).await?;
+        tx.commit().await?;
+        Ok::<_, sqlx::Error>(rsvp)
+    };
+    match created.await {
         Ok(rsvp) => {
             tracing::info!(rsvp = %rsvp.id, group = %group.id, "signed up through a group");
             let link = state

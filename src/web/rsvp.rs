@@ -15,7 +15,7 @@ use super::{
     games::{self, GameView},
     pages::{MessagePage, gone},
     remember,
-    views::{DisplayChoice, EventView, GuestList, GuestsPage, PartySize, YourListing},
+    views::{DisplayChoice, EventView, GuestList, GuestsPage, PartySize, Question, YourListing},
 };
 use crate::{
     db::{
@@ -100,6 +100,8 @@ pub(super) struct RsvpPage<'a> {
     /// Whether they're coming, and so are offered the event for their calendar.
     attending: bool,
     party_sizes: Vec<PartySize>,
+    /// The host's question, with the guest's pick, if the event asks one.
+    question: Option<Question>,
     /// For the answer form: the guest's choice, or their full name if they haven't made
     /// one, since that's the default once they're coming.
     display_choices: Vec<DisplayChoice>,
@@ -135,6 +137,7 @@ impl<'a> RsvpPage<'a> {
             status: t.answer(rsvp.response, rsvp.party_size),
             attending: rsvp.response == rsvp::Response::Attending,
             party_sizes: PartySize::choices(t, rsvp.max_party_size, rsvp.party_size),
+            question: Question::new(&guest.event.details, lang, rsvp.choice),
             display_choices: DisplayChoice::choices(t, Some(&rsvp.name), chosen),
             first_visit: rsvp.privacy_version.is_none(),
             changed: matches!(
@@ -299,6 +302,8 @@ pub struct AnswerForm {
     name_display: Option<NameDisplay>,
     /// Ticked to have this device remember the guest; see `remember`.
     remember: Option<String>,
+    /// Their pick for the host's question: empty for none.
+    choice: Option<String>,
 }
 
 pub async fn answer(
@@ -321,23 +326,32 @@ pub async fn answer(
     if !(1..=guest.rsvp.max_party_size).contains(&form.party_size) {
         return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size);
     }
+    let Ok(choice) = Question::parse(&guest.event.details, form.choice.as_deref()) else {
+        return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_choice);
+    };
 
     let response = match form.response {
         Answer::Attending => rsvp::Response::Attending,
         Answer::Declined => rsvp::Response::Declined,
     };
     let id = guest.rsvp.id;
-    match rsvp::respond(
-        &state.db,
-        id,
-        response,
-        form.party_size,
-        form.name_display,
-        lang,
-        PRIVACY_VERSION,
-    )
-    .await
-    {
+    let answered = async {
+        let mut tx = state.db.begin().await?;
+        let answered = rsvp::respond(
+            &mut *tx,
+            id,
+            response,
+            form.party_size,
+            form.name_display,
+            lang,
+            PRIVACY_VERSION,
+        )
+        .await?;
+        rsvp::set_choice(&mut *tx, id, choice).await?;
+        tx.commit().await?;
+        Ok::<_, sqlx::Error>(answered)
+    };
+    match answered.await {
         Ok(Some(_)) => {
             tracing::info!(rsvp = %id, ?response, "rsvp answered");
             let saved = redirect(&guest.link, lang, Notice::Saved);
@@ -403,6 +417,11 @@ pub async fn listing(
 struct Export<'a> {
     #[serde(flatten)]
     rsvp: &'a Rsvp,
+    /// The host's question and the guest's pick, in their words rather than its place.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    question: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    picked: Option<&'a str>,
     scores: Vec<crate::db::games::Best>,
 }
 
@@ -411,8 +430,15 @@ pub async fn export(State(state): State<AppState>, guest: Guest) -> Response {
         Ok(scores) => scores,
         Err(err) => return server_error(err),
     };
+    let question = guest.event.details.question(guest.rsvp.lang);
+    let picked = guest.rsvp.choice.and_then(|pick| {
+        let choices = &question.as_ref()?.1;
+        choices.get(usize::try_from(pick).ok()?).copied()
+    });
     let export = Export {
         rsvp: &guest.rsvp,
+        question: question.as_ref().map(|(question, _)| *question),
+        picked,
         scores,
     };
     (

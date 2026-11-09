@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update rsvp set choice = null where event_id = $1 and choice is not null",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4b0586578854bafeec4baca3a1a412d30d4505f1de0fba90a0958a63b6f9a46f"
+}

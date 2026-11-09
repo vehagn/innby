@@ -25,6 +25,9 @@
 
 <section class="card" id="guests">
   <h2>{{ a.guests }}</h2>
+  {% if let Some(tally) = tally %}
+  <p>{{ tally.question }}{% for (choice, n) in tally.counts %}{% if loop.first %}: {% else %} · {% endif %}{{ choice }} <strong>{{ n }}</strong>{% endfor %} <span class="hint">{{ a.tally_hint }}</span></p>
+  {% endif %}
   {% if show.is_some() %}<p class="small"><a href="{{ links.guests }}">{{ a.show_all }}</a></p>{% endif %}
   {% if rows.is_empty() %}
   <p class="muted">{% if show.is_some() %}{{ a.no_guests_shown }}{% else %}{{ a.no_guests }}{% endif %}</p>
@@ -32,7 +35,7 @@
   <div class="table-wrap">
   <table>
     <thead>
-      <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th><th>{{ a.col_source }}</th><th>{{ a.col_guest_list }}</th>{% if edit %}<th>{{ a.col_email }}</th>{% endif %}<th>{{ a.col_answered }}</th></tr>
+      <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th>{% if let Some(tally) = tally %}<th>{{ tally.question }}</th>{% endif %}<th>{{ a.col_source }}</th><th>{{ a.col_guest_list }}</th>{% if edit %}<th>{{ a.col_email }}</th>{% endif %}<th>{{ a.col_answered }}</th></tr>
     </thead>
     <tbody>
       {% for row in rows %}
@@ -40,6 +43,7 @@
         <td>{% if edit %}<a href="{{ row.path }}">{{ row.name }}</a>{% else %}{{ row.name }}{% endif %}</td>
         <td><span class="status {{ row.status }}">{{ row.answer }}</span></td>
         <td>{{ row.party }}</td>
+        {% if tally.is_some() %}<td>{{ row.choice }}</td>{% endif %}
         <td>{{ row.source }}</td>
         <td>{{ row.listed }}</td>
         {% if edit %}<td>{{ row.email }}</td>{% endif %}

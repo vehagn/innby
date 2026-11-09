@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select r.id, r.event_id, r.name, r.response as \"response: Response\", r.party_size,\n            r.max_party_size, r.link_nonce, r.lang as \"lang: Lang\", r.email,\n            r.email_status as \"email_status: EmailStatus\", r.email_consent_at,\n            r.privacy_version, r.responded_at, r.created_at, r.group_id,\n            r.name_display as \"name_display: NameDisplay\",\n            e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at\n        from rsvp r join event e on e.id = r.event_id\n        where r.id = any($1)\n        ",
+  "query": "\n        select r.id, r.event_id, r.name, r.response as \"response: Response\", r.party_size,\n            r.max_party_size, r.link_nonce, r.lang as \"lang: Lang\", r.email,\n            r.email_status as \"email_status: EmailStatus\", r.email_consent_at,\n            r.privacy_version, r.responded_at, r.created_at, r.group_id,\n            r.name_display as \"name_display: NameDisplay\",\n            e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,\n            e.question as \"question: Json<Texts>\", e.choices as \"choices: Json<Texts>\",\n            r.choice\n        from rsvp r join event e on e.id = r.event_id\n        where r.id = any($1)\n        ",
   "describe": {
     "columns": [
       {
@@ -313,6 +313,39 @@
             "name": "changed_at"
           }
         }
+      },
+      {
+        "ordinal": 24,
+        "name": "question: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "question"
+          }
+        }
+      },
+      {
+        "ordinal": 25,
+        "name": "choices: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "choices"
+          }
+        }
+      },
+      {
+        "ordinal": 26,
+        "name": "choice",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "choice"
+          }
+        }
       }
     ],
     "parameters": {
@@ -344,8 +377,11 @@
       false,
       true,
       true,
+      true,
+      false,
+      false,
       true
     ]
   },
-  "hash": "bae629222c0162673f684a9e5418eb3135ff5c1fd4b8f6500cf535f3a61fe8a5"
+  "hash": "ca4e1276850ef07de2357db0917c653ab579031827f39896bc91bd510ab81408"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\" from rsvp where event_id = $1 order by id",
+  "query": "select id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice from rsvp where event_id = $1 order by id",
   "describe": {
     "columns": [
       {
@@ -225,6 +225,17 @@
             "name": "name_display"
           }
         }
+      },
+      {
+        "ordinal": 16,
+        "name": "choice",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "choice"
+          }
+        }
       }
     ],
     "parameters": {
@@ -248,8 +259,9 @@
       true,
       false,
       true,
+      true,
       true
     ]
   },
-  "hash": "7694d7d49d2de0dc07b0433eb3040eb22bd8c3027b4b040f0300856b1818c92a"
+  "hash": "066b930a3c33712c178354bcbca811530606a84f506b02b08d818ac38f5265b5"
 }

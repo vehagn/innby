@@ -1,0 +1,8 @@
+{% if let Some(question) = question %}
+<label for="choice">{{ question.text }}</label>
+<select id="choice" name="choice">
+  {% for choice in question.choices %}
+  <option value="{{ choice.value }}"{% if choice.selected %} selected{% endif %}>{{ choice.label }}</option>
+  {% endfor %}
+</select>
+{% endif %}

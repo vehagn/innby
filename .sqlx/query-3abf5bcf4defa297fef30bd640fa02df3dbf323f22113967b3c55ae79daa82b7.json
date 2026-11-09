@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at from event where id = $1",
+  "query": "insert into event (title, description, location, starts_at, time_zone, rsvp_deadline,\n            ends_at, question, choices)\n         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n         returning id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,\n            question as \"question: Json<Texts>\", choices as \"choices: Json<Texts>\"",
   "describe": {
     "columns": [
       {
@@ -101,11 +101,41 @@
             "name": "changed_at"
           }
         }
+      },
+      {
+        "ordinal": 9,
+        "name": "question: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "question"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "choices: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "choices"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Jsonb",
+        "Jsonb",
+        "Text",
+        "Timestamptz",
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Jsonb",
+        "Jsonb"
       ]
     },
     "nullable": [
@@ -117,8 +147,10 @@
       false,
       true,
       true,
-      true
+      true,
+      false,
+      false
     ]
   },
-  "hash": "419f6b902bdca64753ffa7bab9b12ca4b90934c58593192cfe02289cdfac38ef"
+  "hash": "3abf5bcf4defa297fef30bd640fa02df3dbf323f22113967b3c55ae79daa82b7"
 }

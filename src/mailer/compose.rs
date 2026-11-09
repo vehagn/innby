@@ -139,6 +139,7 @@ mod tests {
             created_at: Utc::now(),
             group_id: None,
             name_display: None,
+            choice: None,
         }
     }
 

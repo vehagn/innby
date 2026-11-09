@@ -46,6 +46,10 @@ create table event (
     -- When its start, end or place last changed, once it was made. Guests who answered
     -- before are told, on their page and by mail.
     changed_at          timestamptz,
+    -- The host's own question to guests, by language like the title, and its choices,
+    -- a line each; none when the Bokmål question is empty.
+    question            jsonb not null default '{}' check (texts_ok(question, 200, false)),
+    choices             jsonb not null default '{}' check (texts_ok(choices, 2000, true)),
     -- Dates show in the event's time zone, wherever the guest is.
     time_zone           text not null default 'Europe/Oslo',
     -- Guests can answer until then; null means until the event starts.
@@ -110,6 +114,9 @@ create table rsvp (
     privacy_version  text,
     responded_at     timestamptz,
     created_at       timestamptz not null default now(),
+    -- Their pick among the event's choices, by its place in the list; cleared when the
+    -- host changes the list.
+    choice           smallint check (choice between 0 and 19),
     foreign key (group_id, event_id) references invite_group (id, event_id),
     check (party_size between 1 and max_party_size),
     check ((email is null) = (email_status = 'none')),

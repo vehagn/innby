@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into event (title, description, location, starts_at, time_zone, rsvp_deadline,\n            ends_at)\n         values ($1, $2, $3, $4, $5, $6, $7)\n         returning id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at",
+  "query": "update event set title = $2, description = $3, location = $4, starts_at = $5,\n            time_zone = $6, rsvp_deadline = $7, ends_at = $8, question = $9, choices = $10,\n            -- The old values, on the right of each =.\n            changed_at = case\n                when (starts_at, ends_at, location) is distinct from ($5, $8, $4) then now()\n                else changed_at\n            end\n         where id = $1\n         returning id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,\n            question as \"question: Json<Texts>\", choices as \"choices: Json<Texts>\"",
   "describe": {
     "columns": [
       {
@@ -101,17 +101,42 @@
             "name": "changed_at"
           }
         }
+      },
+      {
+        "ordinal": 9,
+        "name": "question: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "question"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "choices: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "choices"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Jsonb",
         "Jsonb",
         "Text",
         "Timestamptz",
         "Text",
         "Timestamptz",
-        "Timestamptz"
+        "Timestamptz",
+        "Jsonb",
+        "Jsonb"
       ]
     },
     "nullable": [
@@ -123,8 +148,10 @@
       false,
       true,
       true,
-      true
+      true,
+      false,
+      false
     ]
   },
-  "hash": "f01d10129b350852023c7052238c489d61600f99446b5cfa26d1764a0caa71b0"
+  "hash": "8fc1b0245a45faee12fd6ff7cec694b7d80e46fbab84c58379ccd529ec26b134"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at from event order by starts_at, id",
+  "query": "select e.id, e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,\n            e.question as \"question: Json<Texts>\", e.choices as \"choices: Json<Texts>\"\n         from event e join event_access a on a.event_id = e.id\n         where a.user_name = $1 order by e.starts_at, e.id",
   "describe": {
     "columns": [
       {
@@ -101,10 +101,34 @@
             "name": "changed_at"
           }
         }
+      },
+      {
+        "ordinal": 9,
+        "name": "question: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "question"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "choices: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "choices"
+          }
+        }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Text"
+      ]
     },
     "nullable": [
       false,
@@ -115,8 +139,10 @@
       false,
       true,
       true,
-      true
+      true,
+      false,
+      false
     ]
   },
-  "hash": "551d50f3017e5ad79b8ce57398fd8b50b0f777f2d11f37f50ce4e4ab6ea4e988"
+  "hash": "f74ee171fa98644e40ad565f53cd28aff5ade4708143a27410d8c4fc0d765a70"
 }

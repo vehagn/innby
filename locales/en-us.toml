@@ -45,6 +45,8 @@ all deleted 30 days after the party. Other guests see your first name and initia
 guest list. You can change that."""
 keep_link = "This is your page. Keep the link to change your answer. Don't share it."
 changed_notice = "The time or place changed after you RSVPed. Check it above, and change your answer if you need to."
+# The empty pick for the host's question.
+choice_none = "No answer"
 # The event for the guest's own calendar, once they're coming.
 calendar_heading = "In your calendar"
 calendar_hint = "A file with the time and place for your phone or computer calendar. If plans change, add it again."
@@ -156,6 +158,7 @@ join_button = "I'm going!"
 
 # Errors and outcomes
 invalid_party_size = "Pick a number."
+invalid_choice = "Pick one of the choices."
 invalid_name = "Use letters and spaces for the name, plus - ' . , & if you need them, up to 100 characters."
 confirm_delete = "Check the box to delete."
 gone_title = "This link doesn't work"
@@ -210,6 +213,9 @@ event_starts = "Starts"
 event_ends = "Ends"
 event_ends_hint = "Leave it empty if there's no set end time. Guests' calendars then show it as three hours long."
 event_change_hint = "A new start, end or place gets emailed to every guest with a confirmed address, and shows on the pages of anyone who RSVPed before it."
+event_question = "Your question"
+event_choices = "Choices, one per line"
+event_question_hint = "Optional: a question guests answer by picking a choice. Other guests don't see the answers. Don't ask about health, diet, religion, or anything like that. Changing the Bokmål choices clears the answers."
 event_time_zone = "Time zone"
 event_deadline = "RSVP by"
 event_deadline_hint = "Leave it empty to take RSVPs until the event starts."
@@ -222,6 +228,7 @@ error_event_text = "The description can be up to 5,000 characters, and the place
 error_event_time = "Enter when the event starts, as a date and time."
 error_event_deadline = "Enter the RSVP deadline as a date and time, or leave it empty."
 error_event_ends = "Enter when the event ends, as a date and time after it starts, or leave it empty."
+error_event_question = "Give the question 2 to 20 choices, one per line of up to 100 characters, and the same number in every language that has its own."
 error_event_past = "Events are deleted {days} days after they start, so this one would be deleted right away. Check the date."
 error_time_zone = "Enter a time zone like Europe/Oslo."
 col_event = "Event"
@@ -374,6 +381,8 @@ reminders_queued_one = "{n} reminder queued."
 reminders_queued_other = "{n} reminders queued."
 change_notices_one = "Saved. {n} guest with a confirmed address will be told about the change."
 change_notices_other = "Saved. {n} guests with a confirmed address will be told about the change."
+# After the tally of picks for the host's question, on the Guests tab.
+tally_hint = "among those coming"
 
 # Table columns and facts, also the CSV's header
 col_name = "Name"

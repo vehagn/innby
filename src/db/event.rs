@@ -31,6 +31,10 @@ pub struct Details {
     pub rsvp_deadline: Option<DateTime<Tz>>,
     /// After `starts_at`; `None` for an event with no set end.
     pub ends_at: Option<DateTime<Tz>>,
+    /// The host's own question to guests; none when the Bokmål one is empty.
+    pub question: Texts,
+    /// Its choices, a line each, as many in each language that has its own.
+    pub choices: Texts,
 }
 
 impl Details {
@@ -41,6 +45,18 @@ impl Details {
 
     pub fn title(&self, lang: Lang) -> &str {
         self.title.get(lang)
+    }
+
+    /// The host's question and its choices in `lang`, if the event asks one.
+    pub fn question(&self, lang: Lang) -> Option<(&str, Vec<&str>)> {
+        if self.question.nb.is_empty() {
+            return None;
+        }
+        let choices = self.choices.get(lang).lines().map(str::trim);
+        Some((
+            self.question.get(lang),
+            choices.filter(|line| !line.is_empty()).collect(),
+        ))
     }
 }
 
@@ -63,6 +79,8 @@ pub(super) struct Row {
     pub(super) rsvp_deadline: Option<DateTime<Utc>>,
     pub(super) ends_at: Option<DateTime<Utc>>,
     pub(super) changed_at: Option<DateTime<Utc>>,
+    pub(super) question: Json<Texts>,
+    pub(super) choices: Json<Texts>,
 }
 
 impl From<Row> for Event {
@@ -78,6 +96,8 @@ impl From<Row> for Event {
                 starts_at: row.starts_at.with_timezone(&tz),
                 rsvp_deadline: row.rsvp_deadline.map(|at| at.with_timezone(&tz)),
                 ends_at: row.ends_at.map(|at| at.with_timezone(&tz)),
+                question: row.question.0,
+                choices: row.choices.0,
             },
             changed_at: row.changed_at,
         }
@@ -88,10 +108,11 @@ pub async fn create(db: impl PgExecutor<'_>, details: &Details) -> sqlx::Result<
     sqlx::query_as!(
         Row,
         r#"insert into event (title, description, location, starts_at, time_zone, rsvp_deadline,
-            ends_at)
-         values ($1, $2, $3, $4, $5, $6, $7)
+            ends_at, question, choices)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          returning id, title as "title: Json<Texts>", description as "description: Json<Texts>",
-            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at"#,
+            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,
+            question as "question: Json<Texts>", choices as "choices: Json<Texts>""#,
         Json(&details.title) as _,
         Json(&details.description) as _,
         details.location,
@@ -99,6 +120,8 @@ pub async fn create(db: impl PgExecutor<'_>, details: &Details) -> sqlx::Result<
         details.starts_at.timezone().name(),
         details.rsvp_deadline.map(|at| at.to_utc()),
         details.ends_at.map(|at| at.to_utc()),
+        Json(&details.question) as _,
+        Json(&details.choices) as _,
     )
     .fetch_one(db)
     .await
@@ -114,7 +137,7 @@ pub async fn update(
     sqlx::query_as!(
         Row,
         r#"update event set title = $2, description = $3, location = $4, starts_at = $5,
-            time_zone = $6, rsvp_deadline = $7, ends_at = $8,
+            time_zone = $6, rsvp_deadline = $7, ends_at = $8, question = $9, choices = $10,
             -- The old values, on the right of each =.
             changed_at = case
                 when (starts_at, ends_at, location) is distinct from ($5, $8, $4) then now()
@@ -122,7 +145,8 @@ pub async fn update(
             end
          where id = $1
          returning id, title as "title: Json<Texts>", description as "description: Json<Texts>",
-            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at"#,
+            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,
+            question as "question: Json<Texts>", choices as "choices: Json<Texts>""#,
         id,
         Json(&details.title) as _,
         Json(&details.description) as _,
@@ -131,6 +155,8 @@ pub async fn update(
         details.starts_at.timezone().name(),
         details.rsvp_deadline.map(|at| at.to_utc()),
         details.ends_at.map(|at| at.to_utc()),
+        Json(&details.question) as _,
+        Json(&details.choices) as _,
     )
     .fetch_optional(db)
     .await
@@ -141,7 +167,8 @@ pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Even
     sqlx::query_as!(
         Row,
         r#"select id, title as "title: Json<Texts>", description as "description: Json<Texts>",
-            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at from event where id = $1"#,
+            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,
+            question as "question: Json<Texts>", choices as "choices: Json<Texts>" from event where id = $1"#,
         id
     )
     .fetch_optional(db)
@@ -154,7 +181,8 @@ pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Event>> {
     sqlx::query_as!(
         Row,
         r#"select id, title as "title: Json<Texts>", description as "description: Json<Texts>",
-            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at from event order by starts_at, id"#
+            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,
+            question as "question: Json<Texts>", choices as "choices: Json<Texts>" from event order by starts_at, id"#
     )
     .fetch_all(db)
     .await
@@ -167,7 +195,8 @@ pub async fn list_given(db: impl PgExecutor<'_>, user: &str) -> sqlx::Result<Vec
     sqlx::query_as!(
         Row,
         r#"select e.id, e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
-            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at
+            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,
+            e.question as "question: Json<Texts>", e.choices as "choices: Json<Texts>"
          from event e join event_access a on a.event_id = e.id
          where a.user_name = $1 order by e.starts_at, e.id"#,
         user
@@ -230,6 +259,8 @@ pub(crate) mod tests {
                 .unwrap(),
             rsvp_deadline: None,
             ends_at: None,
+            question: Texts::default(),
+            choices: Texts::default(),
         }
     }
 

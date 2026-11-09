@@ -27,7 +27,7 @@ use crate::{
     },
     db::{
         event::{self, Event},
-        group, outbox, qr,
+        group, outbox, qr, rsvp,
     },
     http::{render, render_with},
     i18n::count,
@@ -113,6 +113,12 @@ pub(in crate::admin) async fn edit(
         .ok_or(PageError::Missing)?;
     // A new start, end or place goes to everyone with an address, in the same
     // transaction, so a change is never saved without its mails.
+    // A pick is a place in the list, so a changed list would give it another meaning.
+    if updated.details.choices.nb != event.details.choices.nb
+        || updated.details.question.nb.is_empty()
+    {
+        rsvp::clear_choices(&mut *tx, id).await?;
+    }
     let told = if updated.changed_at != event.changed_at {
         Some(outbox::queue_change_notices(&mut *tx, id).await?)
     } else {

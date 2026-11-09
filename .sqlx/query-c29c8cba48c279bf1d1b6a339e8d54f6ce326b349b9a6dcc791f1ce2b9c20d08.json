@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\" from rsvp where id = $1",
+  "query": "update rsvp set response = $2, party_size = $3, name_display = coalesce($4, name_display), lang = $5, privacy_version = $6, responded_at = now() where id = $1 returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice ",
   "describe": {
     "columns": [
       {
@@ -225,11 +225,63 @@
             "name": "name_display"
           }
         }
+      },
+      {
+        "ordinal": 16,
+        "name": "choice",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "choice"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        {
+          "Custom": {
+            "name": "rsvp_response",
+            "kind": {
+              "Enum": [
+                "pending",
+                "attending",
+                "declined"
+              ]
+            }
+          }
+        },
+        "Int4",
+        {
+          "Custom": {
+            "name": "name_display",
+            "kind": {
+              "Enum": [
+                "full",
+                "partial",
+                "hidden"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "lang",
+            "kind": {
+              "Enum": [
+                "nb",
+                "nn",
+                "en",
+                "en-us",
+                "zh-hans",
+                "zh-hant"
+              ]
+            }
+          }
+        },
+        "Text"
       ]
     },
     "nullable": [
@@ -248,8 +300,9 @@
       true,
       false,
       true,
+      true,
       true
     ]
   },
-  "hash": "0b30c2d277fea3856ad5c73c805ce17a84e2629c9bd8a3d286b39873e887f48c"
+  "hash": "c29c8cba48c279bf1d1b6a339e8d54f6ce326b349b9a6dcc791f1ce2b9c20d08"
 }

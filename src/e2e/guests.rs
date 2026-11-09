@@ -165,3 +165,73 @@ async fn a_remembered_device_finds_the_way_back(db: PgPool) {
         phone.cookie_names()
     );
 }
+
+#[sqlx::test]
+async fn the_host_asks_a_question_and_sees_what_guests_pick(db: PgPool) {
+    let world = World::new(db);
+    let (t, a) = (en(), admin());
+    let english = "English (Traditional)";
+
+    // The host asks what each guest brings, in Bokmål and English.
+    let mut host = world.host().await;
+    host.click(&a.details).await.expect(&a.event_question_hint);
+    host.fill(&format!("{} · Bokmål", a.event_question), "Hva tar du med?")
+        .fill(&format!("{} · Bokmål", a.event_choices), "Salat\nDessert")
+        .fill(
+            &format!("{} · {english}", a.event_question),
+            "What will you bring?",
+        )
+        .fill(
+            &format!("{} · {english}", a.event_choices),
+            "Salad\nDessert",
+        );
+    host.press(&a.save).await.expect(&a.saved);
+
+    // Kari brings dessert.
+    let link = world.invite("Kari", 1).await;
+    let mut kari = world.browser();
+    kari.open(&link).await.expect("What will you bring?");
+    kari.select("What will you bring?", "Dessert");
+    kari.press(&t.attend).await.expect(&t.saved);
+
+    // Per signs up through a group link, with a salad.
+    host.click(&a.group_links).await;
+    host.fill(&a.names, "Climbing club, 2");
+    host.press(&a.create_groups).await;
+    let group_link = host.value(&filled(&a.link_for, "name", "Climbing club"));
+    let mut per = world.browser();
+    per.open(&group_link).await;
+    per.fill(&t.your_name, "Per Hansen")
+        .select("What will you bring?", "Salad");
+    per.press(&t.join_button).await.expect(&t.save_link_title);
+
+    // The host sees who brings what, and gets it in the CSV.
+    host.click(&a.guests)
+        .await
+        .expect("What will you bring?: Salad 1 · Dessert 1");
+    let csv = host.download(&a.download_csv).await;
+    assert!(
+        csv.body.contains(r#","What will you bring?""#),
+        "{}",
+        csv.body
+    );
+    assert!(csv.body.contains(r#","Dessert""#), "{}", csv.body);
+
+    // New choices mean the old picks may mean something else, so they're cleared.
+    host.click(&a.details).await;
+    host.fill(
+        &format!("{} · Bokmål", a.event_choices),
+        "Salat\nDessert\nDrikke",
+    )
+    .fill(
+        &format!("{} · {english}", a.event_choices),
+        "Salad\nDessert\nDrinks",
+    );
+    host.press(&a.save).await.expect(&a.saved);
+    host.click(&a.guests)
+        .await
+        .expect("What will you bring?: Salad 0 · Dessert 0 · Drinks 0");
+    let page = kari.open(&link).await;
+    let none = format!(r#"<option value="" selected>{}</option>"#, t.choice_none);
+    assert!(page.body.contains(&none), "{}", page.body);
+}

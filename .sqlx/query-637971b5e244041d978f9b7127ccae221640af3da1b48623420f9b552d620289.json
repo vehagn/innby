@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "update event set title = $2, description = $3, location = $4, starts_at = $5,\n            time_zone = $6, rsvp_deadline = $7, ends_at = $8,\n            -- The old values, on the right of each =.\n            changed_at = case\n                when (starts_at, ends_at, location) is distinct from ($5, $8, $4) then now()\n                else changed_at\n            end\n         where id = $1\n         returning id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at",
+  "query": "select id, title as \"title: Json<Texts>\", description as \"description: Json<Texts>\",\n            location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,\n            question as \"question: Json<Texts>\", choices as \"choices: Json<Texts>\" from event order by starts_at, id",
   "describe": {
     "columns": [
       {
@@ -101,19 +101,32 @@
             "name": "changed_at"
           }
         }
+      },
+      {
+        "ordinal": 9,
+        "name": "question: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "question"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "choices: Json<Texts>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "choices"
+          }
+        }
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid",
-        "Jsonb",
-        "Jsonb",
-        "Text",
-        "Timestamptz",
-        "Text",
-        "Timestamptz",
-        "Timestamptz"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -124,8 +137,10 @@
       false,
       true,
       true,
-      true
+      true,
+      false,
+      false
     ]
   },
-  "hash": "26556729adf71442ef63c32a20b1867d4697c3ce8fbe37deabf53eb9b0fb854e"
+  "hash": "637971b5e244041d978f9b7127ccae221640af3da1b48623420f9b552d620289"
 }

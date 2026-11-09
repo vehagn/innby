@@ -36,6 +36,7 @@
     <input type="hidden" name="party_size" value="1">
     {% endif %}
     {% include "_name_display.html" %}
+    {% include "_question.html" %}
     <label class="checkbox"><input type="checkbox" name="remember" value="yes"{% if remembered %} checked{% endif %}> {{ t.remember_device }}</label>
     <p class="hint">{{ t.remember_hint }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
     <div class="buttons">

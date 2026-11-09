@@ -62,6 +62,12 @@ where id = '00000000-5eed-7000-8000-000000000001';
 update event set qr_shape = 'rounded', qr_color = '#1565c0', qr_icon = 'emoji', qr_emoji = '☀️'
 where id = '00000000-5eed-7000-8000-000000000002';
 
+-- The summer party asks what each guest brings.
+update event set
+    question = '{"nb": "Hva tar du med?", "en": "What will you bring?"}',
+    choices = '{"nb": "Salat\nDessert\nDrikke", "en": "Salad\nDessert\nDrinks"}'
+where id = '00000000-5eed-7000-8000-000000000002';
+
 insert into invite_group (id, event_id, name, max_party_size, created_at) values
     ('00000000-5eed-7000-8000-000000000101', '00000000-5eed-7000-8000-000000000001', 'Klatreklubben', 2, now() - interval '20 days'),
     ('00000000-5eed-7000-8000-000000000102', '00000000-5eed-7000-8000-000000000001', 'Naboer i Storgata', 3, now() - interval '20 days'),
@@ -140,6 +146,9 @@ insert into rsvp (
     ('00000000-5eed-7000-8000-000000003101', '00000000-5eed-7000-8000-000000000003', '00000000-5eed-7000-8000-000000000301',
      'Tante Randi', 'attending', 3, 4, 'nb', null, 'none', null,
      '2026-11-04', now() - interval '20 days', 'partial', now() - interval '20 days');
+
+-- Per brings dessert to the summer party.
+update rsvp set choice = 1 where id = '00000000-5eed-7000-8000-000000002002';
 
 -- Roles for one event, by the name the host logs in with.
 insert into event_access (event_id, user_name, role) values

@@ -325,3 +325,36 @@ async fn guest_can_delete_everything(db: PgPool) {
         StatusCode::NOT_FOUND
     );
 }
+
+#[sqlx::test]
+async fn a_pick_must_be_one_of_the_choices(db: PgPool) {
+    let site = Site::new(db);
+    let (invite, link) = site.invite("Kari", 1).await;
+    let event = site.event().await;
+    let mut details = event.details;
+    details.question.set(Lang::Nb, "Hva tar du med?");
+    details.choices.set(Lang::Nb, "Salat\nDessert");
+    crate::db::event::update(&site.db, event.id, &details)
+        .await
+        .unwrap();
+    let page = format!("/r/{link}?lang=en");
+    for made_up in ["2", "-1", "salad"] {
+        let form = format!("party_size=1&response=attending&choice={made_up}");
+        let response = site.post(&page, &form).await;
+        assert_eq!(
+            response.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "{made_up}"
+        );
+        assert!(body(response).await.contains(&escape(&en().invalid_choice)));
+    }
+    assert_eq!(site.find(&invite).await.unwrap().choice, None);
+
+    let form = "party_size=1&response=attending&choice=1";
+    assert_eq!(site.post(&page, form).await.status(), StatusCode::SEE_OTHER);
+    assert_eq!(site.find(&invite).await.unwrap().choice, Some(1));
+    // An empty pick takes it back.
+    let form = "party_size=1&response=attending&choice=";
+    assert_eq!(site.post(&page, form).await.status(), StatusCode::SEE_OTHER);
+    assert_eq!(site.find(&invite).await.unwrap().choice, None);
+}

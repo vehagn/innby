@@ -46,6 +46,8 @@ keep_link = """
 Dette er din personlige side. Ta vare på lenken for å endre svaret senere, og ikke del \
 den med andre."""
 changed_notice = "Tid eller sted er endret siden du svarte. Sjekk det over, og endre svaret om du må."
+# The empty pick for the host's question.
+choice_none = "Ikke svart"
 # The event for the guest's own calendar, once they're coming.
 calendar_heading = "I kalenderen din"
 calendar_hint = "En fil med tid og sted til kalenderen på telefonen eller datamaskinen. Endres planene, legger du den til på nytt."
@@ -171,6 +173,7 @@ join_button = "Jeg kommer!"
 
 # Errors and outcomes
 invalid_party_size = "Velg et gyldig antall."
+invalid_choice = "Velg ett av valgene."
 invalid_name = "Skriv navnet med bokstaver, mellomrom og eventuelt - ' . , &, opptil 100 tegn."
 confirm_delete = "Kryss av i boksen for å bekrefte slettingen."
 gone_title = "Denne lenken virker ikke"
@@ -226,6 +229,9 @@ event_starts = "Starter"
 event_ends = "Slutter"
 event_ends_hint = "La feltet stå tomt hvis arrangementet ikke har noe fast slutt; gjestenes kalendere viser det da som tre timer langt."
 event_change_hint = "Ny start, slutt eller sted sendes på e-post til alle gjester med bekreftet adresse, og vises på sidene til dem som svarte før endringen."
+event_question = "Spørsmålet ditt"
+event_choices = "Valg, ett per linje"
+event_question_hint = "Valgfritt: et spørsmål gjestene svarer på ved å velge ett av valgene. Andre gjester ser ikke svarene. Ikke spør om helse, kosthold, tro eller lignende. Endrer du valgene på bokmål, slettes svarene som er gitt."
 event_time_zone = "Tidssone"
 event_deadline = "Svarfrist"
 event_deadline_hint = "La feltet stå tomt for å ta imot svar helt til arrangementet starter."
@@ -239,6 +245,7 @@ error_event_control = "Tittel, beskrivelse og sted kan ikke inneholde kontrollte
 error_event_time = "Skriv når arrangementet starter, som dato og klokkeslett."
 error_event_deadline = "Skriv svarfristen som dato og klokkeslett, eller la feltet stå tomt."
 error_event_ends = "Skriv når arrangementet slutter, som dato og klokkeslett etter starten, eller la feltet stå tomt."
+error_event_question = "Gi spørsmålet minst to og høyst tjue valg, ett per linje på høyst 100 tegn, og like mange på hvert språk som har egne."
 error_event_past = "Et arrangement slettes {days} dager etter at det starter, så dette ville blitt slettet med en gang. Sjekk datoen."
 error_time_zone = "Skriv en tidssone, for eksempel Europe/Oslo."
 col_event = "Arrangement"
@@ -430,6 +437,8 @@ reminders_queued_one = "{n} påminnelse lagt i kø."
 reminders_queued_other = "{n} påminnelser lagt i kø."
 change_notices_one = "Lagret. {n} gjest med bekreftet adresse får beskjed om endringen."
 change_notices_other = "Lagret. {n} gjester med bekreftet adresse får beskjed om endringen."
+# After the tally of picks for the host's question, on the Guests tab.
+tally_hint = "blant dem som kommer"
 
 # Table columns and facts, also the CSV's header
 col_name = "Navn"
