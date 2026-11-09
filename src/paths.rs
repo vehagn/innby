@@ -42,7 +42,8 @@ pub const INTERNAL_GAME_SCORES: &str = "/internal/games/{game}/scores";
 // The admin site. `HOME` lists the events; each event's pages are under `EVENT`, and its
 // guests and groups have pages of their own. Each parameter is named for what it is,
 // which `admin::role::for_event` reads to find the event a page is about.
-pub const EVENTS: &str = "/events";
+/// The New event tab: its form, and creating the event.
+pub const EVENTS_NEW: &str = "/events/new";
 pub const EVENT: &str = "/events/{event}";
 pub const EVENT_INVITATIONS: &str = "/events/{event}/invitations";
 pub const EVENT_GROUPS: &str = "/events/{event}/groups";
@@ -258,7 +259,7 @@ impl EventLinks {
             csv: at(EVENT_CSV),
             reminders: at(EVENT_REMINDERS),
             export: at(EVENT_EXPORT),
-            copy: admin(&format!("{HOME}?copy={id}#new-event")),
+            copy: admin(&format!("{EVENTS_NEW}?copy={id}#new-event")),
         }
     }
 }

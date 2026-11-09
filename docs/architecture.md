@@ -54,7 +54,7 @@ then sent to a personal link of their own, with a reminder to keep it.
 - **Access**, for admins: who else may see or run this event alone, by the name they log
   in with, as a viewer or an editor.
 
-**New events** are typed into a form on the events page, which also takes group links, a
+**New events** are typed into a form on the New event tab, for admins, which also takes group links, a
 line each. The form can be filled in for you: from an **event file** (below), or by
 *Copy to a new event* on another event's Details tab, for next year's party. Either way
 the new event's QR codes keep the style they had. A start
@@ -63,7 +63,7 @@ event at once: an old event file imported without a new date, say.
 
 **Event files** hold an event's details, its group links and its QR codes' style, in
 TOML, but never its guests. *Download as a file* on the Details tab saves one; *Import an event* on the
-events page reads one, uploaded or pasted, into the new event's form, to check and
+New event tab reads one, uploaded or pasted, into the new event's form, to check and
 change before creating it. Like a Kubernetes manifest, a file says what it is:
 
 ```toml

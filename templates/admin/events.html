@@ -33,40 +33,4 @@
   {% endif %}
 </section>
 
-{% if crate::admin::role::Role::is_admin() %}
-{% let form = draft.form() %}
-<section class="card" id="import">
-  <h2>{{ a.import_event }}</h2>
-  {% if let Some(notice) = draft.file_notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
-  {% if let Some(error) = draft.file_error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
-  <p class="hint">{{ a.import_hint }}</p>
-  <form method="post" enctype="multipart/form-data" action="{{ crate::paths::admin(crate::paths::EVENTS_IMPORT) }}#import">
-    <label for="event-file">{{ a.event_file_upload }}</label>
-    <input id="event-file" name="file" type="file" accept=".toml,text/plain,application/toml">
-    <label for="event-text">{{ a.event_file }}</label>
-    <textarea id="event-text" name="text" rows="6" spellcheck="false">{{ draft.file() }}</textarea>
-    <button class="secondary">{{ a.read_file }}</button>
-  </form>
-</section>
-
-<section class="card" id="new-event">
-  <h2>{{ a.new_event }}</h2>
-  {% if let Some(notice) = draft.notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
-  {% if let Some(error) = draft.error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
-  <form method="post" action="{{ crate::paths::admin(crate::paths::EVENTS) }}#new-event">
-    {% include "admin/_event_form.html" %}
-    <label for="groups">{{ a.event_groups }}</label>
-    <textarea id="groups" name="groups" rows="3" placeholder="{{ a.groups_placeholder }}">{{ draft.groups() }}</textarea>
-    <p class="hint">{{ a.event_groups_hint }}</p>
-    {% if let Some(qr) = draft.qr %}
-    <input type="hidden" name="qr_shape" value="{{ qr.shape.code() }}">
-    <input type="hidden" name="qr_color" value="{{ qr.color }}">
-    <input type="hidden" name="qr_icon" value="{{ qr.icon.code() }}">
-    <input type="hidden" name="qr_emoji" value="{{ qr.emoji }}">
-    <p class="hint">{{ a.qr_carried }}</p>
-    {% endif %}
-    <button>{{ a.create_event }}</button>
-  </form>
-</section>
-{% endif %}
 {% endblock %}

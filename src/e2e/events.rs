@@ -18,6 +18,7 @@ async fn the_host_creates_an_event_invites_to_it_and_deletes_it(db: PgPool) {
 
     let mut host = world.admin().await;
     host.page().expect(&a.no_events);
+    host.click(&a.new_event).await;
     host.fill(&format!("{} · Bokmål", a.event_title), "Sommerfest")
         .fill(
             &format!("{} · English (Traditional)", a.event_title),
@@ -75,6 +76,7 @@ async fn one_device_remembers_invitations_to_two_events(db: PgPool) {
     let christmas = world.invite("Kari Nordmann", 1).await;
 
     let mut host = world.admin().await;
+    host.click(&a.new_event).await;
     host.fill(&format!("{} · Bokmål", a.event_title), "Sommerfest")
         .fill(&a.event_starts, "2055-06-20T15:00");
     host.press(&a.create_event).await;
@@ -326,6 +328,7 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
 
     // A file of another kind, or from a later Innby, is refused by name.
     host.click(&format!("‹ {}", a.all_events)).await;
+    host.click(&a.new_event).await;
     host.fill(&a.event_file, &file.replace("innby/v1", "innby/v9"));
     let version = crate::i18n::fill(
         &a.error_file_version,

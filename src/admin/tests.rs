@@ -48,7 +48,8 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
         (Method::POST, on(paths::GROUP, g), Role::Editor),
         (Method::GET, on(paths::GROUP_QR, g), Role::Editor),
         (Method::POST, on(paths::GROUP_DELETE, g), Role::Editor),
-        (Method::POST, paths::EVENTS.to_owned(), Role::Admin),
+        (Method::GET, paths::EVENTS_NEW.to_owned(), Role::Admin),
+        (Method::POST, paths::EVENTS_NEW.to_owned(), Role::Admin),
         (Method::POST, on(paths::EVENT_DELETE, e), Role::Admin),
         (Method::GET, on(paths::EVENT_EXPORT, e), Role::Editor),
         (Method::POST, paths::EVENTS_IMPORT.to_owned(), Role::Admin),
@@ -94,7 +95,7 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
         assert!(!html.contains(hidden), "{hidden}");
     }
     let html = body(viewer.get(paths::HOME).await).await;
-    assert!(!html.contains(r#"action="/events#"#));
+    assert!(!html.contains(r#"href="/events/new""#));
 
     let editor = Admin::as_role(db.clone(), Role::Editor);
     let html = body(editor.get(&on(paths::EVENT, e)).await).await;
@@ -104,13 +105,13 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
     let html = body(editor.get(&on(paths::EVENT_DETAILS, e)).await).await;
     assert!(!html.contains("/delete") && !html.contains("/access\""));
     let html = body(editor.get(paths::HOME).await).await;
-    assert!(!html.contains(r#"action="/events#"#));
+    assert!(!html.contains(r#"href="/events/new""#));
 
     let admin = Admin::new(db);
     let html = body(admin.get(&on(paths::EVENT_DETAILS, e)).await).await;
     assert!(html.contains("/delete") && html.contains("/access\""));
     let html = body(admin.get(paths::HOME).await).await;
-    assert!(html.contains(r#"action="/events#"#));
+    assert!(html.contains(r#"href="/events/new""#));
 }
 
 #[sqlx::test]
@@ -440,8 +441,10 @@ async fn serves_under_a_path_with_the_probes_at_the_root(db: PgPool) {
         html.contains(r#"<a class="brand" href="/admin">"#),
         "{html}"
     );
+    assert!(html.contains(r#"href="/admin/events/new""#), "{html}");
+    let html = body(admin.get("/admin/events/new").await).await;
     assert!(
-        html.contains(r#"action="/admin/events#new-event""#),
+        html.contains(r#"action="/admin/events/new#new-event""#),
         "{html}"
     );
 }
@@ -456,7 +459,7 @@ async fn requires_login_except_for_probes(db: PgPool) {
         assert_eq!(location(&response), "/login", "{cookie}");
     }
     // A form posted without a login doesn't run either.
-    let response = admin.send(Request::post("/events"), "title=Fest").await;
+    let response = admin.send(Request::post("/events/new"), "title=Fest").await;
     assert_eq!(location(&response), "/login");
     assert!(admin.guests().await.is_empty());
 

@@ -52,11 +52,12 @@ impl FromRequestParts<AdminState> for ClientIp {
     }
 }
 
-/// The admin's sections, as tabs under the header: the events and, for an admin, the
-/// users, or, within an event, its own pages.
+/// The admin's sections, as tabs under the header: the events and, for an admin, a new
+/// event and the users, or, within an event, its own pages.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Events,
+    NewEvent,
     Users,
     Guests,
     Invitations,
@@ -80,6 +81,12 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
     let tabs = match event {
         None => vec![
             (Tab::Events, paths::admin(paths::HOME), &text.events, true),
+            (
+                Tab::NewEvent,
+                paths::admin(paths::EVENTS_NEW),
+                &text.new_event,
+                Role::is_admin(),
+            ),
             (
                 Tab::Users,
                 paths::admin(paths::USERS),

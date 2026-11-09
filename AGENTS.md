@@ -53,7 +53,7 @@ src/
                      a module per tab or page, its handlers named list, show, create, edit, revoke, delete
     page.rs          shared: AdminState, tabs, PageError, load_event, redirect
     forms.rs         shared forms: a name and party size, a batch a line each, delete, ?saved
-    events/          the events page: the list, and a new event (typed, copied or imported)
+    events/          the events page, the list; new.rs is the New event tab (typed, copied or imported)
       details.rs     an event's Details tab: change it, download its file, delete it
       form.rs        the event form, checked into an event's details
       file.rs        an event as a versioned TOML file (apiVersion innby/v1, kind Event)

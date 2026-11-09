@@ -110,8 +110,11 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route(paths::EVENT_GAMES, get(games::show).post(games::edit))
         .route_layer(middleware::from_fn(role::editor));
     let admin = Router::new()
-        .route(paths::EVENTS, post(events::create))
-        .route(paths::EVENTS_IMPORT, post(events::import))
+        .route(
+            paths::EVENTS_NEW,
+            get(events::new::show).post(events::new::create),
+        )
+        .route(paths::EVENTS_IMPORT, post(events::new::import))
         .route(paths::EVENT_DELETE, post(events::details::delete))
         .route(paths::EVENT_ACCESS, get(access::list).post(access::create))
         .route(paths::EVENT_ACCESS_REMOVE, post(access::delete))
