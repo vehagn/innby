@@ -63,7 +63,8 @@ secrets:
 # it, everyone behind the proxy shares one address and one limit.
 trustForwarded: false
 
-# Further INNBY_* settings and RUST_LOG, as name: value, for every workload.
+# Further INNBY_* settings and RUST_LOG, as name: value, for every workload. Probes are
+# logged only when they fail; RUST_LOG: info,innby::http=debug logs them all.
 extraConfig: {}
 #  INNBY_TRUST_FORWARDED: "true"
 

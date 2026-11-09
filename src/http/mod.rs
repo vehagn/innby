@@ -10,14 +10,20 @@ mod render;
 pub use rate_limit::{ClientIp, RateLimiter};
 pub use render::{render, render_form, render_with, server_error, stylesheet, stylesheet_link};
 
-use std::{convert::Infallible, net::SocketAddr, pin::pin, time::Duration};
+use std::{
+    convert::Infallible,
+    net::SocketAddr,
+    pin::pin,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context;
 use axum::{
     Router,
     extract::{ConnectInfo, FromRequestParts, MatchedPath, State},
     http::{HeaderValue, Request, StatusCode, header, request::Parts},
-    middleware,
+    middleware::{self, Next},
+    response::Response,
 };
 use hyper::{body::Incoming, server::conn::http1};
 use hyper_util::{
@@ -31,12 +37,7 @@ use tokio::{
     signal::unix::{SignalKind, signal},
 };
 use tower::ServiceExt;
-use tower_http::{
-    set_header::SetResponseHeaderLayer,
-    timeout::TimeoutLayer,
-    trace::{DefaultOnResponse, TraceLayer},
-};
-use tracing::Level;
+use tower_http::{set_header::SetResponseHeaderLayer, timeout::TimeoutLayer, trace::TraceLayer};
 
 use crate::{db, i18n::Lang};
 
@@ -144,7 +145,7 @@ pub fn no_store<S: Clone + Send + Sync + 'static>(router: Router<S>) -> Router<S
 }
 
 /// What every listener gets: CSRF protection, security headers, a request timeout and
-/// request logging. `https` adds HSTS.
+/// request logging (see `log_response`). `https` adds HSTS.
 pub fn harden(router: Router, https: bool) -> Router {
     let router =
         router
@@ -159,7 +160,7 @@ pub fn harden(router: Router, https: bool) -> Router {
     } else {
         router
     };
-    router.layer(
+    router.layer(middleware::from_fn(log_response)).layer(
         TraceLayer::new_for_http()
             .make_span_with(|request: &Request<_>| {
                 // Log the route pattern, never the raw path: RSVP links carry secrets.
@@ -169,8 +170,35 @@ pub fn harden(router: Router, https: bool) -> Router {
                     .map_or("unmatched", MatchedPath::as_str);
                 tracing::info_span!("request", method = %request.method(), route)
             })
-            .on_response(DefaultOnResponse::new().level(Level::INFO)),
+            // `log_response` logs the answer.
+            .on_response(()),
     )
+}
+
+/// Logs each answer, in the request's span, as tower-http's default does, but the
+/// kubelet's probes at debug: they come every few seconds, and buried the requests that
+/// matter. A probe that fails is logged at info all the same. `RUST_LOG=info,innby::http=debug`
+/// logs them all.
+async fn log_response(request: axum::extract::Request, next: Next) -> Response {
+    let probe = request
+        .extensions()
+        .get::<MatchedPath>()
+        .is_some_and(|route| is_probe(route.as_str()));
+    let started = Instant::now();
+    let response = next.run(request).await;
+    let latency = format!("{} ms", started.elapsed().as_millis());
+    let status = response.status().as_u16();
+    if probe && response.status().is_success() {
+        tracing::debug!(%latency, status, "finished processing request");
+    } else {
+        tracing::info!(%latency, status, "finished processing request");
+    }
+    response
+}
+
+/// Whether a route is a probe, at the root or under the admin UI's path.
+fn is_probe(route: &str) -> bool {
+    route.ends_with(crate::paths::HEALTH) || route.ends_with(crate::paths::READY)
 }
 
 /// Ready to take traffic only while the database answers.
@@ -211,5 +239,76 @@ impl<S: Send + Sync> FromRequestParts<S> for Lang {
                 .and_then(Lang::negotiate)
         };
         Ok(from_query.or_else(from_header).unwrap_or(Lang::DEFAULT))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use axum::{body::Body, routing::get};
+    use tower::ServiceExt;
+
+    use super::*;
+
+    /// What the logs say, at info.
+    #[derive(Clone, Default)]
+    struct Logs(Arc<Mutex<Vec<u8>>>);
+
+    impl std::io::Write for Logs {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn probes_are_logged_only_when_they_fail() {
+        let logs = Logs::default();
+        let writer = logs.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .finish();
+        let _logging = tracing::subscriber::set_default(subscriber);
+        let router = harden(
+            Router::new()
+                .route(crate::paths::HEALTH, get(|| async { "ok" }))
+                .route(
+                    crate::paths::READY,
+                    get(|| async { StatusCode::SERVICE_UNAVAILABLE }),
+                )
+                .route(crate::paths::PRIVACY, get(|| async { "notice" })),
+            false,
+        );
+        for path in [
+            crate::paths::HEALTH,
+            crate::paths::READY,
+            crate::paths::PRIVACY,
+        ] {
+            let request = Request::get(path).body(Body::empty()).unwrap();
+            router.clone().oneshot(request).await.unwrap();
+        }
+        let logs = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+        assert!(!logs.contains("/healthz"), "{logs}");
+        assert!(
+            logs.contains("/readyz") && logs.contains("status=503"),
+            "{logs}"
+        );
+        assert!(
+            logs.contains("/privacy") && logs.contains("status=200"),
+            "{logs}"
+        );
+    }
+
+    #[test]
+    fn knows_the_probes_under_a_path_too() {
+        assert!(is_probe("/healthz") && is_probe("/admin/readyz"));
+        assert!(!is_probe("/r/{link}") && !is_probe("/healthz/extra"));
     }
 }
