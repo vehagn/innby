@@ -11,9 +11,10 @@ use axum::{
 
 /// Rejects unsafe requests that a browser marks as cross-site. The API is for another
 /// origin, the games', and a request there needs a token a forged one can't have.
-pub async fn protect(request: Request, next: Next) -> Response {
+/// `https` is whether the site is served over HTTPS, which its own origin then says.
+pub async fn protect(https: bool, request: Request, next: Next) -> Response {
     if request.uri().path().starts_with(crate::paths::API)
-        || is_allowed(request.method(), request.headers())
+        || is_allowed(request.method(), request.headers(), https)
     {
         next.run(request).await
     } else {
@@ -22,7 +23,7 @@ pub async fn protect(request: Request, next: Next) -> Response {
     }
 }
 
-fn is_allowed(method: &Method, headers: &HeaderMap) -> bool {
+fn is_allowed(method: &Method, headers: &HeaderMap, https: bool) -> bool {
     if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
         return true;
     }
@@ -30,21 +31,22 @@ fn is_allowed(method: &Method, headers: &HeaderMap) -> bool {
         // `none` is a user-initiated navigation, such as a bookmark.
         return matches!(site.as_bytes(), b"same-origin" | b"none");
     }
-    // Older browsers send only `Origin`: its host must be the one the request is for.
+    // Older browsers send only `Origin`: it must be the site's own, the scheme it's
+    // served over and the host the request is for. The scheme counts: the same host over
+    // plain HTTP is whoever sits between the browser and the site, not the site.
     // Requests without either header don't come from a browser, so a forged form can't
     // produce them.
     let Some(origin) = headers.get(header::ORIGIN) else {
         return true;
     };
-    let origin_host = origin
-        .to_str()
-        .ok()
-        .and_then(|origin| origin.split_once("://"))
-        .map(|(_, host)| host);
+    let scheme = if https { "https" } else { "http" };
     let host = headers
         .get(header::HOST)
         .and_then(|host| host.to_str().ok());
-    origin_host.is_some_and(|origin_host| Some(origin_host) == host)
+    let ours = host.map(|host| format!("{scheme}://{host}"));
+    origin
+        .to_str()
+        .is_ok_and(|origin| Some(origin) == ours.as_deref())
 }
 
 #[cfg(test)]
@@ -61,7 +63,7 @@ mod tests {
             .chain(headers.iter().copied())
             .map(|(name, value)| (name.parse().unwrap(), HeaderValue::from_static(value)))
             .collect();
-        is_allowed(&method, &headers)
+        is_allowed(&method, &headers, true)
     }
 
     #[test]
@@ -94,5 +96,23 @@ mod tests {
             &[("origin", "http://fest.example.com.evil")]
         ));
         assert!(allowed(Method::POST, &[]));
+    }
+
+    #[test]
+    fn the_origin_is_the_scheme_too() {
+        // The site over plain HTTP isn't the site: it's anyone on the network.
+        assert!(!allowed(
+            Method::POST,
+            &[("origin", "http://fest.example.com")]
+        ));
+        let headers = [
+            ("host", "localhost:8080"),
+            ("origin", "http://localhost:8080"),
+        ]
+        .map(|(name, value)| (name.parse().unwrap(), HeaderValue::from_static(value)))
+        .into_iter()
+        .collect();
+        assert!(is_allowed(&Method::POST, &headers, false));
+        assert!(!is_allowed(&Method::POST, &headers, true));
     }
 }

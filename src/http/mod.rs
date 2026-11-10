@@ -151,13 +151,14 @@ pub fn no_store<S: Clone + Send + Sync + 'static>(router: Router<S>) -> Router<S
 /// What every listener gets: CSRF protection, security headers, a request timeout and
 /// request logging (see `log_response`). `https` adds HSTS.
 pub fn harden(router: Router, https: bool) -> Router {
-    let router =
-        router
-            .layer(middleware::from_fn(csrf::protect))
-            .layer(TimeoutLayer::with_status_code(
-                StatusCode::REQUEST_TIMEOUT,
-                REQUEST_TIMEOUT,
-            ));
+    let router = router
+        .layer(middleware::from_fn(move |request, next| {
+            csrf::protect(https, request, next)
+        }))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            REQUEST_TIMEOUT,
+        ));
     let router = with_headers(router, &SECURITY_HEADERS);
     let router = if https {
         with_headers(router, &HSTS)
