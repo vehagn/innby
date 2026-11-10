@@ -79,7 +79,7 @@ async fn the_host_styles_each_events_qr_codes(db: PgPool) {
 
     // The summer party's codes keep their own style.
     world.summer_party().await;
-    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click(&a.events).await;
     host.click("Summer party").await;
     host.click(&a.qr_heading).await;
     let svg = &host.page().body;

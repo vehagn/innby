@@ -655,10 +655,25 @@ td {
   }
 }
 
-/* The way from an event's pages back to the list of events. */
+/* The trail of where a page is, from the top: Events › Christmas party › Kari. */
 .crumb {
   margin: 0 0 var(--space-2);
   font-size: var(--text-s);
+  color: var(--text-muted);
+}
+
+.crumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crumb li + li::before {
+  content: "›";
+  margin-right: var(--space-2);
 }
 
 .crumb a {

@@ -48,7 +48,7 @@ async fn the_sample_shows_on_the_pages(db: PgPool) {
         .expect_not("Tor Eriksen");
 
     // Bursdag is over, so its guests can't answer any more.
-    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click(&a.events).await;
     host.click("Birthday party").await;
     host.click("Silje Nilsen").await;
     let silje_link = host.value(&a.guest_link);
@@ -60,13 +60,13 @@ async fn the_sample_shows_on_the_pages(db: PgPool) {
 
     // helper, a user in .env.example with no role of their own, may see who's coming to
     // Julebord, and no other event gives anyone a role.
-    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click(&a.events).await;
     host.click("Christmas party").await;
     host.click(&a.access)
         .await
         .expect("helper")
         .expect(&a.role_viewer);
-    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click(&a.events).await;
     host.click("Summer party").await;
     host.click(&a.access).await.expect(&a.no_access);
 }

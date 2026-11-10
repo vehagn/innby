@@ -1,5 +1,6 @@
-//! What the admin's pages share: their state, the tabs under the header, loading the
-//! event a path names, how a moment shows in a table, and the error a page can end in.
+//! What the admin's pages share: their state, the tabs under the header, the trail of
+//! where a page is, loading the event a path names, how a moment shows in a table, and
+//! the error a page can end in.
 
 use std::sync::Arc;
 
@@ -141,6 +142,70 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
             current: tab == current,
         })
         .collect()
+}
+
+/// One step of the trail above a page's tabs, from the top down to the page: a link
+/// to each level above, and the page's own level without one.
+pub struct Crumb {
+    pub label: String,
+    pub href: Option<String>,
+}
+
+impl Crumb {
+    fn up(label: impl Into<String>, href: String) -> Self {
+        Self {
+            label: label.into(),
+            href: Some(href),
+        }
+    }
+
+    fn here(label: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            href: None,
+        }
+    }
+}
+
+/// The events, the top of every event's trail.
+fn events_crumb() -> Crumb {
+    Crumb::up(&lang::text().events, paths::admin(paths::HOME))
+}
+
+/// Where an event's own pages are: in the events.
+pub fn event_trail(event: &Event) -> Vec<Crumb> {
+    vec![
+        events_crumb(),
+        Crumb::here(event.details.title(lang::current())),
+    ]
+}
+
+/// Where a guest's page is: in their event, whose Guests tab lists them.
+pub fn guest_trail(event: &Event, name: &str) -> Vec<Crumb> {
+    let title = event.details.title(lang::current());
+    vec![
+        events_crumb(),
+        Crumb::up(title, EventLinks::new(event.id).guests),
+        Crumb::here(name),
+    ]
+}
+
+/// Where a group's page is: in its event's Group links.
+pub fn group_trail(event: &Event, name: &str) -> Vec<Crumb> {
+    let (text, links) = (lang::text(), EventLinks::new(event.id));
+    let title = event.details.title(lang::current());
+    vec![
+        events_crumb(),
+        Crumb::up(title, links.guests),
+        Crumb::up(&text.group_links, links.groups),
+        Crumb::here(name),
+    ]
+}
+
+/// Where a password user's page is: in the users.
+pub fn user_trail(name: &str) -> Vec<Crumb> {
+    let users = Crumb::up(&lang::text().users, paths::admin(paths::USERS));
+    vec![users, Crumb::here(name)]
 }
 
 /// A moment as the admin's tables show it, in the event's time zone: `2026-12-12 19:00`.

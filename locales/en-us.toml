@@ -207,7 +207,7 @@ saved = "Saved!"
 
 # Events
 events = "Events"
-all_events = "All events"
+trail = "Where you are"
 no_events = "No events yet."
 new_event = "New event"
 create_event = "Create event"

@@ -672,3 +672,52 @@ async fn links_carry_the_colour_scheme(db: PgPool) {
     let response = admin.send(Request::get("/static/style.css"), "").await;
     assert_eq!(response.status(), StatusCode::OK);
 }
+
+#[sqlx::test]
+async fn each_page_says_where_it_is(db: PgPool) {
+    let admin = Admin::new(db);
+    let e = admin.event().await;
+    let invite = admin.invite("Kari", 1).await;
+    let club = group::create(&admin.db, admin.event_id().await, "Climbing club", 2)
+        .await
+        .unwrap();
+    // The trail's steps, as the page shows them: a link above, the page's own level last.
+    let trail = |html: &str| {
+        let nav = html
+            .split(r#"<nav class="crumb""#)
+            .nth(1)
+            .and_then(|rest| rest.split("</nav>").next())
+            .unwrap_or_default()
+            .to_owned();
+        nav.split("<li>")
+            .skip(1)
+            .map(|step| {
+                let label = step.split('>').nth(1).unwrap().split('<').next().unwrap();
+                match step.split(r#"href=""#).nth(1) {
+                    Some(href) => format!("{label} @ {}", href.split('"').next().unwrap()),
+                    None => label.to_owned(),
+                }
+            })
+            .collect::<Vec<_>>()
+    };
+    let events = "Events @ /".to_owned();
+    let party = format!("Christmas party @ {e}");
+
+    let html = body(admin.get(&format!("{e}/details")).await).await;
+    assert_eq!(trail(&html), [events.as_str(), "Christmas party"]);
+    let html = body(admin.get(&format!("/guests/{}", invite.id)).await).await;
+    assert_eq!(trail(&html), [events.as_str(), party.as_str(), "Kari"]);
+    let html = body(admin.get(&format!("/groups/{}", club.id)).await).await;
+    assert_eq!(
+        trail(&html),
+        [
+            events.as_str(),
+            party.as_str(),
+            &format!("Group links @ {e}/groups"),
+            "Climbing club"
+        ]
+    );
+    assert!(html.contains(r#"<span aria-current="page">Climbing club</span>"#));
+    // The events themselves are the top: no trail.
+    assert!(trail(&body(admin.get("/").await).await).is_empty());
+}

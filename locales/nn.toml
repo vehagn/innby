@@ -224,7 +224,7 @@ saved = "Lagra."
 
 # Events
 events = "Arrangement"
-all_events = "Alle arrangement"
+trail = "Kvar du er"
 no_events = "Ingen arrangement enno."
 new_event = "Nytt arrangement"
 create_event = "Opprett arrangement"

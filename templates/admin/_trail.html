@@ -1,0 +1,8 @@
+{#- Where the page is, from the top: a link to each level above, the page's own last. #}
+<nav class="crumb" aria-label="{{ crate::admin::lang::text().trail }}">
+  <ol>
+    {% for crumb in trail %}
+    <li>{% match crumb.href %}{% when Some(href) %}<a href="{{ href }}">{{ crumb.label }}</a>{% when None %}<span aria-current="page">{{ crumb.label }}</span>{% endmatch %}</li>
+    {% endfor %}
+  </ol>
+</nav>

@@ -207,7 +207,7 @@ saved = "已儲存。"
 
 # Events
 events = "活動"
-all_events = "所有活動"
+trail = "目前位置"
 no_events = "還沒有活動。"
 new_event = "新活動"
 create_event = "建立活動"

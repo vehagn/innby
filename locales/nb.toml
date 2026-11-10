@@ -223,7 +223,7 @@ saved = "Lagret."
 
 # Events
 events = "Arrangementer"
-all_events = "Alle arrangementer"
+trail = "Hvor du er"
 no_events = "Ingen arrangementer ennå."
 new_event = "Nytt arrangement"
 create_event = "Opprett arrangement"

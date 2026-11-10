@@ -59,9 +59,7 @@ async fn the_host_creates_an_event_invites_to_it_and_deletes_it(db: PgPool) {
     kari.open(&link).await.expect("Huk").expect_not("Bygdøy");
 
     // The list of events shows the headcount, and deleting takes everything with it.
-    host.click(&format!("‹ {}", a.all_events))
-        .await
-        .expect("Summer party");
+    host.click(&a.events).await.expect("Summer party");
     host.click("Summer party").await;
     host.click(&a.details).await;
     host.check(&filled(&a.delete_event, "title", "Summer party"));
@@ -170,7 +168,7 @@ async fn the_host_runs_two_events_side_by_side(db: PgPool) {
     let csv = host.download(&a.download_csv).await;
     assert!(csv.body.contains("Kari Nordmann") && !csv.body.contains("Per Hansen"));
 
-    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click(&a.events).await;
     host.click("Summer party")
         .await
         .expect(&count(0, &a.coming_one, &a.coming_other))
@@ -184,7 +182,7 @@ async fn the_host_runs_two_events_side_by_side(db: PgPool) {
     host.fill(&a.names, "Ola Nordmann");
     host.press(&a.create_invitations).await;
     host.click(&a.guests).await.expect("Ola Nordmann");
-    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click(&a.events).await;
     host.click("Christmas party")
         .await
         .expect_not("Ola Nordmann");
@@ -335,7 +333,7 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
     assert!(!file.contains("Kari"), "{file}");
 
     // A file of another kind, or from a later Innby, is refused by name.
-    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click(&a.events).await;
     host.click(&a.new_event).await;
     host.fill(&a.event_file, &file.replace("innby/v1", "innby/v9"));
     let version = crate::i18n::fill(
@@ -378,7 +376,7 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
     host.click(&a.group_links).await.expect("Climbing club");
     let new_link = host.value(&filled(&a.link_for, "name", "Climbing club"));
     assert_ne!(new_link, old_link);
-    host.click(&format!("‹ {}", a.all_events)).await;
+    host.click(&a.events).await;
     let text = &host.page().doc.text;
     assert_eq!(text.matches("Christmas party").count(), 2, "{text}");
 

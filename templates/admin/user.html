@@ -2,12 +2,11 @@
 
 {% block title %}{{ user.name }} · {{ crate::admin::lang::text().users }}{% endblock %}
 
-{% block tabs %}{% let tabs = crate::admin::tabs(None, crate::admin::Tab::Users) %}{% include "admin/_tabs.html" %}{% endblock %}
+{% block tabs %}{% let tabs = crate::admin::tabs(None, crate::admin::Tab::Users) %}{% include "admin/_tabs.html" %}{% let trail = crate::admin::user_trail(user.name) %}{% include "admin/_trail.html" %}{% endblock %}
 
 {% block content %}
 {% let a = crate::admin::lang::text() %}
 {% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
-<p class="crumb"><a href="{{ crate::paths::admin(crate::paths::USERS) }}">‹ {{ a.users }}</a></p>
 <h1>{{ user.name }}</h1>
 {% if yourself %}
 <p class="hint">{{ a.error_yourself }}</p>

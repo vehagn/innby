@@ -217,7 +217,8 @@ pub struct AdminMessages {
     pub not_found: String,
     pub saved: String,
     pub events: String,
-    pub all_events: String,
+    /// What screen readers call the trail above a page's tabs.
+    pub trail: String,
     pub no_events: String,
     pub new_event: String,
     pub create_event: String,
