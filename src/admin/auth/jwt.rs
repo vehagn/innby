@@ -1,6 +1,12 @@
 //! JSON Web Tokens for the host's login, made the way LLDAP makes them: HS512, naming the
-//! user, their role, and when the token was issued and expires. Only the header this
-//! module writes is accepted, so a token can't pick its own algorithm.
+//! user and how they logged in, and when the token was issued and expires. Only the
+//! header this module writes is accepted, so a token can't pick its own algorithm.
+//!
+//! The claims use the registered names where there are any: `sub` for the user, `amr`
+//! (RFC 8176) `["pwd"]` for a password login, and `roles` (RFC 9068) for the role a
+//! provider gave. No standard says a provider vouched for the user, so `provider` is
+//! Innby's own. A password user's role is never in the token, as it's read afresh on
+//! each request; there's nothing there to mistake for it.
 
 use std::fmt;
 
@@ -46,24 +52,105 @@ impl Secret {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(into = "Wire", try_from = "Wire")]
 pub struct Claims {
     /// Issued at, in seconds since the epoch.
     pub iat: i64,
     /// Expires at, in seconds since the epoch.
     pub exp: i64,
     pub user: String,
-    /// Their role for every event; without one, they see the events that give them one.
-    /// Only a provider's login is taken at its word: a password user's is read afresh.
-    pub role: Option<Role>,
-    /// Whether the identity provider vouched for them, rather than a password.
-    #[serde(default)]
-    pub provider: bool,
-    /// A database user's password version: a new password ends the session.
-    #[serde(default)]
-    pub version: i32,
+    pub login: Login,
     /// Names the token when it's logged out.
     pub jti: Uuid,
+}
+
+/// How the host logged in, which decides where their role comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Login {
+    /// With a password: their role is read from the config or the database on each
+    /// request, so a change applies at once. `version` is a database user's password
+    /// version, 0 for the config's: a new password ends the session.
+    Password { version: i32 },
+    /// The identity provider vouched for them, and for their role for every event;
+    /// without one, they see the events that give them one. Taken at its word, as
+    /// Innby can't ask the provider on each request.
+    Provider { role: Option<Role> },
+}
+
+/// The claims as the token holds them.
+#[derive(Serialize, Deserialize)]
+struct Wire {
+    iat: i64,
+    exp: i64,
+    sub: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    amr: Vec<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    provider: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    roles: Vec<Role>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    version: Option<i32>,
+    jti: Uuid,
+}
+
+/// The `amr` of a password login.
+const PASSWORD: &str = "pwd";
+
+impl From<Claims> for Wire {
+    fn from(claims: Claims) -> Self {
+        let (amr, provider, roles, version) = match claims.login {
+            Login::Password { version } => {
+                (vec![PASSWORD.to_owned()], false, vec![], Some(version))
+            }
+            Login::Provider { role } => (vec![], true, role.into_iter().collect(), None),
+        };
+        Self {
+            iat: claims.iat,
+            exp: claims.exp,
+            sub: claims.user,
+            amr,
+            provider,
+            roles,
+            version,
+            jti: claims.jti,
+        }
+    }
+}
+
+impl TryFrom<Wire> for Claims {
+    type Error = &'static str;
+
+    /// Only the shapes `From<Claims>` writes: a token this key signed is one of them.
+    fn try_from(wire: Wire) -> Result<Self, Self::Error> {
+        let login = match wire {
+            Wire {
+                provider: false,
+                ref amr,
+                ref roles,
+                version: Some(version),
+                ..
+            } if amr == &[PASSWORD] && roles.is_empty() => Login::Password { version },
+            Wire {
+                provider: true,
+                ref amr,
+                ref roles,
+                version: None,
+                ..
+            } if amr.is_empty() && roles.len() <= 1 => Login::Provider {
+                role: roles.first().copied(),
+            },
+            _ => return Err("neither a password's claims nor a provider's"),
+        };
+        Ok(Self {
+            iat: wire.iat,
+            exp: wire.exp,
+            user: wire.sub,
+            login,
+            jti: wire.jti,
+        })
+    }
 }
 
 /// Signs and checks tokens.
@@ -166,11 +253,51 @@ pub mod tests {
             iat: now.timestamp(),
             exp: (now + TimeDelta::hours(1)).timestamp(),
             user: "admin".into(),
-            role: Some(Role::Editor),
-            provider: false,
-            version: 0,
+            login: Login::Provider {
+                role: Some(Role::Editor),
+            },
             jti: Uuid::nil(),
         }
+    }
+
+    /// The token's claims, as JSON.
+    fn payload(token: &str) -> serde_json::Value {
+        let claims = token.split('.').nth(1).unwrap();
+        serde_json::from_slice(&URL_SAFE_NO_PAD.decode(claims).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn names_its_claims_as_the_standards_do() {
+        let now = Utc::now();
+        let key = key_for("hash");
+        let password = Claims {
+            login: Login::Password { version: 3 },
+            ..claims(now)
+        };
+        let token = key.sign(&password);
+        let json = payload(&token);
+        assert_eq!(json["sub"], "admin");
+        assert_eq!(json["amr"], serde_json::json!(["pwd"]));
+        assert_eq!(json["version"], 3);
+        // A password user's role isn't the token's to say.
+        for absent in ["roles", "role", "provider", "user"] {
+            assert!(json.get(absent).is_none(), "{absent} in {json}");
+        }
+        assert_eq!(key.verify(&token, now), Some(password));
+
+        let token = key.sign(&claims(now));
+        let json = payload(&token);
+        assert_eq!(json["provider"], true);
+        assert_eq!(json["roles"], serde_json::json!(["editor"]));
+        assert!(json.get("amr").is_none() && json.get("version").is_none());
+        // A provider's login with no role of its own has none in the token either.
+        let none = Claims {
+            login: Login::Provider { role: None },
+            ..claims(now)
+        };
+        let token = key.sign(&none);
+        assert!(payload(&token).get("roles").is_none());
+        assert_eq!(key.verify(&token, now), Some(none));
     }
 
     #[test]

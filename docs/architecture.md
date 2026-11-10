@@ -277,6 +277,12 @@ allowed.
   what role each host has. [single-sign-on.md](single-sign-on.md) explains the roles and
   the setup.
 
+The JWT uses the registered claim names where there are any: `sub` for the user, and for
+a password login `amr: ["pwd"]` (RFC 8176) with no role, since a password user's is read
+on each request. A provider's login has `provider: true`, Innby's own, as no standard
+names it, and the role the provider gave in `roles` (RFC 9068), which Innby takes at its
+word until the token expires.
+
 **Roles:** a *viewer* sees events, headcounts and who's coming, but not links, e-mail
 status or the guest export, since those let you act as a guest. An *editor* also runs
 events: invitations, group links, guests, reminders, the guest export, the details, the

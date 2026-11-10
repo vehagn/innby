@@ -10,7 +10,8 @@
 //! - An OpenID Connect provider (see `oidc`), which says who the host is and what role
 //!   they have. That login gets a JWT without a refresh token.
 //!
-//! The JWT names the user and their role, if they have one; `role::for_event` adds the
+//! The JWT names the user and how they logged in, with the role a provider gave them;
+//! a password user's is read on each request. `role::for_event` adds the
 //! one an event gives them. Logging out revokes it, and the refresh token
 //! if there is one. The admin listener is only reachable from the internal gateway; this
 //! keeps everyone else on the LAN out too.
@@ -53,6 +54,7 @@ use crate::{
     http::{ClientIp, RateLimiter, cookie, server_error},
     paths, random,
 };
+use jwt::Login;
 use oidc::OIDC_SESSION;
 use password::{Credentials, NOBODY, Outcome};
 
@@ -232,27 +234,19 @@ impl Auth {
     }
 
     /// A new JWT for the host.
-    fn token(&self, now: DateTime<Utc>, signed: Signed<'_>, lifetime: TimeDelta) -> String {
+    fn token(&self, now: DateTime<Utc>, user: &str, login: Login, lifetime: TimeDelta) -> String {
         self.key.sign(&jwt::Claims {
             iat: now.timestamp(),
             exp: (now + lifetime).timestamp(),
-            user: signed.user.to_owned(),
-            role: signed.role,
-            provider: signed.provider,
-            version: signed.version,
+            user: user.to_owned(),
+            login,
             jti: uuid::Builder::from_random_bytes(random::bytes()).into_uuid(),
         })
     }
 
     /// The `token` cookie of a password user.
     fn password_token(&self, now: DateTime<Utc>, user: &str, version: i32) -> HeaderValue {
-        let signed = Signed {
-            user,
-            role: None,
-            provider: false,
-            version,
-        };
-        let token = self.token(now, signed, TOKEN_LIFETIME);
+        let token = self.token(now, user, Login::Password { version }, TOKEN_LIFETIME);
         self.cookie(TOKEN, &token, TOKEN_LIFETIME)
     }
 
@@ -291,13 +285,8 @@ impl Auth {
 
     /// The cookie of a login the provider vouched for.
     pub(super) fn start_oidc_session(&self, login: &oidc::Login) -> HeaderValue {
-        let signed = Signed {
-            user: &login.user,
-            role: login.role,
-            provider: true,
-            version: 0,
-        };
-        let token = self.token(Utc::now(), signed, OIDC_SESSION);
+        let signed = Login::Provider { role: login.role };
+        let token = self.token(Utc::now(), &login.user, signed, OIDC_SESSION);
         self.cookie(TOKEN, &token, OIDC_SESSION)
     }
 
@@ -307,11 +296,15 @@ impl Auth {
             && !admin_login::is_revoked(&self.db, claims.jti).await?
         {
             // The provider's role stands for the login; a password user's is read now.
-            if claims.provider {
-                return Ok(Session::LoggedIn(Host::new(&claims.user, claims.role)));
-            }
-            if let Some(host) = self.password_host(&claims.user, claims.version).await? {
-                return Ok(Session::LoggedIn(host));
+            match claims.login {
+                Login::Provider { role } => {
+                    return Ok(Session::LoggedIn(Host::new(&claims.user, role)));
+                }
+                Login::Password { version } => {
+                    if let Some(host) = self.password_host(&claims.user, version).await? {
+                        return Ok(Session::LoggedIn(host));
+                    }
+                }
             }
         }
         // `{user}.{version}.{random}`: the random part never has a dot; a name may.
@@ -367,14 +360,6 @@ impl Auth {
             self.https,
         )
     }
-}
-
-/// What a JWT says about its host.
-struct Signed<'a> {
-    user: &'a str,
-    role: Option<Role>,
-    provider: bool,
-    version: i32,
 }
 
 /// A database user's role, as stored.
@@ -442,13 +427,8 @@ pub mod tests {
     /// A JWT for this user and role that's valid now, as the provider would vouch for
     /// them, for tests that don't log in through a form.
     pub fn token(config: &AdminConfig, db: PgPool, user: &str, role: Option<Role>) -> String {
-        let signed = Signed {
-            user,
-            role,
-            provider: true,
-            version: 0,
-        };
-        Auth::new(config, true, db).token(Utc::now(), signed, TOKEN_LIFETIME)
+        let login = Login::Provider { role };
+        Auth::new(config, true, db).token(Utc::now(), user, login, TOKEN_LIFETIME)
     }
 
     fn auth() -> Auth {
