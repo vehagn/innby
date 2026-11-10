@@ -997,18 +997,16 @@ td {
   100% { opacity: 0; transform: translate(calc(var(--s, 1) * 1rem), 100vh) rotate(calc(var(--s, 1) * 720deg)); }
 }
 
-/* The guest list: names in two columns, each after a star. */
+/* The guest list: a name a line, each after a star. */
 .names {
   margin: 0;
   padding: 0;
   list-style: none;
-  columns: 2 12rem;
 }
 
 .names li {
   --tone: var(--festive-1);
   padding: 2px 0;
-  break-inside: avoid;
   overflow-wrap: anywhere;
 }
 
