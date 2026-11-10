@@ -183,12 +183,14 @@ fn gone(lang: Lang) -> Response {
     )
 }
 
-/// The fallback for unknown paths.
+/// The fallback for unknown paths. A mistyped path under a guest's link still has the
+/// link in its address, so the answer isn't to be kept, like the link's own pages.
 pub async fn not_found(lang: Lang) -> Response {
-    render_with(
+    let page = render_with(
         StatusCode::NOT_FOUND,
         MessagePage::new(lang, |t| (&t.not_found_title, &t.not_found_text)),
-    )
+    );
+    ([(header::CACHE_CONTROL, "no-store")], page).into_response()
 }
 
 /// Turns every crawler away: an invitation-only event has nothing for them. Link

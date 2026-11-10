@@ -271,4 +271,8 @@ async fn privacy_notice_in_every_language() {
 #[tokio::test]
 async fn unknown_route_is_not_found() {
     assert_eq!(get("/nope", None).await.status(), StatusCode::NOT_FOUND);
+    // Nor kept: a path under a guest's link has the link in it.
+    let response = get("/r/some.link/nope", None).await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
 }
