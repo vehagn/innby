@@ -91,5 +91,12 @@ main steps, oldest first:
     the schema in one file again until going live.
 23. Telling guests of a new time or place, the host's own question, the calendar file in
     reminders, and gzip where it's safe.
+24. Guests' tabs, events in the host's own language, forms that are safe to send twice,
+    and a device that remembers each invitation; the admin token's claims named as the
+    standards name them.
+25. The site's handlers ending in an error with `?`, as the admin's do, and what was
+    said twice said once. A fourth pentest: a cap on the client addresses a rate limit
+    remembers, the scheme in the `Origin` check, no caching of an unknown path under a
+    link, user names with a letter or digit, and the janitor sweeping expired tokens.
 
 `git log` has the details.

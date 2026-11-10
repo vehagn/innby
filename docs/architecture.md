@@ -330,7 +330,8 @@ lower-case address, and a sign-up's group in the sign-up's own event.
 | An event and everything in it | until 30 days after it starts |
 | An e-mail address not confirmed | 48 hours |
 | A record of sent mail | 7 days |
-| Client addresses for rate limits | in memory only, for the limit's window |
+| Client addresses for rate limits | in memory only, for the limit's window, 20 000 at most per limit |
+| Hosts' refresh tokens (as keyed hashes), logged-out JWTs and the admin forms' tokens | until they expire; a day for a form's |
 
 Nothing is backed up on purpose: nothing should outlive those 30 days.
 
@@ -351,7 +352,8 @@ processing, with the legal bases; the privacy notice is at `/privacy` in every l
   `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, cross-origin
   isolation, `noindex`, and HSTS over HTTPS.
 - **Forms:** cross-site form posts are refused using the browser's `Sec-Fetch-Site`
-  header (or `Origin` on older browsers), so no CSRF tokens are needed.
+  header (or `Origin` on older browsers, which must be the site's own, scheme and
+  host), so no CSRF tokens are needed.
 - **Compression:** only the stylesheet and the privacy notice are gzipped. A page that
   holds a link is never compressed, so its size can't give the link away (BREACH).
 - **Limits:** requests time out after 15 seconds and their headers after 10, headers are
