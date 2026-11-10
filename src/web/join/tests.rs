@@ -202,6 +202,19 @@ async fn rejects_bad_input_and_bots(db: PgPool) {
             StatusCode::UNPROCESSABLE_ENTITY,
             "{form}"
         );
+        // A choice the form doesn't have isn't the form's: no page to fix it on.
+        if form.contains("everyone") {
+            continue;
+        }
+        // What to fix is by the form, below its heading, where the form's own address
+        // scrolls a browser back to.
+        let html = body(response).await;
+        let (heading, error) = (
+            html.find(r#"id="join-heading""#).unwrap(),
+            html.find(r#"role="alert""#).expect("an error"),
+        );
+        assert!(heading < error, "{html}");
+        assert!(html.contains(r##"lang=nb#join-heading">"##), "{html}");
     }
     let response = site
         .post(&join, "name=Bot&party_size=1&website=http%3A%2F%2Fspam")

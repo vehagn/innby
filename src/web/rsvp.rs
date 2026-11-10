@@ -103,6 +103,8 @@ pub(super) struct RsvpPage<'a> {
     status: String,
     /// Whether they're coming, and so are offered the event for their calendar.
     attending: bool,
+    /// Whether they've said they aren't: the answer's button shows which is theirs.
+    declined: bool,
     party_sizes: Vec<PartySize>,
     /// The host's question, with the guest's pick, if the event asks one.
     question: Option<Question>,
@@ -139,6 +141,7 @@ impl<'a> RsvpPage<'a> {
             rsvp,
             status: t.answer(rsvp.response, rsvp.party_size),
             attending: rsvp.response == rsvp::Response::Attending,
+            declined: rsvp.response == rsvp::Response::Declined,
             party_sizes: PartySize::choices(t, rsvp.max_party_size, rsvp.party_size),
             question: Question::new(&guest.event.details, lang, rsvp.choice),
             display_choices: DisplayChoice::choices(t, Some(&rsvp.name), chosen),

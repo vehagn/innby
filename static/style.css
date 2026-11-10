@@ -285,6 +285,20 @@ a.button:hover::after {
   gap: var(--space-2);
 }
 
+/* A guest's answer: the button that's their answer now says so with a tick. On a phone
+   the buttons fill the width, one above the other where they can't share it, rather
+   than each ending where its words do. */
+.answers button[aria-pressed="true"]::before {
+  content: "✓";
+  margin-right: var(--space-2);
+}
+
+@media (max-width: 30rem) {
+  .answers button {
+    flex: 1 1 auto;
+  }
+}
+
 /* Field: a label above its input. Fields stack, each with room below. */
 label {
   display: block;

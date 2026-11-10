@@ -50,8 +50,8 @@
   </form>
   {% else %}
   <form method="post" action="{{ links.remember }}">
-    <p class="hint">{{ t.remember_hint }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
     <button class="secondary">{{ t.remember_device }}</button>
+    <p class="hint">{{ t.remember_hint }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
   </form>
   {% endif %}
 </section>

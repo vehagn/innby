@@ -3,16 +3,16 @@
 {% block title %}{{ event.title }}{% endblock %}
 
 {% block content %}
-{% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
-
-{% include "_confetti.html" %}
+{% if error.is_none() %}{% include "_confetti.html" %}{% endif %}
 {% include "_event.html" %}
 
 <section class="card" aria-labelledby="join-heading">
   <p class="muted">{{ crate::i18n::bold(t.join_group, "group", group.name)|safe }}</p>
   <h2 id="join-heading">{{ t.join_heading }}</h2>
+  {# By the form, which a fragment in its action scrolls a refused sign-up back to. #}
+  {% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
   {% if accepts_answers %}
-  <form method="post" action="{{ action }}">
+  <form method="post" action="{{ action }}#join-heading">
     <input type="hidden" name="token" value="{{ token }}">
     <label for="name">{{ t.your_name }}</label>
     <input id="name" name="name" value="{{ name }}" required maxlength="100" autocomplete="name">

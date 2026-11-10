@@ -157,6 +157,8 @@ pub struct MessagePage {
     pub t: &'static Messages,
     pub title: &'static str,
     pub text: &'static str,
+    /// Whether to offer the way to a lost link, on the page of a link that doesn't work.
+    pub lost: bool,
 }
 
 impl MessagePage {
@@ -171,16 +173,19 @@ impl MessagePage {
             t,
             title,
             text,
+            lost: false,
         }
     }
 }
 
 /// The page every guest or group link that doesn't work gets; see `PageError::Gone`.
 fn gone(lang: Lang) -> Response {
-    render_with(
-        StatusCode::NOT_FOUND,
-        MessagePage::new(lang, |t| (&t.gone_title, &t.gone_text)),
-    )
+    // A guest who added their address can have the link they do have sent again.
+    let page = MessagePage {
+        lost: true,
+        ..MessagePage::new(lang, |t| (&t.gone_title, &t.gone_text))
+    };
+    render_with(StatusCode::NOT_FOUND, page)
 }
 
 /// The fallback for unknown paths. A mistyped path under a guest's link still has the

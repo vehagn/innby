@@ -5,5 +5,6 @@
 {% block content %}
 <h1>{{ title }}</h1>
 <p>{{ text }}</p>
+{% if lost %}<p><a href="{{ lang.lost() }}">{{ t.lost_link }}</a></p>{% endif %}
 <p><a href="{{ lang.home() }}">{{ t.to_home }}</a></p>
 {% endblock %}

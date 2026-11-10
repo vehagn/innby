@@ -44,15 +44,15 @@
     {% include "_question.html" %}
     <label class="checkbox"><input type="checkbox" name="remember" value="yes"{% if remembered %} checked{% endif %}> {{ t.remember_device }}</label>
     <p class="hint">{{ t.remember_hint }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
-    <div class="buttons">
-      <button name="response" value="attending">{{ t.attend }}</button>
-      <button name="response" value="declined" class="secondary">{{ t.decline }}</button>
+    <div class="buttons answers">
+      <button name="response" value="attending"{% if attending %} aria-pressed="true"{% endif %}>{{ t.attend }}</button>
+      <button name="response" value="declined" class="secondary"{% if declined %} aria-pressed="true"{% endif %}>{{ t.decline }}</button>
     </div>
   </form>
+  <p class="hint">{{ t.keep_link }}</p>
   {% else %}
   <p class="muted">{{ t.answers_closed }}</p>
   {% endif %}
-  <p class="hint">{{ t.keep_link }}</p>
 </section>
 
 {% endblock %}

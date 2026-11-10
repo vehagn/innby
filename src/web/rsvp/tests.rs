@@ -19,6 +19,8 @@ async fn guest_answers_through_their_link(db: PgPool) {
     assert!(html.contains("Du er invitert!"));
     assert!(html.contains("Ikke svart ennå"));
     assert!(html.contains(r#"<option value="2">2 personer</option>"#));
+    // Neither button is their answer yet.
+    assert!(!html.contains("aria-pressed"), "{html}");
 
     let response = site
         .post(
@@ -41,6 +43,12 @@ async fn guest_answers_through_their_link(db: PgPool) {
     assert!(html.contains(&escape(&en().saved)));
     assert!(html.contains(&en().answer(rsvp::Response::Attending, 2)));
     assert!(!html.contains("You're invited!"));
+    // The button that's their answer says so.
+    assert!(
+        html.contains(r#"value="attending" aria-pressed="true""#),
+        "{html}"
+    );
+    assert_eq!(html.matches("aria-pressed").count(), 1, "{html}");
 
     site.post(&format!("/r/{link}"), "party_size=1&response=declined")
         .await;
@@ -59,7 +67,10 @@ async fn bad_links_all_look_the_same(db: PgPool) {
     for bad in [link.as_str(), &forged, "garbage", "a.b"] {
         let response = site.get(&format!("/r/{bad}")).await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{bad}");
-        assert!(body(response).await.contains("Denne lenken virker ikke"));
+        let html = body(response).await;
+        assert!(html.contains("Denne lenken virker ikke"));
+        // A guest who added their address can have their link sent again from there.
+        assert!(html.contains(r#"href="/lost?lang=nb""#), "{html}");
     }
     let response = site
         .post(&format!("/r/{link}"), "party_size=1&response=attending")
@@ -121,6 +132,8 @@ async fn answers_close_at_the_deadline(db: PgPool) {
     let html = body(site.get(&format!("/r/{link}")).await).await;
     assert!(html.contains("Svarfristen har gått ut."));
     assert!(!html.contains(r#"value="attending""#));
+    // Nor is there an answer left to keep the link for changing.
+    assert!(!html.contains(&escape(&Lang::Nb.messages().keep_link)));
 
     let response = site
         .post(&format!("/r/{link}"), "party_size=1&response=attending")
