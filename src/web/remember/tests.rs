@@ -26,6 +26,12 @@ fn get(uri: &str, cookie: &str) -> Request<Body> {
     with_cookie(Request::get(uri).body(Body::empty()).unwrap(), cookie)
 }
 
+/// The name of the cookie that remembers this link: its invitation's.
+fn cookie_name(link: &str) -> String {
+    let link: IdLink = link.parse().unwrap();
+    format!("__Host-innby-{}", link.id.simple())
+}
+
 /// An invitation to a second event, the summer party, and its link.
 async fn summer_invite(site: &Site, name: &str) -> (event::Event, String) {
     let summer = event::create(
@@ -54,7 +60,6 @@ async fn summer_invite(site: &Site, name: &str) -> (event::Event, String) {
 async fn the_front_page_leads_back_to_each_remembered_invitation(db: PgPool) {
     let site = Site::new(db);
     let (invite, link) = site.invite("Kari", 2).await;
-    let party = site.event().await;
 
     // Nothing is set until the guest asks.
     let response = site.get(&format!("/r/{link}?lang=en")).await;
@@ -70,7 +75,7 @@ async fn the_front_page_leads_back_to_each_remembered_invitation(db: PgPool) {
         location(&response),
         format!("/r/{link}/you?lang=en&notice=remembered")
     );
-    let party_cookie = format!("__Host-innby-{}", party.id.simple());
+    let party_cookie = cookie_name(&link);
     let [set] = set_cookies(&response)[..] else {
         panic!("one cookie")
     };
@@ -81,8 +86,9 @@ async fn the_front_page_leads_back_to_each_remembered_invitation(db: PgPool) {
     assert!(set.ends_with("; HttpOnly; SameSite=Lax; Secure"), "{set}");
 
     // The same device remembers an invitation to another event too.
-    let (summer, summer_link) = summer_invite(&site, "Kari N").await;
-    let summer_cookie = format!("__Host-innby-{}", summer.id.simple());
+    let (_, summer_link) = summer_invite(&site, "Kari N").await;
+    let summer_cookie = cookie_name(&summer_link);
+    let summer_invitation = summer_link.parse::<IdLink>().unwrap().id;
     let cookie = format!("other=1; {party_cookie}={link}; {summer_cookie}={summer_link}");
 
     let response = site.send(get("/?lang=en", &cookie)).await;
@@ -96,7 +102,7 @@ async fn the_front_page_leads_back_to_each_remembered_invitation(db: PgPool) {
     }
     let welcome = escape(&filled(&en().welcome_back, "name", "Kari"));
     assert!(html.contains(&welcome), "{html}");
-    assert!(html.contains(&format!(r#"name="event" value="{}""#, summer.id)));
+    assert!(html.contains(&format!(r#"name="invitation" value="{summer_invitation}""#)));
     // Without cookies, the front page is the same for everyone.
     assert!(!body(site.get("/?lang=en").await).await.contains(&welcome));
 
@@ -115,7 +121,10 @@ async fn the_front_page_leads_back_to_each_remembered_invitation(db: PgPool) {
 
     // The front page forgets one invitation at a time.
     let response = site
-        .post("/forget?lang=en", &format!("event={}", summer.id))
+        .post(
+            "/forget?lang=en",
+            &format!("invitation={summer_invitation}"),
+        )
         .await;
     assert_eq!(location(&response), "/?lang=en");
     assert!(
@@ -139,8 +148,7 @@ async fn the_front_page_leads_back_to_each_remembered_invitation(db: PgPool) {
 async fn the_answer_remembers_the_device_only_when_its_box_is_ticked(db: PgPool) {
     let site = Site::new(db);
     let (_, link) = site.invite("Kari", 1).await;
-    let party = site.event().await;
-    let cookie = format!("__Host-innby-{}={link}", party.id.simple());
+    let cookie = format!("{}={link}", cookie_name(&link));
     let page = format!("/r/{link}?lang=en");
     let checkbox = r#"<input type="checkbox" name="remember" value="yes""#;
     let answer = |form: &str, cookie: &str| {
@@ -185,9 +193,8 @@ async fn the_answer_remembers_the_device_only_when_its_box_is_ticked(db: PgPool)
 async fn deleting_the_reply_forgets_the_device(db: PgPool) {
     let site = Site::new(db);
     let (_, link) = site.invite("Kari", 1).await;
-    let party = site.event().await;
     let request = form_post(&format!("/r/{link}/delete"), "confirm=yes", "same-origin");
-    let cookie = format!("__Host-innby-{}={link}", party.id.simple());
+    let cookie = format!("{}={link}", cookie_name(&link));
     let response = site.send(with_cookie(request, &cookie)).await;
     assert!(set_cookies(&response)[0].contains("Max-Age=0"));
 }
@@ -231,7 +238,6 @@ async fn the_front_page_reads_only_so_many_remembered_links(db: PgPool) {
 async fn the_front_page_lists_events_to_come_before_those_that_are_over(db: PgPool) {
     let site = Site::new(db);
     let (_, link) = site.invite("Kari", 1).await;
-    let party = site.event().await;
     // A party two days ago, over by now, and one that started an hour ago, still on.
     let past = |title: &str, hours: i64| {
         let starts_at = chrono::Utc::now().with_timezone(&chrono_tz::Europe::Oslo)
@@ -245,7 +251,7 @@ async fn the_front_page_lists_events_to_come_before_those_that_are_over(db: PgPo
             ..details()
         }
     };
-    let mut cookie = format!("__Host-innby-{}={link}", party.id.simple());
+    let mut cookie = format!("{}={link}", cookie_name(&link));
     for (title, hours) in [("Over", 48), ("Under way", 1)] {
         let event = event::create(&site.db, &past(title, hours)).await.unwrap();
         let invite = rsvp::create_invite(&site.db, event.id, "Kari", 1)
@@ -255,7 +261,7 @@ async fn the_front_page_lists_events_to_come_before_those_that_are_over(db: PgPo
             .config
             .link_key
             .link(Purpose::Rsvp, invite.id, invite.link_nonce);
-        cookie.push_str(&format!("; __Host-innby-{}={link}", event.id.simple()));
+        cookie.push_str(&format!("; {}={link}", cookie_name(&link)));
     }
     let html = body(site.send(get("/?lang=en", &cookie)).await).await;
     let at = |text: &str| {

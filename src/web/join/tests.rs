@@ -140,39 +140,47 @@ async fn a_device_remembers_the_new_guest_when_asked(db: PgPool) {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
     assert!(body(response).await.contains(r#"value="yes" checked>"#));
 
-    let response = site
-        .post(
-            &format!("/join/{link}"),
-            "name=Per&party_size=1&remember=yes",
-        )
-        .await;
-    assert_eq!(response.status(), StatusCode::SEE_OTHER);
-    let page = location(&response).to_owned();
-    let new_link = page
-        .strip_prefix("/r/")
-        .unwrap()
-        .split('?')
-        .next()
-        .unwrap()
-        .to_owned();
-    let cookies = crate::testing::set_cookies(&response);
-    let event = crate::db::event::tests::event(&site.db).await;
-    assert_eq!(cookies.len(), 1, "{cookies:?}");
-    assert!(
-        cookies[0].starts_with(&format!("__Host-innby-{}={new_link};", event.id.simple())),
-        "{cookies:?}"
-    );
+    // Per signs up, then Kari on the same phone, and both ask to be remembered.
+    let mut remembered = Vec::new();
+    for name in ["Per", "Kari"] {
+        let response = site
+            .post(
+                &format!("/join/{link}"),
+                &format!("name={name}&party_size=1&remember=yes"),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let new_link = location(&response)
+            .strip_prefix("/r/")
+            .unwrap()
+            .split('?')
+            .next()
+            .unwrap()
+            .to_owned();
+        let id: crate::link::IdLink = new_link.parse().unwrap();
+        let cookies = crate::testing::set_cookies(&response);
+        assert_eq!(cookies.len(), 1, "{cookies:?}");
+        // Named for the invitation, so the second doesn't replace the first.
+        assert!(
+            cookies[0].starts_with(&format!("__Host-innby-{}={new_link};", id.id.simple())),
+            "{cookies:?}"
+        );
+        remembered.push((new_link, cookies[0].split(';').next().unwrap().to_owned()));
+    }
 
-    // The front page then leads back to Per's page.
+    // The front page then leads back to both pages.
+    let cookie: Vec<&str> = remembered
+        .iter()
+        .map(|(_, cookie)| cookie.as_str())
+        .collect();
     let request = axum::http::Request::get("/?lang=en")
-        .header(
-            axum::http::header::COOKIE,
-            cookies[0].split(';').next().unwrap(),
-        )
+        .header(axum::http::header::COOKIE, cookie.join("; "))
         .body(axum::body::Body::empty())
         .unwrap();
     let html = body(site.send(request).await).await;
-    assert!(html.contains(&format!("/r/{new_link}")), "{html}");
+    for (new_link, _) in &remembered {
+        assert!(html.contains(&format!("/r/{new_link}")), "{html}");
+    }
 }
 
 #[sqlx::test]

@@ -42,7 +42,7 @@ struct Welcome {
     status: String,
     page: String,
     /// For forgetting it again.
-    event_id: Uuid,
+    invitation: Uuid,
 }
 
 /// The front page: what Innby is, and the way back to each invitation this device
@@ -73,7 +73,7 @@ pub async fn index(State(state): State<AppState>, lang: Lang, headers: HeaderMap
             name: guest.rsvp.name.clone(),
             status: t.answer(guest.rsvp.response, guest.rsvp.party_size),
             page: paths::localized(&paths::path(paths::RSVP, &guest.link), lang),
-            event_id: guest.event.id,
+            invitation: guest.rsvp.id,
         }
     };
     let mut response = render(IndexPage {
@@ -82,7 +82,7 @@ pub async fn index(State(state): State<AppState>, lang: Lang, headers: HeaderMap
         coming: coming.iter().map(welcome).collect(),
         past: past.iter().rev().map(welcome).collect(),
     });
-    // Links that stopped working are forgotten, and an older cookie gets its new name.
+    // Links that stopped working are forgotten.
     for cookie in remembered.cookies {
         response.headers_mut().append(header::SET_COOKIE, cookie);
     }

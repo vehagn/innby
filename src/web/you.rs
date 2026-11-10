@@ -178,7 +178,7 @@ pub async fn delete(
             // A device that remembers the guest forgets them too.
             let https = state.config.is_https();
             if remember::remembers(&headers, https, &guest) {
-                let cookie = remember::forget_cookie(https, guest.event.id);
+                let cookie = remember::forget_cookie(https, guest.rsvp.id);
                 response.headers_mut().append(header::SET_COOKIE, cookie);
             }
             response

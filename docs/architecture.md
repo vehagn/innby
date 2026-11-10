@@ -219,7 +219,8 @@ event as a calendar file, as their page offers it.
 asks a device to remember them, by ticking the box above the answer buttons or on the
 group sign-up form (unticked until they do, since a box ticked for them wouldn't be
 asking; once answers close, a button does it), the browser keeps their link in one
-cookie per event (`__Host-innby-{event}` over HTTPS; `HttpOnly`, `SameSite=Lax`,
+cookie per invitation (`__Host-innby-{invitation}` over HTTPS, so two sign-ups to one
+event through a group's link are both remembered; `HttpOnly`, `SameSite=Lax`,
 expiring when the event's data is deleted). The front page then lists each remembered
 invitation, those to come or under way first, the soonest first, and those over after
 them, under a heading of their own, each with a button back. The cookie gives no access by

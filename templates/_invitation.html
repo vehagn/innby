@@ -1,12 +1,12 @@
 {#- One remembered invitation on the front page: the way back to it, and forgetting it. #}
-<section class="card invitation" aria-labelledby="event-{{ welcome.event_id }}">
-  <h3 id="event-{{ welcome.event_id }}">{{ welcome.title }}</h3>
+<section class="card invitation" aria-labelledby="invitation-{{ welcome.invitation }}">
+  <h3 id="invitation-{{ welcome.invitation }}">{{ welcome.title }}</h3>
   <p class="muted">{{ welcome.when }}</p>
   <p>{{ crate::i18n::filled(t.welcome_back, "name", welcome.name) }} {{ crate::i18n::bold(t.your_answer, "answer", welcome.status)|safe }}</p>
   <div class="buttons">
     <a class="button" href="{{ welcome.page }}">{{ t.to_your_page }}</a>
     <form method="post" action="{{ lang.forget() }}" class="not-you">
-      <input type="hidden" name="event" value="{{ welcome.event_id }}">
+      <input type="hidden" name="invitation" value="{{ welcome.invitation }}">
       <span class="hint">{{ t.not_you }}</span>
       <button class="link small">{{ t.forget_here }}</button>
     </form>

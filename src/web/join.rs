@@ -249,7 +249,7 @@ pub async fn join(
             let https = state.config.is_https();
             cookie::with(
                 redirect,
-                remember::remember_cookie(https, &joining.event, &link),
+                remember::remember_cookie(https, &joining.event, rsvp.id, &link),
             )
         }
         Err(err) => server_error(err),
