@@ -22,13 +22,13 @@ use super::{
 };
 use crate::{
     admin::{
-        forms::{form_token, sent_before},
+        forms::{commit_once, form_token, sent_before},
         lang,
         page::{AdminState, PageError, load_event, redirect},
         qr as admin_qr,
     },
     db::{
-        admin_form, group,
+        group,
         qr::{self, Icon, Shape, Style},
     },
     http::render_form,
@@ -153,12 +153,13 @@ pub(in crate::admin) async fn create(
             return Ok(page(draft));
         }
     };
-    let event = create_event(&state.db, &details, &groups, style.as_ref()).await?;
-    tracing::info!(event = %event.id, groups = groups.len(), "event created");
+    let mut tx = state.db.begin().await?;
+    let event = create_event(&mut tx, &details, &groups, style.as_ref()).await?;
     let page = format!("{}?created", paths::path(paths::EVENT, event.id));
-    if let Some(token) = token {
-        admin_form::note(&state.db, token, &page).await?;
+    if let Some(first) = commit_once(&state.db, tx, token, &page, paths::HOME).await? {
+        return Ok(first);
     }
+    tracing::info!(event = %event.id, groups = groups.len(), "event created");
     Ok(redirect(&page))
 }
 

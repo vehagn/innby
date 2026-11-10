@@ -73,7 +73,9 @@ pub async fn import_event(db: &PgPool, file: &str) -> anyhow::Result<String> {
             .map(admin_qr::check)
             .transpose()
             .map_err(anyhow::Error::msg)?;
-        let event = create_event(db, &details, &groups, style.as_ref()).await?;
+        let mut tx = db.begin().await?;
+        let event = create_event(&mut tx, &details, &groups, style.as_ref()).await?;
+        tx.commit().await?;
         tracing::info!(event = %event.id, groups = groups.len(), "event imported");
         Ok(format!(
             "Made {} ({}) on {}, with {} group link(s).",

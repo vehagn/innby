@@ -11,16 +11,15 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use super::{
-    forms::{BatchForm, DeleteForm, NameForm, SavedQuery, form_token, sent_before},
+    forms::{BatchForm, DeleteForm, NameForm, SavedQuery, commit_once, form_token, sent_before},
     guests::GuestRow,
     lang,
-    page::{AdminState, PageError, load_event, redirect, timestamp},
+    page::{AdminState, PageError, load_event, redirect, saved, timestamp},
     qr::{self as admin_qr, qr_file},
 };
 use crate::{
     config::Config,
     db::{
-        admin_form,
         event::Event,
         group::{self, Group},
         qr,
@@ -28,7 +27,6 @@ use crate::{
     },
     http::{render, render_form, render_with},
     i18n::count,
-    link::Purpose,
     paths::{self, AdminLinks, EventLinks},
 };
 
@@ -58,10 +56,7 @@ impl GroupRow {
 }
 
 fn group_url(config: &Config, group: &Group) -> String {
-    let link = config
-        .link_key
-        .link(Purpose::Group, group.id, group.link_nonce);
-    config.url(&paths::path(paths::JOIN, link))
+    config.url(&paths::path(paths::JOIN, group.link(&config.link_key)))
 }
 
 #[derive(Template)]
@@ -146,21 +141,11 @@ pub(super) async fn create(
     for (name, max_party_size) in &entries {
         group::create(&mut *tx, id, name, *max_party_size).await?;
     }
-    let page = format!(
-        "{}?created={}",
-        paths::path(paths::EVENT_GROUPS, id),
-        entries.len()
-    );
-    // The same form sent twice at once: the other one made them, so these go.
-    if let Some(token) = token
-        && !admin_form::note(&mut *tx, token, &page).await?
-    {
-        tx.rollback().await?;
-        return Ok(sent_before(&state.db, Some(token))
-            .await?
-            .unwrap_or_else(|| redirect(&paths::path(paths::EVENT_GROUPS, id))));
+    let list = paths::path(paths::EVENT_GROUPS, id);
+    let page = format!("{list}?created={}", entries.len());
+    if let Some(first) = commit_once(&state.db, tx, token, &page, &list).await? {
+        return Ok(first);
     }
-    tx.commit().await?;
     tracing::info!(count = entries.len(), event = %id, "groups created");
     Ok(redirect(&page))
 }
@@ -224,11 +209,6 @@ impl GroupPage {
     }
 }
 
-fn saved_redirect(id: Uuid) -> Response {
-    let page = format!("{}?saved", paths::path(paths::GROUP, id));
-    redirect(&page)
-}
-
 pub(super) async fn show(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
@@ -268,7 +248,7 @@ pub(super) async fn edit(
     if !group::update(&state.db, id, &name, form.max_party_size).await? {
         return Err(PageError::Missing);
     }
-    Ok(saved_redirect(id))
+    Ok(saved(paths::GROUP, id))
 }
 
 /// Replaces the group's link, for when it has spread too far. Those who signed up keep
@@ -281,7 +261,7 @@ pub(super) async fn revoke(
         .await?
         .ok_or(PageError::Missing)?;
     tracing::info!(group = %id, "group link revoked");
-    Ok(saved_redirect(id))
+    Ok(saved(paths::GROUP, id))
 }
 
 /// Deletes a group nobody has signed up through.
@@ -341,7 +321,7 @@ mod tests {
         );
         let url = format!(
             "https://fest.example.com/join/{}",
-            admin.config.link_key.link(Purpose::Group, climbing.id, 0)
+            climbing.link(&admin.config.link_key)
         );
         assert!(links(&html).contains(&url.as_str()));
 

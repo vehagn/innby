@@ -20,7 +20,7 @@ use axum::{
     response::Response,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
+use sqlx::PgConnection;
 
 use super::{
     forms::BatchForm,
@@ -122,14 +122,13 @@ pub(super) fn group_lines(lines: &str) -> Result<Vec<(String, i32)>, String> {
 }
 
 /// Makes an event, its group links, and its QR codes' style if it has one other than
-/// the plain one, all or none.
+/// the plain one, in the caller's transaction, so it's all or none.
 pub(super) async fn create_event(
-    db: &PgPool,
+    tx: &mut PgConnection,
     details: &Details,
     groups: &[(String, i32)],
     style: Option<&Style>,
 ) -> sqlx::Result<Event> {
-    let mut tx = db.begin().await?;
     let event = event::create(&mut *tx, details).await?;
     if let Some(style) = style {
         qr::save(&mut *tx, event.id, style).await?;
@@ -137,6 +136,5 @@ pub(super) async fn create_event(
     for (name, max_party_size) in groups {
         group::create(&mut *tx, event.id, name, *max_party_size).await?;
     }
-    tx.commit().await?;
     Ok(event)
 }

@@ -8,7 +8,7 @@
 
 use axum::response::Response;
 use serde::Deserialize;
-use sqlx::PgExecutor;
+use sqlx::{PgExecutor, PgPool, Postgres, Transaction};
 
 use super::{lang, page::redirect};
 use crate::{
@@ -22,12 +22,7 @@ use crate::{
 /// A form's own token, as the page put it in a hidden field (`form_token`), if what was
 /// sent looks like one.
 pub(super) fn form_token(sent: Option<&str>) -> Option<&str> {
-    sent.filter(|token| {
-        (16..=64).contains(&token.len())
-            && token
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-    })
+    sent.filter(|token| crate::random::is_token(token))
 }
 
 /// The way to what the form with this token made, if it was sent before: its answer was
@@ -41,6 +36,28 @@ pub(super) async fn sent_before(
     };
     let page = admin_form::sent(db, token).await?;
     Ok(page.map(|page| redirect(&page)))
+}
+
+/// Commits what a create form made, noting under the form's token that it led to
+/// `page`. If the same form got there first, as when it's sent twice at once, what this
+/// one made is undone instead, and the answer is the way to what the first made (or
+/// `fallback`, should that have been forgotten since).
+pub(super) async fn commit_once(
+    db: &PgPool,
+    mut tx: Transaction<'_, Postgres>,
+    token: Option<&str>,
+    page: &str,
+    fallback: &str,
+) -> sqlx::Result<Option<Response>> {
+    if let Some(token) = token
+        && !admin_form::note(&mut *tx, token, page).await?
+    {
+        tx.rollback().await?;
+        let first = admin_form::sent(db, token).await?;
+        return Ok(Some(redirect(first.as_deref().unwrap_or(fallback))));
+    }
+    tx.commit().await?;
+    Ok(None)
 }
 
 /// A name and how many people it covers: a guest's invitation, or a group's for each
