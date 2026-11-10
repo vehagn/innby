@@ -17,7 +17,7 @@
   <p class="muted">{{ a.no_invitations }}</p>
   {% else %}
   <div class="table-wrap">
-  <table>
+  <table class="link-table">
     <thead>
       <tr><th>{{ a.col_name }}</th><th>{{ a.col_answer }}</th><th>{{ a.col_people }}</th><th>{{ a.col_link }}</th></tr>
     </thead>
@@ -26,7 +26,7 @@
       <tr>
         <td><a href="{{ invitation.row.path }}">{{ invitation.row.name }}</a></td>
         <td><span class="status {{ invitation.row.status }}">{{ invitation.row.answer }}</span></td>
-        <td>{{ invitation.row.party }}</td>
+        <td data-label="{{ a.col_people }}">{{ invitation.row.party }}</td>
         <td><div class="link-field">
           <input type="text" readonly value="{{ invitation.url }}" aria-label="{{ crate::i18n::filled(a.link_for, "name", invitation.row.name) }}">
           <a href="{{ invitation.url }}" target="_blank" aria-label="{{ crate::i18n::filled(a.open_link_for, "name", invitation.row.name) }}">{{ a.open_link }}</a>

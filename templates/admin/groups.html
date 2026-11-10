@@ -16,7 +16,7 @@
   <p class="muted">{{ a.no_groups }}</p>
   {% else %}
   <div class="table-wrap">
-  <table>
+  <table class="link-table">
     <thead>
       <tr><th>{{ a.col_group }}</th><th>{{ a.col_signed_up }}</th><th>{{ a.col_people_each }}</th><th>{{ a.col_link }}</th></tr>
     </thead>
@@ -24,8 +24,8 @@
       {% for group in groups %}
       <tr>
         <td><a href="{{ group.path }}">{{ group.name }}</a></td>
-        <td>{{ group.sign_ups }}</td>
-        <td>{{ group.max_party_size }}</td>
+        <td data-label="{{ a.col_signed_up }}">{{ group.sign_ups }}</td>
+        <td data-label="{{ a.col_people_each }}">{{ group.max_party_size }}</td>
         <td><div class="link-field">
           <input type="text" readonly value="{{ group.url }}" aria-label="{{ crate::i18n::filled(a.link_for, "name", group.name) }}">
           <a href="{{ group.url }}" target="_blank" aria-label="{{ crate::i18n::filled(a.open_link_for, "name", group.name) }}">{{ a.open_link }}</a>
