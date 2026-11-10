@@ -42,7 +42,7 @@ use super::{
     AppState,
     pages::Page,
     rsvp::Guest,
-    views::{GuestTab, TabLink, guest_tabs},
+    views::{GuestTab, guest_tabs},
 };
 use crate::{
     config::{Game, ScoreKind},
@@ -52,6 +52,7 @@ use crate::{
     },
     http::{ClientIp, render, server_error},
     i18n::{Lang, Messages},
+    icons::TabLink,
     link::IdLink,
     paths::{self, GuestLinks},
 };

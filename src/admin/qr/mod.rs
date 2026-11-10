@@ -16,7 +16,7 @@ use axum::{
 use super::{
     forms::SavedQuery,
     lang,
-    page::{AdminState, PageError, load_event, redirect},
+    page::{AdminState, PageError, load_event, saved},
 };
 use crate::{
     config::Config,
@@ -87,10 +87,7 @@ pub(super) async fn save(
         return Err(PageError::Missing);
     }
     tracing::info!(event = %id, "qr style saved");
-    Ok(redirect(&format!(
-        "{}?saved",
-        paths::path(paths::EVENT_QR, id)
-    )))
+    Ok(saved(paths::EVENT_QR, id))
 }
 
 /// A QR code as an SVG file to save, named after what it's for.

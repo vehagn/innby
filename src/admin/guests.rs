@@ -15,7 +15,7 @@ use uuid::Uuid;
 use super::{
     forms::{DeleteForm, NameForm, SavedQuery},
     lang,
-    page::{AdminState, PageError, load_event, redirect, timestamp},
+    page::{AdminState, PageError, load_event, redirect, saved, timestamp},
     qr::qr_file,
 };
 use crate::{
@@ -29,7 +29,6 @@ use crate::{
     },
     http::{render, render_with},
     i18n::{count, filled},
-    link::Purpose,
     paths::{self, AdminLinks, EventLinks},
 };
 
@@ -98,8 +97,8 @@ impl GuestRow {
 
     /// The row with the guest's pick among `choices`, as the host reads them.
     pub(super) fn with_choice(mut self, choices: &[&str], rsvp: &Rsvp) -> Self {
-        let pick = rsvp.choice.and_then(|pick| usize::try_from(pick).ok());
-        self.choice = pick
+        self.choice = rsvp
+            .pick()
             .and_then(|pick| choices.get(pick))
             .map_or_else(String::new, |choice| (*choice).to_owned());
         self
@@ -178,8 +177,7 @@ pub(super) async fn list(
         counts: (0..choices.len())
             .map(|i| {
                 let picked = rsvps.iter().filter(|rsvp| {
-                    rsvp.response == rsvp::Response::Attending
-                        && rsvp.choice.and_then(|pick| usize::try_from(pick).ok()) == Some(i)
+                    rsvp.response == rsvp::Response::Attending && rsvp.pick() == Some(i)
                 });
                 (choices[i].to_owned(), picked.count())
             })
@@ -273,10 +271,7 @@ impl GuestPage {
 }
 
 pub(super) fn guest_url(config: &Config, rsvp: &Rsvp) -> String {
-    let link = config
-        .link_key
-        .link(Purpose::Rsvp, rsvp.id, rsvp.link_nonce);
-    config.url(&paths::path(paths::RSVP, link))
+    config.url(&paths::path(paths::RSVP, rsvp.link(&config.link_key)))
 }
 
 /// The guest's QR code as a file, for printing.
@@ -303,11 +298,6 @@ pub(super) async fn show(
     Ok(render(page))
 }
 
-pub(super) fn saved_redirect(id: Uuid) -> Response {
-    let page = format!("{}?saved", paths::path(paths::GUEST, id));
-    redirect(&page)
-}
-
 pub(super) async fn edit(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
@@ -320,7 +310,7 @@ pub(super) async fn edit(
     if !rsvp::update_invite(&state.db, id, &name, form.max_party_size).await? {
         return Err(PageError::Missing);
     }
-    Ok(saved_redirect(id))
+    Ok(saved(paths::GUEST, id))
 }
 
 pub(super) async fn revoke(
@@ -331,7 +321,7 @@ pub(super) async fn revoke(
         .await?
         .ok_or(PageError::Missing)?;
     tracing::info!(rsvp = %id, "link revoked");
-    Ok(saved_redirect(id))
+    Ok(saved(paths::GUEST, id))
 }
 
 pub(super) async fn delete(

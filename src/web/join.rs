@@ -173,12 +173,10 @@ pub async fn join(
     page.remember = form.remember.is_some();
     // A token as the form has it, or none from a made-up request: then there's
     // nothing to find a first sign-up by.
-    let token = form.token.as_deref().filter(|token| {
-        (16..=64).contains(&token.len())
-            && token
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-    });
+    let token = form
+        .token
+        .as_deref()
+        .filter(|token| crate::random::is_token(token));
     if let Some(token) = token {
         // Shown again to fix, it's still the same form.
         token.clone_into(&mut page.token);
@@ -221,10 +219,7 @@ pub async fn join(
     } else {
         tracing::info!(rsvp = %rsvp.id, group = %group.id, "sign-up sent again");
     }
-    let link = state
-        .config
-        .link_key
-        .link(Purpose::Rsvp, rsvp.id, rsvp.link_nonce);
+    let link = rsvp.link(&state.config.link_key);
     let page = paths::localized(&paths::path(paths::RSVP, &link), lang);
     let redirect = Redirect::to(&format!("{page}&new")).into_response();
     if form.remember.is_none() {

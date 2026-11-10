@@ -17,12 +17,13 @@ use super::{
     pages::{MessagePage, Page, PageError},
     remember,
     rsvp::{Guest, Notice, ShowQuery},
-    views::{FormPage, GuestTab, TabLink, guest_tabs},
+    views::{FormPage, GuestTab, guest_tabs},
 };
 use crate::{
     db::rsvp::{self, EmailStatus, Rsvp},
     http::{cookie, render},
     i18n::{Lang, Messages},
+    icons::TabLink,
     paths::{self, GuestLinks},
 };
 
@@ -122,9 +123,9 @@ struct Export<'a> {
 pub async fn export(State(state): State<AppState>, guest: Guest) -> Page {
     let scores = crate::db::games::of_guest(&state.db, guest.rsvp.id).await?;
     let question = guest.event.details.question(guest.rsvp.lang);
-    let picked = guest.rsvp.choice.and_then(|pick| {
+    let picked = guest.rsvp.pick().and_then(|pick| {
         let choices = &question.as_ref()?.1;
-        choices.get(usize::try_from(pick).ok()?).copied()
+        choices.get(pick).copied()
     });
     let export = Export {
         rsvp: &guest.rsvp,

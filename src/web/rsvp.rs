@@ -18,7 +18,7 @@ use super::{
     remember,
     views::{
         DisplayChoice, EventView, FormPage, GuestList, GuestTab, GuestsPage, PartySize, Question,
-        TabLink, YourListing, guest_tabs,
+        YourListing, guest_tabs,
     },
 };
 use crate::{
@@ -28,6 +28,7 @@ use crate::{
     },
     http::{cookie, render},
     i18n::{Lang, Messages},
+    icons::TabLink,
     link::{IdLink, Purpose},
     paths::{self, GuestLinks},
 };

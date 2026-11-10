@@ -26,7 +26,7 @@ use crate::{
     },
     http::{ClientIp, render, render_with},
     i18n::{Lang, Messages},
-    link::{EmailLink, Purpose},
+    link::EmailLink,
     paths,
 };
 
@@ -166,10 +166,7 @@ pub async fn confirm(State(state): State<AppState>, lang: Lang, Path(token): Pat
     tracing::info!(rsvp = %guest.id, "e-mail address confirmed");
     // Holding the confirmation link proves the address, which belongs to this RSVP, so
     // the guest may go straight to their page.
-    let link = state
-        .config
-        .link_key
-        .link(Purpose::Rsvp, guest.id, guest.link_nonce);
+    let link = guest.link(&state.config.link_key);
     Ok(Notice::EmailConfirmed.redirect(paths::RSVP_YOU, &link, lang))
 }
 

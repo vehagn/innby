@@ -13,7 +13,7 @@ use uuid::Uuid;
 use super::{
     forms::SavedQuery,
     lang,
-    page::{AdminState, PageError, load_event, redirect},
+    page::{AdminState, PageError, load_event, saved},
 };
 use crate::{
     db::{event::Event, games},
@@ -122,8 +122,5 @@ pub(super) async fn edit(
         .collect();
     games::offer(&state.db, event.id, &ticked).await?;
     tracing::info!(event = %event.id, games = ticked.len(), "games offered");
-    Ok(redirect(&format!(
-        "{}?saved",
-        paths::path(paths::EVENT_GAMES, event.id)
-    )))
+    Ok(saved(paths::EVENT_GAMES, event.id))
 }

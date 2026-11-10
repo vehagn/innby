@@ -14,7 +14,7 @@ use uuid::Uuid;
 use super::{
     forms::SavedQuery,
     lang,
-    page::{AdminState, PageError, load_event, redirect},
+    page::{AdminState, PageError, load_event, saved},
 };
 use crate::{
     db::{
@@ -112,7 +112,7 @@ pub(super) async fn create(
     };
     access::give(&state.db, event.id, &user, form.role).await?;
     tracing::info!(event = %event.id, role = form.role.code(), "event access given");
-    Ok(saved(event.id))
+    Ok(saved(paths::EVENT_ACCESS, event.id))
 }
 
 #[derive(Deserialize)]
@@ -130,12 +130,5 @@ pub(super) async fn delete(
     if access::take(&state.db, event.id, &form.user).await? {
         tracing::info!(event = %event.id, "event access taken");
     }
-    Ok(saved(event.id))
-}
-
-fn saved(event: Uuid) -> Response {
-    redirect(&format!(
-        "{}?saved",
-        paths::path(paths::EVENT_ACCESS, event)
-    ))
+    Ok(saved(paths::EVENT_ACCESS, event.id))
 }

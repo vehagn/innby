@@ -23,7 +23,10 @@ use super::{
     event::{self, Event},
     group::Group,
 };
-use crate::i18n::{Lang, Texts};
+use crate::{
+    i18n::{Lang, Texts},
+    link::{LinkKey, Purpose},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
@@ -92,6 +95,17 @@ impl Rsvp {
     /// How the guest's name shows in the guest list right now.
     pub fn listed(&self) -> NameDisplay {
         NameDisplay::listed(self.response, self.name_display)
+    }
+
+    /// The guest's link as it is now, the `{link}` of their pages: having it is what
+    /// lets someone in.
+    pub fn link(&self, key: &LinkKey) -> String {
+        key.link(Purpose::Rsvp, self.id, self.link_nonce)
+    }
+
+    /// Their pick for the host's question, as a place among the event's choices.
+    pub fn pick(&self) -> Option<usize> {
+        self.choice.and_then(|pick| usize::try_from(pick).ok())
     }
 }
 

@@ -15,7 +15,7 @@ use serde::Deserialize;
 use super::{
     forms::{DeleteForm, SavedQuery},
     lang,
-    page::{AdminState, PageError, redirect},
+    page::{AdminState, PageError, redirect, saved},
     role::{Host, Role},
 };
 use crate::{
@@ -197,10 +197,7 @@ pub(super) async fn create(
         return users_page(&state, form, None, Some(error)).await;
     }
     tracing::info!("admin user created");
-    Ok(redirect(&format!(
-        "{}?saved",
-        paths::path(paths::USER, &name)
-    )))
+    Ok(saved(paths::USER, &name))
 }
 
 #[derive(Template)]
@@ -291,10 +288,7 @@ pub(super) async fn edit(
         return Err(PageError::Missing);
     }
     tracing::info!("admin user changed");
-    Ok(redirect(&format!(
-        "{}?saved",
-        paths::path(paths::USER, &name)
-    )))
+    Ok(saved(paths::USER, &name))
 }
 
 pub(super) async fn delete(

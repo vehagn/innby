@@ -4,6 +4,8 @@ use chrono::{DateTime, Utc};
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
+use crate::link::{LinkKey, Purpose};
+
 #[derive(Debug, Clone)]
 pub struct Group {
     pub id: Uuid,
@@ -14,6 +16,13 @@ pub struct Group {
     pub max_party_size: i32,
     pub link_nonce: i32,
     pub created_at: DateTime<Utc>,
+}
+
+impl Group {
+    /// The group's sign-up link as it is now, the `{link}` of its page.
+    pub fn link(&self, key: &LinkKey) -> String {
+        key.link(Purpose::Group, self.id, self.link_nonce)
+    }
 }
 
 pub async fn create(

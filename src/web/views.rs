@@ -14,6 +14,7 @@ use crate::{
     },
     http::render_with,
     i18n::{Lang, Messages, fill},
+    icons::{self, TabLink},
 };
 
 /// A page with a form on it, which can be shown again saying what to fix.
@@ -277,14 +278,6 @@ pub enum GuestTab {
     You,
 }
 
-pub struct TabLink {
-    pub href: String,
-    pub label: &'static str,
-    /// Inline SVG, hidden from screen readers, which read the label.
-    pub icon: &'static str,
-    pub current: bool,
-}
-
 /// The guest's tabs, with Games only when the event offers any (`_guest_tabs.html`).
 pub fn guest_tabs(
     t: &'static Messages,
@@ -292,7 +285,6 @@ pub fn guest_tabs(
     games: bool,
     current: GuestTab,
 ) -> Vec<TabLink> {
-    use crate::icons;
     [
         (
             GuestTab::Reply,

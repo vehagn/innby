@@ -1,6 +1,15 @@
 //! Icons: line drawings in the text's colour, as inline SVG, hidden from screen readers,
 //! which read the words beside them. Both sites' tab bars use them.
 
+/// A tab in a tab bar, the admin's or a guest's, as the templates draw it.
+pub struct TabLink {
+    pub href: String,
+    pub label: &'static str,
+    /// Inline SVG, hidden from screen readers, which read the label.
+    pub icon: &'static str,
+    pub current: bool,
+}
+
 /// An icon's drawing in the SVG every icon shares.
 macro_rules! svg {
     ($drawing:literal) => {

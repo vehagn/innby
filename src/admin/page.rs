@@ -18,7 +18,7 @@ use crate::{
     config::Config,
     db::event::{self, Event},
     http::{ClientIp, server_error},
-    icons,
+    icons::{self, TabLink},
     paths::{self, EventLinks},
 };
 
@@ -85,14 +85,6 @@ impl Tab {
             Tab::Access => icons::KEY,
         }
     }
-}
-
-pub struct TabLink {
-    pub href: String,
-    pub label: &'static str,
-    /// Inline SVG, hidden from screen readers, which read the label.
-    pub icon: &'static str,
-    pub current: bool,
 }
 
 /// The tabs of the site, or with `event`, that event's tabs.
@@ -188,4 +180,10 @@ impl IntoResponse for PageError {
 /// language and colour scheme.
 pub(super) fn redirect(page: &str) -> Response {
     Redirect::to(&paths::admin(page)).into_response()
+}
+
+/// Back to the page a change was made on, `pattern` filled with `id`, with `?saved`
+/// for it to say so (see `forms::SavedQuery`).
+pub(super) fn saved(pattern: &str, id: impl std::fmt::Display) -> Response {
+    redirect(&format!("{}?saved", paths::path(pattern, id)))
 }

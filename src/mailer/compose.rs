@@ -15,7 +15,6 @@ use crate::{
         rsvp::{EmailStatus, Response, Rsvp},
     },
     i18n::fill,
-    link::Purpose,
     paths,
 };
 
@@ -55,12 +54,7 @@ pub fn compose(
     let t = lang.messages();
     // A page on the site, in the guest's language.
     let url = |path: &str| config.url(&paths::localized(path, lang));
-    let rsvp_url = || {
-        let link = config
-            .link_key
-            .link(Purpose::Rsvp, rsvp.id, rsvp.link_nonce);
-        url(&paths::path(paths::RSVP, link))
-    };
+    let rsvp_url = || url(&paths::path(paths::RSVP, rsvp.link(&config.link_key)));
     let (text, url) = match kind {
         Kind::ConfirmEmail => {
             let link = config
