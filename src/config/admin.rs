@@ -46,12 +46,15 @@ pub struct PasswordLogin {
 pub const MAX_USER_LEN: usize = 100;
 
 /// Whether a password user may have this name: one that can be typed in the login form
-/// and carried in the refresh token's cookie. The database checks the same.
+/// and carried in the refresh token's cookie, with a letter or digit in it, so that
+/// `/users/{name}` is never `/users/..`, which no browser asks for. The database checks
+/// the same.
 pub fn valid_user_name(user: &str) -> bool {
     (1..=MAX_USER_LEN).contains(&user.len())
         && user
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || "._@-".contains(c))
+        && user.contains(|c: char| c.is_ascii_alphanumeric())
 }
 
 impl PasswordLogin {
@@ -327,6 +330,17 @@ mod tests {
             },
             config,
         )
+    }
+
+    #[test]
+    fn a_user_name_is_plain_and_has_a_letter_or_digit() {
+        for name in ["kari", "ola.n", "kari@example.com", "a-b_c"] {
+            assert!(valid_user_name(name), "{name}");
+        }
+        for name in ["", ".", "..", "@-.", "kari nordmann", "kari/..", "kåre"] {
+            assert!(!valid_user_name(name), "{name}");
+        }
+        assert!(!valid_user_name(&"a".repeat(MAX_USER_LEN + 1)));
     }
 
     #[test]

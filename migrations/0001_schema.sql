@@ -209,7 +209,9 @@ create table admin_revoked_jwt (
 -- Unlike the other login tables, this holds personal data, a host's user name, kept until
 -- an admin deletes them.
 create table admin_user (
-    name          text primary key check (name ~ '^[A-Za-z0-9._@-]{1,100}$'),
+    -- With a letter or digit, so its page's address is never `/users/..`.
+    name          text primary key
+        check (name ~ '^[A-Za-z0-9._@-]{1,100}$' and name ~ '[A-Za-z0-9]'),
     -- Their role for every event; null for none, so they see only the events that give
     -- them one.
     role          text check (role in ('admin', 'editor', 'viewer')),
