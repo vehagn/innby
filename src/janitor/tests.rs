@@ -149,3 +149,35 @@ async fn deletes_everything_30_days_after_the_event(db: PgPool) {
         .unwrap();
     assert_eq!(mails, 0);
 }
+
+#[sqlx::test]
+async fn sweeps_expired_logins_and_form_tokens(db: PgPool) {
+    use crate::db::{admin_form, admin_login};
+    let now = Utc::now();
+    let (hour, day) = (Duration::hours(1), Duration::days(1));
+    // Saving one sweeps those expired before it, so the expired one goes in last.
+    admin_login::save_refresh_token(&db, b"current", now + hour)
+        .await
+        .unwrap();
+    admin_login::save_refresh_token(&db, b"expired", now - hour)
+        .await
+        .unwrap();
+    let (gone, kept) = (uuid::Uuid::from_u128(1), uuid::Uuid::from_u128(2));
+    admin_login::revoke_jwt(&db, gone, now + hour)
+        .await
+        .unwrap();
+    admin_login::revoke_jwt(&db, kept, now + day * 3)
+        .await
+        .unwrap();
+    admin_form::note(&db, "a-form-token-of-some-length", "/events")
+        .await
+        .unwrap();
+
+    // Nothing has expired yet, but for the one refresh token.
+    assert_eq!(run(&db, now).await.unwrap().tokens_deleted, 1);
+    // A day and a bit on: the other refresh token, the first JWT and the form's token.
+    let report = run(&db, now + day + Duration::minutes(90)).await.unwrap();
+    assert_eq!(report.tokens_deleted, 3);
+    assert!(admin_login::is_revoked(&db, kept).await.unwrap());
+    assert!(!admin_login::is_revoked(&db, gone).await.unwrap());
+}

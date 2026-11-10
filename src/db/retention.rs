@@ -29,6 +29,28 @@ pub async fn clear_unconfirmed_emails(db: &PgPool, cutoff: DateTime<Utc>) -> sql
     Ok(cleared.len() as u64)
 }
 
+/// Deletes what the logins and the admin's forms leave behind once it's no use: refresh
+/// tokens and logged-out JWTs that have expired, and form tokens from more than a day
+/// ago. A login, a logout or a form sweeps its own table as it writes; this does when
+/// nobody has come by. Returns how many rows went.
+pub async fn delete_expired_tokens(db: &PgPool, now: DateTime<Utc>) -> sqlx::Result<u64> {
+    let deleted = sqlx::query_scalar!(
+        r#"
+        with tokens as (delete from admin_refresh_token where expires_at <= $1 returning 1),
+            jwts as (delete from admin_revoked_jwt where expires_at <= $1 returning 1),
+            forms as (
+                delete from admin_form_sent where sent_at <= $1 - interval '1 day' returning 1
+            )
+        select (select count(*) from tokens) + (select count(*) from jwts)
+            + (select count(*) from forms) as "deleted!"
+        "#,
+        now,
+    )
+    .fetch_one(db)
+    .await?;
+    Ok(deleted as u64)
+}
+
 /// Deletes mail jobs that were sent, or given up on, before `cutoff`.
 pub async fn delete_old_mail(db: impl PgExecutor<'_>, cutoff: DateTime<Utc>) -> sqlx::Result<u64> {
     let result = sqlx::query!(

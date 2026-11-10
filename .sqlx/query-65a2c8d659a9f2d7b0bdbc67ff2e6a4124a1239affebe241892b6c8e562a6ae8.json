@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        with tokens as (delete from admin_refresh_token where expires_at <= $1 returning 1),\n            jwts as (delete from admin_revoked_jwt where expires_at <= $1 returning 1),\n            forms as (\n                delete from admin_form_sent where sent_at <= $1 - interval '1 day' returning 1\n            )\n        select (select count(*) from tokens) + (select count(*) from jwts)\n            + (select count(*) from forms) as \"deleted!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "deleted!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "65a2c8d659a9f2d7b0bdbc67ff2e6a4124a1239affebe241892b6c8e562a6ae8"
+}

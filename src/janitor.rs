@@ -19,6 +19,8 @@ pub struct Report {
     pub emails_cleared: u64,
     pub mails_deleted: u64,
     pub rsvps_deleted: u64,
+    /// Expired refresh tokens, logged-out JWTs and form tokens.
+    pub tokens_deleted: u64,
 }
 
 pub async fn run(db: &PgPool, now: DateTime<Utc>) -> anyhow::Result<Report> {
@@ -26,11 +28,13 @@ pub async fn run(db: &PgPool, now: DateTime<Utc>) -> anyhow::Result<Report> {
         emails_cleared: retention::clear_unconfirmed_emails(db, now - CONFIRM_WITHIN).await?,
         mails_deleted: retention::delete_old_mail(db, now - KEEP_SENT_MAIL).await?,
         rsvps_deleted: event::delete_started_by(db, now - KEEP_AFTER_EVENT).await?,
+        tokens_deleted: retention::delete_expired_tokens(db, now).await?,
     };
     tracing::info!(
         emails_cleared = report.emails_cleared,
         mails_deleted = report.mails_deleted,
         rsvps_deleted = report.rsvps_deleted,
+        tokens_deleted = report.tokens_deleted,
         "janitor done"
     );
     Ok(report)
