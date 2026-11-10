@@ -1,6 +1,7 @@
 //! An in-memory rate limit, per client or for all clients together, for the forms anyone
 //! can post (group sign-up and the ones that send mail) and for admin logins. Addresses
-//! are only held in memory for the length of a window and never logged or stored.
+//! are only held in memory for the length of a window and never logged or stored, and
+//! only so many at once, so nobody can fill the memory with them.
 
 use std::{
     collections::HashMap,
@@ -10,6 +11,15 @@ use std::{
 };
 
 use axum::{extract::ConnectInfo, http::request::Parts};
+
+/// The most clients a limiter counts at once, a megabyte or so. Someone with a great
+/// many addresses (an IPv6 /48 has 65 536 networks) could otherwise make it remember
+/// them all for a window, in pods with little memory to spare. Past this, clients it
+/// doesn't know yet share one count, which soon refuses them until windows end.
+const MOST_CLIENTS: usize = 20_000;
+
+/// The one count shared by the clients there's no room for: no client's own address.
+const EVERYONE_ELSE: IpAddr = IpAddr::V6(Ipv6Addr::UNSPECIFIED);
 
 /// A fixed-window counter per client, or for everyone with `check_all`.
 pub struct RateLimiter {
@@ -39,15 +49,24 @@ impl RateLimiter {
     }
 
     fn check_at(&self, client: IpAddr, now: Instant) -> bool {
+        self.check_among(client, now, MOST_CLIENTS)
+    }
+
+    fn check_among(&self, client: IpAddr, now: Instant, most: usize) -> bool {
         let mut hits = self
             .hits
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        // Forget finished windows now and then, so the map can't grow without bound.
-        if hits.len() >= 1024 {
+        let mut client = network(client);
+        // Forget finished windows now and then; if it's still full of running ones,
+        // there's no room for a newcomer, who's counted with everyone else.
+        if hits.len() >= most.min(1024) && !hits.contains_key(&client) {
             hits.retain(|_, (start, _)| now.duration_since(*start) < self.window);
+            if hits.len() >= most {
+                client = EVERYONE_ELSE;
+            }
         }
-        let (start, count) = hits.entry(network(client)).or_insert((now, 0));
+        let (start, count) = hits.entry(client).or_insert((now, 0));
         if now.duration_since(*start) >= self.window {
             (*start, *count) = (now, 0);
         }
@@ -115,6 +134,26 @@ mod tests {
         assert!(!limiter.check_at(ip("192.0.2.1"), start));
         assert!(limiter.check_at(ip("192.0.2.2"), start));
         assert!(limiter.check_at(ip("192.0.2.1"), start + Duration::from_secs(60)));
+    }
+
+    #[test]
+    fn remembers_only_so_many_clients() {
+        let limiter = RateLimiter::new(2, Duration::from_secs(60));
+        let start = Instant::now();
+        let most = 3;
+        for client in ["192.0.2.1", "192.0.2.2", "192.0.2.3"] {
+            assert!(limiter.check_among(ip(client), start, most));
+        }
+        // Those it knows keep their own count; newcomers share one, which runs out.
+        assert!(limiter.check_among(ip("192.0.2.1"), start, most));
+        assert!(limiter.check_among(ip("192.0.2.4"), start, most));
+        assert!(limiter.check_among(ip("192.0.2.5"), start, most));
+        assert!(!limiter.check_among(ip("192.0.2.6"), start, most));
+        assert!(limiter.hits.lock().unwrap().len() <= most + 1);
+        // Once the windows end there's room again.
+        let later = start + Duration::from_secs(60);
+        assert!(limiter.check_among(ip("192.0.2.6"), later, most));
+        assert_eq!(limiter.hits.lock().unwrap().len(), 1);
     }
 
     #[test]
