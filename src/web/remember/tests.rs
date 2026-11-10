@@ -102,6 +102,8 @@ async fn the_front_page_leads_back_to_each_remembered_invitation(db: PgPool) {
     }
     let welcome = escape(&filled(&en().welcome_back, "name", "Kari"));
     assert!(html.contains(&welcome), "{html}");
+    // One invitation to each event is nothing to remark on.
+    assert!(!html.contains(&escape(&en().remembered_twice)), "{html}");
     assert!(html.contains(&format!(r#"name="invitation" value="{summer_invitation}""#)));
     // Without cookies, the front page is the same for everyone.
     assert!(!body(site.get("/?lang=en").await).await.contains(&welcome));

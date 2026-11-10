@@ -98,6 +98,7 @@ to_your_page = "Til sida di"
 not_you = "Ikkje deg?"
 # On the front page: forgets this one invitation on this device, not the others.
 forget_here = "Gløym ho her"
+remembered_twice = "Denne eininga hugsar meir enn éin invitasjon til dette arrangementet. Er ein av dei ikkje din, kan du gløyme han her."
 
 # Optional e-mail
 email_heading = "Påminning på e-post"

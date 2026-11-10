@@ -95,6 +95,9 @@ pub struct Messages {
     pub not_you: String,
     /// Forgets one invitation on this device, from the front page.
     pub forget_here: String,
+    /// On each front-page invitation to an event this device remembers more than once,
+    /// as when two people signed up through a group's link on one phone.
+    pub remembered_twice: String,
 
     // Optional e-mail
     pub email_heading: String,

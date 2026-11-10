@@ -2,6 +2,7 @@
 <section class="card invitation" aria-labelledby="invitation-{{ welcome.invitation }}">
   <h3 id="invitation-{{ welcome.invitation }}">{{ welcome.title }}</h3>
   <p class="muted">{{ welcome.when }}</p>
+  {% if welcome.shared %}<p class="notice">{{ t.remembered_twice }}</p>{% endif %}
   <p>{{ crate::i18n::filled(t.welcome_back, "name", welcome.name) }} {{ crate::i18n::bold(t.your_answer, "answer", welcome.status)|safe }}</p>
   <div class="buttons">
     <a class="button" href="{{ welcome.page }}">{{ t.to_your_page }}</a>

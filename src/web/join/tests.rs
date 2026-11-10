@@ -181,6 +181,9 @@ async fn a_device_remembers_the_new_guest_when_asked(db: PgPool) {
     for (new_link, _) in &remembered {
         assert!(html.contains(&format!("/r/{new_link}")), "{html}");
     }
+    // Each says so, in case one isn't the guest's own.
+    let notice = escape(&en().remembered_twice);
+    assert_eq!(html.matches(&notice).count(), 2, "{html}");
 }
 
 #[sqlx::test]

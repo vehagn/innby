@@ -91,6 +91,7 @@ to_your_page = "前往你的頁面"
 not_you = "不是你？"
 # On the front page: forgets this one invitation on this device, not the others.
 forget_here = "在這台裝置上忘記它"
+remembered_twice = "這台裝置記住了此活動的多個邀請。如果其中有不屬於你的，可以在這裡忘記它。"
 
 # Optional e-mail
 email_heading = "電子郵件提醒"

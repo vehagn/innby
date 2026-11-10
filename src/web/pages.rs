@@ -43,6 +43,9 @@ struct Welcome {
     page: String,
     /// For forgetting it again.
     invitation: Uuid,
+    /// Whether the device remembers another invitation to the same event, which a guest
+    /// should know of, in case one isn't theirs.
+    shared: bool,
 }
 
 /// The front page: what Innby is, and the way back to each invitation this device
@@ -74,6 +77,11 @@ pub async fn index(State(state): State<AppState>, lang: Lang, headers: HeaderMap
             status: t.answer(guest.rsvp.response, guest.rsvp.party_size),
             page: paths::localized(&paths::path(paths::RSVP, &guest.link), lang),
             invitation: guest.rsvp.id,
+            shared: guests
+                .iter()
+                .filter(|other| other.event.id == guest.event.id)
+                .nth(1)
+                .is_some(),
         }
     };
     let mut response = render(IndexPage {
