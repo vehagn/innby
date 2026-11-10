@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, NaiveTime, Utc};
 use chrono_tz::Tz;
 
 use crate::{
@@ -23,7 +23,7 @@ const MAX_QUESTION: usize = 200;
 pub(super) const MAX_CHOICES: usize = 20;
 const MAX_CHOICE: usize = 100;
 
-/// A time as `<input type="datetime-local">` has it, and event files too:
+/// A date and time as the form keeps one, and event files too:
 /// `2026-12-12T19:00`.
 pub(super) const LOCAL_TIME: &str = "%Y-%m-%dT%H:%M";
 
@@ -155,13 +155,26 @@ impl EventForm {
     pub(super) fn from_fields(fields: &HashMap<String, String>) -> Self {
         let get = |name: &str| fields.get(name).map_or("", |value| value.trim());
         let main = Lang::from_code(get("lang")).unwrap_or(Lang::Nb);
+        // A date and a time of day come in a field each, `{name}_date` and
+        // `{name}_time`. A time that can't be read stays as typed, to show again.
+        let when = |name: &str| {
+            let date = get(&format!("{name}_date"));
+            let time = get(&format!("{name}_time"));
+            if date.is_empty() && time.is_empty() {
+                return String::new();
+            }
+            match time_of_day(time) {
+                Some(time) => format!("{date}T{}", time.format("%H:%M")),
+                None => format!("{date}T{time}"),
+            }
+        };
         let mut form = Self {
             lang: main,
             location: get("location").to_owned(),
-            starts_at: get("starts_at").to_owned(),
-            ends_at: get("ends_at").to_owned(),
+            starts_at: when("starts_at"),
+            ends_at: when("ends_at"),
             time_zone: get("time_zone").to_owned(),
-            rsvp_deadline: get("rsvp_deadline").to_owned(),
+            rsvp_deadline: when("rsvp_deadline"),
             ..Self::blank()
         };
         for lang in Lang::ALL {
@@ -199,20 +212,21 @@ impl EventForm {
         &self.location
     }
 
-    pub fn starts_at(&self) -> &str {
-        &self.starts_at
+    /// When it starts, as the form's two fields have it: the date and the time of day.
+    pub fn starts_at(&self) -> (&str, &str) {
+        date_and_time(&self.starts_at)
     }
 
-    pub fn ends_at(&self) -> &str {
-        &self.ends_at
+    pub fn ends_at(&self) -> (&str, &str) {
+        date_and_time(&self.ends_at)
     }
 
     pub fn time_zone(&self) -> &str {
         &self.time_zone
     }
 
-    pub fn rsvp_deadline(&self) -> &str {
-        &self.rsvp_deadline
+    pub fn rsvp_deadline(&self) -> (&str, &str) {
+        date_and_time(&self.rsvp_deadline)
     }
 
     /// The question and its choices, a line each, in the event's language.
@@ -350,6 +364,51 @@ fn choice_lines(text: &str) -> String {
         .join("\n")
 }
 
+/// A `LOCAL_TIME` as the form's two fields show it: its date, and its time of day.
+fn date_and_time(when: &str) -> (&str, &str) {
+    when.split_once('T').unwrap_or((when, ""))
+}
+
+/// A time of day as a host types it. The form asks for the 24-hour clock, `19:00`, and
+/// takes `19.00`, `1900` and `19` for it too; a time with am or pm, `7 pm` or
+/// `7:30 p.m.`, is read as that, for those who'd rather write it so. A browser's own
+/// time field isn't used: it asks for am or pm wherever the device's settings do,
+/// whatever the page says.
+fn time_of_day(typed: &str) -> Option<NaiveTime> {
+    let typed: String = typed
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .flat_map(char::to_lowercase)
+        .collect();
+    let typed = typed.replace("a.m.", "am").replace("p.m.", "pm");
+    let (clock, afternoon) = match (typed.strip_suffix("am"), typed.strip_suffix("pm")) {
+        (Some(clock), _) => (clock, Some(false)),
+        (_, Some(clock)) => (clock, Some(true)),
+        (None, None) => (typed.as_str(), None),
+    };
+    if clock.is_empty()
+        || !clock
+            .chars()
+            .all(|c| c.is_ascii_digit() || ":.".contains(c))
+    {
+        return None;
+    }
+    let (hour, minute) = match clock.split_once([':', '.']) {
+        Some((hour, minute)) if minute.len() == 2 => (hour, minute),
+        Some(_) => return None,
+        // `1900`, or the hour alone.
+        None if clock.len() > 2 => clock.split_at(clock.len() - 2),
+        None => (clock, "00"),
+    };
+    let (hour, minute): (u32, u32) = (hour.parse().ok()?, minute.parse().ok()?);
+    let hour = match afternoon {
+        None => hour,
+        Some(_) if !(1..=12).contains(&hour) => return None,
+        Some(afternoon) => hour % 12 + if afternoon { 12 } else { 0 },
+    };
+    NaiveTime::from_hms_opt(hour, minute, 0)
+}
+
 /// A time in `LOCAL_TIME`, in the event's time zone. A time that the clocks skip, or
 /// pass twice, gets the earlier reading.
 fn local_time(value: &str, tz: Tz) -> Option<DateTime<Tz>> {
@@ -364,11 +423,63 @@ fn local_time(value: &str, tz: Tz) -> Option<DateTime<Tz>> {
 mod tests {
     use super::*;
 
+    /// The form's fields, with each time (`starts_at`, `ends_at`, `rsvp_deadline`)
+    /// given as one `LOCAL_TIME` and sent as the form sends it, a date and a time.
     fn fields(pairs: &[(&str, &str)]) -> HashMap<String, String> {
-        pairs
-            .iter()
-            .map(|(key, value)| (key.to_string(), value.to_string()))
-            .collect()
+        let mut fields = HashMap::new();
+        for (key, value) in pairs {
+            if ["starts_at", "ends_at", "rsvp_deadline"].contains(key) {
+                let (date, time) = date_and_time(value);
+                fields.insert(format!("{key}_date"), date.to_owned());
+                fields.insert(format!("{key}_time"), time.to_owned());
+            } else {
+                fields.insert(key.to_string(), value.to_string());
+            }
+        }
+        fields
+    }
+
+    #[test]
+    fn reads_a_time_on_either_clock() {
+        let time = |typed| time_of_day(typed).map(|time| time.format("%H:%M").to_string());
+        for (typed, read) in [
+            ("19:00", "19:00"),
+            ("7:05", "07:05"),
+            ("19.30", "19:30"),
+            ("1930", "19:30"),
+            ("19", "19:00"),
+            ("00:00", "00:00"),
+            ("7 pm", "19:00"),
+            ("7:30PM", "19:30"),
+            ("7.30 p.m.", "19:30"),
+            ("12 am", "00:00"),
+            ("12:15 pm", "12:15"),
+            ("11 AM", "11:00"),
+        ] {
+            assert_eq!(time(typed).as_deref(), Some(read), "{typed}");
+        }
+        for typed in [
+            "", "late", "24:00", "19:60", "13 pm", "0 am", "7:5", "pm", "-7",
+        ] {
+            assert_eq!(time(typed), None, "{typed}");
+        }
+    }
+
+    #[test]
+    fn takes_a_time_typed_with_am_or_pm_and_shows_it_on_the_24_hour_clock() {
+        let mut sent = fields(&[
+            ("title", "Julebord"),
+            ("starts_at", "2054-12-12T7 pm"),
+            ("time_zone", "Europe/Oslo"),
+        ]);
+        let form = EventForm::from_fields(&sent);
+        assert_eq!(form.starts_at(), ("2054-12-12", "19:00"));
+        assert!(form.details(Utc::now()).is_ok());
+        // One that can't be read stays as typed, to fix.
+        sent.insert("starts_at_time".into(), "after dinner".into());
+        let form = EventForm::from_fields(&sent);
+        assert_eq!(form.starts_at(), ("2054-12-12", "after dinner"));
+        assert!(form.details(Utc::now()).is_err());
     }
 
     #[test]
@@ -389,7 +500,7 @@ mod tests {
         );
         // And back into the form it came from.
         let again = EventForm::from_details(&form.details(Utc::now()).unwrap());
-        assert_eq!(again.starts_at(), "2054-12-12T19:00");
+        assert_eq!(again.starts_at(), ("2054-12-12", "19:00"));
         assert_eq!(again.translations()[1].title, "Christmas party");
 
         for (field, value) in [
@@ -406,12 +517,13 @@ mod tests {
             ("ends_at", "2054-12-12T19:00"),
             ("ends_at", "2054-12-12T18:00"),
         ] {
-            let mut bad = fields(&[
+            // The last of a name counts.
+            let bad = fields(&[
                 ("title", "Julebord"),
                 ("starts_at", "2054-12-12T19:00"),
                 ("time_zone", "Europe/Oslo"),
+                (field, value),
             ]);
-            bad.insert(field.into(), value.into());
             assert!(
                 EventForm::from_fields(&bad).details(Utc::now()).is_err(),
                 "{field}"
@@ -440,7 +552,7 @@ mod tests {
         );
         assert_eq!(
             EventForm::from_details(&details).ends_at(),
-            "2054-12-13T01:00"
+            ("2054-12-13", "01:00")
         );
     }
 

@@ -13,14 +13,24 @@
 <label for="location">{{ a.event_location }}</label>
 <input id="location" name="location" maxlength="200" value="{{ form.location() }}">
 <label for="starts_at">{{ a.event_starts }}</label>
-<input id="starts_at" name="starts_at" type="datetime-local" required value="{{ form.starts_at() }}">
+<div class="date-time">
+  <input id="starts_at" name="starts_at_date" type="date" required value="{{ form.starts_at().0 }}">
+  <input name="starts_at_time" type="text" required maxlength="10" placeholder="19:00" autocomplete="off" value="{{ form.starts_at().1 }}" aria-label="{{ crate::i18n::filled(a.time_of, "field", a.event_starts) }}">
+</div>
+<p class="hint">{{ a.time_hint }}</p>
 <label for="ends_at">{{ a.event_ends }}</label>
-<input id="ends_at" name="ends_at" type="datetime-local" value="{{ form.ends_at() }}">
+<div class="date-time">
+  <input id="ends_at" name="ends_at_date" type="date" value="{{ form.ends_at().0 }}">
+  <input name="ends_at_time" type="text" maxlength="10" placeholder="19:00" autocomplete="off" value="{{ form.ends_at().1 }}" aria-label="{{ crate::i18n::filled(a.time_of, "field", a.event_ends) }}">
+</div>
 <p class="hint">{{ a.event_ends_hint }}</p>
 <label for="time_zone">{{ a.event_time_zone }}</label>
 <input id="time_zone" name="time_zone" required value="{{ form.time_zone() }}">
 <label for="rsvp_deadline">{{ a.event_deadline }}</label>
-<input id="rsvp_deadline" name="rsvp_deadline" type="datetime-local" value="{{ form.rsvp_deadline() }}">
+<div class="date-time">
+  <input id="rsvp_deadline" name="rsvp_deadline_date" type="date" value="{{ form.rsvp_deadline().0 }}">
+  <input name="rsvp_deadline_time" type="text" maxlength="10" placeholder="19:00" autocomplete="off" value="{{ form.rsvp_deadline().1 }}" aria-label="{{ crate::i18n::filled(a.time_of, "field", a.event_deadline) }}">
+</div>
 <p class="hint">{{ a.event_deadline_hint }}</p>
 <details{% if !form.question().is_empty() %} open{% endif %}>
   <summary>{{ a.event_question }}</summary>

@@ -29,7 +29,8 @@ async fn the_host_creates_an_event_invites_to_it_and_deletes_it(db: PgPool) {
     host.fill(&a.event_title, "Summer party")
         .fill(&format!("{} · Bokmål", a.event_title), "Sommerfest")
         .fill(&a.event_location, "Bygdøy")
-        .fill(&a.event_starts, "2054-12-20T15:00");
+        .fill(&a.event_starts, "2054-12-20")
+        .fill(&filled(&a.time_of, "field", &a.event_starts), "15:00");
     host.press(&a.create_event)
         .await
         .expect(&a.event_created)
@@ -82,7 +83,9 @@ async fn one_device_remembers_invitations_to_two_events(db: PgPool) {
     let mut host = world.admin().await;
     host.click(&a.new_event).await;
     host.fill(&a.event_title, "Sommerfest")
-        .fill(&a.event_starts, "2055-06-20T15:00");
+        .fill(&a.event_starts, "2055-06-20")
+        // As some would rather write it.
+        .fill(&filled(&a.time_of, "field", &a.event_starts), "3 pm");
     host.press(&a.create_event).await;
     host.click(&a.invitation_links).await;
     host.fill(&a.names, "Kari Nordmann");
@@ -363,7 +366,9 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
         .await
         .expect(&filled(&a.imported_notice, "title", "Julebord"))
         .expect(&a.qr_carried);
-    assert_eq!(host.value(&a.event_starts), "2055-12-11T19:00");
+    assert_eq!(host.value(&a.event_starts), "2055-12-11");
+    let time = filled(&a.time_of, "field", &a.event_starts);
+    assert_eq!(host.value(&time), "19:00");
     assert_eq!(host.value(&a.event_groups), "Climbing club, 3");
     host.press(&a.create_event).await.expect(&a.event_created);
 

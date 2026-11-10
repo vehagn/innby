@@ -310,7 +310,7 @@ input[type="text"],
 input[type="email"],
 input[type="number"],
 input[type="password"],
-input[type="datetime-local"],
+input[type="date"],
 input[type="file"],
 select,
 textarea {
@@ -337,6 +337,18 @@ textarea:focus {
 
 input[type="number"] {
   width: 6rem;
+}
+
+/* A date and its time of day, side by side: the time is typed, as 19:00, since a
+   browser's own time field asks for am or pm wherever the device does. */
+.date-time {
+  display: flex;
+  gap: var(--space-2);
+  max-width: var(--field);
+}
+
+.date-time input[type="text"] {
+  flex: 0 0 6rem;
 }
 
 /* A link to copy, which may be long. */

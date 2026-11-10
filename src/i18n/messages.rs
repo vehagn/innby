@@ -231,6 +231,10 @@ pub struct AdminMessages {
     pub event_description: String,
     pub event_location: String,
     pub event_starts: String,
+    /// What a screen reader calls the time field beside a date's, as "Starts: time".
+    pub time_of: String,
+    /// How to write a time: on the 24-hour clock, though am and pm are understood.
+    pub time_hint: String,
     pub event_ends: String,
     pub event_ends_hint: String,
     /// Under the Details tab's form: who's told of a new time or place.
