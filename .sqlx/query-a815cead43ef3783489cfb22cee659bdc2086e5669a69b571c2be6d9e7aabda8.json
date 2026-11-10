@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into rsvp (event_id, name, max_party_size) values ($1, $2, $3) returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice ",
+  "query": "insert into rsvp (event_id, name, max_party_size, lang) values ($1, $2, $3, (select lang from event where id = $1)) returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice ",
   "describe": {
     "columns": [
       {
@@ -94,21 +94,7 @@
       {
         "ordinal": 7,
         "name": "lang: Lang",
-        "type_info": {
-          "Custom": {
-            "name": "lang",
-            "kind": {
-              "Enum": [
-                "nb",
-                "nn",
-                "en",
-                "en-us",
-                "zh-hans",
-                "zh-hant"
-              ]
-            }
-          }
-        },
+        "type_info": "Text",
         "origin": {
           "Table": {
             "table": "rsvp",
@@ -265,5 +251,5 @@
       true
     ]
   },
-  "hash": "44817037e4ba9ea925019f8721508e90b83351569dd4bc7dc08964b539521d4d"
+  "hash": "a815cead43ef3783489cfb22cee659bdc2086e5669a69b571c2be6d9e7aabda8"
 }

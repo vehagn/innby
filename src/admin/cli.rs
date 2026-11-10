@@ -22,8 +22,10 @@ use crate::{
     i18n::Lang,
 };
 
-/// The language the commands answer in.
-const LANG: Lang = Lang::EnGb;
+/// The language the commands answer in: English, if the site has it, else its base.
+fn lang() -> Lang {
+    Lang::by_code("en").unwrap_or_else(Lang::base)
+}
 
 /// `innby invite`: an invitation to the event, or to the only one there is. Returns the
 /// guest's link.
@@ -34,7 +36,7 @@ pub async fn invite(
     name: &str,
     max_party_size: i32,
 ) -> anyhow::Result<String> {
-    lang::within(LANG, async {
+    lang::within(lang(), async {
         let name = validate(name, max_party_size, NameKind::Person).map_err(anyhow::Error::msg)?;
         let event = match event {
             Some(id) => find_event(db, id).await?,
@@ -63,7 +65,7 @@ pub async fn export_event(db: &PgPool, id: Uuid) -> anyhow::Result<String> {
 /// `innby event import`: a new event and its group links, from a file. Returns what it
 /// made.
 pub async fn import_event(db: &PgPool, file: &str) -> anyhow::Result<String> {
-    lang::within(LANG, async {
+    lang::within(lang(), async {
         let (form, groups, style) = EventFile::parse(file)
             .and_then(EventFile::into_form)
             .map_err(|err| anyhow::Error::msg(err.message()))?;
@@ -79,9 +81,9 @@ pub async fn import_event(db: &PgPool, file: &str) -> anyhow::Result<String> {
         tracing::info!(event = %event.id, groups = groups.len(), "event imported");
         Ok(format!(
             "Made {} ({}) on {}, with {} group link(s).",
-            details.title(LANG),
+            details.title(lang()),
             event.id,
-            LANG.format_date(details.starts_at),
+            lang().format_date(details.starts_at),
             groups.len()
         ))
     })
@@ -114,7 +116,7 @@ fn lines(events: &[Event]) -> String {
                 "{}  {}  {}\n",
                 event.id,
                 details.starts_at.format("%Y-%m-%d %H:%M %Z"),
-                details.title(LANG)
+                details.title(lang())
             )
         })
         .collect()

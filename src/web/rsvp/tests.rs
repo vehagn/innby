@@ -36,7 +36,7 @@ async fn guest_answers_through_their_link(db: PgPool) {
 
     let answered = site.find(&invite).await.unwrap();
     assert_eq!(answered.response, rsvp::Response::Attending);
-    assert_eq!((answered.party_size, answered.lang), (2, Lang::EnGb));
+    assert_eq!((answered.party_size, answered.lang), (2, Lang::EN));
     assert_eq!(answered.privacy_version.as_deref(), Some(PRIVACY_VERSION));
 
     let html = body(site.get(&format!("/r/{link}?lang=en&notice=saved")).await).await;
@@ -133,7 +133,7 @@ async fn answers_close_at_the_deadline(db: PgPool) {
     assert!(html.contains("Svarfristen har gått ut."));
     assert!(!html.contains(r#"value="attending""#));
     // Nor is there an answer left to keep the link for changing.
-    assert!(!html.contains(&escape(&Lang::Nb.messages().keep_link)));
+    assert!(!html.contains(&escape(&Lang::NB.messages().keep_link)));
 
     let response = site
         .post(&format!("/r/{link}"), "party_size=1&response=attending")
@@ -283,8 +283,8 @@ async fn a_pick_must_be_one_of_the_choices(db: PgPool) {
     let (invite, link) = site.invite("Kari", 1).await;
     let event = site.event().await;
     let mut details = event.details;
-    details.question.set(Lang::Nb, "Hva tar du med?");
-    details.choices.set(Lang::Nb, "Salat\nDessert");
+    details.question.set(Lang::NB, "Hva tar du med?");
+    details.choices.set(Lang::NB, "Salat\nDessert");
     crate::db::event::update(&site.db, event.id, &details)
         .await
         .unwrap();

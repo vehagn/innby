@@ -8,16 +8,21 @@
 -- database made from an earlier one is dropped and made again. Once it's live, changes
 -- go in migrations of their own, beside this file.
 
--- A guest's language, for their mail.
-create type lang as enum ('nb', 'nn', 'en', 'en-us', 'zh-hans', 'zh-hant');
--- Whether a map of texts by language code holds only the site's languages, each a text
+-- A language, by the code its file in locales/ has, as `en-us`. The languages are
+-- whatever files there are, so the database checks the shape of a code rather than a
+-- list; the app reads a code it no longer has as its base language.
+create function lang_ok(code text) returns boolean
+language sql immutable as $$
+    select code ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(code) <= 20
+$$;
+-- Whether a map of texts by language code holds only language codes, each a text
 -- of at most `longest` characters with no control characters, but for line breaks and
 -- tabs when `lines` allows them. The app checks the same; this keeps a stray query or
 -- a crafted import from storing what the pages can't show.
 create function texts_ok(texts jsonb, longest int, lines boolean) returns boolean
 language sql immutable as $$
     select jsonb_typeof(texts) = 'object' and coalesce(bool_and(
-        key in ('nb', 'nn', 'en', 'en-us', 'zh-hans', 'zh-hant')
+        lang_ok(key)
         and jsonb_typeof(value) = 'string'
         and length(value #>> '{}') <= longest
         and (value #>> '{}') !~ case
@@ -34,11 +39,11 @@ create table event (
     id                  uuid primary key default uuidv7(),
     -- The language the host writes the event in: it has a title in it, and the other
     -- languages fall back to it.
-    lang                lang not null default 'nb',
-    -- Each by language code: 'nb', 'nn', 'en', 'en-us', 'zh-hans', 'zh-hant', so a new
+    lang                text not null check (lang_ok(lang)),
+    -- Each by language code, as `{"nb": "Julebord", "en": "Christmas party"}`, so a new
     -- language needs no new column.
     title               jsonb not null
-        check (coalesce(title ->> lang::text, '') <> '' and texts_ok(title, 200, false)),
+        check (coalesce(title ->> lang, '') <> '' and texts_ok(title, 200, false)),
     description         jsonb not null default '{}' check (texts_ok(description, 5000, true)),
     location            text not null default ''
         check (length(location) <= 200 and location !~ '[[:cntrl:]]'),
@@ -107,7 +112,7 @@ create table rsvp (
     -- Bumped to revoke the guest's link; part of the HMAC input.
     link_nonce       int not null default 0,
     -- The guest's language, for their mail.
-    lang             lang not null default 'nb',
+    lang             text not null check (lang_ok(lang)),
     -- Optional, normalised (trimmed, lower-case), only kept with consent.
     email            text check (email = lower(email) and length(email) <= 254),
     email_status     email_status not null default 'none',

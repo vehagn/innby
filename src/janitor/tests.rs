@@ -32,7 +32,7 @@ async fn clears_addresses_left_unconfirmed(db: PgPool) {
     let stale = rsvp::create_invite(&db, the_event(&db).await, "Kari", 1)
         .await
         .unwrap();
-    rsvp::set_email(&db, stale.id, "kari@example.com", Lang::Nb, PRIVACY_VERSION)
+    rsvp::set_email(&db, stale.id, "kari@example.com", Lang::NB, PRIVACY_VERSION)
         .await
         .unwrap();
     outbox::enqueue(&db, stale.id, Kind::ConfirmEmail)
@@ -43,7 +43,7 @@ async fn clears_addresses_left_unconfirmed(db: PgPool) {
     let fresh = rsvp::create_invite(&db, the_event(&db).await, "Ola", 1)
         .await
         .unwrap();
-    rsvp::set_email(&db, fresh.id, "ola@example.com", Lang::Nb, PRIVACY_VERSION)
+    rsvp::set_email(&db, fresh.id, "ola@example.com", Lang::NB, PRIVACY_VERSION)
         .await
         .unwrap();
     let confirmed = rsvp::create_invite(&db, the_event(&db).await, "Per", 1)
@@ -53,7 +53,7 @@ async fn clears_addresses_left_unconfirmed(db: PgPool) {
         &db,
         confirmed.id,
         "per@example.com",
-        Lang::Nb,
+        Lang::NB,
         PRIVACY_VERSION,
     )
     .await

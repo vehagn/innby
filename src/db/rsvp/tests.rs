@@ -17,7 +17,7 @@ pub async fn sign_up(pool: &PgPool, name: &str, party_size: i32) -> sqlx::Result
         name,
         party_size,
         name_display: NameDisplay::Full,
-        lang: Lang::EnGb,
+        lang: Lang::EN,
         choice: None,
         token: None,
     };
@@ -45,7 +45,7 @@ async fn invitation_starts_pending(pool: PgPool) -> sqlx::Result<()> {
     assert!(rsvp.is_invitation());
     assert_eq!(rsvp.response, Response::Pending);
     assert_eq!((rsvp.party_size, rsvp.max_party_size), (1, 2));
-    assert_eq!((rsvp.link_nonce, rsvp.lang), (0, Lang::Nb));
+    assert_eq!((rsvp.link_nonce, rsvp.lang), (0, Lang::NB));
     assert_eq!(rsvp.email_status, EmailStatus::None);
     assert_eq!(rsvp.id.get_version_num(), 7);
     assert!(rsvp.responded_at.is_none());
@@ -73,7 +73,7 @@ async fn open_rsvp_is_attending_immediately(pool: PgPool) -> sqlx::Result<()> {
     assert!(rsvp.group_id.is_some());
     assert_eq!(rsvp.name_display, Some(NameDisplay::Full));
     assert_eq!(rsvp.response, Response::Attending);
-    assert_eq!((rsvp.party_size, rsvp.lang), (2, Lang::EnGb));
+    assert_eq!((rsvp.party_size, rsvp.lang), (2, Lang::EN));
     assert_eq!(rsvp.privacy_version.as_deref(), Some(PRIVACY_VERSION));
     assert!(rsvp.responded_at.is_some());
     Ok(())
@@ -97,13 +97,13 @@ async fn respond_records_the_answer(pool: PgPool) -> sqlx::Result<()> {
             name_display: None,
             choice: None,
         },
-        Lang::EnGb,
+        Lang::EN,
         PRIVACY_VERSION,
     )
     .await?
     .expect("rsvp exists");
     assert_eq!(answered.response, Response::Attending);
-    assert_eq!((answered.party_size, answered.lang), (2, Lang::EnGb));
+    assert_eq!((answered.party_size, answered.lang), (2, Lang::EN));
     assert!(answered.responded_at.is_some());
 
     let reread = find(&pool, invite.id).await?.expect("rsvp exists");
@@ -129,7 +129,7 @@ async fn respond_rejects_party_larger_than_invited(pool: PgPool) -> sqlx::Result
             name_display: None,
             choice: None,
         },
-        Lang::Nb,
+        Lang::NB,
         PRIVACY_VERSION,
     )
     .await
@@ -152,7 +152,7 @@ async fn unknown_id_is_not_found(pool: PgPool) -> sqlx::Result<()> {
                 name_display: None,
                 choice: None
             },
-            Lang::Nb,
+            Lang::NB,
             PRIVACY_VERSION
         )
         .await?
@@ -195,7 +195,7 @@ async fn email_lifecycle(pool: PgPool) -> sqlx::Result<()> {
             &pool,
             rsvp.id,
             "kari@example.com",
-            Lang::EnGb,
+            Lang::EN,
             PRIVACY_VERSION
         )
         .await?
@@ -203,7 +203,7 @@ async fn email_lifecycle(pool: PgPool) -> sqlx::Result<()> {
     let stored = find(&pool, rsvp.id).await?.unwrap();
     assert_eq!(stored.email.as_deref(), Some("kari@example.com"));
     assert_eq!(stored.email_status, EmailStatus::Unconfirmed);
-    assert_eq!(stored.lang, Lang::EnGb);
+    assert_eq!(stored.lang, Lang::EN);
     assert!(stored.email_consent_at.is_some());
     assert!(
         find_by_confirmed_email(&pool, rsvp.event_id, "kari@example.com")
@@ -224,7 +224,7 @@ async fn email_lifecycle(pool: PgPool) -> sqlx::Result<()> {
             &pool,
             other.id,
             "kari@example.com",
-            Lang::Nb,
+            Lang::NB,
             PRIVACY_VERSION
         )
         .await?
@@ -278,7 +278,7 @@ async fn shrinking_an_invitation_shrinks_the_party(pool: PgPool) -> sqlx::Result
             name_display: None,
             choice: None,
         },
-        Lang::Nb,
+        Lang::NB,
         PRIVACY_VERSION,
     )
     .await?;

@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn every_mail_fills_in_its_placeholders() {
         let config = config();
-        for lang in Lang::ALL {
+        for &lang in Lang::all() {
             for kind in [
                 Kind::ConfirmEmail,
                 Kind::EmailInUse,
@@ -179,7 +179,7 @@ mod tests {
             details: crate::db::event::tests::details(),
             changed_at: None,
         };
-        let mut kari = guest(Lang::EnGb, EmailStatus::Confirmed);
+        let mut kari = guest(Lang::EN, EmailStatus::Confirmed);
         let mail = compose(&config(), Kind::Reminder, &kari, &event).unwrap();
         let file = mail.calendar.unwrap();
         assert!(file.contains("\r\nSUMMARY:Christmas party\r\n"), "{file}");

@@ -151,10 +151,10 @@ impl EventForm {
         }
     }
 
-    /// The form as posted. Without a language, as from an older page, it's Bokmål.
+    /// The form as posted. Without a language, as from an older page, it's the base.
     pub(super) fn from_fields(fields: &HashMap<String, String>) -> Self {
         let get = |name: &str| fields.get(name).map_or("", |value| value.trim());
-        let main = Lang::from_code(get("lang")).unwrap_or(Lang::Nb);
+        let main = Lang::by_code(get("lang")).unwrap_or_else(Lang::base);
         // A date and a time of day come in a field each, `{name}_date` and
         // `{name}_time`. A time that can't be read stays as typed, to show again.
         let when = |name: &str| {
@@ -177,7 +177,7 @@ impl EventForm {
             rsvp_deadline: when("rsvp_deadline"),
             ..Self::blank()
         };
-        for lang in Lang::ALL {
+        for &lang in Lang::all() {
             let field = |base| get(&field(base, lang, main)).to_owned();
             form.title.set(lang, &field("title"));
             form.description.set(lang, &field("description"));
@@ -198,8 +198,9 @@ impl EventForm {
 
     /// The languages the event may be written in, with its own chosen.
     pub fn languages(&self) -> Vec<LanguageChoice> {
-        Lang::ALL
-            .into_iter()
+        Lang::all()
+            .iter()
+            .copied()
             .map(|lang| LanguageChoice {
                 code: lang.code(),
                 name: lang.name(),
@@ -240,8 +241,9 @@ impl EventForm {
 
     /// The other languages' fields, in the order of the language menu.
     pub fn translations(&self) -> Vec<Translation> {
-        Lang::ALL
-            .into_iter()
+        Lang::all()
+            .iter()
+            .copied()
             .filter(|lang| *lang != self.lang)
             .map(|lang| Translation {
                 language: lang.name(),
@@ -262,15 +264,17 @@ impl EventForm {
     pub(in crate::admin) fn details(&self, now: DateTime<Utc>) -> Result<Details, String> {
         let text = lang::text();
         let fits = |value: &str, max: usize| value.chars().count() <= max;
-        let title_ok = Lang::ALL
-            .into_iter()
+        let title_ok = Lang::all()
+            .iter()
+            .copied()
             .all(|lang| fits(self.title.own(lang), MAX_TITLE))
             && !self.title.own(self.lang).is_empty();
         if !title_ok {
             return Err(text.error_event_title.clone());
         }
-        let description_ok = Lang::ALL
-            .into_iter()
+        let description_ok = Lang::all()
+            .iter()
+            .copied()
             .all(|lang| fits(self.description.own(lang), MAX_DESCRIPTION));
         if !description_ok || !fits(&self.location, MAX_LOCATION) {
             return Err(text.error_event_text.clone());
@@ -283,8 +287,9 @@ impl EventForm {
                 .chars()
                 .any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))
         };
-        let texts_ok = Lang::ALL
-            .into_iter()
+        let texts_ok = Lang::all()
+            .iter()
+            .copied()
             .all(|lang| plain(self.title.own(lang)) && lines(self.description.own(lang)))
             && plain(&self.location);
         if !texts_ok {
@@ -339,7 +344,7 @@ impl EventForm {
         let count = |lang| self.choices.own(lang).lines().count();
         let main = self.lang;
         let asked = !self.question.own(main).is_empty();
-        let all_fit = Lang::ALL.into_iter().all(|lang| {
+        let all_fit = Lang::all().iter().copied().all(|lang| {
             let question = self.question.own(lang);
             let choices = self.choices.own(lang);
             question.chars().count() <= MAX_QUESTION
@@ -567,11 +572,11 @@ mod tests {
             ("time_zone", "Europe/Oslo"),
         ]));
         let details = form.details(Utc::now()).unwrap();
-        assert_eq!(details.lang, Lang::EnGb);
-        assert_eq!(details.title(Lang::EnGb), "Summer party");
-        assert_eq!(details.title(Lang::Nb), "Sommerfest");
+        assert_eq!(details.lang, Lang::EN);
+        assert_eq!(details.title(Lang::EN), "Summer party");
+        assert_eq!(details.title(Lang::NB), "Sommerfest");
         // Chinese has none of its own, and falls back in the end to the event's English.
-        assert_eq!(details.title(Lang::ZhHans), "Summer party");
+        assert_eq!(details.title(Lang::ZH_HANS), "Summer party");
         let again = EventForm::from_details(&details);
         assert_eq!(again.title(), "Summer party");
         assert!(
@@ -609,7 +614,7 @@ mod tests {
             EventForm::from_fields(&all).details(Utc::now())
         };
         // None at all is fine, and so is a question with choices, trimmed a line each.
-        assert!(form(&[]).unwrap().question(Lang::Nb).is_none());
+        assert!(form(&[]).unwrap().question(Lang::NB).is_none());
         let asked = form(&[
             ("question", "Hva tar du med?"),
             ("choices", " Salat \r\n\nDessert\n"),
@@ -617,13 +622,13 @@ mod tests {
             ("choices-en", "Salad\nDessert"),
         ])
         .unwrap();
-        assert_eq!(asked.choices.nb, "Salat\nDessert");
+        assert_eq!(asked.choices.own(Lang::NB), "Salat\nDessert");
         assert_eq!(
-            asked.question(Lang::EnGb),
+            asked.question(Lang::EN),
             Some(("What will you bring?", vec!["Salad", "Dessert"]))
         );
         // Nynorsk has none of its own, so it falls back to Bokmål.
-        assert_eq!(asked.question(Lang::Nn).unwrap().1, ["Salat", "Dessert"]);
+        assert_eq!(asked.question(Lang::NN).unwrap().1, ["Salat", "Dessert"]);
 
         let many = (0..=MAX_CHOICES)
             .map(|i| i.to_string())

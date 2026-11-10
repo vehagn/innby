@@ -3,8 +3,9 @@
 //! what the file leaves out; everything else in the file is its texts.
 //!
 //! A text a file leaves out comes from its `fallback` languages, in order, and from theirs
-//! in turn. Bokmål falls back to nothing, so it has every text. A file can't have a text
-//! Bokmål lacks, and a language can't fall back to itself, however roundabout.
+//! in turn. One language, the base, falls back to nothing, so it has every text. A file
+//! can't have a text the base lacks, and a language can't fall back to itself, however
+//! roundabout.
 
 use std::sync::LazyLock;
 
@@ -46,18 +47,62 @@ pub(super) struct Language {
     pub messages: Messages,
 }
 
-static LANGUAGES: LazyLock<[Language; 6]> =
-    LazyLock::new(|| Lang::ALL.map(|lang| Language::load(lang, &|lang| lang.file().to_owned())));
+/// Every language, loaded.
+pub(super) struct Registry {
+    /// By `Lang`'s index.
+    languages: Vec<Language>,
+    /// As the language menu lists them: the base first, then by their own names.
+    pub order: Vec<Lang>,
+}
+
+static REGISTRY: LazyLock<Registry> =
+    LazyLock::new(|| Registry::load(&|lang| lang.file().to_owned()));
+
+pub(super) fn registry() -> &'static Registry {
+    &REGISTRY
+}
 
 /// The language, loaded.
 pub(super) fn of(lang: Lang) -> &'static Language {
-    &LANGUAGES[lang as usize]
+    &REGISTRY.languages[usize::from(lang.0)]
 }
 
 /// Reads every language now, so a broken file stops the program at start rather than
 /// failing the first page that needs it.
 pub fn load() {
-    LazyLock::force(&LANGUAGES);
+    LazyLock::force(&REGISTRY);
+}
+
+impl Registry {
+    fn load(file: &dyn Fn(Lang) -> String) -> Self {
+        let every: Vec<Lang> = (0..super::FILES.len())
+            .map(|index| Lang(u8::try_from(index).expect("build.rs caps them")))
+            .collect();
+        let languages: Vec<Language> = every
+            .iter()
+            .map(|&lang| Language::load(lang, file))
+            .collect();
+        let bases: Vec<Lang> = every
+            .iter()
+            .copied()
+            .filter(|lang| languages[usize::from(lang.0)].fallbacks.is_empty())
+            .collect();
+        let [base] = bases[..] else {
+            let codes: Vec<&str> = bases.iter().map(|lang| lang.code()).collect();
+            panic!(
+                "locales: one language, the base, falls back to nothing, and has every \
+                 text; these do: {codes:?}"
+            );
+        };
+        assert!(
+            super::NOTICES.iter().any(|(code, _)| *code == base.code()),
+            "templates/privacy/{}.html: the base language needs a privacy notice",
+            base.code()
+        );
+        let mut order = every;
+        order.sort_by_key(|lang| (*lang != base, languages[usize::from(lang.0)].name.clone()));
+        Self { languages, order }
+    }
 }
 
 impl Language {
@@ -184,53 +229,53 @@ mod tests {
 
     #[test]
     fn a_file_leaves_out_what_its_fallback_has() {
-        let nn = Language::load(Lang::Nn, &files(&[(Lang::Nn, NYNORSK.into())]));
-        let nb = &of(Lang::Nb).messages;
+        let nn = Language::load(Lang::NN, &files(&[(Lang::NN, NYNORSK.into())]));
+        let nb = &of(Lang::NB).messages;
         assert_eq!(nn.messages.greeting, "Hei, {name}!");
         assert_eq!(nn.messages.admin.log_in, "Logg inn");
-        // From Bokmål: a text, an admin text, and a mail.
+        // From the base, Bokmål: a text, an admin text, and a mail.
         assert_eq!(nn.messages.when, nb.when);
         assert_eq!(nn.messages.admin.log_out, nb.admin.log_out);
         assert_eq!(nn.messages.mail.reminder.subject, nb.mail.reminder.subject);
-        assert_eq!(nn.fallbacks, [Lang::Nb]);
+        assert_eq!(nn.fallbacks, [Lang::NB]);
     }
 
     #[test]
     fn fallbacks_follow_each_language_in_turn() {
         let fallbacks = |lang: Lang| of(lang).fallbacks.clone();
-        assert_eq!(fallbacks(Lang::Nb), []);
-        assert_eq!(fallbacks(Lang::EnUs), [Lang::EnGb, Lang::Nb]);
+        assert_eq!(fallbacks(Lang::NB), []);
+        assert_eq!(fallbacks(Lang::EN_US), [Lang::EN, Lang::NB]);
         assert_eq!(
-            fallbacks(Lang::ZhHant),
-            [Lang::ZhHans, Lang::EnGb, Lang::Nb]
+            fallbacks(Lang::ZH_HANT),
+            [Lang::ZH_HANS, Lang::EN, Lang::NB]
         );
     }
 
     #[test]
     #[should_panic(expected = "falls back to itself: nb → nn → nb")]
     fn a_language_cannot_fall_back_to_itself() {
-        let nb = Lang::Nb.file().replacen(
+        let nb = Lang::NB.file().replacen(
             "language.serves",
             "language.fallback = [\"nn\"]\nlanguage.serves",
             1,
         );
         Language::load(
-            Lang::Nb,
-            &files(&[(Lang::Nn, NYNORSK.into()), (Lang::Nb, nb)]),
+            Lang::NB,
+            &files(&[(Lang::NN, NYNORSK.into()), (Lang::NB, nb)]),
         );
     }
 
     #[test]
     #[should_panic(expected = "typo")]
-    fn a_text_bokmal_lacks_is_refused() {
+    fn a_text_the_base_lacks_is_refused() {
         let nn = format!("{NYNORSK}\n[mail]\ntypo = \"x\"");
-        Language::load(Lang::Nn, &files(&[(Lang::Nn, nn)]));
+        Language::load(Lang::NN, &files(&[(Lang::NN, nn)]));
     }
 
     #[test]
     #[should_panic(expected = "missing field `greeting`")]
-    fn bokmal_must_have_every_text() {
-        let nb = Lang::Nb.file().replace("\ngreeting = ", "\n# greeting = ");
-        Language::load(Lang::Nb, &files(&[(Lang::Nb, nb)]));
+    fn the_base_must_have_every_text() {
+        let nb = Lang::NB.file().replace("\ngreeting = ", "\n# greeting = ");
+        Language::load(Lang::NB, &files(&[(Lang::NB, nb)]));
     }
 }

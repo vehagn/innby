@@ -492,7 +492,7 @@ mod tests {
                 name_display: None,
                 choice: None,
             },
-            crate::i18n::Lang::EnGb,
+            crate::i18n::Lang::EN,
             crate::web::PRIVACY_VERSION,
         )
         .await

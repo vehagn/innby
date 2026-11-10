@@ -302,10 +302,7 @@ async fn an_event_gives_a_host_a_role_for_it_alone(db: PgPool) {
     let admin = Admin::new(db.clone());
     let ours = crate::db::event::tests::event(&db).await;
     let mut other = crate::db::event::tests::details();
-    other.title = crate::i18n::Texts {
-        nb: "Sommerfest".into(),
-        ..Default::default()
-    };
+    other.title = crate::i18n::Texts::from([(crate::i18n::Lang::NB, "Sommerfest")]);
     let other = crate::db::event::create(&db, &other).await.unwrap();
     let guest = rsvp::create_invite(&db, ours.id, "Kari", 2).await.unwrap();
     let club = group::create(&db, ours.id, "Climbing club", 2)

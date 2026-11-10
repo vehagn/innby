@@ -100,5 +100,5 @@ impl Site {
 
 /// The British English texts, which tests ask for with `?lang=en`.
 pub fn en() -> &'static Messages {
-    Lang::EnGb.messages()
+    Lang::EN.messages()
 }

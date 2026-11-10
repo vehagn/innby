@@ -115,7 +115,7 @@ async fn guest_joins_and_gets_their_link(db: PgPool) {
     assert_eq!(guest.name_display, Some(NameDisplay::Partial));
     assert_eq!(guest.response, rsvp::Response::Attending);
     assert_eq!((guest.party_size, guest.max_party_size), (2, 2));
-    assert_eq!(guest.lang, Lang::EnGb);
+    assert_eq!(guest.lang, Lang::EN);
 
     let html = body(site.get(&target).await).await;
     assert!(html.contains(&escape(&t.save_link_title)));

@@ -1,9 +1,9 @@
 <h1>Personvernerklæring</h1>
-<p class="muted">Versjon {{ version }}</p>
-<p><strong>Kort fortalt:</strong> Vi lagrer bare det som trengs for å planlegge festen, bruker ingen sporing, setter bare en informasjonskapsel hvis du ber oss huske deg, og sletter alt {{ keep_after_event_days }} dager etter festen.</p>
+<p class="muted">Versjon {version}</p>
+<p><strong>Kort fortalt:</strong> Vi lagrer bare det som trengs for å planlegge festen, bruker ingen sporing, setter bare en informasjonskapsel hvis du ber oss huske deg, og sletter alt {keep_after_event_days} dager etter festen.</p>
 
 <h2>Hvem er ansvarlig</h2>
-<p>{{ controller.name }} er vert for arrangementene på denne siden og behandlingsansvarlig. Kontakt: <a href="mailto:{{ controller.email }}">{{ controller.email }}</a>.</p>
+<p>{controller_name} er vert for arrangementene på denne siden og behandlingsansvarlig. Kontakt: <a href="mailto:{controller_email}">{controller_email}</a>.</p>
 
 <h2>Hva vi lagrer</h2>
 <ul>
@@ -44,8 +44,8 @@
 <h2>Hvor lenge</h2>
 <ul>
   <li>E-postadresser som ikke er bekreftet innen 48 timer, slettes.</li>
-  <li>Oversikten over sendt e-post slettes etter {{ keep_sent_mail_days }} dager.</li>
-  <li>Alt annet slettes {{ keep_after_event_days }} dager etter festen.</li>
+  <li>Oversikten over sendt e-post slettes etter {keep_sent_mail_days} dager.</li>
+  <li>Alt annet slettes {keep_after_event_days} dager etter festen.</li>
   <li>Du kan selv slette alt når som helst.</li>
 </ul>
 
@@ -53,5 +53,5 @@
 <p>Fra din personlige side kan du se og laste ned alt vi har lagret om deg (innsyn og dataportabilitet), rette navnet ditt, fjerne e-postadressen og slette alt. Du kan også protestere mot behandlingen. Da sletter vi svaret ditt. Har du mistet lenken eller lurer på noe, kontakt verten. Du kan klage til <a href="https://www.datatilsynet.no/">Datatilsynet</a>.</p>
 
 <h2>Informasjonskapsler og sporing</h2>
-<p>Én informasjonskapsel per invitasjon en enhet husker, og bare hvis du ber om den. På siden din, eller når du melder deg på via en gruppelenke, kan du be en enhet huske deg. Da lagrer nettleseren den personlige lenken din i en informasjonskapsel, så forsiden kan lede deg tilbake til siden din. Den settes bare når du krysser av for å bli husket når du svarer eller melder deg på, eller trykker på knappen for det etter svarfristen, sendes bare til denne siden, kan ikke leses av skript, og utløper når svaret ditt slettes, {{ keep_after_event_days }} dager etter festen. Svarer du uten avkrysning, fjernes den, og det samme gjør «Glem denne enheten» og sletting av svaret ditt. Informasjonskapselen gir ingen tilgang i seg selv: For å endre svaret trenger du fortsatt lenken din.</p>
+<p>Én informasjonskapsel per invitasjon en enhet husker, og bare hvis du ber om den. På siden din, eller når du melder deg på via en gruppelenke, kan du be en enhet huske deg. Da lagrer nettleseren den personlige lenken din i en informasjonskapsel, så forsiden kan lede deg tilbake til siden din. Den settes bare når du krysser av for å bli husket når du svarer eller melder deg på, eller trykker på knappen for det etter svarfristen, sendes bare til denne siden, kan ikke leses av skript, og utløper når svaret ditt slettes, {keep_after_event_days} dager etter festen. Svarer du uten avkrysning, fjernes den, og det samme gjør «Glem denne enheten» og sletting av svaret ditt. Informasjonskapselen gir ingen tilgang i seg selv: For å endre svaret trenger du fortsatt lenken din.</p>
 <p>Siden bruker verken analyseverktøy eller innhold fra andre nettsteder.</p>

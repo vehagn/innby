@@ -119,7 +119,7 @@ async fn unsent(db: &PgPool) -> i64 {
 #[sqlx::test]
 async fn sends_confirmation_with_a_working_link(db: PgPool) {
     let config = config();
-    let guest = guest_with_email(&db, "kari@example.com", Lang::EnGb).await;
+    let guest = guest_with_email(&db, "kari@example.com", Lang::EN).await;
     outbox::enqueue(&db, guest.id, Kind::ConfirmEmail)
         .await
         .unwrap();
@@ -134,7 +134,7 @@ async fn sends_confirmation_with_a_working_link(db: PgPool) {
     let [(to, subject, body)] = sender.mails().try_into().unwrap();
     assert_eq!(to, "kari@example.com");
     let expected = crate::i18n::fill(
-        &Lang::EnGb.messages().mail.confirm_email.subject,
+        &Lang::EN.messages().mail.confirm_email.subject,
         &[("title", &"Christmas party")],
     );
     assert_eq!(subject, expected);
@@ -156,7 +156,7 @@ async fn sends_confirmation_with_a_working_link(db: PgPool) {
 #[sqlx::test]
 async fn drops_mail_for_a_removed_or_unconfirmed_address(db: PgPool) {
     let config = config();
-    let guest = guest_with_email(&db, "kari@example.com", Lang::Nb).await;
+    let guest = guest_with_email(&db, "kari@example.com", Lang::NB).await;
     // The link only goes to confirmed addresses.
     outbox::enqueue(&db, guest.id, Kind::RsvpLink)
         .await
@@ -178,7 +178,7 @@ async fn drops_mail_for_a_removed_or_unconfirmed_address(db: PgPool) {
 #[sqlx::test]
 async fn sends_link_and_reminder_in_the_guests_language(db: PgPool) {
     let config = config();
-    let guest = guest_with_email(&db, "kari@example.com", Lang::Nb).await;
+    let guest = guest_with_email(&db, "kari@example.com", Lang::NB).await;
     rsvp::confirm_email(&db, guest.id, "kari@example.com")
         .await
         .unwrap();
@@ -210,7 +210,7 @@ async fn sends_link_and_reminder_in_the_guests_language(db: PgPool) {
 #[sqlx::test]
 async fn failed_sends_are_retried_later(db: PgPool) {
     let config = config();
-    let guest = guest_with_email(&db, "kari@example.com", Lang::Nb).await;
+    let guest = guest_with_email(&db, "kari@example.com", Lang::NB).await;
     outbox::enqueue(&db, guest.id, Kind::ConfirmEmail)
         .await
         .unwrap();

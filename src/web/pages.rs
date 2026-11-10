@@ -16,7 +16,7 @@ use crate::{
     config::Controller,
     db::event::Details,
     http::{render, render_compressed, render_with, server_error},
-    i18n::{Lang, Messages},
+    i18n::{Lang, Messages, escape_html, fill},
     janitor::{KEEP_AFTER_EVENT, KEEP_SENT_MAIL},
     paths,
 };
@@ -124,29 +124,39 @@ pub async fn index(State(state): State<AppState>, lang: Lang, headers: HeaderMap
 
 #[derive(Template)]
 #[template(path = "privacy.html")]
-struct PrivacyPage<'a> {
+struct PrivacyPage {
     lang: Lang,
     t: &'static Messages,
-    version: &'static str,
-    controller: &'a Controller,
-    keep_after_event_days: i64,
-    keep_sent_mail_days: i64,
+    /// The language's notice, filled in: markup, from a file in `templates/privacy/`.
+    notice: String,
 }
 
 /// The privacy notice (GDPR Art. 13 and 14). Its version is recorded with each answer.
 /// The notice holds nothing secret or typed by a visitor, so it may be gzipped.
 pub async fn privacy(State(state): State<AppState>, lang: Lang, headers: HeaderMap) -> Response {
-    render_compressed(
-        &headers,
-        PrivacyPage {
-            lang,
-            t: lang.messages(),
-            version: PRIVACY_VERSION,
-            controller: &state.config.controller,
-            keep_after_event_days: KEEP_AFTER_EVENT.num_days(),
-            keep_sent_mail_days: KEEP_SENT_MAIL.num_days(),
-        },
-    )
+    let notice = notice(lang, &state.config.controller);
+    let t = lang.messages();
+    render_compressed(&headers, PrivacyPage { lang, t, notice })
+}
+
+/// A language's privacy notice, its own or its fallback's (`Lang::notice`), with who's
+/// responsible, the notice's version and how long things are kept filled in. The values
+/// come from the config, so each is escaped as it goes into the markup.
+fn notice(lang: Lang, controller: &Controller) -> String {
+    let (after_event, sent_mail) = (KEEP_AFTER_EVENT.num_days(), KEEP_SENT_MAIL.num_days());
+    let values = [
+        ("controller_name", controller.name.clone()),
+        ("controller_email", controller.email.clone()),
+        ("version", PRIVACY_VERSION.to_owned()),
+        ("keep_after_event_days", after_event.to_string()),
+        ("keep_sent_mail_days", sent_mail.to_string()),
+    ]
+    .map(|(key, value)| (key, escape_html(&value)));
+    let values: Vec<(&str, &dyn std::fmt::Display)> = values
+        .iter()
+        .map(|(key, value)| (*key, value as &dyn std::fmt::Display))
+        .collect();
+    fill(lang.notice(), &values)
 }
 
 /// A page with a heading, a paragraph and a way back to the event.

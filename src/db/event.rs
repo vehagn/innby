@@ -255,16 +255,9 @@ pub(crate) mod tests {
     /// calendar, so the weekdays are those the tests were written with.
     pub fn details() -> Details {
         Details {
-            lang: Lang::Nb,
-            title: Texts {
-                nb: "Julebord".into(),
-                en_gb: Some("Christmas party".into()),
-                ..Texts::default()
-            },
-            description: Texts {
-                nb: "Velkommen!".into(),
-                ..Texts::default()
-            },
+            lang: Lang::NB,
+            title: Texts::from([(Lang::NB, "Julebord"), (Lang::EN, "Christmas party")]),
+            description: Texts::from([(Lang::NB, "Velkommen!")]),
             location: "Storgata 1, Oslo".into(),
             starts_at: chrono_tz::Europe::Oslo
                 .with_ymd_and_hms(2054, 12, 12, 19, 0, 0)
@@ -302,7 +295,8 @@ pub(crate) mod tests {
         for (column, value) in [
             ("title", r#"{"nb": ""}"#),
             ("title", r#"{"en": "Christmas party"}"#),
-            ("title", r#"{"nb": "Julebord", "de": "Weihnachtsfeier"}"#),
+            // A language is a code, whichever languages the site has.
+            ("title", r#"{"nb": "Julebord", "DE!": "Weihnachtsfeier"}"#),
             ("title", "{\"nb\": \"Jule\\u0001bord\"}"),
             ("title", "{\"nb\": \"Jule\\nbord\"}"),
             ("description", "{\"nb\": \"Velkommen\\u0007\"}"),
@@ -336,13 +330,13 @@ pub(crate) mod tests {
     #[sqlx::test]
     async fn stores_texts_per_language_and_times_in_the_events_zone(db: PgPool) {
         let mut details = details();
-        details.title.set(Lang::ZhHans, "圣诞晚会");
+        details.title.set(Lang::ZH_HANS, "圣诞晚会");
         let event = create(&db, &details).await.unwrap();
         let found = find(&db, event.id).await.unwrap().unwrap();
         assert_eq!(found.details, details);
-        assert_eq!(found.details.title(Lang::Nn), "Julebord");
-        assert_eq!(found.details.title(Lang::EnUs), "Christmas party");
-        assert_eq!(found.details.title(Lang::ZhHant), "圣诞晚会");
+        assert_eq!(found.details.title(Lang::NN), "Julebord");
+        assert_eq!(found.details.title(Lang::EN_US), "Christmas party");
+        assert_eq!(found.details.title(Lang::ZH_HANT), "圣诞晚会");
         assert_eq!(
             found.details.starts_at.to_rfc3339(),
             "2054-12-12T19:00:00+01:00"
@@ -361,20 +355,16 @@ pub(crate) mod tests {
     #[sqlx::test]
     async fn an_event_needs_a_title_in_its_own_language(db: PgPool) {
         let english = Details {
-            lang: Lang::EnGb,
-            title: Texts {
-                nb: String::new(),
-                en_gb: Some("Summer party".into()),
-                ..Texts::default()
-            },
+            lang: Lang::EN,
+            title: Texts::from([(Lang::EN, "Summer party")]),
             ..details()
         };
         let made = create(&db, &english).await.unwrap();
-        assert_eq!(made.details.lang, Lang::EnGb);
-        assert_eq!(made.details.title(Lang::Nn), "Summer party");
+        assert_eq!(made.details.lang, Lang::EN);
+        assert_eq!(made.details.title(Lang::NN), "Summer party");
         // The database refuses one without.
         let untitled = Details {
-            lang: Lang::ZhHans,
+            lang: Lang::ZH_HANS,
             ..english
         };
         assert!(create(&db, &untitled).await.is_err());
@@ -386,8 +376,8 @@ pub(crate) mod tests {
         let event = create(&db, &details).await.unwrap();
         assert_eq!(event.changed_at, None);
         // Words alone aren't a change of plan.
-        details.title.set(Lang::Nb, "Julefest");
-        details.description.set(Lang::Nb, "Ny tekst");
+        details.title.set(Lang::NB, "Julefest");
+        details.description.set(Lang::NB, "Ny tekst");
         let same = update(&db, event.id, &details).await.unwrap().unwrap();
         assert_eq!(same.changed_at, None);
         for change in [

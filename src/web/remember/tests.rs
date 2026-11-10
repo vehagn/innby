@@ -37,10 +37,7 @@ async fn summer_invite(site: &Site, name: &str) -> (event::Event, String) {
     let summer = event::create(
         &site.db,
         &event::Details {
-            title: Texts {
-                nb: "Sommerfest".into(),
-                ..Texts::default()
-            },
+            title: Texts::from([(Lang::NB, "Sommerfest")]),
             ..details()
         },
     )
@@ -245,10 +242,7 @@ async fn the_front_page_lists_events_to_come_before_those_that_are_over(db: PgPo
         let starts_at = chrono::Utc::now().with_timezone(&chrono_tz::Europe::Oslo)
             - chrono::Duration::hours(hours);
         event::Details {
-            title: Texts {
-                nb: title.into(),
-                ..Texts::default()
-            },
+            title: Texts::from([(Lang::NB, title)]),
             starts_at,
             ..details()
         }

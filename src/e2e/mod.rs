@@ -177,11 +177,10 @@ impl World {
     pub async fn summer_party(&self) -> crate::db::event::Event {
         self.event().await;
         let mut details = crate::db::event::tests::details();
-        details.title = crate::i18n::Texts {
-            nb: "Sommerfest".into(),
-            en_gb: Some("Summer party".into()),
-            ..Default::default()
-        };
+        details.title = crate::i18n::Texts::from([
+            (crate::i18n::Lang::NB, "Sommerfest"),
+            (crate::i18n::Lang::EN, "Summer party"),
+        ]);
         details.starts_at =
             chrono::TimeZone::with_ymd_and_hms(&chrono_tz::Europe::Oslo, 2055, 6, 20, 15, 0, 0)
                 .unwrap();
@@ -294,7 +293,7 @@ pub fn link_in(mail: &Mail) -> &str {
 
 /// The British texts, which the browsers ask for.
 pub fn en() -> &'static Messages {
-    Lang::EnGb.messages()
+    Lang::EN.messages()
 }
 
 /// The admin UI's British texts.

@@ -285,11 +285,8 @@ mod tests {
             path(RSVP_EMAIL_REMOVE, "abc.def"),
             "/r/abc.def/email/remove"
         );
-        assert_eq!(
-            localized(&path(JOIN, "x.y"), Lang::EnGb),
-            "/join/x.y?lang=en"
-        );
-        assert_eq!(Lang::Nb.privacy(), "/privacy?lang=nb");
+        assert_eq!(localized(&path(JOIN, "x.y"), Lang::EN), "/join/x.y?lang=en");
+        assert_eq!(Lang::NB.privacy(), "/privacy?lang=nb");
         let id = Uuid::nil();
         assert_eq!(AdminLinks::group(id).revoke, format!("/groups/{id}/revoke"));
     }

@@ -337,7 +337,7 @@ mod tests {
             name: "Per Hansen",
             party_size: 1,
             name_display: rsvp::NameDisplay::Partial,
-            lang: crate::i18n::Lang::Nb,
+            lang: crate::i18n::Lang::NB,
             choice: None,
             token: None,
         };

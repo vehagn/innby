@@ -94,21 +94,7 @@
       {
         "ordinal": 7,
         "name": "lang: Lang",
-        "type_info": {
-          "Custom": {
-            "name": "lang",
-            "kind": {
-              "Enum": [
-                "nb",
-                "nn",
-                "en",
-                "en-us",
-                "zh-hans",
-                "zh-hant"
-              ]
-            }
-          }
-        },
+        "type_info": "Text",
         "origin": {
           "Table": {
             "table": "rsvp",
@@ -229,21 +215,7 @@
       {
         "ordinal": 16,
         "name": "event_lang: Lang",
-        "type_info": {
-          "Custom": {
-            "name": "lang",
-            "kind": {
-              "Enum": [
-                "nb",
-                "nn",
-                "en",
-                "en-us",
-                "zh-hans",
-                "zh-hant"
-              ]
-            }
-          }
-        },
+        "type_info": "Text",
         "origin": {
           "Table": {
             "table": "event",

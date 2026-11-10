@@ -19,7 +19,8 @@ tokio::task_local! {
 
 /// The language of the admin page being handled.
 pub fn current() -> Lang {
-    LANG.try_with(|choice| choice.lang).unwrap_or(Lang::DEFAULT)
+    LANG.try_with(|choice| choice.lang)
+        .unwrap_or_else(|_| Lang::base())
 }
 
 /// The language the host picked, for links to carry.

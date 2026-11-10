@@ -131,7 +131,7 @@ mod tests {
                 name_display: Some(NameDisplay::Full),
                 choice: None,
             },
-            Lang::Nb,
+            Lang::NB,
             PRIVACY_VERSION,
         )
         .await?;
@@ -156,7 +156,7 @@ mod tests {
                 name_display: None,
                 choice: None,
             },
-            Lang::Nb,
+            Lang::NB,
             PRIVACY_VERSION,
         )
         .await?
@@ -193,7 +193,7 @@ mod tests {
                 name_display: None,
                 choice: None,
             },
-            Lang::Nb,
+            Lang::NB,
             PRIVACY_VERSION,
         )
         .await?;
@@ -213,7 +213,7 @@ mod tests {
                 name_display: None,
                 choice: None,
             },
-            Lang::Nb,
+            Lang::NB,
             PRIVACY_VERSION,
         )
         .await?;

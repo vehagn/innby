@@ -273,7 +273,7 @@ mod tests {
                 1,
             )
             .await?;
-            rsvp::set_email(&pool, guest.id, email, Lang::Nb, PRIVACY_VERSION).await?;
+            rsvp::set_email(&pool, guest.id, email, Lang::NB, PRIVACY_VERSION).await?;
             rsvp::confirm_email(&pool, guest.id, email).await?;
             confirmed.push(guest);
         }
@@ -286,7 +286,7 @@ mod tests {
                 name_display: None,
                 choice: None,
             },
-            Lang::Nb,
+            Lang::NB,
             PRIVACY_VERSION,
         )
         .await?;
@@ -301,7 +301,7 @@ mod tests {
             &pool,
             unconfirmed.id,
             "per@example.com",
-            Lang::Nb,
+            Lang::NB,
             PRIVACY_VERSION,
         )
         .await?;

@@ -604,7 +604,7 @@ mod tests {
             }
         }
         let [nb, other] =
-            [Lang::Nb, lang].map(|lang| serde_json::to_value(lang.messages()).unwrap());
+            [Lang::NB, lang].map(|lang| serde_json::to_value(lang.messages()).unwrap());
         let mut out = Vec::new();
         walk(String::new(), &nb, &other, &mut out);
         out
@@ -612,7 +612,7 @@ mod tests {
 
     #[test]
     fn languages_use_the_same_placeholders() {
-        for lang in Lang::ALL {
+        for &lang in Lang::all() {
             let texts = next_to_bokmal(lang);
             assert!(texts.len() > 90, "{}", texts.len());
             for (key, nb, text) in texts {
@@ -623,7 +623,8 @@ mod tests {
 
     #[test]
     fn counts_people() {
-        let [nb, nn, en, us, zh, _] = Lang::ALL.map(Lang::messages);
+        let [nb, nn, en, us, zh] =
+            [Lang::NB, Lang::NN, Lang::EN, Lang::EN_US, Lang::ZH_HANS].map(Lang::messages);
         assert_eq!(en.people_count(1), "1 guest");
         assert_eq!(nb.people_count(3), "3 personer");
         assert_eq!(nn.people_count(3), "3 personar");

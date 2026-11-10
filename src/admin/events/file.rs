@@ -141,7 +141,7 @@ fn in_language_order<S: serde::Serializer, T: Serialize>(
     texts: &BTreeMap<String, T>,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
-    let order = |code: &str| Lang::ALL.iter().position(|lang| lang.code() == code);
+    let order = |code: &str| Lang::all().iter().position(|lang| lang.code() == code);
     let mut entries: Vec<_> = texts.iter().collect();
     entries.sort_by_key(|(code, _)| order(code));
     serializer.collect_map(entries)
@@ -178,7 +178,7 @@ impl FileError {
             ),
             Self::Kind(found) => filled(&text.error_file_kind, "found", found),
             Self::Language { field, code } => {
-                let codes: Vec<&str> = Lang::ALL.iter().map(|lang| lang.code()).collect();
+                let codes: Vec<&str> = Lang::all().iter().map(|lang| lang.code()).collect();
                 fill(
                     &text.error_file_language,
                     &[
@@ -211,8 +211,9 @@ impl EventFile {
     /// The file of an event, its group links and its QR codes' style.
     pub fn new(details: &Details, groups: &[Group], qr: &Style) -> Self {
         let texts = |texts: &Texts| {
-            Lang::ALL
-                .into_iter()
+            Lang::all()
+                .iter()
+                .copied()
                 .map(|lang| (lang, texts.own(lang)))
                 .filter(|(_, text)| !text.is_empty())
                 .map(|(lang, text)| (lang.code().to_owned(), text.to_owned()))
@@ -279,23 +280,17 @@ impl EventFile {
         let texts = |field: &'static str, by_code: BTreeMap<String, String>| {
             let mut texts = Texts::default();
             for (code, text) in by_code {
-                let lang = Lang::ALL
-                    .into_iter()
-                    .find(|lang| lang.code() == code)
-                    .ok_or(FileError::Language { field, code })?;
+                let lang = Lang::by_code(&code).ok_or(FileError::Language { field, code })?;
                 texts.set(lang, &text);
             }
             Ok(texts)
         };
         let lang = match self.language {
-            None => Lang::Nb,
-            Some(code) => Lang::ALL
-                .into_iter()
-                .find(|lang| lang.code() == code)
-                .ok_or(FileError::Language {
-                    field: "language",
-                    code,
-                })?,
+            None => Lang::base(),
+            Some(code) => Lang::by_code(&code).ok_or(FileError::Language {
+                field: "language",
+                code,
+            })?,
         };
         let question = texts("question", self.question)?;
         let choices = self
@@ -396,11 +391,11 @@ mod tests {
         );
         details
             .description
-            .set(Lang::EnUs, "Come one,\ncome all \"friends\"!");
-        details.question.set(Lang::Nb, "Hva tar du med?");
-        details.question.set(Lang::EnGb, "What will you bring?");
-        details.choices.set(Lang::Nb, "Salat\nDessert");
-        details.choices.set(Lang::EnGb, "Salad\nDessert");
+            .set(Lang::EN_US, "Come one,\ncome all \"friends\"!");
+        details.question.set(Lang::NB, "Hva tar du med?");
+        details.question.set(Lang::EN, "What will you bring?");
+        details.choices.set(Lang::NB, "Salat\nDessert");
+        details.choices.set(Lang::EN, "Salad\nDessert");
         let groups = [group("Climbing club", 2), group("Naboer", 4)];
         let style = Style {
             shape: Shape::Dots,
@@ -456,7 +451,10 @@ mod tests {
         let (form, lines, qr) = file.into_form().unwrap();
         assert_eq!(qr, None);
         assert_eq!(
-            form.details(chrono::Utc::now()).unwrap().title.nb,
+            form.details(chrono::Utc::now())
+                .unwrap()
+                .title
+                .own(Lang::NB),
             "Sommerfest"
         );
         assert_eq!(lines, "Naboer, 2");
@@ -517,9 +515,9 @@ mod tests {
     fn names_files_after_the_title_and_year() {
         let mut details = details_with_deadline();
         assert_eq!(file_name(&details), "julebord-2054.toml");
-        details.title.nb = "  Sommerfest på Bygdøy! ".into();
+        details.title.set(Lang::NB, "  Sommerfest på Bygdøy! ");
         assert_eq!(file_name(&details), "sommerfest-pa-bygdoy-2054.toml");
-        details.title.nb = "圣诞".into();
+        details.title.set(Lang::NB, "圣诞");
         assert_eq!(file_name(&details), "event-2054.toml");
     }
 }

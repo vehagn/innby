@@ -17,21 +17,7 @@
       {
         "ordinal": 1,
         "name": "lang: Lang",
-        "type_info": {
-          "Custom": {
-            "name": "lang",
-            "kind": {
-              "Enum": [
-                "nb",
-                "nn",
-                "en",
-                "en-us",
-                "zh-hans",
-                "zh-hant"
-              ]
-            }
-          }
-        },
+        "type_info": "Text",
         "origin": {
           "Table": {
             "table": "event",

@@ -29,9 +29,9 @@ delete from event where id in (
     '00000000-5eed-7000-8000-000000000003'
 );
 
-insert into event (id, title, description, location, starts_at, time_zone, rsvp_deadline, ends_at)
+insert into event (id, lang, title, description, location, starts_at, time_zone, rsvp_deadline, ends_at)
 values (
-    '00000000-5eed-7000-8000-000000000001',
+    '00000000-5eed-7000-8000-000000000001', 'nb',
     '{"nb": "Julebord", "nn": "Julebord", "en": "Christmas party", "en-us": "Holiday party",
       "zh-hans": "圣诞晚会", "zh-hant": "聖誕晚會"}',
     '{"nb": "Velkommen til årets julebord!\n\nVi starter med gløgg klokka sju, og middagen serveres halv åtte. Pent antrekk.",
@@ -43,13 +43,13 @@ values (
     'Storgata 1, 0155 Oslo', pg_temp.oslo(35, '19:00'), 'Europe/Oslo', pg_temp.oslo(28, '23:59'),
     pg_temp.oslo(36, '01:00')
 ), (
-    '00000000-5eed-7000-8000-000000000002',
+    '00000000-5eed-7000-8000-000000000002', 'nb',
     '{"nb": "Sommerfest", "en": "Summer party"}',
     '{"nb": "Grill, bading og lange kvelder. Ta med badetøy!",
       "en": "Barbecue, swimming and long evenings. Bring your swimwear!"}',
     'Huk, Bygdøy', pg_temp.oslo(182, '15:00'), 'Europe/Oslo', null, pg_temp.oslo(182, '21:00')
 ), (
-    '00000000-5eed-7000-8000-000000000003',
+    '00000000-5eed-7000-8000-000000000003', 'nb',
     '{"nb": "Bursdag", "en": "Birthday party"}',
     '{"nb": "Kake og kaffe, og leker for de minste.",
       "en": "Cake and coffee, and games for the little ones."}',

@@ -12,8 +12,10 @@ Every text Innby shows, on the public site, in the admin UI and in its mails, is
 | `zh-hans.toml` | Simplified Chinese |
 | `zh-hant.toml` | Traditional Chinese |
 
-The privacy notice is a document rather than a set of texts, so it's an HTML template
-per language in [`templates/privacy/`](../templates/privacy/).
+The privacy notice is a document rather than a set of texts, so it's an HTML file per
+language in [`templates/privacy/`](../templates/privacy/), with `{controller_name}`,
+`{controller_email}`, `{version}`, `{keep_after_event_days}` and `{keep_sent_mail_days}`
+filled in.
 
 ## A language file
 
@@ -58,18 +60,19 @@ typos in key names, and a language that falls back to itself.
 
 ## A new language
 
-Most of a language lives in its file, but a few places in the code list the languages:
+A language is its file, and nothing in the code lists them:
 
-1. Add its file in `locales/`, with its `language` table.
-2. Add it to `Lang` in [`src/i18n/mod.rs`](../src/i18n/mod.rs): a variant (with the
-   code as its `serde` and `sqlx` name), its code, and its file.
-3. Add it to the database's `lang` type, since a guest's language is stored for their
-   mail: in the schema until Innby is live, and in a migration once it is. An event's
-   title and description are kept as maps by language code, so they need no new
-   columns.
-4. Add a field for it in `Texts` ([`src/i18n/texts.rs`](../src/i18n/texts.rs)), for the
-   event title and description in that language. The admin's event form then offers it.
-5. Add its privacy notice in `templates/privacy/`, and a line for it in
-   `templates/privacy.html`.
+1. Add its file in `locales/`, named for its code (`de.toml` is `?lang=de`), with its
+   `language` table and as many texts as you have. Its `fallback` gives the rest.
+2. Optionally, add its privacy notice as `templates/privacy/{code}.html`. Without one,
+   the language shows its nearest fallback's.
+3. Build. [`build.rs`](../build.rs) finds the files and compiles them in; the language
+   menu, the event form, event files and the database then take the new language.
 
-The compiler points out any `match` on `Lang` you've missed.
+The database keeps a language as its code, so a new one needs no schema change, and a
+code whose file has since gone reads as the base language. The menu lists the base
+language first, then the others by their own names.
+
+Exactly one language, the base, falls back to nothing: it has every text, a privacy
+notice, and is the site's language when the browser asks for none it has. Today that's
+Bokmål.

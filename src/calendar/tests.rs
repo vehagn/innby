@@ -20,8 +20,8 @@ fn holds_the_event_alone_in_utc() {
     let mut party = details();
     party
         .description
-        .set(Lang::EnGb, "Welcome!\nDinner at 8; dress: smart, please.");
-    let file = ics(&event(party), Lang::EnGb, "fest.example.com", now());
+        .set(Lang::EN, "Welcome!\nDinner at 8; dress: smart, please.");
+    let file = ics(&event(party), Lang::EN, "fest.example.com", now());
     let lines: Vec<_> = file.split("\r\n").collect();
     assert_eq!(
         lines,
@@ -52,7 +52,7 @@ fn holds_the_event_alone_in_utc() {
             .with_ymd_and_hms(2054, 12, 13, 1, 0, 0)
             .unwrap(),
     );
-    let file = ics(&event(details), Lang::Nb, "fest.example.com", now());
+    let file = ics(&event(details), Lang::NB, "fest.example.com", now());
     assert!(file.contains("\r\nSUMMARY:Julebord\r\n"), "{file}");
     assert!(file.contains("\r\nDTEND:20541213T000000Z\r\n"), "{file}");
 }

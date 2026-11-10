@@ -151,7 +151,7 @@ mod tests {
             name: "Per",
             party_size: 1,
             name_display: NameDisplay::Full,
-            lang: Lang::Nb,
+            lang: Lang::NB,
             choice: None,
             token: None,
         };

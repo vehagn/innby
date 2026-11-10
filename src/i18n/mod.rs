@@ -1,8 +1,9 @@
-//! The site's six languages and every text in them. Each language is a module of its
-//! own, its file in `locales/`, which says what it is and which languages fill in the
-//! texts it leaves out.
+//! The site's languages and every text in them. Each language is a file in `locales/`,
+//! found when Innby is built, which says what it is and which languages fill in the
+//! texts it leaves out. Adding a language is adding its file: no list in the code names
+//! them.
 //!
-//! - `mod.rs`: `Lang`, the list of languages, negotiated from `Accept-Language` or
+//! - `mod.rs`: `Lang`, one of the languages found, negotiated from `Accept-Language` or
 //!   picked with `?lang=`.
 //! - `language`: reading a language's file and filling in its texts from its fallbacks.
 //! - `messages`: the texts, as `Messages` (the site, the admin UI's `AdminMessages` and
@@ -16,65 +17,54 @@ mod language;
 mod messages;
 mod texts;
 
-pub use fill::{bold, bold_count, count, fill, filled};
+pub use fill::{bold, bold_count, count, escape_html, fill, filled};
 pub use language::load;
 pub use messages::{AdminMessages, Messages};
 pub use texts::Texts;
 
+use std::fmt;
+
 use chrono::DateTime;
 use chrono_tz::Tz;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-/// The site's languages, each with its file in `locales/` (`file`). Adding one means a
-/// variant here, its file, and a migration adding it to the database's `lang` type.
-/// Enum order is `Lang::ALL` order.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
-#[serde(rename_all = "lowercase")]
-#[sqlx(type_name = "lang", rename_all = "lowercase")]
-pub enum Lang {
-    /// Norwegian Bokmål.
-    Nb,
-    /// Norwegian Nynorsk.
-    Nn,
-    /// British English, "traditional".
-    #[serde(rename = "en")]
-    #[sqlx(rename = "en")]
-    EnGb,
-    /// American English, "simplified".
-    #[serde(rename = "en-us")]
-    #[sqlx(rename = "en-us")]
-    EnUs,
-    /// Simplified Chinese.
-    #[serde(rename = "zh-hans")]
-    #[sqlx(rename = "zh-hans")]
-    ZhHans,
-    /// Traditional Chinese.
-    #[serde(rename = "zh-hant")]
-    #[sqlx(rename = "zh-hant")]
-    ZhHant,
+// `FILES` and `NOTICES`, the languages' files by code, from build.rs.
+include!(concat!(env!("OUT_DIR"), "/languages.rs"));
+
+/// One of the site's languages: a file in `locales/`, by its place among them. The file's
+/// name is its code, as in `?lang=en-us`, and how the database and event files name it.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Lang(u8);
+
+impl fmt::Debug for Lang {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.code())
+    }
 }
 
 impl Lang {
-    pub const DEFAULT: Lang = Lang::Nb;
-    pub const ALL: [Lang; 6] = [
-        Lang::Nb,
-        Lang::Nn,
-        Lang::EnGb,
-        Lang::EnUs,
-        Lang::ZhHans,
-        Lang::ZhHant,
-    ];
+    /// Every language, as the language menu lists them: the base language first, then
+    /// the others by their own names.
+    pub fn all() -> &'static [Lang] {
+        &language::registry().order
+    }
 
-    /// The `?lang=` value.
+    /// The language every other one falls back to in the end, which has every text: the
+    /// one whose file names no fallback. It's also the site's when the browser asks for
+    /// none it has.
+    pub fn base() -> Lang {
+        language::registry().order[0]
+    }
+
+    /// The language with exactly this code, as `?lang=` and the database give it.
+    pub fn by_code(code: &str) -> Option<Lang> {
+        let index = FILES.iter().position(|(file, _)| *file == code)?;
+        Some(Lang(u8::try_from(index).ok()?))
+    }
+
+    /// The `?lang=` value: its file's name.
     pub fn code(self) -> &'static str {
-        match self {
-            Lang::Nb => "nb",
-            Lang::Nn => "nn",
-            Lang::EnGb => "en",
-            Lang::EnUs => "en-us",
-            Lang::ZhHans => "zh-hans",
-            Lang::ZhHant => "zh-hant",
-        }
+        FILES[usize::from(self.0)].0
     }
 
     /// Its own name, on the language switch.
@@ -104,8 +94,9 @@ impl Lang {
     pub fn from_code(code: &str) -> Option<Self> {
         let mut tag = code.trim().to_ascii_lowercase().replace('_', "-");
         loop {
-            let found = Lang::ALL
-                .into_iter()
+            let found = Lang::all()
+                .iter()
+                .copied()
                 .find(|lang| language::of(*lang).serves.contains(&tag));
             if found.is_some() {
                 return found;
@@ -135,7 +126,11 @@ impl Lang {
 
     /// The languages to offer on the language switch.
     pub fn others(self) -> Vec<Lang> {
-        Lang::ALL.into_iter().filter(|&lang| lang != self).collect()
+        Lang::all()
+            .iter()
+            .copied()
+            .filter(|&lang| lang != self)
+            .collect()
     }
 
     pub fn messages(self) -> &'static Messages {
@@ -144,14 +139,21 @@ impl Lang {
 
     /// Its file, compiled in.
     pub(super) fn file(self) -> &'static str {
-        match self {
-            Lang::Nb => include_str!("../../locales/nb.toml"),
-            Lang::Nn => include_str!("../../locales/nn.toml"),
-            Lang::EnGb => include_str!("../../locales/en.toml"),
-            Lang::EnUs => include_str!("../../locales/en-us.toml"),
-            Lang::ZhHans => include_str!("../../locales/zh-hans.toml"),
-            Lang::ZhHant => include_str!("../../locales/zh-hant.toml"),
-        }
+        FILES[usize::from(self.0)].1
+    }
+
+    /// Its privacy notice: its own, or the one of the nearest language it falls back to
+    /// that has one. The base language must have one.
+    pub fn notice(self) -> &'static str {
+        std::iter::once(self)
+            .chain(self.fallbacks().iter().copied())
+            .find_map(|lang| {
+                NOTICES
+                    .iter()
+                    .find(|(code, _)| *code == lang.code())
+                    .map(|(_, notice)| *notice)
+            })
+            .expect("the base language has a privacy notice")
     }
 
     /// A date and time as people write it, e.g. "lørdag 12. desember 2026 kl. 19:00".
@@ -188,6 +190,49 @@ impl Lang {
     }
 }
 
+/// As its code, `"en-us"`, in event files, exports and the texts' maps.
+impl Serialize for Lang {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.code())
+    }
+}
+
+impl<'de> Deserialize<'de> for Lang {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let code = String::deserialize(deserializer)?;
+        Lang::by_code(&code)
+            .ok_or_else(|| serde::de::Error::custom(format!("no language {code:?}")))
+    }
+}
+
+/// As its code, in a text column. A code whose file has since been taken away reads as
+/// the base language, so a language can go without breaking the guests who chose it.
+impl sqlx::Type<sqlx::Postgres> for Lang {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
+        <&str as sqlx::Type<sqlx::Postgres>>::type_info()
+    }
+
+    fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
+        <&str as sqlx::Type<sqlx::Postgres>>::compatible(ty)
+    }
+}
+
+impl sqlx::Encode<'_, sqlx::Postgres> for Lang {
+    fn encode_by_ref(
+        &self,
+        buf: &mut sqlx::postgres::PgArgumentBuffer,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        <&str as sqlx::Encode<sqlx::Postgres>>::encode(self.code(), buf)
+    }
+}
+
+impl<'r> sqlx::Decode<'r, sqlx::Postgres> for Lang {
+    fn decode(value: sqlx::postgres::PgValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let code = <&str as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
+        Ok(Lang::by_code(code).unwrap_or_else(Lang::base))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
@@ -195,36 +240,35 @@ mod tests {
     use super::*;
     #[test]
     fn negotiates_by_quality_and_region() {
-        assert_eq!(Lang::negotiate("en-GB,en;q=0.9,nb;q=0.8"), Some(Lang::EnGb));
-        assert_eq!(
-            Lang::negotiate("de-DE, nb;q=0.5, en;q=0.7"),
-            Some(Lang::EnGb)
-        );
-        assert_eq!(Lang::negotiate("nn-NO, nb;q=0.9"), Some(Lang::Nn));
-        assert_eq!(Lang::negotiate("no, en;q=0.3"), Some(Lang::Nb));
-        assert_eq!(Lang::negotiate("en-US,en;q=0.9"), Some(Lang::EnUs));
-        assert_eq!(Lang::negotiate("en-AU"), Some(Lang::EnGb));
-        assert_eq!(Lang::negotiate("zh-CN,zh;q=0.9"), Some(Lang::ZhHans));
-        assert_eq!(Lang::negotiate("zh-TW"), Some(Lang::ZhHant));
-        assert_eq!(Lang::negotiate("zh-Hant-HK"), Some(Lang::ZhHant));
-        assert_eq!(Lang::negotiate("zh"), Some(Lang::ZhHans));
+        assert_eq!(Lang::negotiate("en-GB,en;q=0.9,nb;q=0.8"), Some(Lang::EN));
+        assert_eq!(Lang::negotiate("de-DE, nb;q=0.5, en;q=0.7"), Some(Lang::EN));
+        assert_eq!(Lang::negotiate("nn-NO, nb;q=0.9"), Some(Lang::NN));
+        assert_eq!(Lang::negotiate("no, en;q=0.3"), Some(Lang::NB));
+        assert_eq!(Lang::negotiate("en-US,en;q=0.9"), Some(Lang::EN_US));
+        assert_eq!(Lang::negotiate("en-AU"), Some(Lang::EN));
+        assert_eq!(Lang::negotiate("zh-CN,zh;q=0.9"), Some(Lang::ZH_HANS));
+        assert_eq!(Lang::negotiate("zh-TW"), Some(Lang::ZH_HANT));
+        assert_eq!(Lang::negotiate("zh-Hant-HK"), Some(Lang::ZH_HANT));
+        assert_eq!(Lang::negotiate("zh"), Some(Lang::ZH_HANS));
     }
 
     #[test]
     fn ignores_unsupported_zero_and_malformed_entries() {
         assert_eq!(Lang::negotiate("de, fr;q=0.8"), None);
-        assert_eq!(Lang::negotiate("en;q=0, nb;q=0.1"), Some(Lang::Nb));
+        assert_eq!(Lang::negotiate("en;q=0, nb;q=0.1"), Some(Lang::NB));
         assert_eq!(Lang::negotiate("en;q=abc"), None);
         assert_eq!(Lang::negotiate(""), None);
     }
 
     #[test]
     fn codes_and_tags_round_trip() {
-        for lang in Lang::ALL {
+        for &lang in Lang::all() {
+            assert_eq!(Lang::by_code(lang.code()), Some(lang));
             assert_eq!(Lang::from_code(lang.code()), Some(lang));
             assert_eq!(Lang::from_code(lang.tag()), Some(lang));
-            assert_eq!(lang.others().len(), Lang::ALL.len() - 1);
+            assert_eq!(lang.others().len(), Lang::all().len() - 1);
         }
+        assert_eq!(Lang::by_code("xx"), None);
     }
 
     #[test]
@@ -232,18 +276,23 @@ mod tests {
         let party = chrono_tz::Europe::Oslo
             .with_ymd_and_hms(2026, 12, 12, 19, 0, 0)
             .unwrap();
-        let dates = Lang::ALL.map(|lang| lang.format_date(party));
-        assert_eq!(
-            dates,
-            [
-                "lørdag 12. desember 2026 kl. 19:00",
-                "laurdag 12. desember 2026 kl. 19:00",
-                "Saturday 12 December 2026 at 7.00 pm",
-                "Sat, Dec 12, 2026, 7:00 PM",
-                "2026年12月12日（星期六）19:00",
-                "2026年12月12日（週六）19:00",
-            ]
-        );
+        for (lang, date) in [
+            (Lang::NB, "lørdag 12. desember 2026 kl. 19:00"),
+            (Lang::NN, "laurdag 12. desember 2026 kl. 19:00"),
+            (Lang::EN, "Saturday 12 December 2026 at 7.00 pm"),
+            (Lang::EN_US, "Sat, Dec 12, 2026, 7:00 PM"),
+            (Lang::ZH_HANS, "2026年12月12日（星期六）19:00"),
+            (Lang::ZH_HANT, "2026年12月12日（週六）19:00"),
+        ] {
+            assert_eq!(lang.format_date(party), date, "{lang:?}");
+        }
+    }
+
+    #[test]
+    fn lists_the_base_language_first_then_by_name() {
+        assert_eq!(Lang::base(), Lang::NB);
+        let codes: Vec<&str> = Lang::all().iter().map(|lang| lang.code()).collect();
+        assert_eq!(codes, ["nb", "en-us", "en", "nn", "zh-hans", "zh-hant"]);
     }
 
     #[test]
@@ -254,28 +303,28 @@ mod tests {
                 .unwrap()
         };
         assert_eq!(
-            Lang::EnGb.format_when(at(12, 19), None),
+            Lang::EN.format_when(at(12, 19), None),
             "Saturday 12 December 2026 at 7.00 pm"
         );
         assert_eq!(
-            Lang::EnGb.format_when(at(12, 19), Some(at(12, 23))),
+            Lang::EN.format_when(at(12, 19), Some(at(12, 23))),
             "Saturday 12 December 2026 at 7.00 pm until 11.00 pm"
         );
         assert_eq!(
-            Lang::Nb.format_when(at(12, 19), Some(at(13, 1))),
+            Lang::NB.format_when(at(12, 19), Some(at(13, 1))),
             "lørdag 12. desember 2026 kl. 19:00 til 01:00"
         );
         // A day or more later, the end needs its date.
         assert_eq!(
-            Lang::Nb.format_when(at(12, 19), Some(at(13, 19))),
+            Lang::NB.format_when(at(12, 19), Some(at(13, 19))),
             "lørdag 12. desember 2026 kl. 19:00 til søndag 13. desember 2026 kl. 19:00"
         );
         assert_eq!(
-            Lang::EnUs.format_when(at(12, 19), Some(at(12, 23))),
+            Lang::EN_US.format_when(at(12, 19), Some(at(12, 23))),
             "Sat, Dec 12, 2026, 7:00 PM – 11:00 PM"
         );
         assert_eq!(
-            Lang::ZhHans.format_when(at(12, 19), Some(at(12, 23))),
+            Lang::ZH_HANS.format_when(at(12, 19), Some(at(12, 23))),
             "2026年12月12日（星期六）19:00至23:00"
         );
     }

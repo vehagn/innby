@@ -234,8 +234,8 @@ mod tests {
     #[test]
     fn shows_points_and_seconds() {
         let (en, nb) = (
-            crate::i18n::Lang::EnGb.messages(),
-            crate::i18n::Lang::Nb.messages(),
+            crate::i18n::Lang::EN.messages(),
+            crate::i18n::Lang::NB.messages(),
         );
         assert_eq!(ScoreKind::Points.show(1200, en), "1200");
         assert_eq!(ScoreKind::Time.show(12_345, en), "12.34 s");

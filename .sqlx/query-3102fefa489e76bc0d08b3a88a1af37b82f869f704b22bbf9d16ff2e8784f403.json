@@ -94,21 +94,7 @@
       {
         "ordinal": 7,
         "name": "lang: Lang",
-        "type_info": {
-          "Custom": {
-            "name": "lang",
-            "kind": {
-              "Enum": [
-                "nb",
-                "nn",
-                "en",
-                "en-us",
-                "zh-hans",
-                "zh-hant"
-              ]
-            }
-          }
-        },
+        "type_info": "Text",
         "origin": {
           "Table": {
             "table": "rsvp",
@@ -266,21 +252,7 @@
             }
           }
         },
-        {
-          "Custom": {
-            "name": "lang",
-            "kind": {
-              "Enum": [
-                "nb",
-                "nn",
-                "en",
-                "en-us",
-                "zh-hans",
-                "zh-hant"
-              ]
-            }
-          }
-        },
+        "Text",
         "Text",
         "Int2"
       ]

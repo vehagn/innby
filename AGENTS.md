@@ -91,7 +91,8 @@ src/
   random.rs          tokens from the OS
   testing.rs         HTTP helpers for tests (body, location, escape, form posts, Set-Cookie)
   e2e/               end-to-end journeys through both sites and the mailer, by a test Browser
-locales/*.toml       one file per language: what it is, its fallbacks, its texts
+locales/*.toml       one file per language, found by build.rs: what it is, its fallbacks,
+                     its texts; templates/privacy/{code}.html its privacy notice
 templates/           askama pages: base.html and admin/base.html, partials named _*.html
 static/style.css     the one stylesheet: tokens first, then base, layout, components, pages
 migrations/          the schema, applied by `innby migrate`: 0001_schema.sql, the whole of
@@ -116,8 +117,8 @@ parts too, so the top of a file is the way into it.
 - Until Innby is live, change the schema in `0001_schema.sql` itself, and break
   compatibility freely: databases are made again. Once it's live, add a migration
   instead. Keep `seed/sample.sql` in step with the schema (`src/e2e/sample.rs` loads it).
-- A new text goes in `src/i18n/messages.rs` and `locales/nb.toml` at least; placeholders
-  must match Bokmål's. Fill them with `i18n::fill` or `filled`, never `format!`.
+- A new text goes in `src/i18n/messages.rs` and the base language's file,
+  `locales/nb.toml`, at least; placeholders must match Bokmål's. Fill them with `i18n::fill` or `filled`, never `format!`.
 - Admin routes go in the router group of the role they need (`admin/mod.rs`), and
   templates hide what `Role::can_edit()` / `Role::is_admin()` rule out. Handlers are
   named for what they do (`list`, `show`, `create`, `edit`, `revoke`, `delete`), in a

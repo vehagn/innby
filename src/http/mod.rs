@@ -243,7 +243,7 @@ impl<S: Send + Sync> FromRequestParts<S> for Lang {
                 .and_then(|value| value.to_str().ok())
                 .and_then(Lang::negotiate)
         };
-        Ok(from_query.or_else(from_header).unwrap_or(Lang::DEFAULT))
+        Ok(from_query.or_else(from_header).unwrap_or_else(Lang::base))
     }
 }
 

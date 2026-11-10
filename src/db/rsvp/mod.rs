@@ -145,7 +145,9 @@ pub async fn create_invite(
     max_party_size: i32,
 ) -> sqlx::Result<Rsvp> {
     query_rsvp!(
-        "insert into rsvp (event_id, name, max_party_size) values ($1, $2, $3)" returning,
+        // The guest's language is their event's until they answer in their own.
+        "insert into rsvp (event_id, name, max_party_size, lang) \
+         values ($1, $2, $3, (select lang from event where id = $1))" returning,
         event_id,
         name,
         max_party_size,

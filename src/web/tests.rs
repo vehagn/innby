@@ -64,7 +64,7 @@ async fn index_is_about_innby_in_norwegian() {
     let html = body(get("/", None).await).await;
     assert!(html.contains(r#"<html lang="nb" "#));
     assert!(html.contains(r#"<span class="title-text">Innby<"#));
-    assert!(html.contains(&escape(&Lang::Nb.messages().site_intro)));
+    assert!(html.contains(&escape(&Lang::NB.messages().site_intro)));
     // No event on the front page: that's on the invitation's.
     assert!(!html.contains("Julebord"));
     assert!(html.contains(r#"href="?lang=en""#));
@@ -84,7 +84,7 @@ async fn every_page_has_the_banner_home() {
 async fn index_follows_accept_language() {
     let html = body(get("/", Some("en-GB,en;q=0.9")).await).await;
     assert!(html.contains(r#"<html lang="en-GB" "#));
-    assert!(html.contains(&escape(&Lang::EnGb.messages().site_intro)));
+    assert!(html.contains(&escape(&Lang::EN.messages().site_intro)));
 }
 
 #[tokio::test]

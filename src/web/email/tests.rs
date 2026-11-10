@@ -53,7 +53,7 @@ async fn add_confirm_and_remove(db: PgPool) {
     assert_eq!(added.email.as_deref(), Some("kari@example.com"));
     assert_eq!(
         (added.email_status, added.lang),
-        (EmailStatus::Unconfirmed, Lang::EnGb)
+        (EmailStatus::Unconfirmed, Lang::EN)
     );
     assert_eq!(queued(&site).await, [(guest.id, Kind::ConfirmEmail)]);
 

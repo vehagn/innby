@@ -33,7 +33,8 @@ pub fn bold(text: &str, key: &str, value: &str) -> String {
     )
 }
 
-fn escape_html(text: &str) -> String {
+/// `text` with the characters HTML gives a meaning escaped, for a value put into markup by hand.
+pub fn escape_html(text: &str) -> String {
     text.replace('&', "&#38;")
         .replace('<', "&#60;")
         .replace('>', "&#62;")
