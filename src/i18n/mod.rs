@@ -159,14 +159,16 @@ impl Lang {
         self.format(date, &self.messages().date_format)
     }
 
-    /// When an event is: its start, and its end if it has one, as a time alone when
-    /// it's the same day, e.g. "lørdag 12. desember 2026 kl. 19:00 til 23:00".
+    /// When an event is: its start, and its end if it has one, e.g. "lørdag 12. desember
+    /// 2026 kl. 19:00 til 23:00". The end is a time alone when it's within a day of the
+    /// start, as a party that ends at one in the night does: the time can then only be
+    /// the one that follows, and the date would fill a phone's screen to say so.
     pub fn format_when(self, starts: DateTime<Tz>, ends: Option<DateTime<Tz>>) -> String {
         let Some(ends) = ends else {
             return self.format_date(starts);
         };
         let t = self.messages();
-        let end = if ends.date_naive() == starts.date_naive() {
+        let end = if ends - starts < chrono::Duration::days(1) {
             self.format(ends, &t.time_format)
         } else {
             self.format_date(ends)
@@ -261,7 +263,12 @@ mod tests {
         );
         assert_eq!(
             Lang::Nb.format_when(at(12, 19), Some(at(13, 1))),
-            "lørdag 12. desember 2026 kl. 19:00 til søndag 13. desember 2026 kl. 01:00"
+            "lørdag 12. desember 2026 kl. 19:00 til 01:00"
+        );
+        // A day or more later, the end needs its date.
+        assert_eq!(
+            Lang::Nb.format_when(at(12, 19), Some(at(13, 19))),
+            "lørdag 12. desember 2026 kl. 19:00 til søndag 13. desember 2026 kl. 19:00"
         );
         assert_eq!(
             Lang::EnUs.format_when(at(12, 19), Some(at(12, 23))),
