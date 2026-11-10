@@ -14,11 +14,11 @@ use serde::Deserialize;
 
 use super::{
     AppState, PRIVACY_VERSION, games,
-    pages::gone,
+    pages::{Page, PageError},
     remember,
     views::{
-        DisplayChoice, EventView, GuestList, GuestTab, GuestsPage, PartySize, Question, TabLink,
-        YourListing, guest_tabs,
+        DisplayChoice, EventView, FormPage, GuestList, GuestTab, GuestsPage, PartySize, Question,
+        TabLink, YourListing, guest_tabs,
     },
 };
 use crate::{
@@ -26,7 +26,7 @@ use crate::{
         event::Event,
         rsvp::{self, NameDisplay, Rsvp},
     },
-    http::{cookie, render, render_with, server_error},
+    http::{cookie, render},
     i18n::{Lang, Messages},
     link::{IdLink, Purpose},
     paths::{self, GuestLinks},
@@ -44,18 +44,14 @@ pub(super) struct Guest {
 }
 
 impl FromRequestParts<AppState> for Guest {
-    type Rejection = Response;
+    type Rejection = PageError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Response> {
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, PageError> {
         let Ok(lang) = Lang::from_request_parts(parts, state).await;
         let Path(link) = Path::<String>::from_request_parts(parts, state)
             .await
-            .map_err(|_| gone(lang))?;
-        match Self::find(state, &link).await {
-            Ok(Some(guest)) => Ok(guest),
-            Ok(None) => Err(gone(lang)),
-            Err(err) => Err(server_error(err)),
-        }
+            .map_err(|_| PageError::Gone(lang))?;
+        Self::find(state, &link).await?.ok_or(PageError::Gone(lang))
     }
 }
 
@@ -159,19 +155,15 @@ impl<'a> RsvpPage<'a> {
             error: None,
         }
     }
+}
 
-    /// The page again with an error message, e.g. for an invalid form.
-    pub(super) fn render_error(
-        mut self,
-        status: StatusCode,
-        pick: impl Fn(&'static Messages) -> &'static str,
-    ) -> Response {
-        self.error = Some(pick(self.t));
-        render_with(status, self)
+impl FormPage for RsvpPage<'_> {
+    fn error_slot(&mut self) -> (&'static Messages, &mut Option<&'static str>) {
+        (self.t, &mut self.error)
     }
 }
 
-/// What the RSVP page confirms after a change, passed as `?notice=`.
+/// What a guest's page confirms after a change, passed as `?notice=`.
 #[derive(Clone, Copy)]
 pub(super) enum Notice {
     Saved,
@@ -217,29 +209,19 @@ impl Notice {
             Self::Forgotten => &t.forgotten_notice,
         }
     }
-}
 
-/// Back to the RSVP page after a change (post/redirect/get).
-pub(super) fn redirect(link: &str, lang: Lang, notice: Notice) -> Response {
-    redirect_to(paths::RSVP, link, lang, notice)
-}
-
-/// Back to the guest's details after a change there.
-pub(super) fn redirect_you(link: &str, lang: Lang, notice: Notice) -> Response {
-    redirect_to(paths::RSVP_YOU, link, lang, notice)
-}
-
-/// Back to one of the guest's pages after a change.
-fn redirect_to(pattern: &str, link: &str, lang: Lang, notice: Notice) -> Response {
-    let page = paths::localized(&paths::path(pattern, link), lang);
-    Redirect::to(&format!("{page}&notice={}", notice.code())).into_response()
-}
-
-impl Notice {
+    /// What `?notice=` says to confirm, if it names a notice.
     pub(super) fn flash(notice: Option<&str>, t: &'static Messages) -> Option<&'static str> {
         notice
             .and_then(Self::from_code)
             .map(|notice| notice.text(t))
+    }
+
+    /// Back to one of the guest's pages after a change, to confirm it there
+    /// (post/redirect/get): `pattern` is the page's, as `paths::RSVP_YOU`.
+    pub(super) fn redirect(self, pattern: &str, link: &str, lang: Lang) -> Response {
+        let page = paths::localized(&paths::path(pattern, link), lang);
+        Redirect::to(&format!("{page}&notice={}", self.code())).into_response()
     }
 }
 
@@ -277,15 +259,12 @@ pub async fn guests(
     lang: Lang,
     guest: Guest,
     Query(query): Query<ShowQuery>,
-) -> Response {
-    let guests = match GuestList::load(&state.db, guest.event.id, Some(guest.rsvp.id)).await {
-        Ok(guests) => guests,
-        Err(err) => return server_error(err),
-    };
+) -> Page {
+    let guests = GuestList::load(&state.db, guest.event.id, Some(guest.rsvp.id)).await?;
     let games = games::offers_any(&state, &guest);
     let t = lang.messages();
     let links = GuestLinks::new(&guest.link, lang);
-    render(GuestsPage {
+    Ok(render(GuestsPage {
         lang,
         t,
         event: EventView::new(&guest.event.details, lang),
@@ -294,7 +273,7 @@ pub async fn guests(
         flash: Notice::flash(query.notice.as_deref(), t),
         tabs: guest_tabs(t, &links, games, GuestTab::Guests),
         back: None,
-    })
+    }))
 }
 
 #[derive(Deserialize)]
@@ -321,22 +300,22 @@ pub async fn answer(
     guest: Guest,
     headers: HeaderMap,
     Form(form): Form<AnswerForm>,
-) -> Response {
+) -> Page {
     let https = state.config.is_https();
     // Shown again to fix, with the box as this device has it.
-    let page = || {
+    let refuse = |status, pick: fn(&'static Messages) -> &'static str| -> Page {
         let mut page = RsvpPage::new(lang, &guest);
         page.remembered = remember::remembers(&headers, https, &guest);
-        page
+        Ok(page.render_error(status, pick))
     };
     if !guest.event.details.accepts_answers(Utc::now()) {
-        return page().render_error(StatusCode::FORBIDDEN, |t| &t.answers_closed);
+        return refuse(StatusCode::FORBIDDEN, |t| &t.answers_closed);
     }
     if !(1..=guest.rsvp.max_party_size).contains(&form.party_size) {
-        return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size);
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size);
     }
     let Ok(choice) = Question::parse(&guest.event.details, form.choice.as_deref()) else {
-        return page().render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_choice);
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_choice);
     };
 
     let response = match form.response {
@@ -350,19 +329,18 @@ pub async fn answer(
         name_display: form.name_display,
         choice,
     };
-    match rsvp::respond(&state.db, id, &reply, lang, PRIVACY_VERSION).await {
-        Ok(Some(_)) => {
-            tracing::info!(rsvp = %id, ?response, "rsvp answered");
-            let saved = redirect(&guest.link, lang, Notice::Saved);
-            match remember::as_answered(https, &headers, &guest, form.remember.is_some()) {
-                Some(cookie) => cookie::with(saved, cookie),
-                None => saved,
-            }
-        }
-        // Deleted in the meantime.
-        Ok(None) => gone(lang),
-        Err(err) => server_error(err),
-    }
+    // None if they were deleted in the meantime.
+    rsvp::respond(&state.db, id, &reply, lang, PRIVACY_VERSION)
+        .await?
+        .ok_or(PageError::Gone(lang))?;
+    tracing::info!(rsvp = %id, ?response, "rsvp answered");
+    let saved = Notice::Saved.redirect(paths::RSVP, &guest.link, lang);
+    Ok(
+        match remember::as_answered(https, &headers, &guest, form.remember.is_some()) {
+            Some(cookie) => cookie::with(saved, cookie),
+            None => saved,
+        },
+    )
 }
 
 #[derive(Deserialize)]
@@ -376,12 +354,11 @@ pub async fn listing(
     lang: Lang,
     guest: Guest,
     Form(form): Form<ListingForm>,
-) -> Response {
-    match rsvp::set_name_display(&state.db, guest.rsvp.id, form.name_display).await {
-        Ok(true) => redirect_to(paths::RSVP_GUESTS, &guest.link, lang, Notice::Saved),
-        Ok(false) => gone(lang),
-        Err(err) => server_error(err),
+) -> Page {
+    if !rsvp::set_name_display(&state.db, guest.rsvp.id, form.name_display).await? {
+        return Err(PageError::Gone(lang));
     }
+    Ok(Notice::Saved.redirect(paths::RSVP_GUESTS, &guest.link, lang))
 }
 
 #[cfg(test)]

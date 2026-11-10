@@ -14,16 +14,16 @@ use serde::Deserialize;
 
 use super::{
     AppState, games,
-    pages::{MessagePage, gone},
+    pages::{MessagePage, Page, PageError},
     remember,
-    rsvp::{Guest, Notice, ShowQuery, redirect_you},
-    views::{GuestTab, TabLink, guest_tabs},
+    rsvp::{Guest, Notice, ShowQuery},
+    views::{FormPage, GuestTab, TabLink, guest_tabs},
 };
 use crate::{
     db::rsvp::{self, EmailStatus, Rsvp},
-    http::{render, render_with, server_error},
+    http::{cookie, render},
     i18n::{Lang, Messages},
-    paths::GuestLinks,
+    paths::{self, GuestLinks},
 };
 
 #[derive(Template)]
@@ -62,15 +62,11 @@ impl<'a> YouPage<'a> {
             error: None,
         }
     }
+}
 
-    /// The page again with an error message, e.g. for an invalid form.
-    pub(super) fn render_error(
-        mut self,
-        status: StatusCode,
-        pick: impl Fn(&'static Messages) -> &'static str,
-    ) -> Response {
-        self.error = Some(pick(self.t));
-        render_with(status, self)
+impl FormPage for YouPage<'_> {
+    fn error_slot(&mut self) -> (&'static Messages, &mut Option<&'static str>) {
+        (self.t, &mut self.error)
     }
 }
 
@@ -97,19 +93,16 @@ pub async fn rename(
     guest: Guest,
     headers: HeaderMap,
     Form(form): Form<NameForm>,
-) -> Response {
+) -> Page {
     let Some(name) = rsvp::normalize_name(&form.name, rsvp::NameKind::Person) else {
-        return YouPage::new(&state, lang, &guest, &headers)
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name);
+        return Ok(YouPage::new(&state, lang, &guest, &headers)
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name));
     };
-    match rsvp::rename(&state.db, guest.rsvp.id, &name).await {
-        Ok(true) => {
-            tracing::info!(rsvp = %guest.rsvp.id, "rsvp renamed");
-            redirect_you(&guest.link, lang, Notice::Saved)
-        }
-        Ok(false) => gone(lang),
-        Err(err) => server_error(err),
+    if !rsvp::rename(&state.db, guest.rsvp.id, &name).await? {
+        return Err(PageError::Gone(lang));
     }
+    tracing::info!(rsvp = %guest.rsvp.id, "rsvp renamed");
+    Ok(Notice::Saved.redirect(paths::RSVP_YOU, &guest.link, lang))
 }
 
 /// Everything kept about the guest (GDPR Art. 15 and 20): their reply, and their best
@@ -126,11 +119,8 @@ struct Export<'a> {
     scores: Vec<crate::db::games::Best>,
 }
 
-pub async fn export(State(state): State<AppState>, guest: Guest) -> Response {
-    let scores = match crate::db::games::of_guest(&state.db, guest.rsvp.id).await {
-        Ok(scores) => scores,
-        Err(err) => return server_error(err),
-    };
+pub async fn export(State(state): State<AppState>, guest: Guest) -> Page {
+    let scores = crate::db::games::of_guest(&state.db, guest.rsvp.id).await?;
     let question = guest.event.details.question(guest.rsvp.lang);
     let picked = guest.rsvp.choice.and_then(|pick| {
         let choices = &question.as_ref()?.1;
@@ -142,14 +132,11 @@ pub async fn export(State(state): State<AppState>, guest: Guest) -> Response {
         picked,
         scores,
     };
-    (
-        [(
-            header::CONTENT_DISPOSITION,
-            r#"attachment; filename="rsvp.json""#,
-        )],
-        Json(export),
-    )
-        .into_response()
+    let disposition = (
+        header::CONTENT_DISPOSITION,
+        r#"attachment; filename="rsvp.json""#,
+    );
+    Ok(([disposition], Json(export)).into_response())
 }
 
 #[derive(Deserialize)]
@@ -164,27 +151,22 @@ pub async fn delete(
     guest: Guest,
     headers: HeaderMap,
     Form(form): Form<DeleteForm>,
-) -> Response {
+) -> Page {
     if form.confirm.is_none() {
-        return YouPage::new(&state, lang, &guest, &headers)
-            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.confirm_delete);
+        return Ok(YouPage::new(&state, lang, &guest, &headers)
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.confirm_delete));
     }
-    match rsvp::delete(&state.db, guest.rsvp.id).await {
-        Ok(_) => {
-            tracing::info!(rsvp = %guest.rsvp.id, "rsvp deleted by guest");
-            let mut response = render(MessagePage::new(lang, |t| {
-                (&t.deleted_title, &t.deleted_text)
-            }));
-            // A device that remembers the guest forgets them too.
-            let https = state.config.is_https();
-            if remember::remembers(&headers, https, &guest) {
-                let cookie = remember::forget_cookie(https, guest.rsvp.id);
-                response.headers_mut().append(header::SET_COOKIE, cookie);
-            }
-            response
-        }
-        Err(err) => server_error(err),
-    }
+    rsvp::delete(&state.db, guest.rsvp.id).await?;
+    tracing::info!(rsvp = %guest.rsvp.id, "rsvp deleted by guest");
+    let deleted = render(MessagePage::new(lang, |t| {
+        (&t.deleted_title, &t.deleted_text)
+    }));
+    // A device that remembers the guest forgets them too.
+    let https = state.config.is_https();
+    Ok(match remember::remembers(&headers, https, &guest) {
+        true => cookie::with(deleted, remember::forget_cookie(https, guest.rsvp.id)),
+        false => deleted,
+    })
 }
 
 #[cfg(test)]

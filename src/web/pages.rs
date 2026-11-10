@@ -1,5 +1,6 @@
 //! The pages that need no link: the front page, the privacy notice, and the message
-//! pages for a link that's gone or a page that isn't there.
+//! pages for a link that's gone or a page that isn't there; and `PageError`, what a
+//! handler of the site ends in when it has no page to give.
 
 use askama::Template;
 use axum::{
@@ -48,14 +49,38 @@ struct Welcome {
     shared: bool,
 }
 
+/// Why a request ended without its page, as the admin's `PageError` is there. Handlers
+/// return it with `?`.
+pub(super) enum PageError {
+    /// The link doesn't work: mistyped, replaced by a new one, or its guest deleted.
+    /// Every such link gets the same page, in the request's language.
+    Gone(Lang),
+    Database(sqlx::Error),
+}
+
+/// What a handler of the site answers with.
+pub(super) type Page = Result<Response, PageError>;
+
+impl From<sqlx::Error> for PageError {
+    fn from(err: sqlx::Error) -> Self {
+        Self::Database(err)
+    }
+}
+
+impl IntoResponse for PageError {
+    fn into_response(self) -> Response {
+        match self {
+            Self::Gone(lang) => gone(lang),
+            Self::Database(err) => server_error(err),
+        }
+    }
+}
+
 /// The front page: what Innby is, and the way back to each invitation this device
 /// remembers.
-pub async fn index(State(state): State<AppState>, lang: Lang, headers: HeaderMap) -> Response {
+pub async fn index(State(state): State<AppState>, lang: Lang, headers: HeaderMap) -> Page {
     let t = lang.messages();
-    let remembered = match Remembered::load(&state, &headers).await {
-        Ok(remembered) => remembered,
-        Err(err) => return server_error(err),
-    };
+    let remembered = Remembered::load(&state, &headers).await?;
     let mut guests = remembered.guests;
     guests.sort_by_key(|guest| guest.event.details.starts_at);
     // An event without a set end is over when a calendar would show it ending.
@@ -94,7 +119,7 @@ pub async fn index(State(state): State<AppState>, lang: Lang, headers: HeaderMap
     for cookie in remembered.cookies {
         response.headers_mut().append(header::SET_COOKIE, cookie);
     }
-    response
+    Ok(response)
 }
 
 #[derive(Template)]
@@ -150,9 +175,8 @@ impl MessagePage {
     }
 }
 
-/// The page every guest or group link that doesn't work gets: mistyped, replaced by a
-/// new one, or its guest deleted.
-pub fn gone(lang: Lang) -> Response {
+/// The page every guest or group link that doesn't work gets; see `PageError::Gone`.
+fn gone(lang: Lang) -> Response {
     render_with(
         StatusCode::NOT_FOUND,
         MessagePage::new(lang, |t| (&t.gone_title, &t.gone_text)),

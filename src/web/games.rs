@@ -31,7 +31,7 @@ use axum::{
     Json, Router,
     extract::{Path, State},
     http::{HeaderMap, HeaderValue, Method, StatusCode, header},
-    response::{IntoResponse, Response},
+    response::{IntoResponse, Redirect, Response},
     routing::get,
 };
 use serde::{Deserialize, Serialize};
@@ -40,6 +40,7 @@ use tower_http::cors::CorsLayer;
 
 use super::{
     AppState,
+    pages::Page,
     rsvp::Guest,
     views::{GuestTab, TabLink, guest_tabs},
 };
@@ -90,23 +91,20 @@ struct GamesPage {
 
 /// The Games tab: each game the event offers, with its best scores. An event with none
 /// has no such tab, so this leads back to the guest's reply.
-pub async fn list(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
-    let games = match for_page(&state, lang, &guest).await {
-        Ok(games) => games,
-        Err(err) => return server_error(err),
-    };
+pub async fn list(State(state): State<AppState>, lang: Lang, guest: Guest) -> Page {
+    let games = for_page(&state, lang, &guest).await?;
     let links = GuestLinks::new(&guest.link, lang);
     if games.is_empty() {
-        return axum::response::Redirect::to(&links.page).into_response();
+        return Ok(Redirect::to(&links.page).into_response());
     }
     let t = lang.messages();
-    render(GamesPage {
+    Ok(render(GamesPage {
         lang,
         t,
         title: guest.event.details.title(lang).to_owned(),
         tabs: guest_tabs(t, &links, true, GuestTab::Games),
         games,
-    })
+    }))
 }
 
 /// Whether the guest's event offers any game the config still has, for their tabs.

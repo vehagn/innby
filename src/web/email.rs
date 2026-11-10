@@ -14,8 +14,9 @@ use sqlx::PgPool;
 
 use super::{
     AppState, PRIVACY_VERSION,
-    pages::MessagePage,
-    rsvp::{Guest, Notice, redirect_you},
+    pages::{MessagePage, Page},
+    rsvp::{Guest, Notice},
+    views::FormPage,
     you::YouPage,
 };
 use crate::{
@@ -23,7 +24,7 @@ use crate::{
         outbox::{self, Kind},
         rsvp::{self, EmailStatus, Rsvp},
     },
-    http::{ClientIp, render, render_with, server_error},
+    http::{ClientIp, render, render_with},
     i18n::{Lang, Messages},
     link::{EmailLink, Purpose},
     paths,
@@ -45,10 +46,10 @@ pub async fn add(
     guest: Guest,
     headers: HeaderMap,
     Form(form): Form<AddForm>,
-) -> Response {
+) -> Page {
     // The guest's details again, with what to fix.
-    let refuse = |status, pick: fn(&'static Messages) -> &'static str| {
-        YouPage::new(&state, lang, &guest, &headers).render_error(status, pick)
+    let refuse = |status, pick: fn(&'static Messages) -> &'static str| -> Page {
+        Ok(YouPage::new(&state, lang, &guest, &headers).render_error(status, pick))
     };
     if form.consent.is_none() {
         return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.consent_required);
@@ -62,10 +63,8 @@ pub async fn add(
         return refuse(StatusCode::TOO_MANY_REQUESTS, |t| &t.too_many_attempts);
     }
 
-    match add_email(&state.db, &guest.rsvp, &email, lang).await {
-        Ok(()) => redirect_you(&guest.link, lang, Notice::EmailSent),
-        Err(err) => server_error(err),
-    }
+    add_email(&state.db, &guest.rsvp, &email, lang).await?;
+    Ok(Notice::EmailSent.redirect(paths::RSVP_YOU, &guest.link, lang))
 }
 
 async fn add_email(db: &PgPool, guest: &Rsvp, email: &str, lang: Lang) -> sqlx::Result<()> {
@@ -92,21 +91,13 @@ async fn add_email(db: &PgPool, guest: &Rsvp, email: &str, lang: Lang) -> sqlx::
 }
 
 /// Withdraws consent: the address and any mail waiting for it are deleted.
-pub async fn remove(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
-    let result = async {
-        let mut tx = state.db.begin().await?;
-        rsvp::remove_email(&mut *tx, guest.rsvp.id).await?;
-        outbox::cancel_unsent(&mut *tx, guest.rsvp.id).await?;
-        tx.commit().await
-    }
-    .await;
-    match result {
-        Ok(()) => {
-            tracing::info!(rsvp = %guest.rsvp.id, "e-mail address removed");
-            redirect_you(&guest.link, lang, Notice::EmailRemoved)
-        }
-        Err(err) => server_error(err),
-    }
+pub async fn remove(State(state): State<AppState>, lang: Lang, guest: Guest) -> Page {
+    let mut tx = state.db.begin().await?;
+    rsvp::remove_email(&mut *tx, guest.rsvp.id).await?;
+    outbox::cancel_unsent(&mut *tx, guest.rsvp.id).await?;
+    tx.commit().await?;
+    tracing::info!(rsvp = %guest.rsvp.id, "e-mail address removed");
+    Ok(Notice::EmailRemoved.redirect(paths::RSVP_YOU, &guest.link, lang))
 }
 
 #[derive(Template)]
@@ -149,52 +140,37 @@ pub async fn confirm_page(
     State(state): State<AppState>,
     lang: Lang,
     Path(token): Path<String>,
-) -> Response {
-    match verify(&state, &token).await {
-        Ok(Some(_)) => render(ConfirmPage {
-            lang,
-            t: lang.messages(),
-            action: paths::localized(&paths::path(paths::CONFIRM_EMAIL, token), lang),
-        }),
-        Ok(None) => invalid_confirmation(lang),
-        Err(err) => server_error(err),
+) -> Page {
+    if verify(&state, &token).await?.is_none() {
+        return Ok(invalid_confirmation(lang));
     }
+    Ok(render(ConfirmPage {
+        lang,
+        t: lang.messages(),
+        action: paths::localized(&paths::path(paths::CONFIRM_EMAIL, token), lang),
+    }))
 }
 
-pub async fn confirm(
-    State(state): State<AppState>,
-    lang: Lang,
-    Path(token): Path<String>,
-) -> Response {
-    let guest = match verify(&state, &token).await {
-        Ok(Some(guest)) => guest,
-        Ok(None) => return invalid_confirmation(lang),
-        Err(err) => return server_error(err),
+pub async fn confirm(State(state): State<AppState>, lang: Lang, Path(token): Path<String>) -> Page {
+    let Some(guest) = verify(&state, &token).await? else {
+        return Ok(invalid_confirmation(lang));
     };
     let email = guest.email.as_deref().unwrap_or_default();
-    let result = async {
-        let mut tx = state.db.begin().await?;
-        let confirmed = rsvp::confirm_email(&mut *tx, guest.id, email).await?;
-        if confirmed {
-            outbox::enqueue(&mut *tx, guest.id, Kind::RsvpLink).await?;
-        }
-        tx.commit().await.map(|()| confirmed)
+    let mut tx = state.db.begin().await?;
+    // False if another guest of the event confirmed the address first.
+    if !rsvp::confirm_email(&mut *tx, guest.id, email).await? {
+        return Ok(invalid_confirmation(lang));
     }
-    .await;
-    match result {
-        Ok(true) => {
-            tracing::info!(rsvp = %guest.id, "e-mail address confirmed");
-            // Holding the confirmation link proves the address, which belongs to this
-            // RSVP, so the guest may go straight to their page.
-            let link = state
-                .config
-                .link_key
-                .link(Purpose::Rsvp, guest.id, guest.link_nonce);
-            redirect_you(&link, lang, Notice::EmailConfirmed)
-        }
-        Ok(false) => invalid_confirmation(lang),
-        Err(err) => server_error(err),
-    }
+    outbox::enqueue(&mut *tx, guest.id, Kind::RsvpLink).await?;
+    tx.commit().await?;
+    tracing::info!(rsvp = %guest.id, "e-mail address confirmed");
+    // Holding the confirmation link proves the address, which belongs to this RSVP, so
+    // the guest may go straight to their page.
+    let link = state
+        .config
+        .link_key
+        .link(Purpose::Rsvp, guest.id, guest.link_nonce);
+    Ok(Notice::EmailConfirmed.redirect(paths::RSVP_YOU, &link, lang))
 }
 
 #[derive(Template)]
@@ -212,6 +188,12 @@ impl LostPage {
             t: lang.messages(),
             error: None,
         }
+    }
+}
+
+impl FormPage for LostPage {
+    fn error_slot(&mut self) -> (&'static Messages, &mut Option<&'static str>) {
+        (self.t, &mut self.error)
     }
 }
 
@@ -233,17 +215,14 @@ pub async fn lost(
     client: ClientIp,
     Form(form): Form<LostForm>,
 ) -> Response {
-    let fail = |status, pick: fn(&'static Messages) -> &'static str| {
-        let mut page = LostPage::new(lang);
-        page.error = Some(pick(page.t));
-        render_with(status, page)
-    };
     let Some(email) = rsvp::normalize_email(&form.email) else {
-        return fail(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_email);
+        return LostPage::new(lang)
+            .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_email);
     };
     if !state.may_send_mail(client) {
         tracing::warn!("lost link rate limit hit");
-        return fail(StatusCode::TOO_MANY_REQUESTS, |t| &t.too_many_attempts);
+        return LostPage::new(lang)
+            .render_error(StatusCode::TOO_MANY_REQUESTS, |t| &t.too_many_attempts);
     }
     let db = state.db.clone();
     tokio::spawn(async move {

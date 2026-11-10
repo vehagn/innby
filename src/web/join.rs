@@ -9,16 +9,16 @@ use axum::{
     Form,
     extract::{Path, State},
     http::StatusCode,
-    response::{IntoResponse, Redirect, Response},
+    response::{IntoResponse, Redirect},
 };
 use chrono::Utc;
 use serde::Deserialize;
 
 use super::{
     AppState, PRIVACY_VERSION,
-    pages::gone,
+    pages::{Page, PageError},
     remember,
-    views::{DisplayChoice, EventView, GuestList, GuestsPage, PartySize, Question},
+    views::{DisplayChoice, EventView, FormPage, GuestList, GuestsPage, PartySize, Question},
 };
 use crate::{
     db::{
@@ -26,7 +26,7 @@ use crate::{
         group::{self, Group},
         rsvp::{self, NameDisplay, SignUp},
     },
-    http::{ClientIp, cookie, render, render_with, server_error},
+    http::{ClientIp, cookie, render, render_with},
     i18n::{Lang, Messages},
     link::{IdLink, Purpose},
     paths,
@@ -76,14 +76,11 @@ impl<'a> JoinPage<'a> {
             error: None,
         }
     }
+}
 
-    fn render_error(
-        mut self,
-        status: StatusCode,
-        pick: impl Fn(&'static Messages) -> &'static str,
-    ) -> Response {
-        self.error = Some(pick(self.t));
-        render_with(status, self)
+impl FormPage for JoinPage<'_> {
+    fn error_slot(&mut self) -> (&'static Messages, &mut Option<&'static str>) {
+        (self.t, &mut self.error)
     }
 }
 
@@ -93,49 +90,39 @@ struct Joining {
     event: Event,
 }
 
-/// The group behind a sign-up link, unless the link is malformed, forged or revoked.
-async fn find_group(state: &AppState, link: &str) -> sqlx::Result<Option<Joining>> {
-    let Ok(parsed) = link.parse::<IdLink>() else {
-        return Ok(None);
-    };
-    let group = group::find(&state.db, parsed.id).await?.filter(|group| {
-        state
-            .config
-            .link_key
-            .verify(Purpose::Group, &parsed, group.link_nonce)
-    });
-    let Some(group) = group else {
-        return Ok(None);
-    };
-    let event = event::find(&state.db, group.event_id).await?;
-    Ok(event.map(|event| Joining { group, event }))
-}
-
-pub async fn show(State(state): State<AppState>, lang: Lang, Path(link): Path<String>) -> Response {
-    match find_group(&state, &link).await {
-        Ok(Some(joining)) => render(JoinPage::new(lang, &joining, &link)),
-        Ok(None) => gone(lang),
-        Err(err) => server_error(err),
+impl Joining {
+    /// The group behind a sign-up link. A link that's malformed, forged or revoked is
+    /// gone, like a guest's.
+    async fn find(state: &AppState, link: &str, lang: Lang) -> Result<Self, PageError> {
+        let gone = PageError::Gone(lang);
+        let Ok(parsed) = link.parse::<IdLink>() else {
+            return Err(gone);
+        };
+        let group = group::find(&state.db, parsed.id).await?.filter(|group| {
+            state
+                .config
+                .link_key
+                .verify(Purpose::Group, &parsed, group.link_nonce)
+        });
+        let Some(group) = group else {
+            return Err(gone);
+        };
+        let event = event::find(&state.db, group.event_id).await?.ok_or(gone)?;
+        Ok(Self { group, event })
     }
 }
 
+pub async fn show(State(state): State<AppState>, lang: Lang, Path(link): Path<String>) -> Page {
+    let joining = Joining::find(&state, &link, lang).await?;
+    Ok(render(JoinPage::new(lang, &joining, &link)))
+}
+
 /// The guest list, for someone deciding whether to sign up.
-pub async fn guests(
-    State(state): State<AppState>,
-    lang: Lang,
-    Path(link): Path<String>,
-) -> Response {
-    let joining = match find_group(&state, &link).await {
-        Ok(Some(joining)) => joining,
-        Ok(None) => return gone(lang),
-        Err(err) => return server_error(err),
-    };
-    let guests = match GuestList::load(&state.db, joining.event.id, None).await {
-        Ok(guests) => guests,
-        Err(err) => return server_error(err),
-    };
+pub async fn guests(State(state): State<AppState>, lang: Lang, Path(link): Path<String>) -> Page {
+    let joining = Joining::find(&state, &link, lang).await?;
+    let guests = GuestList::load(&state.db, joining.event.id, None).await?;
     let t = lang.messages();
-    render(GuestsPage {
+    Ok(render(GuestsPage {
         lang,
         t,
         event: EventView::new(&joining.event.details, lang),
@@ -147,7 +134,7 @@ pub async fn guests(
             paths::localized(&paths::path(paths::JOIN, &link), lang),
             &t.back_to_sign_up,
         )),
-    })
+    }))
 }
 
 #[derive(Deserialize)]
@@ -172,16 +159,12 @@ pub async fn join(
     client: ClientIp,
     Path(link): Path<String>,
     Form(form): Form<JoinForm>,
-) -> Response {
-    let joining = match find_group(&state, &link).await {
-        Ok(Some(joining)) => joining,
-        Ok(None) => return gone(lang),
-        Err(err) => return server_error(err),
-    };
+) -> Page {
+    let joining = Joining::find(&state, &link, lang).await?;
     let group = &joining.group;
     if !form.website.is_empty() {
         tracing::info!("group sign-up honeypot triggered");
-        return Redirect::to("/").into_response();
+        return Ok(Redirect::to("/").into_response());
     }
     let name_display = form.name_display.unwrap_or(NameDisplay::Full);
     let mut page = JoinPage::new(lang, &joining, &link);
@@ -203,21 +186,24 @@ pub async fn join(
     let picked = Question::parse(&joining.event.details, form.choice.as_deref());
     page.question = Question::new(&joining.event.details, lang, picked.unwrap_or(None));
     if !page.accepts_answers {
-        return render_with(StatusCode::FORBIDDEN, page);
+        return Ok(render_with(StatusCode::FORBIDDEN, page));
     }
+    let refuse = |status, pick: fn(&'static Messages) -> &'static str| -> Page {
+        Ok(page.render_error(status, pick))
+    };
     let Some(name) = rsvp::normalize_name(&form.name, rsvp::NameKind::Person) else {
-        return page.render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name);
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name);
     };
     if !(1..=group.max_party_size).contains(&form.party_size) {
-        return page.render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size);
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size);
     }
     let Ok(choice) = picked else {
-        return page.render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_choice);
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_choice);
     };
     // Only valid submissions count, so a typo doesn't use up a household's allowance.
     if !state.join_limiter.check(client) {
         tracing::warn!("group sign-up rate limit hit");
-        return page.render_error(StatusCode::TOO_MANY_REQUESTS, |t| &t.too_many_attempts);
+        return refuse(StatusCode::TOO_MANY_REQUESTS, |t| &t.too_many_attempts);
     }
 
     let sign_up = SignUp {
@@ -229,31 +215,25 @@ pub async fn join(
         choice,
         token,
     };
-    match rsvp::create_open(&state.db, &sign_up, PRIVACY_VERSION).await {
-        Ok((rsvp, created)) => {
-            if created {
-                tracing::info!(rsvp = %rsvp.id, group = %group.id, "signed up through a group");
-            } else {
-                tracing::info!(rsvp = %rsvp.id, group = %group.id, "sign-up sent again");
-            }
-            let link = state
-                .config
-                .link_key
-                .link(Purpose::Rsvp, rsvp.id, rsvp.link_nonce);
-            let page = paths::localized(&paths::path(paths::RSVP, &link), lang);
-            let redirect = Redirect::to(&format!("{page}&new")).into_response();
-            if form.remember.is_none() {
-                return redirect;
-            }
-            tracing::info!(rsvp = %rsvp.id, "device remembered");
-            let https = state.config.is_https();
-            cookie::with(
-                redirect,
-                remember::remember_cookie(https, &joining.event, rsvp.id, &link),
-            )
-        }
-        Err(err) => server_error(err),
+    let (rsvp, created) = rsvp::create_open(&state.db, &sign_up, PRIVACY_VERSION).await?;
+    if created {
+        tracing::info!(rsvp = %rsvp.id, group = %group.id, "signed up through a group");
+    } else {
+        tracing::info!(rsvp = %rsvp.id, group = %group.id, "sign-up sent again");
     }
+    let link = state
+        .config
+        .link_key
+        .link(Purpose::Rsvp, rsvp.id, rsvp.link_nonce);
+    let page = paths::localized(&paths::path(paths::RSVP, &link), lang);
+    let redirect = Redirect::to(&format!("{page}&new")).into_response();
+    if form.remember.is_none() {
+        return Ok(redirect);
+    }
+    tracing::info!(rsvp = %rsvp.id, "device remembered");
+    let https = state.config.is_https();
+    let cookie = remember::remember_cookie(https, &joining.event, rsvp.id, &link);
+    Ok(cookie::with(redirect, cookie))
 }
 
 #[cfg(test)]

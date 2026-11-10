@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use super::{
     AppState,
-    rsvp::{Guest, Notice, redirect_you},
+    rsvp::{Guest, Notice},
 };
 use crate::{
     db::{
@@ -30,6 +30,7 @@ use crate::{
     http::cookie,
     i18n::Lang,
     link::IdLink,
+    paths,
 };
 
 /// The most remembered links the front page reads. A guest is rarely invited to more
@@ -107,13 +108,15 @@ pub async fn remember(State(state): State<AppState>, lang: Lang, guest: Guest) -
     let https = state.config.is_https();
     let cookie = remember_cookie(https, &guest.event, guest.rsvp.id, &guest.link);
     tracing::info!(rsvp = %guest.rsvp.id, "device remembered");
-    cookie::with(redirect_you(&guest.link, lang, Notice::Remembered), cookie)
+    let back = Notice::Remembered.redirect(paths::RSVP_YOU, &guest.link, lang);
+    cookie::with(back, cookie)
 }
 
 /// Forgets the guest on this device, from their page.
 pub async fn forget_here(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
     let cookie = forget_cookie(state.config.is_https(), guest.rsvp.id);
-    cookie::with(redirect_you(&guest.link, lang, Notice::Forgotten), cookie)
+    let back = Notice::Forgotten.redirect(paths::RSVP_YOU, &guest.link, lang);
+    cookie::with(back, cookie)
 }
 
 #[derive(Deserialize)]

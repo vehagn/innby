@@ -1,7 +1,9 @@
 //! What the personal and group link pages show alike: the event, the party size and
-//! guest list choices, and the guest list itself.
+//! guest list choices, the guest list itself, a guest's tabs, and a form shown again
+//! with what to fix (`FormPage`).
 
 use askama::Template;
+use axum::{http::StatusCode, response::Response};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -10,8 +12,27 @@ use crate::{
         event::Details,
         rsvp::{self, NameDisplay, Response as Answer, Rsvp},
     },
+    http::render_with,
     i18n::{Lang, Messages, fill},
 };
+
+/// A page with a form on it, which can be shown again saying what to fix.
+pub trait FormPage: Template + Sized {
+    /// The page's texts, and where it keeps what to fix.
+    fn error_slot(&mut self) -> (&'static Messages, &mut Option<&'static str>);
+
+    /// The page again with what's wrong, picked from its texts: 422 for a form to fix,
+    /// or the status that says why it was refused.
+    fn render_error(
+        mut self,
+        status: StatusCode,
+        pick: impl Fn(&'static Messages) -> &'static str,
+    ) -> Response {
+        let (t, error) = self.error_slot();
+        *error = Some(pick(t));
+        render_with(status, self)
+    }
+}
 
 /// The event details shown at the top of the public pages.
 pub struct EventView<'a> {
