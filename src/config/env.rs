@@ -22,6 +22,17 @@ impl<F: Fn(&str) -> Option<String>> Env<F> {
             .ok_or_else(|| anyhow!("{key} must be set"))
     }
 
+    /// An address to listen on, or None when unset.
+    pub(super) fn optional_socket_address(&self, key: &str) -> Result<Option<SocketAddr>> {
+        self.optional(key)
+            .map(|value| {
+                value
+                    .parse()
+                    .with_context(|| format!("{key}: invalid socket address {value:?}"))
+            })
+            .transpose()
+    }
+
     pub(super) fn socket_address(&self, key: &str, default: &str) -> Result<SocketAddr> {
         let value = self.optional(key).unwrap_or_else(|| default.into());
         value

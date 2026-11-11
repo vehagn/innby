@@ -7,7 +7,7 @@
 //! - `db`: the queries, per table. `config`: the settings. `i18n`: languages and texts.
 //! - `link`: signed links. `paths`: every route and link. `theme`: the colour scheme.
 //! - `random`: tokens. `testing` and `e2e`: test helpers and end-to-end journeys.
-//! - `alloc`: the memory allocator.
+//! - `metrics`: anonymous metrics for Prometheus. `alloc`: the memory allocator.
 
 mod admin;
 mod alloc;
@@ -22,6 +22,7 @@ mod icons;
 mod janitor;
 mod link;
 mod mailer;
+mod metrics;
 mod paths;
 mod random;
 #[cfg(test)]
@@ -118,14 +119,22 @@ async fn run() -> anyhow::Result<()> {
     i18n::load();
 
     match Cli::parse().command {
-        Command::Serve => web::serve(Config::from_env()?, db::pool()?).await,
+        Command::Serve => {
+            let (config, db) = (Config::from_env()?, db::pool()?);
+            let metrics = config.metrics_listen;
+            metrics::alongside(metrics, db.clone(), false, web::serve(config, db)).await
+        }
         Command::Admin => {
-            let config = Config::from_env()?;
+            let (config, db) = (Config::from_env()?, db::pool()?);
             let admin = AdminConfig::from_env(&config)?;
-            admin::serve(config, admin, db::pool()?).await
+            let metrics = config.metrics_listen;
+            metrics::alongside(metrics, db.clone(), false, admin::serve(config, admin, db)).await
         }
         Command::Mailer => {
-            mailer::run(Config::from_env()?, MailConfig::from_env()?, db::pool()?).await
+            let (config, db) = (Config::from_env()?, db::pool()?);
+            let metrics = config.metrics_listen;
+            let mailer = mailer::run(config, MailConfig::from_env()?, db.clone());
+            metrics::alongside(metrics, db, true, mailer).await
         }
         Command::Janitor => janitor::run(&db::connect().await?, chrono::Utc::now())
             .await

@@ -96,6 +96,24 @@ pub async fn claim_due(tx: &mut PgConnection, limit: i64) -> sqlx::Result<Vec<Jo
     .await
 }
 
+/// How many jobs aren't sent, for the metrics: those still to be tried, and those given
+/// up on after `MAX_ATTEMPTS`.
+pub async fn unsent(db: impl PgExecutor<'_>) -> sqlx::Result<(i64, i64)> {
+    let row = sqlx::query!(
+        r#"
+        select
+            count(*) filter (where attempts < $1) as "waiting!",
+            count(*) filter (where attempts >= $1) as "given_up!"
+        from outbox
+        where sent_at is null
+        "#,
+        MAX_ATTEMPTS,
+    )
+    .fetch_one(db)
+    .await?;
+    Ok((row.waiting, row.given_up))
+}
+
 /// Marks a job done. `note` records why a job was dropped without sending.
 pub async fn mark_done(tx: &mut PgConnection, id: i64, note: Option<&str>) -> sqlx::Result<()> {
     sqlx::query!(

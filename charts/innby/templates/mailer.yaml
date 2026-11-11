@@ -28,6 +28,10 @@ spec:
             {{- include "innby.secretEnv" (dict "root" . "key" "INNBY_LINK_KEY") | nindent 12 }}
             {{- include "innby.secretEnv" (dict "root" . "key" "INNBY_SMTP_USER" "optional" true) | nindent 12 }}
             {{- include "innby.secretEnv" (dict "root" . "key" "INNBY_SMTP_PASSWORD" "optional" true) | nindent 12 }}
+          {{- if .Values.metrics.enabled }}
+          ports:
+            {{- include "innby.metricsPort" . | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.mailer.resources | nindent 12 }}
 {{- end }}

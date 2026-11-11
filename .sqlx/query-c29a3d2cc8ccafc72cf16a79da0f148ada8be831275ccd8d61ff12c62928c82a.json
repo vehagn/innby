@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select\n            count(*) filter (where attempts < $1) as \"waiting!\",\n            count(*) filter (where attempts >= $1) as \"given_up!\"\n        from outbox\n        where sent_at is null\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "waiting!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "given_up!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "c29a3d2cc8ccafc72cf16a79da0f148ada8be831275ccd8d61ff12c62928c82a"
+}

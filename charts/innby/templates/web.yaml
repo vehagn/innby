@@ -39,6 +39,7 @@ spec:
             - name: internal
               containerPort: 8083
             {{- end }}
+            {{- include "innby.metricsPort" . | nindent 12 }}
           readinessProbe:
             httpGet: { path: /readyz, port: http }
             periodSeconds: 10

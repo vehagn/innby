@@ -159,12 +159,31 @@ For games of your own, serve them on their own origin, list them in `extraConfig
 alone the network policies let in. [docs/games.md](../../docs/games.md) has the details,
 and what a game must do.
 
+## Metrics
+
+`metrics.enabled` has the site, the admin UI and the mailer serve anonymous metrics for
+Prometheus at `/metrics` on `metrics.port`, 9090, a port of its own that no route or
+Ingress reaches: requests by route pattern and status, how long they took, mail sent and
+failed, the outbox, database connections and memory. Nothing per event or guest, and
+never a link; [docs/architecture.md](../../docs/architecture.md#metrics) lists them.
+
+Each workload's metrics get a ClusterIP Service of their own,
+`{release}-{web,admin,mailer}-metrics`, apart from the pages' Services, so a LoadBalancer
+or NodePort for those never exposes them. With the Prometheus Operator,
+`metrics.serviceMonitor.enabled` adds a ServiceMonitor for them, whose targets' job is
+their workload, and `metrics.serviceMonitor.labels` the labels your Prometheus selects it
+by.
+
+The network policies open the port to `networkPolicy.metricsFrom`, or
+`ciliumNetworkPolicy.metricsFromEndpoints`, e.g. Prometheus's namespace; when empty, to
+anyone, or for Cilium to anything in the cluster.
+
 ## Network policies
 
 Either kind lets each workload reach only what it needs: the site and the admin UI
-accept traffic on their ports, the mailer and janitor nothing, and each may reach DNS
-and Postgres, the mailer its SMTP server, and the admin UI its OIDC provider. Turn on
-one kind, not both.
+accept traffic on their ports, the mailer nothing but Prometheus when `metrics` is on,
+the janitor nothing, and each may reach DNS and Postgres, the mailer its SMTP server,
+and the admin UI its OIDC provider. Turn on one kind, not both.
 
 - `networkPolicy.enabled`: standard NetworkPolicies, for any cluster whose network
   plugin enforces them. They can't name hosts, so the SMTP server and the OIDC

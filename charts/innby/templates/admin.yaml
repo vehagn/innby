@@ -30,6 +30,7 @@ spec:
           ports:
             - name: http
               containerPort: 8081
+            {{- include "innby.metricsPort" . | nindent 12 }}
           # The probes are at the root even when the pages are under a path.
           readinessProbe:
             httpGet: { path: /readyz, port: http }

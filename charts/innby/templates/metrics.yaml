@@ -1,0 +1,57 @@
+{{- if .Values.metrics.enabled }}
+{{- $workloads := list "web" }}
+{{- if .Values.admin.enabled }}{{ $workloads = append $workloads "admin" }}{{ end }}
+{{- if .Values.mailer.enabled }}{{ $workloads = append $workloads "mailer" }}{{ end }}
+{{- $metrics := dict "root" . "component" "metrics" }}
+{{- range $workloads }}
+{{- $ctx := dict "root" $ "component" . }}
+---
+# The {{ . }} workload's metrics, on a ClusterIP Service of their own, so a LoadBalancer
+# or NodePort for the pages never exposes them. The janitor is gone before a scrape.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "innby.component" $ctx }}-metrics
+  labels:
+    {{- include "innby.labels" $metrics | nindent 4 }}
+    innby/workload: {{ . }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "innby.selectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ $.Values.metrics.port }}
+      targetPort: metrics
+{{- end }}
+{{- end }}
+{{- with .Values.metrics.serviceMonitor }}
+{{- if .enabled }}
+{{- if not $.Values.metrics.enabled }}
+{{- fail "metrics.serviceMonitor: turn on metrics.enabled too, or there's nothing to scrape" }}
+{{- end }}
+---
+# Scrapes the Services above, for the Prometheus Operator.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "innby.fullname" $ }}
+  labels:
+    {{- include "innby.labels" (dict "root" $ "component" "metrics") | nindent 4 }}
+    {{- with .labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "innby.selectorLabels" (dict "root" $ "component" "metrics") | nindent 6 }}
+  # Each target's job is its workload: web, admin or mailer.
+  jobLabel: innby/workload
+  endpoints:
+    - port: metrics
+      path: /metrics
+      {{- with .interval }}
+      interval: {{ . }}
+      {{- end }}
+{{- end }}
+{{- end }}

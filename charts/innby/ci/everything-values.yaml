@@ -26,8 +26,12 @@ ingress:
   tls: [{ secretName: fest-tls, hosts: [fest.example.com] }]
   admin:
     className: internal
+metrics:
+  enabled: true
+  serviceMonitor: { enabled: true, interval: 30s, labels: { release: prometheus } }
 networkPolicy:
   enabled: true
+  metricsFrom: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } } }]
   ingressFrom: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: gateway } } }]
   databasePeers: [{ podSelector: { matchLabels: { cnpg.io/cluster: innby-postgres } } }]
 image: { digest: "sha256:0000000000000000000000000000000000000000000000000000000000000000" }

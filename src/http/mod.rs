@@ -1,7 +1,7 @@
 //! What both listeners share, the public site's and the admin UI's: serving with
 //! timeouts and graceful shutdown, security headers, CSRF protection, rate limits,
-//! cookies, rendering templates and the stylesheet, the icon, gzip where it's safe, and
-//! the request's language.
+//! cookies, rendering templates and the stylesheet, the icon, gzip where it's safe, the
+//! request's language, and counting requests for the metrics.
 
 mod compress;
 pub mod cookie;
@@ -47,6 +47,7 @@ use tower_http::{set_header::SetResponseHeaderLayer, timeout::TimeoutLayer, trac
 use crate::{
     db,
     i18n::{Asked, Lang, Offer},
+    metrics::{self, Label},
 };
 
 pub(crate) const SECURITY_HEADERS: [(header::HeaderName, &str); 6] = [
@@ -184,18 +185,28 @@ pub fn harden(router: Router, https: bool) -> Router {
     )
 }
 
-/// Logs each answer, in the request's span, as tower-http's default does, but the
+/// Logs each answer, in the request's span, and counts it in the metrics, by its route's
+/// pattern, never its path. Logged as tower-http's default does, but the
 /// kubelet's probes at debug: they come every few seconds, and buried the requests that
 /// matter. A probe that fails is logged at info all the same. `RUST_LOG=info,innby::http=debug`
 /// logs them all.
 async fn log_response(request: axum::extract::Request, next: Next) -> Response {
-    let probe = request
-        .extensions()
-        .get::<MatchedPath>()
-        .is_some_and(|route| is_probe(route.as_str()));
+    let matched = request.extensions().get::<MatchedPath>();
+    let probe = matched.is_some_and(|route| is_probe(route.as_str()));
+    let (route, method) = (Label::route(matched), Label::method(request.method()));
     let started = Instant::now();
     let response = next.run(request).await;
-    let latency = format!("{} ms", started.elapsed().as_millis());
+    let elapsed = started.elapsed();
+    metrics::HTTP_DURATION.observe(
+        &[("route", route.clone()), ("method", method.clone())],
+        elapsed.as_secs_f64(),
+    );
+    metrics::HTTP_REQUESTS.inc(&[
+        ("route", route),
+        ("method", method),
+        ("status", response.status().into()),
+    ]);
+    let latency = format!("{} ms", elapsed.as_millis());
     let status = response.status().as_u16();
     if quiet(probe, response.status()) {
         tracing::debug!(%latency, status, "finished processing request");

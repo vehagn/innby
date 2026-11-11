@@ -45,6 +45,9 @@ pub struct Config {
     /// Where `innby serve` takes scores from games' servers, when a game has one: a
     /// port inside the cluster, not on any route.
     pub internal_listen: SocketAddr,
+    /// `INNBY_METRICS_LISTEN`: where the workload serves its metrics (`crate::metrics`),
+    /// a port inside the cluster, not on any route. None serves none.
+    pub metrics_listen: Option<SocketAddr>,
 }
 
 impl Config {
@@ -155,6 +158,7 @@ impl Config {
         Ok(Self {
             games,
             internal_listen: env.socket_address("INNBY_INTERNAL_LISTEN", "0.0.0.0:8083")?,
+            metrics_listen: env.optional_socket_address("INNBY_METRICS_LISTEN")?,
             listen,
             base_url,
             link_key,

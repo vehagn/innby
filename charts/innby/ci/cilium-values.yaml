@@ -10,6 +10,7 @@ oidc:
 mailer:
   from: Innby <fest@example.com>
   smtpUrl: smtps://smtp.example.com?tls=required
+metrics: { enabled: true }
 ciliumNetworkPolicy:
   enabled: true
   admin:

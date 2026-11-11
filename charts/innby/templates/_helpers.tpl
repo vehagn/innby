@@ -266,3 +266,34 @@ securityContext:
 {{- define "innby.gamesKeysSecret" -}}
 {{- default (include "innby.component" (dict "root" . "component" "games")) .Values.games.keys.existingSecret }}
 {{- end }}
+
+{{/* The metrics' port in a container's ports, when they're on. */}}
+{{- define "innby.metricsPort" -}}
+{{- if .Values.metrics.enabled -}}
+# Anonymous metrics for Prometheus; see metrics.
+- name: metrics
+  containerPort: {{ .Values.metrics.port }}
+{{- end }}
+{{- end }}
+
+{{/* NetworkPolicy ingress to the metrics' port, from networkPolicy.metricsFrom. */}}
+{{- define "innby.metricsIngress" -}}
+{{- if .Values.metrics.enabled -}}
+# Prometheus, scraping the metrics.
+- {{- with .Values.networkPolicy.metricsFrom }}
+  from:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - { port: {{ .Values.metrics.port }}, protocol: TCP }
+{{- end }}
+{{- end }}
+
+{{/* The same for Cilium: from ciliumNetworkPolicy.metricsFromEndpoints, or the cluster. */}}
+{{- define "innby.ciliumMetricsIngress" -}}
+{{- if .Values.metrics.enabled -}}
+{{- $endpoints := .Values.ciliumNetworkPolicy.metricsFromEndpoints -}}
+# Prometheus, scraping the metrics.
+{{ include "innby.ciliumIngress" (dict "entities" (ternary (list "cluster") list (empty $endpoints)) "endpoints" $endpoints "port" .Values.metrics.port) }}
+{{- end }}
+{{- end }}

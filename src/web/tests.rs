@@ -272,6 +272,37 @@ async fn never_gzips_a_page_that_holds_a_link(db: PgPool) {
     }
 }
 
+/// The metrics count a guest's page by its route, and never hold its secret link, nor
+/// anything else the request carried.
+#[sqlx::test]
+async fn metrics_hold_routes_never_links(db: PgPool) {
+    let site = testing::Site::new(db.clone());
+    let (_, link) = site.invite("Kari", 2).await;
+    let request = Request::builder()
+        .method("SNOOP")
+        .uri(format!("/r/{link}?name=Kari"))
+        .header(header::USER_AGENT, "Kari's phone")
+        .body(Body::empty())
+        .unwrap();
+    router(crate::config::tests::config(), db.clone())
+        .oneshot(request)
+        .await
+        .unwrap();
+    gzipped(db, &format!("/r/{link}")).await;
+    let page = crate::metrics::render();
+    assert!(
+        page.contains(r#"innby_http_requests_total{route="/r/{link}",method="GET",status="200"}"#),
+        "{page}"
+    );
+    assert!(
+        page.contains(r#"route="/r/{link}",method="other""#),
+        "{page}"
+    );
+    for secret in [link.as_str(), "Kari", "SNOOP"] {
+        assert!(!page.contains(secret), "{secret} in the metrics");
+    }
+}
+
 #[tokio::test]
 async fn privacy_notice_in_every_language() {
     let html = body(get("/privacy", Some("nb")).await).await;

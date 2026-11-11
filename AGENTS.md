@@ -98,6 +98,8 @@ src/
   paths.rs           every route pattern, and links built from them
   theme.rs           the colour scheme from ?theme=
   version.rs         which build this is: release, commit and date, as build.rs stamps them
+  metrics.rs         anonymous metrics for Prometheus, on a port of their own; a Label
+                     can't be made from what a request carries
   random.rs          tokens from the OS
   testing.rs         HTTP helpers for tests (body, location, escape, form posts, Set-Cookie)
   e2e/               end-to-end journeys through both sites and the mailer, by a test Browser

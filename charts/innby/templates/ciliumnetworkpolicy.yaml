@@ -23,6 +23,7 @@ spec:
     {{- $games := list (dict "matchLabels" (include "innby.gamesPodLabels" . | fromYaml)) }}
     {{- include "innby.ciliumIngress" (dict "endpoints" $games "port" 8083) | nindent 4 }}
     {{- end }}
+    {{- include "innby.ciliumMetricsIngress" . | nindent 4 }}
   egress:
     {{- include "innby.ciliumEgressBasics" . | nindent 4 }}
 {{- if .Values.admin.enabled }}
@@ -45,6 +46,7 @@ spec:
     {{- else }}
     {{- include "innby.ciliumIngress" (dict "entities" $policy.ingressFromEntities "endpoints" $policy.ingressFromEndpoints "port" 8081) | nindent 4 }}
     {{- end }}
+    {{- include "innby.ciliumMetricsIngress" . | nindent 4 }}
   egress:
     {{- include "innby.ciliumEgressBasics" . | nindent 4 }}
     {{- with .Values.oidc.issuer }}
@@ -70,8 +72,13 @@ spec:
   endpointSelector:
     matchLabels:
       {{- include "innby.selectorLabels" $mailer | nindent 6 }}
+  {{- if .Values.metrics.enabled }}
+  ingress:
+    {{- include "innby.ciliumMetricsIngress" . | nindent 4 }}
+  {{- else }}
   # An empty rule allows nothing, but turns on default deny for ingress.
   ingress: [{}]
+  {{- end }}
   egress:
     {{- include "innby.ciliumEgressBasics" . | nindent 4 }}
     - toFQDNs: [{ matchName: {{ $smtp.host | quote }} }]

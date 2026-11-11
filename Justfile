@@ -150,6 +150,7 @@ chart:
     fails --set database.cnpg.cluster=innby-postgres --set database.existingSecret=db
     fails --set games.internal.enabled=true --set networkPolicy.enabled=true
     fails --set games.enabled=true
+    fails --set metrics.serviceMonitor.enabled=true
     fails --set games.enabled=true --set games.url=https://fest.example.com/games
     fails --set games.internal.enabled=true --set ciliumNetworkPolicy.enabled=true \
       --set ciliumNetworkPolicy.ingressFromEntities[0]=ingress
@@ -367,15 +368,16 @@ run: migrate games
     fi
     cargo build --quiet
     trap 'kill 0' EXIT
-    cargo run --quiet -- admin &
-    cargo run --quiet -- mailer &
+    # Metrics on a port each, as they'd be in their own pods (curl them in the container).
+    INNBY_METRICS_LISTEN=0.0.0.0:9091 cargo run --quiet -- admin &
+    INNBY_METRICS_LISTEN=0.0.0.0:9092 cargo run --quiet -- mailer &
     # The example games, on an origin of their own, as docs/games.md says they must be,
     # each game with a server given its key.
     for game in $(tr ';' '\n' <<< "${INNBY_GAMES:-}" | grep ':server:' | cut -d: -f1 | tr -d ' '); do
       export "INNBY_GAME_KEY_$(tr 'a-z-' 'A-Z_' <<< "$game")=$(cargo run --quiet -- game-key "$game")"
     done
     INNBY_URL="${INNBY_BASE_URL:-}" node games/serve.js &
-    cargo run --quiet -- serve
+    INNBY_METRICS_LISTEN=0.0.0.0:9090 cargo run --quiet -- serve
 
 # Builds the example games written in Rust (games/*/Cargo.toml) to WebAssembly, beside
 # their pages, where games/serve.js finds them

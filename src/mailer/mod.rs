@@ -18,6 +18,7 @@ use sqlx::PgPool;
 use crate::{
     config::{Config, MailConfig},
     db::{event, outbox, rsvp},
+    metrics::MAILS,
 };
 
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
@@ -116,6 +117,7 @@ pub async fn process_batch(
             Ok(mail) => mail,
             Err(reason) => {
                 tracing::info!(job = job.id, rsvp = %guest.id, kind = ?job.kind, reason, "mail dropped");
+                MAILS.inc(&[("outcome", "dropped".into())]);
                 outbox::mark_done(&mut tx, job.id, Some(reason)).await?;
                 continue;
             }
@@ -123,12 +125,14 @@ pub async fn process_batch(
         match sender.send(from, mail).await {
             Ok(()) => {
                 tracing::info!(job = job.id, rsvp = %guest.id, kind = ?job.kind, "mail sent");
+                MAILS.inc(&[("outcome", "sent".into())]);
                 outbox::mark_done(&mut tx, job.id, None).await?;
             }
             Err(err) => {
                 // SMTP errors often quote the address, so the details stay in the
                 // database (deleted with the guest) rather than in the logs.
                 tracing::warn!(job = job.id, rsvp = %guest.id, kind = ?job.kind, attempt = job.attempts + 1, "mail failed, see outbox.last_error");
+                MAILS.inc(&[("outcome", "failed".into())]);
                 outbox::mark_failed(&mut tx, job.id, &format!("{err:#}")).await?;
             }
         }

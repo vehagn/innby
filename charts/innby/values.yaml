@@ -181,6 +181,22 @@ janitor:
     requests: { cpu: 10m, memory: 16Mi }
     limits: { memory: 64Mi }
 
+# Anonymous metrics for Prometheus: requests by route pattern and how long they took,
+# mail sent and failed, the outbox, database connections and memory. Nothing per event
+# or guest. The site, the admin UI and the mailer each serve them at /metrics on this
+# port, which no route or Ingress reaches; the network policies below say who may.
+metrics:
+  enabled: false
+  port: 9090
+  # A ServiceMonitor scraping all three, through a ClusterIP Service each, for a cluster
+  # with the Prometheus Operator's CRDs.
+  serviceMonitor:
+    enabled: false
+    # e.g. 30s; Prometheus's own when empty.
+    interval: ""
+    # The labels your Prometheus picks ServiceMonitors by, e.g. { release: prometheus }.
+    labels: {}
+
 # Gateway API routes, for a cluster with its CRDs: one for the site's hostname and one for
 # the admin UI's path or hostname. Gateways pick the longest matching path, so /admin can
 # share the site's hostname.
@@ -217,6 +233,8 @@ networkPolicy:
   ingressFrom: []
   admin:
     ingressFrom: []
+  # Who may scrape the metrics, e.g. Prometheus's namespace. Anyone when empty.
+  metricsFrom: []
   # Peers for Postgres, e.g. [{ podSelector: { matchLabels: { cnpg.io/cluster: db } } }].
   databasePeers: []
   databasePort: 5432
@@ -235,6 +253,9 @@ ciliumNetworkPolicy:
     # The admin UI's own; the ones above when both are empty.
     ingressFromEntities: []
     ingressFromEndpoints: []
+  # Who may scrape the metrics, as endpoint selectors, e.g. [{ matchLabels:
+  # { k8s:io.kubernetes.pod.namespace: monitoring } }]; anything in the cluster when empty.
+  metricsFromEndpoints: []
   # Postgres, as endpoint selectors, e.g. [{ matchLabels: { cnpg.io/cluster: db } }];
   # its port anywhere when empty.
   databaseEndpoints: []

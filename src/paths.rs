@@ -46,6 +46,8 @@ pub const API: &str = "/api/";
 pub const GAME_SCORES: &str = "/api/games/{game}/scores";
 /// The same for a game's own server, on the internal port (`INNBY_INTERNAL_LISTEN`).
 pub const INTERNAL_GAME_SCORES: &str = "/internal/games/{game}/scores";
+/// On the metrics' own port (`crate::metrics`), not the sites'.
+pub const METRICS: &str = "/metrics";
 
 // The admin site. `HOME` lists the events; each event's pages are under `EVENT`, and its
 // guests and groups have pages of their own. Each parameter is named for what it is,

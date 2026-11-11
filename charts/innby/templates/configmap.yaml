@@ -48,6 +48,9 @@ data:
   INNBY_GAMES_URL: {{ include "innby.gamesUrl" . | quote }}
   INNBY_GAMES: {{ required "games.list: the games guests are offered" .Values.games.list | quote }}
   {{- end }}
+  {{- if .Values.metrics.enabled }}
+  INNBY_METRICS_LISTEN: {{ printf "0.0.0.0:%v" .Values.metrics.port | quote }}
+  {{- end }}
   {{- range $name, $value := .Values.extraConfig }}
   {{ $name }}: {{ $value | toString | quote }}
   {{- end }}

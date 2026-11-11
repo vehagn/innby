@@ -28,6 +28,7 @@ spec:
       ports:
         - { port: 8083, protocol: TCP }
     {{- end }}
+    {{- include "innby.metricsIngress" . | nindent 4 }}
   egress:
     {{- include "innby.egressBasics" . | nindent 4 }}
 {{- if .Values.admin.enabled }}
@@ -51,6 +52,7 @@ spec:
       {{- end }}
       ports:
         - { port: 8081, protocol: TCP }
+    {{- include "innby.metricsIngress" . | nindent 4 }}
   egress:
     {{- include "innby.egressBasics" . | nindent 4 }}
     {{- if .Values.oidc.issuer }}
@@ -73,6 +75,10 @@ spec:
     matchLabels:
       {{- include "innby.selectorLabels" $mailer | nindent 6 }}
   policyTypes: [Ingress, Egress]
+  {{- if .Values.metrics.enabled }}
+  ingress:
+    {{- include "innby.metricsIngress" . | nindent 4 }}
+  {{- end }}
   egress:
     {{- include "innby.egressBasics" . | nindent 4 }}
     - ports:

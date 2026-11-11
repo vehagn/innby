@@ -379,6 +379,34 @@ processing, with the legal bases; the privacy notice is at `/privacy` in every l
 - **Limits:** requests time out after 15 seconds and their headers after 10, headers are
   capped at 16 KiB and bodies at 2 MB.
 - **Containers:** non-root, read-only, no capabilities, no service account token.
+- **Metrics:** anonymous, on a port of their own that no route reaches (see below).
+
+## Metrics
+
+With `INNBY_METRICS_LISTEN` set, the site, the admin UI and the mailer each serve
+metrics for Prometheus at `/metrics` on that address, a port apart from the pages, which
+no route or Ingress leads to and the network policies open only to whoever scrapes them.
+The chart's `metrics` turns them on, with a ClusterIP Service each and a
+ServiceMonitor for the Prometheus Operator.
+
+They say how Innby is doing, never who did what:
+
+| Metric | What |
+|---|---|
+| `innby_http_requests_total` | Requests, by route pattern (`/r/{link}`, never the link), method and status |
+| `innby_http_request_duration_seconds` | How long they took, by route pattern and method |
+| `innby_mails_total` | Mail jobs sent, failed or dropped (mailer) |
+| `innby_outbox_jobs` | Mail not sent: waiting, or given up on (mailer) |
+| `innby_db_connections` | The database pool's connections, idle or in use |
+| `innby_process_resident_memory_bytes`, `innby_process_start_time_seconds` | The process |
+| `innby_build_info` | The release and commit |
+
+Nothing is counted per event or per guest, so no number can single anyone out, and a
+label's value can only come from the code, a route's pattern or a status code
+(`metrics::Label`): a request's path, with the link in it, its address and its headers
+can't reach one. A method outside GET, HEAD and POST counts as `other`, so a client
+can't invent label values either. A test sends a guest's request and checks the metrics
+hold its route and nothing it carried.
 
 ## Running it
 
