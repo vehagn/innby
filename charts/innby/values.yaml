@@ -24,6 +24,15 @@ controller:
   # privacy notice names it: the company and its country, e.g. "MailerSend (MailerSend
   # UAB, Lithuania)". Empty, the notice says mail goes through your own server.
   mailProcessor: ""
+  # Where the site runs, if a provider's servers hold its data: the company and its
+  # country, e.g. "Hetzner Online GmbH, Germany". Empty, the notice says your own server.
+  hosting: ""
+  # The data protection authority guests may complain to, and its https:// page, e.g.
+  # Datatilsynet and https://www.datatilsynet.no/en/. Empty, the notice says the one
+  # where the guest or you are.
+  authority:
+    name: ""
+    url: ""
 
 # Postgres 18 or later, in one of three ways: a CloudNativePG cluster, a Secret holding a
 # postgres:// URL, or the URL itself.

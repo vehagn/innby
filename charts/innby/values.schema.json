@@ -38,7 +38,16 @@
       "properties": {
         "name": { "type": "string" },
         "email": { "type": "string" },
-        "mailProcessor": { "type": "string", "maxLength": 200 }
+        "mailProcessor": { "type": "string", "maxLength": 200 },
+        "hosting": { "type": "string", "maxLength": 200 },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string", "maxLength": 200 },
+            "url": { "type": "string", "pattern": "^(https://.+)?$" }
+          }
+        }
       }
     },
     "database": {

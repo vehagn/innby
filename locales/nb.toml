@@ -27,6 +27,13 @@ privacy_link = "Personvern"
 # names it, or the host's own server where it's unset.
 privacy_mail_processor = "E-post sendes gjennom {processor}, som behandler adressen din på vertens vegne som databehandler."
 privacy_mail_own = "E-post sendes gjennom vertens egen e-posttjener."
+# Where the site runs, `{provider}` as INNBY_HOSTING names it, or the host's own
+# server; and the authority guests may complain to, `{authority}` as
+# INNBY_AUTHORITY_NAME and _URL name it, or the one where they or the host are.
+privacy_hosting = "Siden kjører hos {provider}, som behandler dataene på vertens vegne som databehandler."
+privacy_hosting_own = "Siden kjører på vertens egen server."
+privacy_authority = "Du kan klage til tilsynsmyndigheten, {authority}."
+privacy_authority_any = "Du kan klage til tilsynsmyndigheten der du bor eller jobber, eller der verten er."
 
 # Event
 # `chrono` format for dates and times.

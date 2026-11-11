@@ -136,6 +136,13 @@ not_found_text = "Check the link or ask the host."
 # names it, or the host's own server where it's unset.
 privacy_mail_processor = "Emails go out through {processor}, which handles your email for the host as a \"processor.\""
 privacy_mail_own = "Emails go out through the host's own mail server."
+# Where the site runs, `{provider}` as INNBY_HOSTING names it, or the host's own
+# server; and the authority guests may complain to, `{authority}` as
+# INNBY_AUTHORITY_NAME and _URL name it, or the one where they or the host are.
+privacy_hosting = "The site runs at {provider}, which handles its data for the host as a \"processor.\""
+privacy_hosting_own = "The site runs on the host's own server."
+privacy_authority = "You can complain to the data protection authority, {authority}."
+privacy_authority_any = "You can complain to the data protection authority where you live or work, or where the host is."
 
 [admin]
 log_in_text = "Log in with your username and password."

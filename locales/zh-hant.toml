@@ -27,6 +27,13 @@ privacy_link = "隱私"
 # names it, or the host's own server where it's unset.
 privacy_mail_processor = "電子郵件透過 {processor} 寄送，它作為資料處理者代表主人處理你的地址。"
 privacy_mail_own = "電子郵件透過主人自己的郵件伺服器寄送。"
+# Where the site runs, `{provider}` as INNBY_HOSTING names it, or the host's own
+# server; and the authority guests may complain to, `{authority}` as
+# INNBY_AUTHORITY_NAME and _URL name it, or the one where they or the host are.
+privacy_hosting = "網站在 {provider} 運作，它作為資料處理者代表主人處理網站的資料。"
+privacy_hosting_own = "網站在主人自己的伺服器上運作。"
+privacy_authority = "你可以向資料保護機構 {authority} 申訴。"
+privacy_authority_any = "你可以向你居住地、工作地或主人所在地的資料保護機構申訴。"
 
 # Event
 # `chrono` format for dates and times.

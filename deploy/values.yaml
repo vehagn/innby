@@ -7,6 +7,9 @@ controller:
   name: Vegard Hagen
   email: fest@stonegarden.dev
   mailProcessor: MailerSend (MailerSend UAB, Lithuania)
+  authority:
+    name: Datatilsynet
+    url: https://www.datatilsynet.no/en/
 
 # The CloudNativePG cluster in cnpg-db.yaml.
 database:

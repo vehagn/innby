@@ -26,6 +26,13 @@ privacy_link = "Privacy"
 # names it, or the host's own server where it's unset.
 privacy_mail_processor = "E-mail is sent through {processor}, which handles your address for the host as a \"processor\"."
 privacy_mail_own = "E-mail is sent through the host's own mail server."
+# Where the site runs, `{provider}` as INNBY_HOSTING names it, or the host's own
+# server; and the authority guests may complain to, `{authority}` as
+# INNBY_AUTHORITY_NAME and _URL name it, or the one where they or the host are.
+privacy_hosting = "The site runs at {provider}, which handles its data for the host as a \"processor\"."
+privacy_hosting_own = "The site runs on the host's own server."
+privacy_authority = "You can complain to the data protection authority, {authority}."
+privacy_authority_any = "You can complain to the data protection authority where you live or work, or where the host is."
 
 # Event
 # `chrono` format for dates and times: "Saturday 12 December 2026 at 19:00".

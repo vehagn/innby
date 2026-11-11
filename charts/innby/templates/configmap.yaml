@@ -11,6 +11,15 @@ data:
   {{- with .Values.controller.mailProcessor }}
   INNBY_MAIL_PROCESSOR: {{ . | quote }}
   {{- end }}
+  {{- with .Values.controller.hosting }}
+  INNBY_HOSTING: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.controller.authority }}
+  {{- if or .name .url }}
+  INNBY_AUTHORITY_NAME: {{ required "controller.authority.name: with its url, the authority guests may complain to" .name | quote }}
+  INNBY_AUTHORITY_URL: {{ required "controller.authority.url: with its name, the authority's page" .url | quote }}
+  {{- end }}
+  {{- end }}
   INNBY_TRUST_FORWARDED: {{ .Values.trustForwarded | toString | quote }}
   {{- if .Values.admin.enabled }}
   INNBY_ADMIN_URL: {{ include "innby.adminUrl" . | quote }}

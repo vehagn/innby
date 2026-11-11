@@ -30,6 +30,7 @@ controller:
   name: Kari Nordmann
   email: kari@example.com
   mailProcessor: MailerSend (MailerSend UAB, Lithuania)   # as /privacy names it
+  authority: { name: Datatilsynet, url: "https://www.datatilsynet.no/en/" }
 database:
   cnpg: { cluster: innby-db }     # a CloudNativePG cluster in the namespace
 secrets:

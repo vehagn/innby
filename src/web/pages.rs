@@ -139,15 +139,46 @@ pub async fn privacy(State(state): State<AppState>, lang: Lang, headers: HeaderM
     render_compressed(&headers, PrivacyPage { lang, t, notice })
 }
 
-/// A language's privacy notice, its own or its fallback's (`Lang::notice`), with who's
-/// responsible, the notice's version and how long things are kept filled in. The values
-/// come from the config, so each is escaped as it goes into the markup.
+/// A language's privacy notice, its own or its fallback's (`Lang::notice`), with what
+/// the config says filled in: who's responsible, who handles guests' data for them, the
+/// authority guests may complain to, the notice's version and how long things are kept.
+/// Those values come from the config, so each is escaped as it goes into the markup.
 fn notice(lang: Lang, controller: &Controller) -> String {
     let (after_event, sent_mail) = (KEEP_AFTER_EVENT.num_days(), KEEP_SENT_MAIL.num_days());
     let t = lang.messages();
-    let mail_processor = match &controller.mail_processor {
-        Some(processor) => filled(&t.privacy_mail_processor, "processor", processor),
-        None => t.privacy_mail_own.clone(),
+    // A sentence of the language's, with a setting in it, or without one when it's unset.
+    let either = |setting: &Option<String>, with: &str, key: &str, without: &str| match setting {
+        Some(value) => escape_html(&filled(with, key, value)),
+        None => escape_html(without),
+    };
+    let mail_processor = either(
+        &controller.mail_processor,
+        &t.privacy_mail_processor,
+        "processor",
+        &t.privacy_mail_own,
+    );
+    let hosting = either(
+        &controller.hosting,
+        &t.privacy_hosting,
+        "provider",
+        &t.privacy_hosting_own,
+    );
+    // The authority is a link: its sentence is escaped around it.
+    let authority = match &controller.authority {
+        Some(authority) => {
+            let (before, after) = t
+                .privacy_authority
+                .split_once("{authority}")
+                .unwrap_or((&t.privacy_authority, ""));
+            format!(
+                r#"{}<a href="{}">{}</a>{}"#,
+                escape_html(before),
+                escape_html(&authority.url),
+                escape_html(&authority.name),
+                escape_html(after)
+            )
+        }
+        None => escape_html(&t.privacy_authority_any),
     };
     let values = [
         ("controller_name", controller.name.clone()),
@@ -155,9 +186,14 @@ fn notice(lang: Lang, controller: &Controller) -> String {
         ("version", PRIVACY_VERSION.to_owned()),
         ("keep_after_event_days", after_event.to_string()),
         ("keep_sent_mail_days", sent_mail.to_string()),
-        ("mail_processor", mail_processor),
     ]
     .map(|(key, value)| (key, escape_html(&value)));
+    let sentences = [
+        ("mail_processor", mail_processor),
+        ("hosting", hosting),
+        ("authority", authority),
+    ];
+    let values: Vec<_> = values.into_iter().chain(sentences).collect();
     let values: Vec<(&str, &dyn std::fmt::Display)> = values
         .iter()
         .map(|(key, value)| (*key, value as &dyn std::fmt::Display))

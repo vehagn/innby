@@ -317,3 +317,42 @@ async fn the_privacy_notice_names_the_mail_service_the_config_does(db: PgPool) {
     let html = body(site.get("/privacy?lang=zh-hant").await).await;
     assert!(html.contains("電子郵件透過 Post &#38; Co"), "{html}");
 }
+
+#[sqlx::test]
+async fn the_privacy_notice_says_where_the_site_runs_and_who_to_complain_to(db: PgPool) {
+    // Unset: the host's own server, and the authority where the guest or the host is.
+    let site = crate::web::testing::Site::new(db.clone());
+    let html = body(site.get("/privacy?lang=en").await).await;
+    assert!(html.contains("runs on the host&#39;s own server"), "{html}");
+    assert!(html.contains("authority where you live or work"), "{html}");
+    assert!(!html.contains("Datatilsynet") && !html.contains("{hosting}"));
+
+    let site = crate::web::testing::Site::with(
+        db,
+        &[
+            ("INNBY_HOSTING", "Hetzner Online GmbH, Germany"),
+            ("INNBY_AUTHORITY_NAME", "Datatilsynet <x>"),
+            (
+                "INNBY_AUTHORITY_URL",
+                "https://www.datatilsynet.no/en/?a=1&b=2",
+            ),
+        ],
+    );
+    let html = body(site.get("/privacy?lang=en").await).await;
+    assert!(
+        html.contains("runs at Hetzner Online GmbH, Germany, which"),
+        "{html}"
+    );
+    // A link, with the name and its address escaped.
+    let link =
+        r#"<a href="https://www.datatilsynet.no/en/?a=1&#38;b=2">Datatilsynet &#60;x&#62;</a>"#;
+    assert!(
+        html.contains(&format!("the data protection authority, {link}.")),
+        "{html}"
+    );
+    let html = body(site.get("/privacy?lang=nb").await).await;
+    assert!(
+        html.contains(&format!("tilsynsmyndigheten, {link}.")),
+        "{html}"
+    );
+}

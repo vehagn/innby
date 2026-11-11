@@ -28,6 +28,13 @@ pub struct Messages {
     /// names, or the host's own server.
     pub privacy_mail_processor: String,
     pub privacy_mail_own: String,
+    /// Where the site runs: a provider `INNBY_HOSTING` names, or the host's own server.
+    pub privacy_hosting: String,
+    pub privacy_hosting_own: String,
+    /// Who guests may complain to: the authority `INNBY_AUTHORITY_NAME` names, linked, or
+    /// the one where they or the host are.
+    pub privacy_authority: String,
+    pub privacy_authority_any: String,
 
     // Event
     /// `chrono` format for dates and times.

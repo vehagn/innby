@@ -27,6 +27,13 @@ privacy_link = "隐私"
 # names it, or the host's own server where it's unset.
 privacy_mail_processor = "电子邮件通过 {processor} 发送，它作为数据处理者代表主人处理你的地址。"
 privacy_mail_own = "电子邮件通过主人自己的邮件服务器发送。"
+# Where the site runs, `{provider}` as INNBY_HOSTING names it, or the host's own
+# server; and the authority guests may complain to, `{authority}` as
+# INNBY_AUTHORITY_NAME and _URL name it, or the one where they or the host are.
+privacy_hosting = "网站运行在 {provider}，它作为数据处理者代表主人处理网站的数据。"
+privacy_hosting_own = "网站运行在主人自己的服务器上。"
+privacy_authority = "你可以向数据保护机构 {authority} 投诉。"
+privacy_authority_any = "你可以向你居住地、工作地或主人所在地的数据保护机构投诉。"
 
 # Event
 # `chrono` format for dates and times.

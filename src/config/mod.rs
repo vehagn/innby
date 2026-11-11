@@ -70,6 +70,21 @@ pub struct Controller {
     /// the company and the country, as "MailerSend (MailerSend UAB, Lithuania)". None
     /// for the host's own mail server.
     pub mail_processor: Option<String>,
+    /// `INNBY_HOSTING`: where the site runs, if a provider's servers handle its data on
+    /// the host's behalf, as "Hetzner Online GmbH, Germany". None for the host's own.
+    pub hosting: Option<String>,
+    /// `INNBY_AUTHORITY_NAME` and `INNBY_AUTHORITY_URL`: the data protection authority
+    /// guests may complain to (GDPR Art. 13(2)(d)), the host's, as "Datatilsynet" and its
+    /// page. None says the one where the guest or the host is.
+    pub authority: Option<Authority>,
+}
+
+/// A data protection authority, as the privacy notice links it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Authority {
+    pub name: String,
+    /// An https:// page, checked as the config is read.
+    pub url: String,
 }
 
 /// The Postgres connection string. Kept apart from `Config` because `innby migrate`
@@ -119,6 +134,23 @@ impl Config {
             "INNBY_CONTROLLER_EMAIL: not an e-mail address: {controller_email:?}"
         );
 
+        let authority = match (
+            env.optional("INNBY_AUTHORITY_NAME"),
+            env.optional("INNBY_AUTHORITY_URL"),
+        ) {
+            (None, None) => None,
+            (Some(name), Some(url)) => {
+                let https = url::Url::parse(&url).is_ok_and(|url| url.scheme() == "https");
+                ensure!(
+                    https,
+                    "INNBY_AUTHORITY_URL: expected an https:// page, got {url:?}"
+                );
+                Some(Authority { name, url })
+            }
+            _ => anyhow::bail!(
+                "INNBY_AUTHORITY_NAME and INNBY_AUTHORITY_URL go together: the authority, and its page"
+            ),
+        };
         let games = env.games(&base_url)?;
         Ok(Self {
             games,
@@ -131,6 +163,8 @@ impl Config {
                 name: env.required("INNBY_CONTROLLER_NAME")?,
                 email: controller_email,
                 mail_processor: env.optional("INNBY_MAIL_PROCESSOR"),
+                hosting: env.optional("INNBY_HOSTING"),
+                authority,
             },
         })
     }
@@ -165,6 +199,25 @@ pub mod tests {
         let config = parse(&[]).unwrap();
         assert_eq!(config.listen, "0.0.0.0:8080".parse().unwrap());
         assert_eq!(config.controller.name, "Kari Nordmann");
+    }
+
+    #[test]
+    fn the_authority_needs_its_name_and_an_https_page() {
+        assert_eq!(parse(&[]).unwrap().controller.authority, None);
+        let named = parse(&[
+            ("INNBY_AUTHORITY_NAME", "Datatilsynet"),
+            ("INNBY_AUTHORITY_URL", "https://www.datatilsynet.no/en/"),
+        ]);
+        assert_eq!(
+            named.unwrap().controller.authority.unwrap().name,
+            "Datatilsynet"
+        );
+        assert!(parse(&[("INNBY_AUTHORITY_NAME", "Datatilsynet")]).is_err());
+        let plain = [
+            ("INNBY_AUTHORITY_NAME", "Datatilsynet"),
+            ("INNBY_AUTHORITY_URL", "javascript:alert(1)"),
+        ];
+        assert!(parse(&plain).is_err());
     }
 
     #[test]
