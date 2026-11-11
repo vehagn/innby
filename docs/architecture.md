@@ -79,7 +79,7 @@ eight tabs:
   address, whatever their answer, and noted on the pages of those who answered before it
   until they answer again.
 - **Access**, for admins: who else may see or run this event alone, by the name they log
-  in with, as a viewer or an editor.
+  in with, as a viewer, an organiser or an editor.
 
 **New events** are typed into a form on the New event tab, which also takes group links,
 a line each. The form can be filled in for you: from an **event file** (below), or by
@@ -306,7 +306,9 @@ names it, and the role the provider gave in `roles` (RFC 9068), which Innby take
 word until the token expires.
 
 **Roles:** a *viewer* sees events, headcounts and who's coming, but not links, e-mail
-status or the guest export, since those let you act as a guest. An *editor* also runs
+status or the guest export, since those let you act as a guest. An *organiser* also runs
+the event's message board, sends reminders and downloads the guest list, without the
+links and addresses, which would let them act as a guest. An *editor* also runs
 events: invitations, group links, guests, reminders, the guest export, the details, the
 QR codes' style and the event file. A *creator* also makes new events, by hand, by
 copying one or from a file, and deletes the events they made and gives roles for them.
@@ -317,7 +319,7 @@ what it allows.
 
 A host's own role, from the config (`none` there for no role) or the provider, is for
 every event. On an event's Access tab, an admin can give anyone a role for that event
-alone, viewer or editor, by the name they log in with: a password user's name, or the
+alone, viewer, organiser or editor, by the name they log in with: a password user's name, or the
 provider's `preferred_username` (else `email`, else `sub`). On that event's pages, and its
 guests' and groups', a host has the higher of their own role and the event's. Without a
 role of their own, they see only the events that give them one; through the provider,
@@ -376,7 +378,7 @@ until Innby is live. In short:
 | `event` | the language it's written in and those its pages are offered in, title and description (maps by language code, with that language always there), place, start and any end, time zone, answer deadline, when its time or place last changed, the host's question and its choices, the style of its QR codes |
 | `rsvp` | each invitation or sign-up: name, answer, party size and its maximum, link nonce, language, optional e-mail and its status and consent time, privacy notice version, how the name shows, the group it came through, the pick for the host's question |
 | `invite_group` | group links: name, maximum party size, link nonce |
-| `event_access` | roles for one event: the name a host logs in with, viewer or editor |
+| `event_access` | roles for one event: the name a host logs in with, viewer, organiser or editor |
 | `event_game`, `game_score` | the minigames an event offers, and each guest's best score in each |
 | `board_post`, `board_vote` | the event's message board: each post's text, whose it is (a guest, or a host by login name) and what it answers; each guest's vote on a post, up or down |
 | `outbox` | mail to send: kind, attempts, next try, when sent, last error |

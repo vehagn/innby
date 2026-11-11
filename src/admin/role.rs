@@ -4,6 +4,8 @@
 //!
 //! - **viewer** sees the events, their headcounts and who's coming. Not the personal
 //!   links, e-mail addresses or the guest export: those let you act as a guest.
+//! - **organiser** also runs the event's message board, sends reminders, and downloads
+//!   the guest list without the links and addresses.
 //! - **editor** runs events that exist: invites guests, makes group links, sends
 //!   reminders, downloads the guest list, and changes an event's details and the style
 //!   of its QR codes.
@@ -13,7 +15,7 @@
 //!   picks the languages the site offers.
 //!
 //! A host's own role is for every event. An admin can give anyone a role for one event,
-//! viewer or editor, by the name they log in with (`db::access`): on that event's pages,
+//! viewer, organiser or editor, by the name they log in with (`db::access`): on that event's pages,
 //! and its guests' and groups', they have the higher of the two. A host without a role of
 //! their own sees only the events they have one for.
 //!
@@ -42,6 +44,7 @@ use crate::{
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     Viewer,
+    Organiser,
     Editor,
     Creator,
     Admin,
@@ -51,6 +54,7 @@ impl From<EventRole> for Role {
     fn from(role: EventRole) -> Self {
         match role {
             EventRole::Viewer => Role::Viewer,
+            EventRole::Organiser => Role::Organiser,
             EventRole::Editor => Role::Editor,
         }
     }
@@ -95,12 +99,19 @@ impl Host {
 }
 
 impl Role {
-    pub const ALL: [Role; 4] = [Role::Viewer, Role::Editor, Role::Creator, Role::Admin];
+    pub const ALL: [Role; 5] = [
+        Role::Viewer,
+        Role::Organiser,
+        Role::Editor,
+        Role::Creator,
+        Role::Admin,
+    ];
 
     /// The name an identity provider lists, as in `innby: [editor]`, and the config.
     pub fn name(self) -> &'static str {
         match self {
             Role::Viewer => "viewer",
+            Role::Organiser => "organiser",
             Role::Editor => "editor",
             Role::Creator => "creator",
             Role::Admin => "admin",
@@ -114,6 +125,12 @@ impl Role {
     /// The role of the request being handled, if it has one.
     pub fn current() -> Option<Role> {
         HOST.try_with(|host| host.role).ok().flatten()
+    }
+
+    /// Whether the request may run an event's message board, send reminders and download
+    /// its guest list.
+    pub fn can_organise() -> bool {
+        Role::current() >= Some(Role::Organiser)
     }
 
     /// Whether the request may change an event's guests, links and details.
@@ -210,6 +227,11 @@ pub async fn for_event(
 /// Middleware for routes that need a viewer.
 pub async fn viewer(request: Request, next: Next) -> Response {
     require(Role::Viewer, request, next).await
+}
+
+/// Middleware for routes that need an organiser.
+pub async fn organiser(request: Request, next: Next) -> Response {
+    require(Role::Organiser, request, next).await
 }
 
 /// Middleware for routes that need an editor.

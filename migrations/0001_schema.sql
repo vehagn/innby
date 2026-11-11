@@ -186,7 +186,7 @@ create index outbox_due on outbox (next_try_at) where sent_at is null;
 create index outbox_rsvp on outbox (rsvp_id);
 
 -- A role for one event: an admin's role is for every event, so it's not among them.
-create type event_role as enum ('viewer', 'editor');
+create type event_role as enum ('viewer', 'organiser', 'editor');
 
 -- Hosts who may see or run one event, by the name they log in with, which an admin gives
 -- them on the event's Access tab. Someone with a role of their own (in the config, or at
@@ -248,7 +248,7 @@ create table admin_user (
         check (name ~ '^[A-Za-z0-9._@-]{1,100}$' and name ~ '[A-Za-z0-9]'),
     -- Their role for every event; null for none, so they see only the events that give
     -- them one.
-    role          text check (role in ('admin', 'creator', 'editor', 'viewer')),
+    role          text check (role in ('admin', 'creator', 'editor', 'organiser', 'viewer')),
     -- argon2, as `innby hash-password` makes it.
     password_hash text not null check (password_hash like '$argon2%'),
     -- Bumped by a new password. Sessions carry it, so a new password logs the user out

@@ -57,8 +57,8 @@ database:
 #                              leave it out to log in only through OIDC
 #   INNBY_ADMIN_USERS          more users with a password, each name:role:hash, apart by
 #                              spaces or lines; the role is admin, creator, editor,
-#                              viewer, or none for only the events an admin gives
-#                              them a role for
+#                              organiser, viewer, or none for only the events an
+#                              admin gives them a role for
 #   INNBY_OIDC_CLIENT_SECRET   with oidc.issuer
 #   INNBY_SMTP_USER, INNBY_SMTP_PASSWORD
 secrets:
@@ -152,8 +152,7 @@ admin:
 
 # Single sign-on to the admin UI through an OpenID Connect provider, such as Authelia.
 # Register {admin.url}/login/oidc/callback with it. Hosts' roles (admin, creator, editor,
-# viewer)
-# come from the claim named in rolesClaim.
+# organiser, viewer) come from the claim named in rolesClaim.
 oidc:
   issuer: ""
   clientId: innby

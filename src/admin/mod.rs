@@ -88,6 +88,13 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
     let viewer = Router::new()
         .route(paths::EVENT, get(guests::list))
         .route_layer(middleware::from_fn(role::viewer));
+    let organiser = Router::new()
+        .route(paths::EVENT_CSV, get(guests::csv))
+        .route(paths::EVENT_REMINDERS, post(guests::remind))
+        .route(paths::EVENT_BOARD, get(board::show).post(board::edit))
+        .route(paths::EVENT_BOARD_POSTS, post(board::create))
+        .route(paths::EVENT_BOARD_DELETE, post(board::delete))
+        .route_layer(middleware::from_fn(role::organiser));
     let editor = Router::new()
         .route(
             paths::EVENT_INVITATIONS,
@@ -98,9 +105,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
             paths::EVENT_DETAILS,
             get(events::details::show).post(events::details::edit),
         )
-        .route(paths::EVENT_CSV, get(guests::csv))
         .route(paths::EVENT_EXPORT, get(events::details::export))
-        .route(paths::EVENT_REMINDERS, post(guests::remind))
         .route(paths::GROUP, get(groups::show).post(groups::edit))
         .route(paths::GROUP_REVOKE, post(groups::revoke))
         .route(paths::GROUP_DELETE, post(groups::delete))
@@ -111,9 +116,6 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route(paths::GROUP_QR, get(groups::qr))
         .route(paths::EVENT_QR, get(qr::show).post(qr::save))
         .route(paths::EVENT_GAMES, get(games::show).post(games::edit))
-        .route(paths::EVENT_BOARD, get(board::show).post(board::edit))
-        .route(paths::EVENT_BOARD_POSTS, post(board::create))
-        .route(paths::EVENT_BOARD_DELETE, post(board::delete))
         .route_layer(middleware::from_fn(role::editor));
     let creator = Router::new()
         .route(
@@ -136,6 +138,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route_layer(middleware::from_fn(role::admin));
     let mut pages = anyone
         .merge(viewer)
+        .merge(organiser)
         .merge(editor)
         .merge(creator)
         .merge(manager)

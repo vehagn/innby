@@ -69,7 +69,7 @@ impl PasswordLogin {
         let role = match role {
             "none" => None,
             name => Some(Role::from_name(name).ok_or_else(|| {
-                anyhow!("{user}: the role is admin, creator, editor, viewer or none, not {role:?}")
+                anyhow!("{user}: the role is admin, creator, editor, organiser, viewer or none, not {role:?}")
             })?),
         };
         Ok(Self {
@@ -407,6 +407,7 @@ mod tests {
             found,
             [
                 ("editor", Some(Role::Editor)),
+                ("organiser", Some(Role::Organiser)),
                 ("viewer", Some(Role::Viewer)),
                 ("nobody", None),
                 ("helper", None),

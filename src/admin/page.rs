@@ -120,7 +120,11 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
         ],
         Some(&id) => {
             let links = EventLinks::new(id);
-            let (edit, manage) = (Role::can_edit(), Role::can_manage_event());
+            let (organise, edit, manage) = (
+                Role::can_organise(),
+                Role::can_edit(),
+                Role::can_manage_event(),
+            );
             vec![
                 (Tab::Guests, links.guests, &text.guests, true),
                 (
@@ -137,7 +141,7 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
                     &text.games,
                     edit && super::has_games(),
                 ),
-                (Tab::Board, links.board, &text.board, edit),
+                (Tab::Board, links.board, &text.board, organise),
                 (Tab::Details, links.details, &text.details, edit),
                 (Tab::Access, links.access, &text.access, manage),
             ]

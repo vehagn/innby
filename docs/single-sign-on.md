@@ -13,6 +13,7 @@ ignored, so the same claim can carry other things.
 | Role | May |
 |---|---|
 | `viewer` | See the events, their headcounts and who's coming. Not the personal links, e-mail status or the guest export, since those let you act as a guest. |
+| `organiser` | Also run each event's message board, send reminders, and download the guest list, without the links and addresses that would let you act as a guest |
 | `editor` | Also run the events: invitations, group links, guests, reminders, the guest export, each event's details, its QR codes' style and its event file |
 | `creator` | Also make new events: by hand, by copying one, or from an event file; and delete the events they made, and give roles for them |
 | `admin` | Also delete any event and give roles for any, make password users, and pick the languages the site offers |
@@ -21,7 +22,7 @@ Hosts who log in with a password have the role `INNBY_ADMIN_USERS` gives them, o
 one an admin gives them on the admin UI's Users tab, and the built-in user is an admin.
 
 These roles are for every event. An admin can also give a host a role for one event,
-viewer or editor, on that event's Access tab, by the name Innby knows them by: the ID
+viewer, organiser or editor, on that event's Access tab, by the name Innby knows them by: the ID
 token's or userinfo's `preferred_username`, or else its `email`, or else its `sub` (the
 display name isn't used, since it needn't be anyone's alone). In Authelia that's the
 LLDAP user name. A host whose provider lists no Innby role can log in only if an event

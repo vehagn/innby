@@ -440,6 +440,7 @@ pub struct AdminMessages {
     pub no_access: String,
     pub col_role: String,
     pub role_viewer: String,
+    pub role_organiser: String,
     pub role_editor: String,
     pub roles_hint: String,
     pub give_access: String,
@@ -578,6 +579,7 @@ impl AdminMessages {
     pub fn event_role_name(&self, role: impl Borrow<EventRole>) -> &str {
         match role.borrow() {
             EventRole::Viewer => &self.role_viewer,
+            EventRole::Organiser => &self.role_organiser,
             EventRole::Editor => &self.role_editor,
         }
     }

@@ -38,8 +38,15 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
         (Method::POST, on(paths::EVENT_GROUPS, e), Role::Editor),
         (Method::GET, on(paths::EVENT_DETAILS, e), Role::Editor),
         (Method::POST, on(paths::EVENT_DETAILS, e), Role::Editor),
-        (Method::GET, on(paths::EVENT_CSV, e), Role::Editor),
-        (Method::POST, on(paths::EVENT_REMINDERS, e), Role::Editor),
+        (Method::GET, on(paths::EVENT_CSV, e), Role::Organiser),
+        (Method::POST, on(paths::EVENT_REMINDERS, e), Role::Organiser),
+        (Method::GET, on(paths::EVENT_BOARD, e), Role::Organiser),
+        (Method::POST, on(paths::EVENT_BOARD, e), Role::Organiser),
+        (
+            Method::POST,
+            on(paths::EVENT_BOARD_POSTS, e),
+            Role::Organiser,
+        ),
         (Method::GET, on(paths::GUEST, i), Role::Editor),
         (Method::POST, on(paths::GUEST, i), Role::Editor),
         (Method::GET, on(paths::GUEST_QR, i), Role::Editor),
@@ -806,4 +813,19 @@ async fn a_deleted_user_leaves_no_claim_on_the_events_they_made(db: PgPool) {
             .await
             .unwrap()
     );
+}
+
+/// An organiser's guest list has no links or addresses, which would let them act as a
+/// guest; an editor's has both.
+#[sqlx::test]
+async fn an_organisers_guest_list_keeps_guests_to_themselves(db: PgPool) {
+    let editor = Admin::as_role(db.clone(), Role::Editor);
+    let invite = editor.invite("Kari", 2).await;
+    let csv_path = paths::path(paths::EVENT_CSV, invite.event_id);
+    let csv = body(editor.get(&csv_path).await).await;
+    assert!(csv.contains("/r/"), "{csv}");
+    let organiser = Admin::as_role(db, Role::Organiser);
+    let csv = body(organiser.get(&csv_path).await).await;
+    assert!(csv.contains("Kari"), "{csv}");
+    assert!(!csv.contains("/r/") && !csv.contains("E-mail"), "{csv}");
 }

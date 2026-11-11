@@ -17,6 +17,7 @@ use super::{
     lang,
     page::{AdminState, PageError, load_event, redirect, saved, timestamp},
     qr::qr_file,
+    role::Role,
 };
 use crate::{
     config::Config,
@@ -340,7 +341,18 @@ pub(super) async fn delete(
     Ok(redirect(&event))
 }
 
-/// The event's guests as CSV, with each guest's link for a mail merge.
+/// `columns` without those at these places.
+fn drop_columns<'a>(columns: Vec<&'a str>, places: &[usize]) -> Vec<&'a str> {
+    columns
+        .into_iter()
+        .enumerate()
+        .filter(|(place, _)| !places.contains(place))
+        .map(|(_, column)| column)
+        .collect()
+}
+
+/// The event's guests as CSV, with each guest's address and link for a mail merge; for an
+/// organiser, without those, which would let them act as a guest.
 pub(super) async fn csv(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
@@ -352,6 +364,7 @@ pub(super) async fn csv(
     let question = event.details.question(lang::current());
     // The byte order mark makes spreadsheet apps read the file as UTF-8 (æ, ø, å).
     let mut csv = String::from("\u{feff}");
+    let edit = Role::can_edit();
     let mut header = vec![
         text.col_name.as_str(),
         &text.col_source,
@@ -363,6 +376,11 @@ pub(super) async fn csv(
         &text.col_answered,
         &text.col_link,
     ];
+    // The address's and the link's columns.
+    let private = [5, 8];
+    if !edit {
+        header = drop_columns(header, &private);
+    }
     // The host's question, as its own column, when the event asks one.
     if let Some((question, _)) = &question {
         header.push(question);
@@ -389,6 +407,9 @@ pub(super) async fn csv(
             &row.responded,
             &url,
         ];
+        if !edit {
+            line = drop_columns(line, &private);
+        }
         if question.is_some() {
             line.push(&row.choice);
         }

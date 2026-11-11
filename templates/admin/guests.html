@@ -7,6 +7,7 @@
 {% block content %}
 {% let a = crate::admin::lang::text() %}
 {% let edit = crate::admin::role::Role::can_edit() %}
+{% let organise = crate::admin::role::Role::can_organise() %}
 {% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
 <h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
 
@@ -54,10 +55,10 @@
   </table>
   </div>
   {% endif %}
-  {% if edit %}<p><a href="{{ links.csv }}" download>{{ a.download_csv }}</a></p>{% endif %}
+  {% if organise %}<p><a href="{{ links.csv }}" download>{{ a.download_csv }}</a></p>{% endif %}
 </section>
 
-{% if edit %}
+{% if organise %}
 <section class="card">
   <h2>{{ a.reminders }}</h2>
   <p>{{ crate::i18n::count(subscribers, a.subscribers_one, a.subscribers_other) }} {{ a.reminders_hint }}</p>

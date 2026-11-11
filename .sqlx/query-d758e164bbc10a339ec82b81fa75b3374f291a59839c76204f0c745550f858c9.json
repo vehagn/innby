@@ -23,6 +23,7 @@
             "kind": {
               "Enum": [
                 "viewer",
+                "organiser",
                 "editor"
               ]
             }

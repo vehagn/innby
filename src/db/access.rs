@@ -18,15 +18,17 @@ pub const MAX_USER_LEN: usize = 254;
 #[serde(rename_all = "lowercase")]
 pub enum EventRole {
     Viewer,
+    Organiser,
     Editor,
 }
 
 impl EventRole {
-    pub const ALL: [Self; 2] = [Self::Viewer, Self::Editor];
+    pub const ALL: [Self; 3] = [Self::Viewer, Self::Organiser, Self::Editor];
 
     pub fn code(self) -> &'static str {
         match self {
             Self::Viewer => "viewer",
+            Self::Organiser => "organiser",
             Self::Editor => "editor",
         }
     }

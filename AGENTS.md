@@ -77,7 +77,8 @@ src/
     users.rs         the Users tab, for admins: password users kept in the database
     languages.rs     the Languages tab, for admins: which languages the site offers
                      guests, its default, and how far each is translated
-    role.rs          viewer < editor < admin, and the role a request has for its event
+    role.rs          viewer < organiser < editor < creator < admin, and the role a request
+                     has for its event
     lang.rs          the admin page's language
     auth/            logging in: sessions (mod.rs), login.rs, password.rs (argon2), jwt.rs
       oidc/          single sign-on: routes.rs, provider.rs, jws.rs (ID tokens), http.rs, fake.rs (tests)

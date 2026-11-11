@@ -118,7 +118,7 @@ With Ingresses, `ingress.admin.className` does the same.
 
 Hosts log in with a password (the built-in admin, and any users in `INNBY_ADMIN_USERS`),
 through an OpenID Connect provider such as Authelia (`oidc.issuer`), or either. Each has
-a role, viewer, editor or admin: the one `INNBY_ADMIN_USERS` or the provider gives them.
+a role, viewer, organiser, editor, creator or admin: the one `INNBY_ADMIN_USERS` or the provider gives them.
 An admin can also give anyone a role for one event, on its Access tab.
 [docs/single-sign-on.md](../../docs/single-sign-on.md) shows how to set a provider up.
 Register `{admin.url}/login/oidc/callback` with the provider.
