@@ -55,6 +55,22 @@ impl Lang {
         language::registry().base
     }
 
+    /// How far the language is translated: how many of the base language's texts its
+    /// own file has, and how many there are. The rest come from its fallbacks, so a
+    /// variant such as English (Simplified), which needs only what it says differently,
+    /// is whole at a low count.
+    pub fn translated(self) -> (usize, usize) {
+        let total = language::of(Lang::base()).own_texts;
+        (language::of(self).own_texts, total)
+    }
+
+    /// `translated` as a percentage, rounded down, so only a file with every text says
+    /// 100.
+    pub fn progress(self) -> usize {
+        let (own, total) = self.translated();
+        own * 100 / total.max(1)
+    }
+
     /// The language with exactly this code, as `?lang=` and the database give it.
     pub fn by_code(code: &str) -> Option<Lang> {
         let index = FILES.iter().position(|(file, _)| *file == code)?;
@@ -189,6 +205,29 @@ impl Lang {
     }
 }
 
+/// Every language module and how far it's translated, as a Markdown table: what `innby
+/// languages` prints, and the benchmark puts in its results.
+pub fn progress_table() -> String {
+    let mut table = String::from(
+        "| Language | Code | Falls back to | Texts of its own |\n|---|---|---|---:|\n",
+    );
+    for &lang in Lang::all() {
+        let fallbacks: Vec<&str> = lang.fallbacks().iter().map(|lang| lang.code()).collect();
+        let fallbacks = match fallbacks.is_empty() {
+            true => "nothing: the base".to_owned(),
+            false => fallbacks.join(", then "),
+        };
+        let (own, total) = lang.translated();
+        table.push_str(&format!(
+            "| {} | `{}` | {fallbacks} | {}% ({own} of {total}) |\n",
+            lang.name(),
+            lang.code(),
+            lang.progress(),
+        ));
+    }
+    table
+}
+
 /// As its code, `"en-us"`, in event files, exports and the texts' maps.
 impl Serialize for Lang {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -289,6 +328,28 @@ mod tests {
         ] {
             assert_eq!(lang.format_date(party), date, "{lang:?}");
         }
+    }
+
+    #[test]
+    fn scores_each_language_by_the_texts_of_its_own() {
+        // The base has them all, and so do the whole translations.
+        for lang in [Lang::EN, Lang::NB] {
+            let (own, total) = lang.translated();
+            assert_eq!((own, lang.progress()), (total, 100), "{lang:?}");
+        }
+        // A variant holds only what it says differently.
+        let (own, total) = Lang::EN_GB.translated();
+        assert!(0 < own && own < total / 2, "{own} of {total}");
+        assert_eq!(Lang::EN_GB.progress(), own * 100 / total);
+        let table = progress_table();
+        assert!(
+            table.contains("| English | `en` | nothing: the base | 100% ("),
+            "{table}"
+        );
+        assert!(
+            table.contains("| Nynorsk | `nn` | nb, then en | "),
+            "{table}"
+        );
     }
 
     #[test]

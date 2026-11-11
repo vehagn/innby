@@ -44,6 +44,8 @@ pub(super) struct Language {
     pub serves: Vec<String>,
     /// Every language its texts come from, nearest first, without itself.
     pub fallbacks: Vec<Lang>,
+    /// How many texts its own file has, before any are filled in.
+    pub own_texts: usize,
     pub messages: Messages,
 }
 
@@ -115,6 +117,8 @@ impl Language {
     /// Loads a language, reading files with `file`, so tests can give their own.
     fn load(lang: Lang, file: &dyn Fn(Lang) -> String) -> Self {
         let about = about(lang, file);
+        let mut own = parse(lang, file);
+        own.remove("language");
         let texts = texts(lang, file, &mut Vec::new());
         let messages = Texts(texts)
             .try_into()
@@ -124,6 +128,7 @@ impl Language {
                 panic!("locales/{}.toml: no locale {}", lang.code(), about.locale)
             }),
             fallbacks: fallbacks(lang, file),
+            own_texts: count(&own),
             name: about.name,
             tag: about.tag,
             badge: about.badge,
@@ -180,6 +185,17 @@ fn texts(lang: Lang, file: &dyn Fn(Lang) -> String, path: &mut Vec<Lang>) -> Tab
     }
     path.pop();
     table
+}
+
+/// How many texts a table holds, in it and the tables under it.
+fn count(table: &Table) -> usize {
+    table
+        .values()
+        .map(|value| match value {
+            Value::Table(inner) => count(inner),
+            _ => 1,
+        })
+        .sum()
 }
 
 /// Adds what `table` lacks from `from`, table by table.

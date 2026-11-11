@@ -74,6 +74,8 @@ enum Command {
         #[command(subcommand)]
         command: EventCommand,
     },
+    /// List the languages, with what each falls back to and how far it's translated.
+    Languages,
     /// Hash a password read from stdin, for INNBY_ADMIN_PASSWORD_HASH or INNBY_ADMIN_USERS.
     HashPassword,
     /// Print the key a game's server sends its scores with (see docs/games.md).
@@ -169,6 +171,10 @@ async fn run() -> anyhow::Result<()> {
                 "INNBY_GAMES has no game {game:?} with server: before its name"
             );
             println!("{}", config.link_key.game_key(&game));
+            Ok(())
+        }
+        Command::Languages => {
+            print!("{}", i18n::progress_table());
             Ok(())
         }
         Command::HashPassword => {

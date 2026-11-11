@@ -32,7 +32,7 @@ runs `just bench` on every release.
 
 ```
 src/
-  main.rs            the CLI: serve | admin | mailer | janitor | migrate | invite | event | hash-password
+  main.rs            the CLI: serve | admin | mailer | janitor | migrate | invite | event | languages | hash-password
   alloc.rs           the allocator: mimalloc, giving freed memory back at once
   icons.rs           the tabs' icons, as inline SVG
   http/              what both listeners share

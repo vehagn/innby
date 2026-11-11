@@ -10,7 +10,8 @@
 # passes its budget: the chart's memory limit for it less 8 MiB of room, 56 MiB for
 # `innby serve` (BENCH_SERVE_BUDGET_MIB) and 88 MiB for `innby admin`
 # (BENCH_ADMIN_BUDGET_MIB). The admin's peak includes a login's 19 MiB argon2 check. Speed is reported, not
-# checked, since it depends on the machine. The results are in target/bench/results.md.
+# checked, since it depends on the machine. The results are in target/bench/results.md,
+# with how far each language is translated (`innby languages`) below them.
 set -euo pipefail
 
 binary=${1:?usage: bench/run.sh BINARY}
@@ -145,6 +146,12 @@ done
   printf '%s' "$memory_rows"
   echo
   echo "Budgets: the chart's memory limit for each, less 8 MiB."
+  echo
+  echo "### Languages"
+  echo
+  echo "How far each language module is translated: the texts its own file has, of those English, the base, has. The rest come from its fallbacks, so a variant is whole at a low count."
+  echo
+  "$binary" languages 2>/dev/null
 } > "$out/results.md"
 rm -f "$out/run.json"
 cat "$out/results.md"

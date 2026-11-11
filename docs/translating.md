@@ -62,6 +62,14 @@ as an event's title, fall back the same way.
 `just test` (or Innby itself, at start) refuses a text English doesn't have, which
 catches typos in key names, and a language that falls back to itself.
 
+## How far a language has come
+
+`innby languages` lists every language with what it falls back to and its progress: the
+texts its own file has, of those English has. `just bench` puts the same table in its
+results, so each release says how far each translation is. The rest of a language's
+texts come from its fallbacks, so a variant such as English (Simplified) is whole at a
+low count.
+
 ## A new language
 
 A language is its file, and nothing in the code lists them:
