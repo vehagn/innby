@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select id, rsvp_id, kind as \"kind: Kind\", attempts\n        from outbox\n        where sent_at is null and next_try_at <= now() and attempts < $2\n        order by id\n        limit $1\n        for update skip locked\n        ",
+  "query": "\n        select id, rsvp_id, admin_user, lang as \"lang: Lang\", kind as \"kind: Kind\", attempts,\n            created_at\n        from outbox\n        where sent_at is null and next_try_at <= now() and attempts < $2\n        order by id\n        limit $1\n        for update skip locked\n        ",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,28 @@
       },
       {
         "ordinal": 2,
+        "name": "admin_user",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "outbox",
+            "name": "admin_user"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "lang: Lang",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "outbox",
+            "name": "lang"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "kind: Kind",
         "type_info": {
           "Custom": {
@@ -37,7 +59,9 @@
                 "email_in_use",
                 "rsvp_link",
                 "reminder",
-                "event_changed"
+                "event_changed",
+                "password_reset",
+                "password_set"
               ]
             }
           }
@@ -50,13 +74,24 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 5,
         "name": "attempts",
         "type_info": "Int4",
         "origin": {
           "Table": {
             "table": "outbox",
             "name": "attempts"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "outbox",
+            "name": "created_at"
           }
         }
       }
@@ -69,10 +104,13 @@
     },
     "nullable": [
       false,
+      true,
+      true,
+      true,
       false,
       false,
       false
     ]
   },
-  "hash": "02ff35c8d0cdd7b7f07ace596a436617d236a45864c20caec001c3dc1ff9f375"
+  "hash": "6296e06cd582d889a94dea366cd5256e4a06733abd43648d41028454dbf2053b"
 }

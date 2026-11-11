@@ -23,6 +23,8 @@ use crate::{
 #[template(path = "admin/login.html")]
 struct LoginPage {
     logged_out: bool,
+    /// Right after setting a password from a link.
+    password_set: bool,
     /// Whether anyone may log in with a password.
     password: bool,
     /// The provider's name, when there is one.
@@ -58,6 +60,7 @@ pub(in crate::admin) async fn login_error(
 #[derive(Deserialize)]
 pub struct LoginQuery {
     logged_out: Option<String>,
+    password_set: Option<String>,
 }
 
 pub async fn login_page(
@@ -66,6 +69,7 @@ pub async fn login_page(
 ) -> Response {
     render(LoginPage {
         logged_out: query.logged_out.is_some(),
+        password_set: query.password_set.is_some(),
         ..LoginPage::new(&auth).await
     })
 }

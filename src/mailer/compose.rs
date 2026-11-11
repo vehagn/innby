@@ -1,25 +1,32 @@
-//! The mails, in the guest's language. Plain text only: nothing to track, nothing to
-//! render remotely. A reminder or a change notice to a guest who's coming carries the
-//! event as a calendar file, as their page offers it.
+//! The mails, in the guest's language, or for a host's password, the language of the page
+//! that asked for it. Plain text only: nothing to track, nothing to render remotely. A
+//! reminder or a change notice to a guest who's coming carries the event as a calendar
+//! file, as their page offers it.
 
 use std::fmt::Display;
 
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 
 use crate::{
     calendar,
     config::Config,
     db::{
+        admin_user::AdminUser,
         event::Event,
         outbox::Kind,
         rsvp::{EmailStatus, Response, Rsvp},
     },
-    i18n::fill,
+    i18n::{Lang, fill},
     paths,
 };
 
 /// How long a confirmation link works; unconfirmed addresses are cleared after as long.
 pub const CONFIRM_WITHIN: Duration = Duration::hours(48);
+
+/// How long a link to set a password works, from when it was asked for: an hour for
+/// someone who forgot theirs, a week for a new user, who may not read their mail at once.
+pub const RESET_WITHIN: Duration = Duration::hours(1);
+pub const FIRST_WITHIN: Duration = Duration::days(7);
 
 #[derive(Debug, Clone)]
 pub struct Mail {
@@ -45,6 +52,7 @@ pub fn compose(
         Kind::EmailInUse | Kind::RsvpLink | Kind::Reminder | Kind::EventChanged => {
             EmailStatus::Confirmed
         }
+        Kind::PasswordReset | Kind::PasswordSet => return Err("a host's mail, not a guest's"),
     };
     if rsvp.email_status != needed {
         return Err("address no longer in the right state");
@@ -69,6 +77,7 @@ pub fn compose(
         Kind::RsvpLink => (&t.mail.rsvp_link, rsvp_url()),
         Kind::Reminder => (&t.mail.reminder, rsvp_url()),
         Kind::EventChanged => (&t.mail.event_changed, rsvp_url()),
+        Kind::PasswordReset | Kind::PasswordSet => unreachable!("refused above"),
     };
 
     let title = event.title(lang);
@@ -104,6 +113,44 @@ pub fn compose(
         subject: fill(&text.subject, &values),
         body: format!("{body}\n\n-- \n{}\n", fill(&t.mail.footer, &values)),
         calendar,
+    })
+}
+
+/// The mail to a host made in the admin UI with a link to set their password, which
+/// `admin_url` leads to, or why there's nothing to send: they may have removed their
+/// address meanwhile.
+pub fn compose_for_host(
+    config: &Config,
+    admin_url: Option<&str>,
+    kind: Kind,
+    user: &AdminUser,
+    lang: Lang,
+    asked_at: DateTime<Utc>,
+) -> Result<Mail, &'static str> {
+    let to = user.email.clone().ok_or("address removed")?;
+    let admin_url = admin_url.ok_or("INNBY_ADMIN_URL isn't set")?;
+    let (text, within) = match kind {
+        Kind::PasswordReset => (&lang.messages().mail.password_reset, RESET_WITHIN),
+        Kind::PasswordSet => (&lang.messages().mail.password_set, FIRST_WITHIN),
+        _ => return Err("a guest's mail, not a host's"),
+    };
+    let token = config
+        .link_key
+        .password_link(&user.name, &to, user.version, asked_at + within);
+    let path = paths::path(paths::PASSWORD, &user.name).replace("{token}", &token);
+    let url = format!("{admin_url}{}", paths::localized(&path, lang));
+    let hours = within.num_hours();
+    let values: [(&str, &dyn Display); 4] = [
+        ("name", &user.name),
+        ("url", &url),
+        ("hours", &hours),
+        ("days", &within.num_days()),
+    ];
+    Ok(Mail {
+        to,
+        subject: fill(&text.subject, &values),
+        body: format!("{}\n", fill(&text.body, &values)),
+        calendar: None,
     })
 }
 
@@ -187,5 +234,76 @@ mod tests {
         kari.response = Response::Pending;
         let mail = compose(&config(), Kind::Reminder, &kari, &event).unwrap();
         assert!(mail.calendar.is_none());
+    }
+
+    #[test]
+    fn a_hosts_mail_has_a_link_that_works_for_a_while() {
+        let config = config();
+        let kari = AdminUser {
+            name: "kari".into(),
+            role: None,
+            password_hash: None,
+            version: 2,
+            created_at: Utc::now(),
+            email: Some("kari@example.com".into()),
+        };
+        let asked = Utc::now();
+        for &lang in Lang::all() {
+            for kind in [Kind::PasswordReset, Kind::PasswordSet] {
+                let mail = compose_for_host(
+                    &config,
+                    Some("https://fest.example.com/admin"),
+                    kind,
+                    &kari,
+                    lang,
+                    asked,
+                )
+                .unwrap();
+                let text = format!("{}\n{}", mail.subject, mail.body);
+                assert!(!text.contains(['{', '}']), "{lang:?} {kind:?}: {text}");
+                assert!(
+                    text.contains("https://fest.example.com/admin/password/kari/"),
+                    "{text}"
+                );
+            }
+        }
+        // The link is the one the admin UI checks.
+        let mail = compose_for_host(
+            &config,
+            Some("https://a.example"),
+            Kind::PasswordReset,
+            &kari,
+            Lang::EN,
+            asked,
+        )
+        .unwrap();
+        let token = mail.body.split("/password/kari/").nth(1).unwrap();
+        let token = token.split(['?', '\n']).next().unwrap();
+        let link: crate::link::PasswordLink = token.parse().unwrap();
+        assert!(
+            config
+                .link_key
+                .verify_password(&link, "kari", "kari@example.com", 2)
+        );
+        assert_eq!(link.expires.timestamp(), (asked + RESET_WITHIN).timestamp());
+        // No address, no mail; no admin URL, no link.
+        let gone = AdminUser {
+            email: None,
+            ..kari.clone()
+        };
+        assert!(
+            compose_for_host(
+                &config,
+                Some("https://a.example"),
+                Kind::PasswordSet,
+                &gone,
+                Lang::EN,
+                asked
+            )
+            .is_err()
+        );
+        assert!(
+            compose_for_host(&config, None, Kind::PasswordSet, &kari, Lang::EN, asked).is_err()
+        );
     }
 }

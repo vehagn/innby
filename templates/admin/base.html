@@ -17,6 +17,9 @@
     <a class="brand" href="{{ crate::paths::admin(crate::paths::HOME) }}">Innby <span>{{ t.admin.admin }}</span></a>
     {% include "_header_controls.html" %}
     {% block account %}
+    {% if crate::admin::role::Host::current().in_app %}
+    <a class="pill" href="{{ crate::paths::admin(crate::paths::ACCOUNT) }}" title="{{ t.admin.account }}">{{ crate::icons::PERSON|safe }}<span class="label">{{ t.admin.account }}</span></a>
+    {% endif %}
     <form class="logout" method="post" action="{{ crate::paths::admin(crate::paths::LOGOUT) }}">
       <button class="pill" title="{{ t.admin.log_out }}"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg><span class="label">{{ t.admin.log_out }}</span></button>
     </form>

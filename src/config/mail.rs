@@ -1,5 +1,6 @@
 //! Settings only `innby mailer` needs, on top of `Config`: the SMTP server, its login,
-//! and the sender. The password never shows in `Debug`.
+//! the sender, and where hosts reach the admin UI, for links to set their password. The
+//! password never shows in `Debug`.
 
 use anyhow::{Context, Result, ensure};
 
@@ -13,6 +14,9 @@ pub struct MailConfig {
     pub smtp_user: Option<String>,
     pub smtp_password: Option<String>,
     pub from: lettre::message::Mailbox,
+    /// `INNBY_ADMIN_URL`, without a trailing slash: where a host's link to set their
+    /// password leads. Without it, such mail is dropped, saying why.
+    pub admin_url: Option<String>,
 }
 
 impl std::fmt::Debug for MailConfig {
@@ -21,6 +25,7 @@ impl std::fmt::Debug for MailConfig {
             .field("smtp_url", &self.smtp_url)
             .field("smtp_user", &self.smtp_user)
             .field("from", &self.from)
+            .field("admin_url", &self.admin_url)
             .finish_non_exhaustive()
     }
 }
@@ -46,6 +51,9 @@ impl MailConfig {
             from: from
                 .parse()
                 .with_context(|| format!("INNBY_MAIL_FROM: not a mailbox: {from:?}"))?,
+            admin_url: env
+                .optional("INNBY_ADMIN_URL")
+                .map(|url| url.trim().trim_end_matches('/').to_owned()),
         })
     }
 }

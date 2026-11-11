@@ -71,6 +71,9 @@ pub struct Host {
     /// On an event's pages, whether they made it, which lets a creator delete it and
     /// give roles for it.
     pub made_it: bool,
+    /// Whether they're a password user an admin made in the admin UI, with an account
+    /// page of their own; not the config's, nor a provider's.
+    pub in_app: bool,
 }
 
 tokio::task_local! {
@@ -83,6 +86,7 @@ impl Host {
             user: Arc::from(user),
             role,
             made_it: false,
+            in_app: false,
         }
     }
 

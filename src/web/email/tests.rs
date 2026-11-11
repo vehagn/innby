@@ -12,7 +12,7 @@ async fn queued(site: &Site) -> Vec<(uuid::Uuid, Kind)> {
     .await
     .unwrap()
     .into_iter()
-    .map(|row| (row.rsvp_id, row.kind))
+    .filter_map(|row| Some((row.rsvp_id?, row.kind)))
     .collect()
 }
 

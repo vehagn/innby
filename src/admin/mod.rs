@@ -7,13 +7,14 @@
 //! - `page`: what pages share: state, tabs, errors. `forms`: what their forms share.
 //! - `events`, `guests`, `invitations`, `groups`, `qr`, `games`, `board`, `access`: the pages,
 //!   one module per tab; `users`, the password users, and `languages`, those the site
-//!   offers guests, for admins.
+//!   offers guests, for admins; `account`, a password user's own page.
 //! - `cli`: the host's commands: `innby invite` and `innby event`.
 //! - `auth`: logging in, with a password or through an OIDC provider, and sessions.
 //! - `role`: what each role may do, for every event or for one. `lang`: the page's
 //!   language.
 
 mod access;
+mod account;
 pub mod auth;
 mod board;
 pub mod cli;
@@ -76,7 +77,8 @@ pub fn prefix() -> Arc<str> {
 pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> Router {
     // The admin hostname is served the same way as the public one.
     let https = config.is_https();
-    let auth = Arc::new(auth::Auth::new(admin_config, https, db.clone()));
+    let link_key = config.link_key.clone();
+    let auth = Arc::new(auth::Auth::new(admin_config, link_key, https, db.clone()));
     let state = AdminState {
         config: Arc::new(config),
         db,
@@ -84,7 +86,11 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
     };
     // Each path needs one role for all its methods; see `role` for what each may do.
     // The list of events is for anyone logged in, and shows each the events they may see.
-    let anyone = Router::new().route(paths::HOME, get(events::list));
+    let anyone = Router::new()
+        .route(paths::HOME, get(events::list))
+        // Their own, for the password users made here; nobody else has one.
+        .route(paths::ACCOUNT, get(account::show).post(account::edit))
+        .route(paths::ACCOUNT_PASSWORD, post(account::password));
     let viewer = Router::new()
         .route(paths::EVENT, get(guests::list))
         .route_layer(middleware::from_fn(role::viewer));
@@ -154,7 +160,16 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         ))
         .route(paths::LOGOUT, post(auth::log_out));
     // Password users can be made in the admin UI too, so the form is always there.
-    pages = pages.route(paths::LOGIN, get(auth::login_page).post(auth::log_in));
+    pages = pages
+        .route(paths::LOGIN, get(auth::login_page).post(auth::log_in))
+        .route(
+            paths::LOGIN_FORGOT,
+            get(auth::forgot_page).post(auth::forgot),
+        )
+        .route(
+            paths::PASSWORD,
+            get(auth::password_page).post(auth::set_password),
+        );
     if admin_config.oidc.is_some() {
         pages = pages
             .route(paths::LOGIN_OIDC, get(auth::oidc::start))

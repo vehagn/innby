@@ -16,10 +16,10 @@
   {% else %}
   <div class="table-wrap">
   <table>
-    <thead><tr><th>{{ a.user_name }}</th><th>{{ a.col_role }}</th></tr></thead>
+    <thead><tr><th>{{ a.user_name }}</th><th>{{ a.col_role }}</th><th>{{ a.col_email }}</th></tr></thead>
     <tbody>
       {% for user in users %}
-      <tr><td><a href="{{ user.path }}">{{ user.name }}</a></td><td>{{ crate::admin::users_role_name(user.role) }}</td></tr>
+      <tr><td><a href="{{ user.path }}">{{ user.name }}</a>{% if !user.password %} <span class="muted small">{{ a.no_password_yet }}</span>{% endif %}</td><td>{{ crate::admin::users_role_name(user.role) }}</td><td>{% if let Some(email) = user.email %}{{ email }}{% endif %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -39,9 +39,11 @@
       {% endfor %}
     </fieldset>
     <p class="hint">{{ a.users_roles_hint }}</p>
+    <label for="user-email">{{ a.email }}</label>
+    <input id="user-email" name="email" type="email" maxlength="254" autocomplete="off" value="{{ email }}">
     <label for="user-password">{{ a.password }}</label>
-    <input id="user-password" name="password" type="password" required minlength="10" maxlength="200" autocomplete="new-password">
-    <p class="hint">{{ a.password_hint }}</p>
+    <input id="user-password" name="password" type="password" minlength="10" maxlength="200" autocomplete="new-password">
+    <p class="hint">{{ a.password_hint }} {{ a.user_email_hint }}</p>
     <button>{{ a.create_user }}</button>
   </form>
 </section>

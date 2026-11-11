@@ -1,0 +1,31 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ crate::admin::lang::text().account }}{% endblock %}
+
+{% block content %}
+{% let a = crate::admin::lang::text() %}
+{% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
+<h1>{{ a.account }}</h1>
+<p class="hint">{{ crate::i18n::filled(a.account_hint, "name", user) }}</p>
+
+<section class="card">
+  <form method="post" action="{{ crate::paths::admin(crate::paths::ACCOUNT) }}">
+    <label for="email">{{ a.email }}</label>
+    <input id="email" name="email" type="email" maxlength="254" autocomplete="email" value="{{ email }}">
+    <p class="hint">{{ a.email_hint }}</p>
+    <button>{{ a.save_email }}</button>
+  </form>
+</section>
+
+<section class="card">
+  <form method="post" action="{{ crate::paths::admin(crate::paths::ACCOUNT_PASSWORD) }}">
+    <input type="hidden" name="user" value="{{ user }}" autocomplete="username">
+    <label for="current">{{ a.current_password }}</label>
+    <input id="current" name="current" type="password" required autocomplete="current-password">
+    <label for="password">{{ a.new_password }}</label>
+    <input id="password" name="password" type="password" required minlength="10" maxlength="200" autocomplete="new-password">
+    <p class="hint">{{ a.password_hint_self }}</p>
+    <button class="secondary">{{ a.change_password }}</button>
+  </form>
+</section>
+{% endblock %}

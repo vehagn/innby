@@ -500,6 +500,35 @@ error_new_user_name = "A user name is up to {max} letters a to z, digits and . _
 error_user_taken = "There's already a user {name}."
 error_yourself = "You can't change or delete your own user here, so you can't lock yourself out."
 
+# A password user's own account, and a new password by mail
+account = "Account"
+account_hint = "You log in as {name}."
+email = "E-mail address"
+email_hint = "For a link to set a new password, should you forget yours. Leave it empty to have none."
+save_email = "Save the address"
+error_email = "That isn't an e-mail address."
+error_email_taken = "Another user has that address."
+current_password = "Current password"
+change_password = "Change the password"
+password_hint_self = "At least 10 characters. It logs you out everywhere else."
+error_current_password = "That isn't your current password."
+forgot_password = "Forgot your password?"
+forgot_title = "A new password"
+forgot_hint = "Type your user name or your e-mail address. If you have an address with us, we'll mail you a link to set a new password, which works for an hour."
+forgot_field = "User name or e-mail address"
+forgot_send = "Send the link"
+forgot_sent = "If that's a user with an e-mail address, the link is on its way. Look in your inbox, and in spam."
+too_many_resets = "That's a lot of links asked for. Try again in a while."
+set_password_title = "Set your password"
+set_password_hint = "For {name}. At least 10 characters; setting it logs you out everywhere else."
+password_set_notice = "Your password is set. Log in with it."
+link_dead = "This link doesn't work: it's been used, it's too old, or the address has changed. Ask for a new one."
+user_email_hint = "With an address, they can have a link mailed to set a new password. Make them with an address and no password, and they get a link to set one themselves, which works for a week."
+send_password_link = "Mail them a link to set a password"
+password_link_sent = "The link is on its way to their address."
+error_password_or_email = "Give them a password, or an address to mail them a link to set one."
+no_password_yet = "No password yet"
+
 # Languages: which of them the site offers guests, for admins.
 languages = "Languages"
 languages_hint = "The languages guests can read the site in, of those Innby has a file for. An event can narrow them further, under In other languages on its Details tab. These pages, the admin's, stay in every language."
@@ -664,3 +693,30 @@ Hello, {name},
 Your answer: {answer}. To change it:
 
 {url}"""
+
+# To a host made in the admin UI, who asked for a new password on the login page.
+# `{name}` is their user name, `{url}` the link, `{hours}` how long it works.
+[mail.password_reset]
+subject = "A new password for Innby"
+body = """
+Hello, {name},
+
+Someone, perhaps you, asked for a new password for your login to Innby. Open the link \
+to set one; it works for {hours} hour and once only:
+
+{url}
+
+If this wasn't you, ignore this e-mail; your password stays as it is."""
+
+# To a host an admin made without a password. `{days}` is how long the link works.
+[mail.password_set]
+subject = "Your login to Innby"
+body = """
+Hello, {name},
+
+An admin has made you a login to Innby, the host's side of the RSVP site, as {name}. \
+Open the link to set your password; it works for {days} days and once only:
+
+{url}
+
+If you weren't expecting this, ignore this e-mail."""

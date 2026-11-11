@@ -166,24 +166,32 @@ create unique index rsvp_confirmed_email_uq on rsvp (email, event_id)
     where email_status = 'confirmed';
 
 create type outbox_kind as enum (
-    'confirm_email', 'email_in_use', 'rsvp_link', 'reminder', 'event_changed'
+    'confirm_email', 'email_in_use', 'rsvp_link', 'reminder', 'event_changed',
+    'password_reset', 'password_set'
 );
 
 -- Mail jobs for `innby mailer`, written in the same transaction as the change that
--- causes them.
+-- causes them: to a guest, in their language, or to a host made in the admin UI, about
+-- their password, in the language of the page that asked for it.
 create table outbox (
     id          bigint generated always as identity primary key,
-    rsvp_id     uuid not null references rsvp on delete cascade,
+    rsvp_id     uuid references rsvp on delete cascade,
+    admin_user  text,
+    lang        text check (lang_ok(lang)),
     kind        outbox_kind not null,
     created_at  timestamptz not null default now(),
     attempts    int not null default 0,
     next_try_at timestamptz not null default now(),
     sent_at     timestamptz,
-    last_error  text
+    last_error  text,
+    check (num_nonnulls(rsvp_id, admin_user) = 1),
+    check ((admin_user is null) = (lang is null)),
+    check ((admin_user is null) = (kind not in ('password_reset', 'password_set')))
 );
 
 create index outbox_due on outbox (next_try_at) where sent_at is null;
 create index outbox_rsvp on outbox (rsvp_id);
+create index outbox_admin_user on outbox (admin_user) where admin_user is not null;
 
 -- A role for one event: an admin's role is for every event, so it's not among them.
 create type event_role as enum ('viewer', 'organiser', 'editor');
@@ -240,8 +248,8 @@ create table admin_revoked_jwt (
 
 -- Hosts who log in with a password, made by an admin on the admin UI's Users tab, beside
 -- those in the config (INNBY_ADMIN_USER, INNBY_ADMIN_USERS), whose names they can't take.
--- Unlike the other login tables, this holds personal data, a host's user name, kept until
--- an admin deletes them.
+-- Unlike the other login tables, this holds personal data, a host's user name and, if
+-- they have one, their e-mail address, kept until an admin deletes them.
 create table admin_user (
     -- With a letter or digit, so its page's address is never `/users/..`.
     name          text primary key
@@ -249,13 +257,21 @@ create table admin_user (
     -- Their role for every event; null for none, so they see only the events that give
     -- them one.
     role          text check (role in ('admin', 'creator', 'editor', 'organiser', 'viewer')),
-    -- argon2, as `innby hash-password` makes it.
-    password_hash text not null check (password_hash like '$argon2%'),
+    -- argon2, as `innby hash-password` makes it; none until they set one from the link an
+    -- admin had mailed them.
+    password_hash text check (password_hash like '$argon2%'),
+    -- Optional, normalised (trimmed, lower-case): for a link to set a new password, which
+    -- they or an admin may ask for.
+    email         text unique check (email = lower(email) and length(email) <= 254),
     -- Bumped by a new password. Sessions carry it, so a new password logs the user out
     -- everywhere.
     version       int not null default 0,
     created_at    timestamptz not null default now()
 );
+
+-- Mail to a host goes with them.
+alter table outbox add foreign key (admin_user) references admin_user (name)
+    on delete cascade;
 
 -- The minigames an event offers, by their id in INNBY_GAMES. The games themselves are
 -- served elsewhere; see docs/games.md.

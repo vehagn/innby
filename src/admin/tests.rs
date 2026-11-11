@@ -803,8 +803,9 @@ async fn a_deleted_user_leaves_no_claim_on_the_events_they_made(db: PgPool) {
             .unwrap()
     );
     let hash = crate::admin::auth::tests::cheap_hash("a-long-password");
-    crate::db::admin_user::create(&db, "kari", Some("creator"), &hash)
+    crate::db::admin_user::create(&db, "kari", Some("creator"), Some(&hash), None)
         .await
+        .unwrap()
         .unwrap();
     crate::db::admin_user::delete(&db, "kari").await.unwrap();
     // A new login by that name mustn't inherit it.

@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into outbox (admin_user, lang, kind)\n        select $1, $3, $2\n        where not exists (\n            select from outbox\n            where admin_user = $1 and kind = $2 and sent_at is null and attempts < $4\n        )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        {
+          "Custom": {
+            "name": "outbox_kind",
+            "kind": {
+              "Enum": [
+                "confirm_email",
+                "email_in_use",
+                "rsvp_link",
+                "reminder",
+                "event_changed",
+                "password_reset",
+                "password_set"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "33206f5b69315584a64e363b502c3ff010fa916549c77be3b1e5869113a7dcb1"
+}

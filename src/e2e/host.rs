@@ -3,7 +3,7 @@
 use axum::http::header;
 use sqlx::PgPool;
 
-use super::{PASSWORD, USER, World, admin, en};
+use super::{PASSWORD, USER, World, admin, en, link_in};
 use crate::i18n::filled;
 
 #[sqlx::test]
@@ -138,4 +138,86 @@ async fn a_stranger_guessing_cannot_lock_the_host_out(db: PgPool) {
 
     // The host, elsewhere, logs in as usual.
     world.admin().await.page().expect(&a.events);
+}
+
+#[sqlx::test]
+async fn a_new_user_sets_their_password_from_a_mail_and_resets_it(db: PgPool) {
+    let world = World::new(db);
+    let a = admin();
+    let mut host = world.admin().await;
+
+    // An admin makes Kari with an address and no password: she gets a link.
+    host.click(&a.users).await;
+    host.fill(&a.user_name, "kari")
+        .fill(&a.email, "Kari@Example.com")
+        .check(&a.role_organiser);
+    host.press(&a.create_user).await.expect(&a.no_password_yet);
+    let mail = world.receive("kari@example.com").await;
+    assert!(mail.body.contains("kari"), "{}", mail.body);
+    let first = link_in(&mail).to_owned();
+
+    let mut kari = world.browser_at("192.0.2.20".parse().unwrap());
+    kari.open(&first).await.expect(&a.set_password_title);
+    kari.fill(&a.new_password, "short");
+    kari.press(&a.set_password).await.expect("at least 10");
+    kari.fill(&a.new_password, "a long first password");
+    kari.press(&a.set_password)
+        .await
+        .expect(&a.password_set_notice);
+    // Used once, the link is done.
+    kari.open(&first).await.expect(&a.link_dead);
+    kari.open("https://admin.fest.example.com/login").await;
+
+    kari.fill(&a.user_name, "kari")
+        .fill(&a.password, "a long first password");
+    kari.press(&a.log_in).await.expect(&a.events);
+    // Her account page: a new address, and a new password that needs the current one.
+    kari.click(&a.account)
+        .await
+        .expect(&filled(&a.account_hint, "name", "kari"));
+    kari.fill(&a.email, "kari.n@example.com");
+    kari.press(&a.save_email).await.expect(&a.saved);
+    kari.fill(&a.current_password, "wrong")
+        .fill(&a.new_password, "a long second password");
+    kari.press(&a.change_password)
+        .await
+        .expect(&a.error_current_password);
+    kari.fill(&a.current_password, "a long first password")
+        .fill(&a.new_password, "a long second password");
+    kari.press(&a.change_password).await.expect(&a.saved);
+    kari.press(&a.log_out).await.expect(&a.logged_out);
+
+    // She forgets it. Asking by an address nobody has says the same, and sends nothing.
+    kari.click(&a.forgot_password).await.expect(&a.forgot_hint);
+    kari.fill(&a.forgot_field, "nobody@example.com");
+    kari.press(&a.forgot_send).await.expect(&a.forgot_sent);
+    kari.click(&a.log_in).await;
+    kari.click(&a.forgot_password).await;
+    kari.fill(&a.forgot_field, "kari.n@example.com");
+    kari.press(&a.forgot_send).await.expect(&a.forgot_sent);
+    let reset = link_in(&world.receive("kari.n@example.com").await).to_owned();
+    assert!(world.inbox("nobody@example.com").is_empty());
+    assert!(
+        world.inbox("kari@example.com").len() == 1,
+        "the old address gets nothing more"
+    );
+    kari.open(&reset).await;
+    kari.fill(&a.new_password, "a long third password");
+    kari.press(&a.set_password)
+        .await
+        .expect(&a.password_set_notice);
+    kari.fill(&a.user_name, "kari")
+        .fill(&a.password, "a long third password");
+    kari.press(&a.log_in).await.expect(&a.events);
+}
+
+#[sqlx::test]
+async fn only_users_made_here_have_an_account_page(db: PgPool) {
+    let world = World::new(db);
+    let a = admin();
+    let mut host = world.admin().await;
+    host.page().expect_not(&a.account);
+    host.open("https://admin.fest.example.com/account")
+        .await
+        .expect(&a.not_found);
 }

@@ -8,6 +8,7 @@
 {% let a = crate::admin::lang::text() %}
 {% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
 <h1>{{ user.name }}</h1>
+{% if !user.password %}<p class="muted">{{ a.no_password_yet }}</p>{% endif %}
 {% if yourself %}
 <p class="hint">{{ a.error_yourself }}</p>
 {% else %}
@@ -22,6 +23,21 @@
     <p class="hint">{{ a.users_roles_hint }}</p>
     <button>{{ a.save_role }}</button>
   </form>
+</section>
+
+<section class="card">
+  <form method="post" action="{{ links.page }}">
+    <label for="user-email">{{ a.email }}</label>
+    <input id="user-email" name="email" type="email" maxlength="254" autocomplete="off" value="{% if let Some(email) = user.email %}{{ email }}{% endif %}">
+    <p class="hint">{{ a.user_email_hint }}</p>
+    <button class="secondary">{{ a.save_email }}</button>
+  </form>
+  {% if user.email.is_some() %}
+  <form method="post" action="{{ links.page }}">
+    <input type="hidden" name="send_link" value="yes">
+    <button class="secondary">{{ a.send_password_link }}</button>
+  </form>
+  {% endif %}
 </section>
 
 <section class="card">

@@ -1,0 +1,21 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ crate::admin::lang::text().forgot_title }}{% endblock %}
+
+{% block account %}{% endblock %}
+
+{% block content %}
+{% let a = crate::admin::lang::text() %}
+<h1>{{ a.forgot_title }}</h1>
+{% if sent %}
+<p class="notice success" role="status">{{ a.forgot_sent }}</p>
+<p><a href="{{ crate::paths::admin(crate::paths::LOGIN) }}">{{ a.log_in }}</a></p>
+{% else %}
+<p>{{ a.forgot_hint }}</p>
+<form method="post" action="{{ crate::paths::admin(crate::paths::LOGIN_FORGOT) }}">
+  <label for="user">{{ a.forgot_field }}</label>
+  <input id="user" name="user" required maxlength="254" autocomplete="username" autocapitalize="none" spellcheck="false" value="{{ typed }}" autofocus>
+  <button>{{ a.forgot_send }}</button>
+</form>
+{% endif %}
+{% endblock %}

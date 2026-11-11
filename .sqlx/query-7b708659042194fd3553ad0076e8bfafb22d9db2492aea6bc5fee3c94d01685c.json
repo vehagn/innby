@@ -26,7 +26,9 @@
                 "email_in_use",
                 "rsvp_link",
                 "reminder",
-                "event_changed"
+                "event_changed",
+                "password_reset",
+                "password_set"
               ]
             }
           }
@@ -43,7 +45,7 @@
       "Left": []
     },
     "nullable": [
-      false,
+      true,
       false
     ]
   },

@@ -24,16 +24,19 @@
 //!
 //! - `mod.rs`: `Auth`, the sessions, and `require_login`, which every page goes through.
 //! - `login`: the login page and logging out. `password`: checking the users' argon2
-//!   hashes. `jwt`: the session tokens. `oidc`: single sign-on.
+//!   hashes. `reset`: a new password by mail. `jwt`: the session tokens. `oidc`: single
+//!   sign-on.
 
 pub mod jwt;
 mod login;
 pub mod oidc;
 mod password;
+mod reset;
 
 pub(in crate::admin) use login::login_error;
 pub use login::{log_in, log_out, login_page};
 pub use password::{check_hash, hash_password, verify};
+pub use reset::{forgot, forgot_page, password_page, set_password};
 
 use std::{sync::Arc, time::Duration};
 
@@ -52,6 +55,7 @@ use crate::{
     config::{AdminConfig, PasswordLogin},
     db::{access, admin_login, admin_user},
     http::{ClientIp, RateLimiter, cookie, server_error},
+    link::LinkKey,
     paths, random,
 };
 use jwt::Login;
@@ -64,6 +68,12 @@ const ATTEMPTS: u32 = 10;
 const ALL_ATTEMPTS: u32 = 100;
 
 const ATTEMPT_WINDOW: Duration = Duration::from_secs(15 * 60);
+
+/// Links to set a password asked for per client address and window, and from everyone:
+/// each is a mail, which a stranger mustn't be able to send many of.
+const RESETS: u32 = 5;
+const ALL_RESETS: u32 = 50;
+const RESET_WINDOW: Duration = Duration::from_secs(60 * 60);
 
 /// How long a JWT lasts, and a refresh token: LLDAP's defaults.
 const TOKEN_LIFETIME: TimeDelta = TimeDelta::days(1);
@@ -91,6 +101,11 @@ pub struct Auth {
     checking: Arc<Semaphore>,
     attempts: RateLimiter,
     all_attempts: RateLimiter,
+    /// Signs and checks the links to set a password, as the mailer signs them.
+    link_key: LinkKey,
+    /// Asking for such a link, per client address and from everyone.
+    resets: RateLimiter,
+    all_resets: RateLimiter,
 }
 
 /// What a request's cookies say.
@@ -103,7 +118,7 @@ enum Session {
 }
 
 impl Auth {
-    pub fn new(config: &AdminConfig, https: bool, db: PgPool) -> Self {
+    pub fn new(config: &AdminConfig, link_key: LinkKey, https: bool, db: PgPool) -> Self {
         // The key is bound to how hosts log in: changing a user, their role or password,
         // or the provider logs every session out.
         let mut bound: Vec<&[u8]> = Vec::new();
@@ -135,6 +150,9 @@ impl Auth {
             checking: Arc::new(Semaphore::new(1)),
             attempts: RateLimiter::new(ATTEMPTS, ATTEMPT_WINDOW),
             all_attempts: RateLimiter::new(ALL_ATTEMPTS, ATTEMPT_WINDOW),
+            link_key,
+            resets: RateLimiter::new(RESETS, RESET_WINDOW),
+            all_resets: RateLimiter::new(ALL_RESETS, RESET_WINDOW),
         }
     }
 
@@ -179,6 +197,19 @@ impl Auth {
         .await?
     }
 
+    /// Whether this is the user's password, counted as a login attempt is.
+    pub(in crate::admin) async fn knows(
+        &self,
+        client: ClientIp,
+        user: &str,
+        password: String,
+    ) -> bool {
+        matches!(
+            self.check(client, user.to_owned(), password).await,
+            Outcome::Accepted(name, ..) if name == user
+        )
+    }
+
     async fn check(&self, client: ClientIp, user: String, password: String) -> Outcome {
         // The permit moves into the blocking task, so a request that times out can't
         // let another check start while its own still runs.
@@ -203,14 +234,18 @@ impl Auth {
                 Some((login.user.clone(), login.role, 0)),
             ),
             None => match admin_user::find(&self.db, &user).await {
-                Ok(Some(stored)) => (
-                    stored.password_hash,
-                    Some((
-                        stored.name,
-                        stored_role(stored.role.as_deref()),
-                        stored.version,
-                    )),
-                ),
+                // Without a password yet, they're nobody here.
+                Ok(Some(stored)) => match stored.password_hash {
+                    Some(hash) => (
+                        hash,
+                        Some((
+                            stored.name,
+                            stored_role(stored.role.as_deref()),
+                            stored.version,
+                        )),
+                    ),
+                    None => (NOBODY.to_owned(), None),
+                },
                 Ok(None) => (NOBODY.to_owned(), None),
                 Err(err) => {
                     tracing::error!("admin users: {err}");
@@ -254,7 +289,11 @@ impl Auth {
     /// refresh token starts with the user's name and password version,
     /// `ola.3.{random}`, so it can renew their JWT while the password stands; the
     /// database keeps only its keyed digest, which covers both.
-    async fn start_session(&self, user: &str, version: i32) -> sqlx::Result<[HeaderValue; 2]> {
+    pub(in crate::admin) async fn start_session(
+        &self,
+        user: &str,
+        version: i32,
+    ) -> sqlx::Result<[HeaderValue; 2]> {
         let now = Utc::now();
         let refresh_token = format!("{user}.{version}.{}", random::token());
         let digest = self.key.digest(&refresh_token);
@@ -274,7 +313,10 @@ impl Auth {
         Ok(admin_user::find(&self.db, user)
             .await?
             .filter(|stored| stored.version == version)
-            .map(|stored| Host::new(&stored.name, stored_role(stored.role.as_deref()))))
+            .map(|stored| Host {
+                in_app: true,
+                ..Host::new(&stored.name, stored_role(stored.role.as_deref()))
+            }))
     }
 
     /// Whether a host the provider vouched for may log in: with a role of their own, or
@@ -428,7 +470,12 @@ pub mod tests {
     /// them, for tests that don't log in through a form.
     pub fn token(config: &AdminConfig, db: PgPool, user: &str, role: Option<Role>) -> String {
         let login = Login::Provider { role };
-        Auth::new(config, true, db).token(Utc::now(), user, login, TOKEN_LIFETIME)
+        Auth::new(config, link_key(), true, db).token(Utc::now(), user, login, TOKEN_LIFETIME)
+    }
+
+    /// The tests' link key, as `config::tests::config` has it.
+    fn link_key() -> LinkKey {
+        LinkKey::from_base64(crate::link::tests::KEY).unwrap()
     }
 
     fn auth() -> Auth {
@@ -436,7 +483,7 @@ pub mod tests {
         let db = PgPoolOptions::new()
             .connect_lazy("postgres://innby@127.0.0.1:1/innby")
             .unwrap();
-        Auth::new(&admin_config(), true, db)
+        Auth::new(&admin_config(), link_key(), true, db)
     }
 
     #[tokio::test]

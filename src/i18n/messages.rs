@@ -471,6 +471,37 @@ pub struct AdminMessages {
     pub error_new_user_name: String,
     pub error_user_taken: String,
     pub error_yourself: String,
+    // A password user's own account, and a new password by mail
+    pub account: String,
+    /// "{name}": their user name.
+    pub account_hint: String,
+    pub email: String,
+    pub email_hint: String,
+    pub save_email: String,
+    pub error_email: String,
+    pub error_email_taken: String,
+    pub current_password: String,
+    pub change_password: String,
+    pub password_hint_self: String,
+    pub error_current_password: String,
+    pub forgot_password: String,
+    pub forgot_title: String,
+    pub forgot_hint: String,
+    pub forgot_field: String,
+    pub forgot_send: String,
+    pub forgot_sent: String,
+    pub too_many_resets: String,
+    pub set_password_title: String,
+    /// "{name}": whose password it is.
+    pub set_password_hint: String,
+    pub password_set_notice: String,
+    pub link_dead: String,
+    /// On the Users tab: what an address does for a user.
+    pub user_email_hint: String,
+    pub send_password_link: String,
+    pub password_link_sent: String,
+    pub error_password_or_email: String,
+    pub no_password_yet: String,
 
     // Languages: which of them the site offers guests, for admins
     pub languages: String,
@@ -608,6 +639,11 @@ pub struct Mails {
     pub reminder: MailText,
     /// The event's start, end or place changed.
     pub event_changed: MailText,
+    /// To a host made in the admin UI: a link to set a new password, which they asked for,
+    /// or a first one, which an admin asked for. `{name}`, `{url}`, and how long it works,
+    /// `{hours}` or `{days}`.
+    pub password_reset: MailText,
+    pub password_set: MailText,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

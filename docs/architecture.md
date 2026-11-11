@@ -292,6 +292,17 @@ allowed.
   their role read on each request, so a new one counts at once, and a new password or
   their deletion logs them out everywhere. An admin can't change or delete themselves
   there.
+  Such a user may have an e-mail address, which an admin sets on the Users tab or they
+  set on their own **Account** page, where they also change their password, giving the
+  current one. With an address, "Forgot your password?" on the login page mails them a
+  link to set a new one, which works for an hour; an admin can make a user with an
+  address and no password, and they're mailed a link to set their first, which works for
+  a week. The link is signed with the link key over the user, their address, their
+  password's version and when it stops, so it works once and not after the address
+  changes; the mailer signs it as the mail goes out, so nothing secret is stored, and
+  it leads to `INNBY_ADMIN_URL`. Asking says the same whether or not there's such a
+  user, and is limited to 5 an hour per address and 50 from all. The config's users
+  and a provider's have no account page and no such link: their logins live elsewhere.
   Ten attempts in 15 minutes from one address lock that address out for the rest of the
   window, and 100 from all addresses together lock everyone out, which bounds guessing
   from many addresses.
@@ -381,8 +392,8 @@ until Innby is live. In short:
 | `event_access` | roles for one event: the name a host logs in with, viewer, organiser or editor |
 | `event_game`, `game_score` | the minigames an event offers, and each guest's best score in each |
 | `board_post`, `board_vote` | the event's message board: each post's text, whose it is (a guest, or a host by login name) and what it answers; each guest's vote on a post, up or down |
-| `outbox` | mail to send: kind, attempts, next try, when sent, last error |
-| `admin_user` | password users an admin makes: name, role, argon2 hash, and a version that a new password bumps |
+| `outbox` | mail to send, to a guest or to a host made in the admin UI (in the language they asked in): kind, attempts, next try, when sent, last error |
+| `admin_user` | password users an admin makes: name, role, argon2 hash (none until they set one from a link), an optional e-mail address, and a version that a new password bumps |
 | `site_languages` | the languages the site offers guests and its default, once an admin has picked: one row |
 | `admin_form_sent` | for a day, the token of each admin form that made something, and where it led, so the same form sent twice makes it once |
 | `admin_refresh_token`, `admin_revoked_jwt` | keyed hashes of refresh tokens, and logged-out JWTs, until they'd expire |

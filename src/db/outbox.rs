@@ -1,8 +1,11 @@
-//! Mail jobs. Whatever causes a mail writes its job in the same transaction, and
-//! `innby mailer` sends them.
+//! Mail jobs, to guests and to hosts made in the admin UI. Whatever causes a mail writes
+//! its job in the same transaction, and `innby mailer` sends them.
 
+use chrono::{DateTime, Utc};
 use sqlx::{PgConnection, PgExecutor};
 use uuid::Uuid;
+
+use crate::i18n::Lang;
 
 /// After this many failed sends a job is left alone; `last_error` says why.
 pub const MAX_ATTEMPTS: i32 = 10;
@@ -19,14 +22,23 @@ pub enum Kind {
     Reminder,
     /// The event's start, end or place changed.
     EventChanged,
+    /// To a host made in the admin UI: a link to set a new password, which they asked
+    /// for on the login page.
+    PasswordReset,
+    /// The same, for a first password, which an admin asked for when making them.
+    PasswordSet,
 }
 
 #[derive(Debug, Clone)]
 pub struct Job {
     pub id: i64,
-    pub rsvp_id: Uuid,
+    /// The guest it's for, or else the host made in the admin UI, in `lang`.
+    pub rsvp_id: Option<Uuid>,
+    pub admin_user: Option<String>,
+    pub lang: Option<Lang>,
     pub kind: Kind,
     pub attempts: i32,
+    pub created_at: DateTime<Utc>,
 }
 
 pub async fn enqueue(db: impl PgExecutor<'_>, rsvp_id: Uuid, kind: Kind) -> sqlx::Result<()> {
@@ -65,6 +77,33 @@ pub async fn enqueue_once(
     Ok(result.rows_affected() == 1)
 }
 
+/// Queues a mail about a host's password, in `lang`, unless the same is still waiting to
+/// go out. Returns whether it queued one.
+pub async fn enqueue_for_host(
+    db: impl PgExecutor<'_>,
+    user: &str,
+    kind: Kind,
+    lang: Lang,
+) -> sqlx::Result<bool> {
+    let result = sqlx::query!(
+        r#"
+        insert into outbox (admin_user, lang, kind)
+        select $1, $3, $2
+        where not exists (
+            select from outbox
+            where admin_user = $1 and kind = $2 and sent_at is null and attempts < $4
+        )
+        "#,
+        user,
+        kind as Kind,
+        lang as Lang,
+        MAX_ATTEMPTS,
+    )
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
+
 /// Drops the guest's unsent mail, e.g. when they remove their address.
 pub async fn cancel_unsent(db: impl PgExecutor<'_>, rsvp_id: Uuid) -> sqlx::Result<u64> {
     let result = sqlx::query!(
@@ -82,7 +121,8 @@ pub async fn claim_due(tx: &mut PgConnection, limit: i64) -> sqlx::Result<Vec<Jo
     sqlx::query_as!(
         Job,
         r#"
-        select id, rsvp_id, kind as "kind: Kind", attempts
+        select id, rsvp_id, admin_user, lang as "lang: Lang", kind as "kind: Kind", attempts,
+            created_at
         from outbox
         where sent_at is null and next_try_at <= now() and attempts < $2
         order by id

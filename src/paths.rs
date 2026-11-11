@@ -93,6 +93,12 @@ pub const LOGIN: &str = "/login";
 pub const LOGIN_OIDC: &str = "/login/oidc";
 pub const LOGIN_OIDC_CALLBACK: &str = crate::config::OIDC_CALLBACK;
 pub const LOGOUT: &str = "/logout";
+/// Asking for a link to set a new password, and the link, under the user's name.
+pub const LOGIN_FORGOT: &str = "/login/forgot";
+pub const PASSWORD: &str = "/password/{user}/{token}";
+/// A password user's own page: their address and password.
+pub const ACCOUNT: &str = "/account";
+pub const ACCOUNT_PASSWORD: &str = "/account/password";
 
 /// A pattern with its one parameter filled in: `path(RSVP, link)` is `/r/{link}`.
 pub fn path(pattern: &str, value: impl Display) -> String {

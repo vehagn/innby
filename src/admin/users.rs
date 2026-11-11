@@ -1,8 +1,10 @@
 //! The Users tab, for admins: the password users the admin UI makes, beside the config's,
 //! which it shows but can't change. An admin gives each a role, or none, and a first
-//! password, and later a new role, a new password, or deletes them; a new password or a
-//! deletion logs them out everywhere (see `auth`). An admin can't change or delete
-//! themselves here, so they can't lock themselves out.
+//! password, or an e-mail address to mail them a link to set one themselves (see
+//! `auth::reset`); later a new role, address or password, a link to set one, or deletes
+//! them. A new password or a deletion logs them out everywhere (see `auth`). An admin
+//! can't change or delete themselves here, so they can't lock themselves out; they have
+//! their account page.
 
 use askama::Template;
 use axum::{
@@ -20,7 +22,11 @@ use super::{
 };
 use crate::{
     config::{MAX_USER_LEN, valid_user_name},
-    db::admin_user::{self, AdminUser},
+    db::{
+        admin_user::{self, AdminUser, Taken},
+        outbox,
+        rsvp::normalize_email,
+    },
     http::{render_form, server_error},
     i18n::{fill, filled},
     paths,
@@ -37,6 +43,9 @@ pub(super) struct UserRow {
     pub(super) name: String,
     pub(super) role: &'static str,
     pub(super) path: String,
+    pub(super) email: Option<String>,
+    /// Whether they have a password yet.
+    pub(super) password: bool,
 }
 
 impl UserRow {
@@ -45,6 +54,16 @@ impl UserRow {
             name: name.to_owned(),
             role: role.map_or("none", Role::name),
             path: paths::admin(&paths::path(paths::USER, name)),
+            email: None,
+            password: true,
+        }
+    }
+
+    fn stored(user: &AdminUser) -> Self {
+        Self {
+            email: user.email.clone(),
+            password: user.password_hash.is_some(),
+            ..Self::new(&user.name, stored_role(user))
         }
     }
 }
@@ -87,6 +106,7 @@ struct UsersPage {
     from_config: Vec<UserRow>,
     /// The new user's form, kept when it needs fixing.
     name: String,
+    email: String,
     roles: Vec<RoleChoice>,
     notice: Option<String>,
     error: Option<String>,
@@ -101,10 +121,7 @@ async fn users_page(
     let users = admin_user::list(&state.db).await?;
     let needs_fixing = error.is_some();
     let page = UsersPage {
-        users: users
-            .iter()
-            .map(|user| UserRow::new(&user.name, stored_role(user)))
-            .collect(),
+        users: users.iter().map(UserRow::stored).collect(),
         from_config: state
             .auth
             .config_users()
@@ -113,6 +130,7 @@ async fn users_page(
             .collect(),
         roles: role_choices(&form.role),
         name: form.name,
+        email: form.email,
         notice,
         error,
     };
@@ -129,6 +147,18 @@ pub(super) struct NewUser {
     role: String,
     #[serde(default)]
     password: String,
+    #[serde(default)]
+    email: String,
+}
+
+/// An address as a form sends it: none if it's empty, or what's wrong with it.
+fn email_from(typed: &str) -> Result<Option<String>, String> {
+    match typed.trim() {
+        "" => Ok(None),
+        typed => normalize_email(typed)
+            .map(Some)
+            .ok_or_else(|| lang::text().error_email.clone()),
+    }
 }
 
 /// The role as stored, or what's wrong with it.
@@ -141,7 +171,7 @@ fn role_from(form: &str) -> Result<Option<&'static str>, String> {
     }
 }
 
-fn check_password(password: &str) -> Result<(), String> {
+pub(super) fn check_password(password: &str) -> Result<(), String> {
     if PASSWORD_LEN.contains(&password.chars().count()) {
         Ok(())
     } else {
@@ -162,12 +192,14 @@ pub(super) async fn list(
         name: String::new(),
         role: "editor".into(),
         password: String::new(),
+        email: String::new(),
     };
     let notice = query.saved.map(|_| lang::text().saved.clone());
     users_page(&state, blank, notice, None).await
 }
 
-/// Makes a user, with a role and a first password.
+/// Makes a user, with a role, and a first password or an address to mail them a link to
+/// set one, or both.
 pub(super) async fn create(
     State(state): State<AdminState>,
     Form(form): Form<NewUser>,
@@ -184,20 +216,41 @@ pub(super) async fn create(
     {
         Err(filled(&text.error_user_taken, "name", &name))
     } else {
-        role_from(&form.role).and_then(|role| check_password(&form.password).map(|()| role))
+        role_from(&form.role).and_then(|role| {
+            let email = email_from(&form.email)?;
+            match (form.password.is_empty(), &email) {
+                (true, None) => Err(text.error_password_or_email.clone()),
+                (true, Some(_)) => Ok((role, email)),
+                (false, _) => check_password(&form.password).map(|()| (role, email)),
+            }
+        })
     };
-    let role = match checked {
-        Ok(role) => role,
+    let (role, email) = match checked {
+        Ok(checked) => checked,
         Err(error) => return users_page(&state, form, None, Some(error)).await,
     };
-    let hash = match state.auth.hash(form.password.clone()).await {
-        Ok(hash) => hash,
-        Err(err) => return Ok(server_error(err)),
+    let hash = match form.password.is_empty() {
+        true => None,
+        false => match state.auth.hash(form.password.clone()).await {
+            Ok(hash) => Some(hash),
+            Err(err) => return Ok(server_error(err)),
+        },
     };
-    if !admin_user::create(&state.db, &name, role, &hash).await? {
-        let error = filled(&text.error_user_taken, "name", &name);
+    let mut tx = state.db.begin().await?;
+    let made = admin_user::create(&mut *tx, &name, role, hash.as_deref(), email.as_deref()).await?;
+    if let Err(taken) = made {
+        let error = match taken {
+            Taken::Name => filled(&text.error_user_taken, "name", &name),
+            Taken::Email => text.error_email_taken.clone(),
+        };
         return users_page(&state, form, None, Some(error)).await;
     }
+    // Without a password, a link to set one, in the language they were made in.
+    if hash.is_none() {
+        outbox::enqueue_for_host(&mut *tx, &name, outbox::Kind::PasswordSet, lang::current())
+            .await?;
+    }
+    tx.commit().await?;
     tracing::info!("admin user created");
     Ok(saved(paths::USER, &name))
 }
@@ -229,7 +282,7 @@ async fn user_page(
         .await?
         .ok_or(PageError::Missing)?;
     let needs_fixing = error.is_some();
-    let row = UserRow::new(&user.name, stored_role(&user));
+    let row = UserRow::stored(&user);
     let page = UserPage {
         roles: role_choices(row.role),
         user: row,
@@ -253,11 +306,14 @@ pub(super) async fn show(
     user_page(&state, &name, notice, None).await
 }
 
-/// A user's new role, or new password: whichever the form sends.
+/// A user's new role, new password or new address, or a link to set a password:
+/// whichever the form sends.
 #[derive(Deserialize)]
 pub(super) struct EditUser {
     role: Option<String>,
     password: Option<String>,
+    email: Option<String>,
+    send_link: Option<String>,
 }
 
 pub(super) async fn edit(
@@ -268,6 +324,39 @@ pub(super) async fn edit(
     if *Host::current().user == name {
         let error = lang::text().error_yourself.clone();
         return user_page(&state, &name, None, Some(error)).await;
+    }
+    if let Some(typed) = form.email {
+        let email = match email_from(&typed) {
+            Ok(email) => email,
+            Err(error) => return user_page(&state, &name, None, Some(error)).await,
+        };
+        return match admin_user::set_email(&state.db, &name, email.as_deref()).await? {
+            Ok(true) => {
+                tracing::info!("admin user's address changed");
+                Ok(saved(paths::USER, &name))
+            }
+            Ok(false) => Err(PageError::Missing),
+            Err(_) => {
+                let error = lang::text().error_email_taken.clone();
+                user_page(&state, &name, None, Some(error)).await
+            }
+        };
+    }
+    if form.send_link.is_some() {
+        let user = admin_user::find(&state.db, &name)
+            .await?
+            .ok_or(PageError::Missing)?;
+        // A first password's link works for longer.
+        let kind = match user.password_hash {
+            Some(_) => outbox::Kind::PasswordReset,
+            None => outbox::Kind::PasswordSet,
+        };
+        if user.email.is_some() {
+            outbox::enqueue_for_host(&state.db, &name, kind, lang::current()).await?;
+            tracing::info!("password link sent for an admin user");
+        }
+        let notice = Some(lang::text().password_link_sent.clone());
+        return user_page(&state, &name, notice, None).await;
     }
     let changed = match (form.role, form.password) {
         (Some(role), _) => match role_from(&role) {

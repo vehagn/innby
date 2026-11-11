@@ -135,6 +135,47 @@ impl LinkKey {
         )
     }
 
+    /// The last path segment of a link to set a host's password: `{expires}.{tag}`, under
+    /// their user name. It signs their address and their password's version too, so it
+    /// works once, and stops if the address changes.
+    pub fn password_link(
+        &self,
+        user: &str,
+        email: &str,
+        version: i32,
+        expires: DateTime<Utc>,
+    ) -> String {
+        let expires = expires.timestamp();
+        let mac = self.password_mac(user, email, version, expires);
+        format!("{expires}.{}", encode_tag(mac))
+    }
+
+    /// Checks a password link's tag against the host as they are now. Expiry is the
+    /// caller's check.
+    pub fn verify_password(
+        &self,
+        link: &PasswordLink,
+        user: &str,
+        email: &str,
+        version: i32,
+    ) -> bool {
+        self.password_mac(user, email, version, link.expires.timestamp())
+            .verify_truncated_left(&link.tag)
+            .is_ok()
+    }
+
+    fn password_mac(&self, user: &str, email: &str, version: i32, expires: i64) -> Hmac<Sha256> {
+        self.mac(
+            "password",
+            &[
+                user.as_bytes(),
+                email.as_bytes(),
+                &version.to_be_bytes(),
+                &expires.to_be_bytes(),
+            ],
+        )
+    }
+
     /// Checks the tag against the guest's current address. Expiry is the caller's check.
     pub fn verify_email(&self, link: &EmailLink, email: &str) -> bool {
         self.email_mac(link.id, email, link.expires.timestamp())
@@ -211,6 +252,25 @@ impl FromStr for EmailLink {
         };
         Ok(Self {
             id: decode_id(id)?,
+            expires: DateTime::from_timestamp(expires.parse().map_err(drop)?, 0).ok_or(())?,
+            tag: decode_tag(tag)?,
+        })
+    }
+}
+
+/// What a link to set a host's password says: when it stops working, and its tag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PasswordLink {
+    pub expires: DateTime<Utc>,
+    tag: [u8; TAG_LEN],
+}
+
+impl FromStr for PasswordLink {
+    type Err = ();
+
+    fn from_str(link: &str) -> Result<Self, ()> {
+        let (expires, tag) = link.split_once('.').ok_or(())?;
+        Ok(Self {
             expires: DateTime::from_timestamp(expires.parse().map_err(drop)?, 0).ok_or(())?,
             tag: decode_tag(tag)?,
         })
@@ -352,5 +412,19 @@ pub mod tests {
     fn rejects_short_or_invalid_keys() {
         assert!(LinkKey::from_base64(&STANDARD.encode([1u8; 16])).is_err());
         assert!(LinkKey::from_base64("not base64!").is_err());
+    }
+
+    #[test]
+    fn a_password_link_works_once_and_for_one_address() {
+        let expires = Utc::now();
+        let link = key().password_link("kari", "kari@example.com", 3, expires);
+        let parsed: PasswordLink = link.parse().unwrap();
+        assert_eq!(parsed.expires.timestamp(), expires.timestamp());
+        assert!(key().verify_password(&parsed, "kari", "kari@example.com", 3));
+        // Not once the password changes, nor for another address or user.
+        assert!(!key().verify_password(&parsed, "kari", "kari@example.com", 4));
+        assert!(!key().verify_password(&parsed, "kari", "ola@example.com", 3));
+        assert!(!key().verify_password(&parsed, "ola", "kari@example.com", 3));
+        assert!("123".parse::<PasswordLink>().is_err());
     }
 }

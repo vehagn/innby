@@ -80,7 +80,9 @@ src/
     role.rs          viewer < organiser < editor < creator < admin, and the role a request
                      has for its event
     lang.rs          the admin page's language
-    auth/            logging in: sessions (mod.rs), login.rs, password.rs (argon2), jwt.rs
+    account.rs       a password user's own page: their address and password
+    auth/            logging in: sessions (mod.rs), login.rs, password.rs (argon2), jwt.rs,
+                     reset.rs (a new password by a mailed link)
       oidc/          single sign-on: routes.rs, provider.rs, jws.rs (ID tokens), http.rs, fake.rs (tests)
     cli.rs           the host's commands: `innby invite`, `innby event list|export|import`
     testing.rs       a logged-in test host of any role

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select name, role, password_hash, version, created_at from admin_user order by name",
+  "query": "select name, role, password_hash, version, created_at, email from admin_user\n         where name = $1 or email = lower($1)\n         order by name = $1 desc limit 1",
   "describe": {
     "columns": [
       {
@@ -57,18 +57,32 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 5,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "admin_user",
+            "name": "email"
+          }
+        }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Text"
+      ]
     },
     "nullable": [
       false,
       true,
+      true,
       false,
       false,
-      false
+      true
     ]
   },
-  "hash": "4f3e8eec5e1763e29e4dfe9b6baa81e40b7d9c3c1a9ec09c2ec271a20447c19b"
+  "hash": "a580bcb964e8b378bd96f86509d6051c5d3e34a695db50da96493c7d25d53735"
 }

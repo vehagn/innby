@@ -126,7 +126,9 @@ async fn sends_confirmation_with_a_working_link(db: PgPool) {
 
     let sender = Outbox::default();
     assert_eq!(
-        process_batch(&config, &from(), &db, &sender).await.unwrap(),
+        process_batch(&config, &from(), None, &db, &sender)
+            .await
+            .unwrap(),
         1
     );
     assert_eq!(unsent(&db).await, 0);
@@ -168,7 +170,9 @@ async fn drops_mail_for_a_removed_or_unconfirmed_address(db: PgPool) {
 
     let sender = Outbox::default();
     assert_eq!(
-        process_batch(&config, &from(), &db, &sender).await.unwrap(),
+        process_batch(&config, &from(), None, &db, &sender)
+            .await
+            .unwrap(),
         2
     );
     assert!(sender.mails().is_empty());
@@ -190,7 +194,9 @@ async fn sends_link_and_reminder_in_the_guests_language(db: PgPool) {
         .unwrap();
 
     let sender = Outbox::default();
-    process_batch(&config, &from(), &db, &sender).await.unwrap();
+    process_batch(&config, &from(), None, &db, &sender)
+        .await
+        .unwrap();
     let mails = sender.mails();
     assert_eq!(mails.len(), 2);
     let link = config
@@ -220,7 +226,7 @@ async fn failed_sends_are_retried_later(db: PgPool) {
         ..Outbox::default()
     };
     assert_eq!(
-        process_batch(&config, &from(), &db, &failing)
+        process_batch(&config, &from(), None, &db, &failing)
             .await
             .unwrap(),
         1
@@ -236,7 +242,7 @@ async fn failed_sends_are_retried_later(db: PgPool) {
     );
     // Not due again yet.
     assert_eq!(
-        process_batch(&config, &from(), &db, &Outbox::default())
+        process_batch(&config, &from(), None, &db, &Outbox::default())
             .await
             .unwrap(),
         0

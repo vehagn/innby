@@ -492,6 +492,34 @@ error_new_user_name = "Et brukernavn har høyst {max} tegn: bokstavene a til z, 
 error_user_taken = "Det finnes alt en bruker {name}."
 error_yourself = "Du kan ikke endre eller slette din egen bruker her, så du ikke stenger deg selv ute."
 
+account = "Konto"
+account_hint = "Du logger inn som {name}."
+email = "E-postadresse"
+email_hint = "For en lenke til å sette nytt passord, om du skulle glemme ditt. La den stå tom for å ikke ha noen."
+save_email = "Lagre adressen"
+error_email = "Det er ikke en e-postadresse."
+error_email_taken = "En annen bruker har den adressen."
+current_password = "Nåværende passord"
+change_password = "Bytt passord"
+password_hint_self = "Minst 10 tegn. Det logger deg ut alle andre steder."
+error_current_password = "Det er ikke det nåværende passordet ditt."
+forgot_password = "Glemt passordet?"
+forgot_title = "Nytt passord"
+forgot_hint = "Skriv brukernavnet eller e-postadressen din. Har du en adresse hos oss, sender vi deg en lenke til å sette nytt passord, som virker i en time."
+forgot_field = "Brukernavn eller e-postadresse"
+forgot_send = "Send lenken"
+forgot_sent = "Er det en bruker med e-postadresse, er lenken på vei. Se i innboksen, og i søppelposten."
+too_many_resets = "Det er bedt om mange lenker. Prøv igjen om en stund."
+set_password_title = "Sett passordet ditt"
+set_password_hint = "For {name}. Minst 10 tegn; å sette det logger deg ut alle andre steder."
+password_set_notice = "Passordet er satt. Logg inn med det."
+link_dead = "Denne lenken virker ikke: den er brukt, den er for gammel, eller adressen er endret. Be om en ny."
+user_email_hint = "Med en adresse kan de få tilsendt en lenke til å sette nytt passord. Lager du dem med adresse og uten passord, får de en lenke til å sette det selv, som virker i en uke."
+send_password_link = "Send dem en lenke til å sette passord"
+password_link_sent = "Lenken er på vei til adressen deres."
+error_password_or_email = "Gi dem et passord, eller en adresse å sende en lenke til å sette det."
+no_password_yet = "Ikke passord ennå"
+
 # Languages: which of them the site offers guests, for admins.
 languages = "Språk"
 languages_hint = "Språkene gjestene kan lese nettstedet på, av dem Innby har en fil for. Et arrangement kan snevre dem inn, under På andre språk i fanen Detaljer. Disse sidene, administrasjonssidene, finnes på alle språk."
@@ -651,3 +679,28 @@ Hei, {name}!
 Svaret ditt: {answer}. Endre det her om du må:
 
 {url}"""
+
+[mail.password_reset]
+subject = "Nytt passord til Innby"
+body = """
+Hei, {name}!
+
+Noen, kanskje du, har bedt om nytt passord til innloggingen din i Innby. Åpne lenken \
+for å sette et; den virker i {hours} time og bare én gang:
+
+{url}
+
+Var det ikke deg, kan du se bort fra denne e-posten; passordet ditt er som før."""
+
+[mail.password_set]
+subject = "Innloggingen din i Innby"
+body = """
+Hei, {name}!
+
+En administrator har laget en innlogging til deg i Innby, vertenes side av \
+svarsiden, som {name}. Åpne lenken for å sette passordet ditt; den virker i {days} \
+dager og bare én gang:
+
+{url}
+
+Ventet du ikke dette, kan du se bort fra denne e-posten."""

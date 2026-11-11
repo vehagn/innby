@@ -443,6 +443,34 @@ error_new_user_name = "用户名最多 {max} 个字符：字母 a 到 z、数字
 error_user_taken = "已经有用户 {name}。"
 error_yourself = "你不能在这里修改或删除自己的用户，以免把自己锁在外面。"
 
+account = "账户"
+account_hint = "你以 {name} 登录。"
+email = "电子邮件地址"
+email_hint = "用于在你忘记密码时收到设置新密码的链接。留空则不设地址。"
+save_email = "保存地址"
+error_email = "这不是电子邮件地址。"
+error_email_taken = "另一位用户已经使用这个地址。"
+current_password = "当前密码"
+change_password = "更改密码"
+password_hint_self = "至少 10 个字符。更改后你会在其他所有地方退出登录。"
+error_current_password = "这不是你的当前密码。"
+forgot_password = "忘记密码？"
+forgot_title = "设置新密码"
+forgot_hint = "输入你的用户名或电子邮件地址。如果你在这里留有地址，我们会发给你一个设置新密码的链接，有效期一小时。"
+forgot_field = "用户名或电子邮件地址"
+forgot_send = "发送链接"
+forgot_sent = "如果这是一位留有电子邮件地址的用户，链接已在路上。请查看收件箱和垃圾邮件。"
+too_many_resets = "请求的链接太多了。请稍后再试。"
+set_password_title = "设置你的密码"
+set_password_hint = "为 {name} 设置。至少 10 个字符；设置后你会在其他所有地方退出登录。"
+password_set_notice = "密码已设置。请用它登录。"
+link_dead = "这个链接无效：它已被使用、已过期，或地址已更改。请重新申请一个。"
+user_email_hint = "有了地址，他们就能收到设置新密码的链接。创建用户时只填地址、不填密码，他们会收到一个自己设置密码的链接，有效期一周。"
+send_password_link = "给他们发送设置密码的链接"
+password_link_sent = "链接已发往他们的地址。"
+error_password_or_email = "请给他们一个密码，或一个用来接收设置密码链接的地址。"
+no_password_yet = "尚未设置密码"
+
 # Languages: which of them the site offers guests, for admins.
 languages = "语言"
 languages_hint = "宾客可以用哪些语言阅读本网站（限于 Innby 已有语言文件的语言）。每个活动还可以在“详情”标签页的“其他语言”中进一步限定。管理页面始终提供所有语言。"
@@ -599,3 +627,25 @@ body = """
 你的回复：{answer}。如需修改，请点这里：
 
 {url}"""
+
+[mail.password_reset]
+subject = "Innby 的新密码"
+body = """
+{name}，你好：
+
+有人（也许是你）为你的 Innby 登录申请了新密码。打开链接来设置新密码；链接在 {hours} 小时内有效，只能使用一次：
+
+{url}
+
+如果不是你本人申请，请忽略这封邮件；你的密码保持不变。"""
+
+[mail.password_set]
+subject = "你的 Innby 登录"
+body = """
+{name}，你好：
+
+管理员为你创建了一个 Innby 登录（主人使用的回复网站后台），用户名为 {name}。打开链接来设置你的密码；链接在 {days} 天内有效，只能使用一次：
+
+{url}
+
+如果你没有预料到这封邮件，请忽略它。"""

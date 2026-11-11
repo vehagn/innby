@@ -215,7 +215,7 @@ impl World {
     /// Runs the mailer until nothing is due, as its loop would.
     pub async fn deliver_mail(&self) {
         let from: Mailbox = "Julebord <fest@example.com>".parse().unwrap();
-        while mailer::process_batch(&self.config, &from, &self.db, &self.sent)
+        while mailer::process_batch(&self.config, &from, Some(ADMIN), &self.db, &self.sent)
             .await
             .unwrap()
             > 0

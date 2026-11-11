@@ -7,6 +7,7 @@
 {% block content %}
 {% let a = crate::admin::lang::text() %}
 {% if logged_out %}<p class="notice success" role="status">{{ a.logged_out }}</p>{% endif %}
+{% if password_set %}<p class="notice success" role="status">{{ a.password_set_notice }}</p>{% endif %}
 <h1>{{ a.log_in }}</h1>
 {% if let Some(name) = oidc %}
 <p><a class="button" href="{{ crate::paths::admin(crate::paths::LOGIN_OIDC) }}">{{ crate::i18n::filled(a.log_in_with, "name", name) }}</a></p>
@@ -20,5 +21,6 @@
   <input id="password" name="password" type="password" required autocomplete="current-password"{% if !user.is_empty() %} autofocus{% endif %}>
   <button>{{ a.log_in }}</button>
 </form>
+<p class="small"><a href="{{ crate::paths::admin(crate::paths::LOGIN_FORGOT) }}">{{ a.forgot_password }}</a></p>
 {% endif %}
 {% endblock %}

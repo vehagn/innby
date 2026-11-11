@@ -1,5 +1,5 @@
-//! `innby mailer`: sends the mail jobs in the outbox. The only workload with SMTP
-//! credentials and a way out to the internet.
+//! `innby mailer`: sends the mail jobs in the outbox, to guests and to hosts made in the
+//! admin UI. The only workload with SMTP credentials and a way out to the internet.
 
 pub mod compose;
 
@@ -17,7 +17,7 @@ use sqlx::PgPool;
 
 use crate::{
     config::{Config, MailConfig},
-    db::{event, outbox, rsvp},
+    db::{admin_user, event, outbox, rsvp},
     metrics::MAILS,
 };
 
@@ -83,7 +83,7 @@ pub async fn run(config: Config, mail: MailConfig, db: PgPool) -> Result<()> {
         }
         // Keep going while there are full batches; errors wait for the next tick.
         loop {
-            match process_batch(&config, &mail.from, &db, &smtp).await {
+            match process_batch(&config, &mail.from, mail.admin_url.as_deref(), &db, &smtp).await {
                 Ok(sent) if sent == BATCH_SIZE as usize => continue,
                 Ok(_) => break,
                 Err(err) => {
@@ -96,17 +96,27 @@ pub async fn run(config: Config, mail: MailConfig, db: PgPool) -> Result<()> {
 }
 
 /// Sends one batch of due mail and returns how many jobs it handled.
+/// `admin_url` is where hosts' links to set their password lead (`MailConfig`).
 pub async fn process_batch(
     config: &Config,
     from: &Mailbox,
+    admin_url: Option<&str>,
     db: &PgPool,
     sender: &impl Sender,
 ) -> Result<usize> {
     let mut tx = db.begin().await?;
     let jobs = outbox::claim_due(&mut tx, BATCH_SIZE).await?;
     for job in &jobs {
+        if let (Some(user), Some(lang)) = (&job.admin_user, job.lang) {
+            let host = HostJob { job, user, lang };
+            send_to_host(config, from, admin_url, &mut tx, sender, host).await?;
+            continue;
+        }
+        let Some(rsvp_id) = job.rsvp_id else {
+            continue;
+        };
         // The foreign key cascades, so the guest is still there.
-        let Some(guest) = rsvp::find(&mut *tx, job.rsvp_id).await? else {
+        let Some(guest) = rsvp::find(&mut *tx, rsvp_id).await? else {
             continue;
         };
         // The event cascades too.
@@ -139,6 +149,52 @@ pub async fn process_batch(
     }
     tx.commit().await?;
     Ok(jobs.len())
+}
+
+/// A job for a host made in the admin UI: whose, and in what language.
+struct HostJob<'a> {
+    job: &'a outbox::Job,
+    user: &'a str,
+    lang: crate::i18n::Lang,
+}
+
+/// Sends a host the link to set their password, in the batch's transaction. Their
+/// address goes in no log, as a guest's doesn't.
+async fn send_to_host(
+    config: &Config,
+    from: &Mailbox,
+    admin_url: Option<&str>,
+    tx: &mut sqlx::PgConnection,
+    sender: &impl Sender,
+    HostJob { job, user, lang }: HostJob<'_>,
+) -> Result<()> {
+    // The foreign key cascades, so the host is still there.
+    let Some(host) = admin_user::find(&mut *tx, user).await? else {
+        return Ok(());
+    };
+    let composed =
+        compose::compose_for_host(config, admin_url, job.kind, &host, lang, job.created_at);
+    let mail = match composed {
+        Ok(mail) => mail,
+        Err(reason) => {
+            tracing::info!(job = job.id, kind = ?job.kind, reason, "mail dropped");
+            MAILS.inc(&[("outcome", "dropped".into())]);
+            return Ok(outbox::mark_done(tx, job.id, Some(reason)).await?);
+        }
+    };
+    match sender.send(from, mail).await {
+        Ok(()) => {
+            tracing::info!(job = job.id, user, kind = ?job.kind, "mail sent");
+            MAILS.inc(&[("outcome", "sent".into())]);
+            outbox::mark_done(tx, job.id, None).await?;
+        }
+        Err(err) => {
+            tracing::warn!(job = job.id, user, kind = ?job.kind, attempt = job.attempts + 1, "mail failed, see outbox.last_error");
+            MAILS.inc(&[("outcome", "failed".into())]);
+            outbox::mark_failed(tx, job.id, &format!("{err:#}")).await?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
