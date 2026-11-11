@@ -170,7 +170,7 @@ async fn a_remembered_device_finds_the_way_back(db: PgPool) {
 async fn the_host_asks_a_question_and_sees_what_guests_pick(db: PgPool) {
     let world = World::new(db);
     let (t, a) = (en(), admin());
-    let english = "English (Traditional)";
+    let english = "English";
 
     // The host asks what each guest brings, in the event's Bokmål and in English.
     let mut host = world.host().await;

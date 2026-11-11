@@ -51,8 +51,10 @@ pub(super) struct Language {
 pub(super) struct Registry {
     /// By `Lang`'s index.
     languages: Vec<Language>,
-    /// As the language menu lists them: the base first, then by their own names.
+    /// As the language menu lists them: by their own names.
     pub order: Vec<Lang>,
+    /// The one that falls back to nothing, and so has every text.
+    pub base: Lang,
 }
 
 static REGISTRY: LazyLock<Registry> =
@@ -100,8 +102,12 @@ impl Registry {
             base.code()
         );
         let mut order = every;
-        order.sort_by_key(|lang| (*lang != base, languages[usize::from(lang.0)].name.clone()));
-        Self { languages, order }
+        order.sort_by_key(|lang| languages[usize::from(lang.0)].name.clone());
+        Self {
+            languages,
+            order,
+            base,
+        }
     }
 }
 
@@ -233,30 +239,30 @@ mod tests {
         let nb = &of(Lang::NB).messages;
         assert_eq!(nn.messages.greeting, "Hei, {name}!");
         assert_eq!(nn.messages.admin.log_in, "Logg inn");
-        // From the base, Bokmål: a text, an admin text, and a mail.
+        // From Bokmål, its fallback: a text, an admin text, and a mail.
         assert_eq!(nn.messages.when, nb.when);
         assert_eq!(nn.messages.admin.log_out, nb.admin.log_out);
         assert_eq!(nn.messages.mail.reminder.subject, nb.mail.reminder.subject);
-        assert_eq!(nn.fallbacks, [Lang::NB]);
+        // And from there on to English, the base.
+        assert_eq!(nn.fallbacks, [Lang::NB, Lang::EN]);
     }
 
     #[test]
     fn fallbacks_follow_each_language_in_turn() {
         let fallbacks = |lang: Lang| of(lang).fallbacks.clone();
-        assert_eq!(fallbacks(Lang::NB), []);
-        assert_eq!(fallbacks(Lang::EN_US), [Lang::EN, Lang::NB]);
-        assert_eq!(
-            fallbacks(Lang::ZH_HANT),
-            [Lang::ZH_HANS, Lang::EN, Lang::NB]
-        );
+        assert_eq!(fallbacks(Lang::EN), []);
+        assert_eq!(fallbacks(Lang::EN_GB), [Lang::EN]);
+        assert_eq!(fallbacks(Lang::NN), [Lang::NB, Lang::EN]);
+        assert_eq!(fallbacks(Lang::ZH_HANT), [Lang::ZH_HANS, Lang::EN]);
+        assert_eq!(registry().base, Lang::EN);
     }
 
     #[test]
     #[should_panic(expected = "falls back to itself: nb → nn → nb")]
     fn a_language_cannot_fall_back_to_itself() {
         let nb = Lang::NB.file().replacen(
-            "language.serves",
-            "language.fallback = [\"nn\"]\nlanguage.serves",
+            "language.fallback = [\"en\"]",
+            "language.fallback = [\"nn\"]",
             1,
         );
         Language::load(
@@ -275,7 +281,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "missing field `greeting`")]
     fn the_base_must_have_every_text() {
-        let nb = Lang::NB.file().replace("\ngreeting = ", "\n# greeting = ");
-        Language::load(Lang::NB, &files(&[(Lang::NB, nb)]));
+        let en = Lang::EN.file().replace("\ngreeting = ", "\n# greeting = ");
+        Language::load(Lang::EN, &files(&[(Lang::EN, en)]));
     }
 }

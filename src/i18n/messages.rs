@@ -588,8 +588,8 @@ mod tests {
             .collect()
     }
 
-    /// Every text of `lang` next to the Bokmål one, as `(key, bokmål, text)`.
-    fn next_to_bokmal(lang: Lang) -> Vec<(String, String, String)> {
+    /// Every text of `lang` next to the base language's, as `(key, base, text)`.
+    fn next_to_base(lang: Lang) -> Vec<(String, String, String)> {
         fn walk(path: String, nb: &Value, other: &Value, out: &mut Vec<(String, String, String)>) {
             match (nb, other) {
                 (Value::Object(nb), Value::Object(other)) => {
@@ -604,7 +604,7 @@ mod tests {
             }
         }
         let [nb, other] =
-            [Lang::NB, lang].map(|lang| serde_json::to_value(lang.messages()).unwrap());
+            [Lang::base(), lang].map(|lang| serde_json::to_value(lang.messages()).unwrap());
         let mut out = Vec::new();
         walk(String::new(), &nb, &other, &mut out);
         out
@@ -613,10 +613,10 @@ mod tests {
     #[test]
     fn languages_use_the_same_placeholders() {
         for &lang in Lang::all() {
-            let texts = next_to_bokmal(lang);
+            let texts = next_to_base(lang);
             assert!(texts.len() > 90, "{}", texts.len());
-            for (key, nb, text) in texts {
-                assert_eq!(placeholders(&nb), placeholders(&text), "{lang:?} {key}");
+            for (key, base, text) in texts {
+                assert_eq!(placeholders(&base), placeholders(&text), "{lang:?} {key}");
             }
         }
     }
@@ -625,12 +625,15 @@ mod tests {
     fn counts_people() {
         let [nb, nn, en, us, zh] =
             [Lang::NB, Lang::NN, Lang::EN, Lang::EN_US, Lang::ZH_HANS].map(Lang::messages);
-        assert_eq!(en.people_count(1), "1 guest");
+        let gb = Lang::EN_GB.messages();
+        assert_eq!(en.people_count(1), "1 person");
+        assert_eq!(gb.people_count(1), "1 guest");
         assert_eq!(nb.people_count(3), "3 personer");
         assert_eq!(nn.people_count(3), "3 personar");
         assert_eq!(us.people_count(2), "2 people");
         assert_eq!(zh.answer(Response::Attending, 3), "参加 · 3 人");
-        assert_eq!(en.answer(Response::Attending, 2), "Attending · 2 guests");
+        assert_eq!(en.answer(Response::Attending, 2), "Coming · 2 people");
+        assert_eq!(gb.answer(Response::Attending, 2), "Attending · 2 guests");
         assert_eq!(us.answer(Response::Attending, 2), "Going · 2 people");
         assert_eq!(nb.answer(Response::Declined, 2), "Kommer ikke");
         assert_eq!(en.more_guests(3), "+ 3 more");

@@ -1,6 +1,8 @@
-# American English, the "simplified" variant: short and plain.
-# A text left out here comes from the `fallback` languages, in order, and from theirs
-# in turn; a text Bokmål doesn't have is refused.
+# American English, the "simplified" variant, short and plain: only the texts it says
+# differently from plain English.
+# A language is a module: it needs only the texts it has, and one left out here comes
+# from the `fallback` languages, in order, and from theirs in turn, down to English,
+# the base. A text English doesn't have is refused.
 # `{name}` and the like are filled in; keep them as they are.
 
 # What the language is: its own name on the language switch, its tag for <html lang>,
@@ -14,14 +16,9 @@ language.locale = "en_US"
 language.serves = ["en-us"]
 language.fallback = ["en"]
 
-# What the language switch is, for screen readers.
-languages = "Languages"
 # The colour scheme switch, and its three choices.
 theme = "Colors"
 theme_auto = "Auto"
-theme_light = "Light"
-theme_dark = "Dark"
-privacy_link = "Privacy"
 
 # Event
 # `chrono` format for dates and times: "Sat, Dec 12, 2026, 7:00 PM".
@@ -29,12 +26,9 @@ date_format = "%a, %b %-d, %Y, %-I:%M %p"
 # The same for a time alone, when an event ends on the day it starts.
 time_format = "%-I:%M %p"
 when_until = "{start} – {end}"
-when = "When"
-place = "Where"
 # The front page, which is about Innby rather than any one event.
 site_intro = "Innby is where you RSVP: say if you're going and how many are coming. No account needed, and it's all deleted 30 days after the event."
 your_invitations = "Your invites"
-past_invitations = "Past events"
 rsvp_hint = "Got an invite? Use your link to RSVP."
 
 # RSVP page
@@ -47,54 +41,31 @@ guest list. You can change that."""
 keep_link = "This is your page. Keep the link to change your answer. Don't share it."
 # The tabs of a guest's pages, and what the bar is called for screen readers.
 tab_reply = "Your RSVP"
-tab_guests = "Guest list"
 tab_you = "Your info"
 tabs_label = "Your invite"
-device_heading = "This device"
 changed_notice = "The time or place changed after you RSVPed. Check it above, and change your answer if you need to."
-# The empty pick for the host's question.
-choice_none = "No answer"
 # The event for the guest's own calendar, once they're coming: a button and a hint.
 calendar_hint = "A file with the time and place for your phone or computer calendar. If plans change, add it again."
-add_to_calendar = "Add to calendar"
 saved = "Saved!"
-your_answer = "Your answer: {answer}"
-answer_pending = "No answer yet"
 answer_attending = "Going"
 answer_declined = "Not going"
 how_many = "How many?"
-people_one = "{n} person"
-people_other = "{n} people"
 attend = "I'm going"
 decline = "Can't go"
 reply_by = "RSVP by {deadline}"
 answers_closed = "RSVPs are closed. Ask the host if something changed."
-name_heading = "Name"
-change_name = "Change name"
-data_heading = "Your data"
 data_text = "Download or delete everything we have on you."
-export = "Download (JSON)"
 delete_confirm = "Yes, delete my RSVP and all my data"
-delete = "Delete"
 save_link_title = "Save your link!"
 save_link_text = """
 It's the only way to change or delete your RSVP. Bookmark it or copy it somewhere safe."""
-
-# Remembering the guest on this device, with their consent, in one cookie
-remember_device = "Remember me on this device"
 remember_hint = """
 The front page will link straight here, on this device only. It saves your link in \
 one cookie you can remove anytime."""
 remembered_text = "This device remembers you, so the front page links here."
-forget_device = "Forget this device"
 remembered_notice = "Done! This device will remember you."
 forgotten_notice = "This device forgot you."
-# On the front page, for a guest this device remembers.
-welcome_back = "Welcome back, {name}!"
 to_your_page = "Go to your page"
-not_you = "Not you?"
-# On the front page: forgets this one invitation on this device, not the others.
-forget_here = "Forget it here"
 remembered_twice = "This device remembers more than one invite to this event. If one isn't yours, forget it here."
 
 # Optional e-mail
@@ -103,10 +74,8 @@ email_intro = "Want a reminder and your link by email? Totally optional."
 email_label = "Email"
 # The consent statement next to the unticked box (GDPR Art. 7).
 email_consent = "Yes, email me reminders, any change of time or place, and my link. I can remove my email anytime."
-email_add = "Add"
 email_pending = "We sent a link to {email}."
 email_pending_hint = "It works for 48 hours."
-email_confirmed = "Reminders go to {email}."
 email_remove = "Remove my email"
 email_sent_notice = "Check your inbox to confirm."
 email_removed_notice = "Email removed."
@@ -115,31 +84,19 @@ invalid_email = "Enter a valid email."
 consent_required = "Check the box to say yes."
 confirm_title = "Confirm your email"
 confirm_text = "Press the button to get reminders and your link by email."
-confirm_button = "Confirm"
 confirm_invalid_text = """
 This link expired or doesn't work anymore. Add your email again on your RSVP page."""
-lost_link = "Lost your link?"
-lost_title = "Lost your link?"
 lost_text = "If you added and confirmed your email, we'll send it again."
 lost_button = "Send my link"
-lost_sent_title = "Check your inbox"
 lost_sent_text = "If that email is confirmed, your link is on the way."
-
-# Guest list
-guest_list_heading = "Guest list"
 # The button to the guest list, which is on a page of its own.
 see_guest_list = "Who's going?"
 back_to_sign_up = "Back"
 guest_list_coming = "Going"
-guest_list_pending = "No answer yet"
-# "+ {n} more", for guests who'd rather not be listed.
-guest_list_more = "+ {n} more"
 invitations_one = "{n} invite"
 invitations_other = "{n} invites"
 guest_list_empty = "Nobody yet."
 guest_list_note = "People who can't go aren't listed."
-# After your own name on the guest list.
-you = "(you)"
 
 # Minigames on the guest's page
 games_hint = "Your best score in each one is saved, and shows up here and in the game with your name as on the guest list."
@@ -148,11 +105,7 @@ listed_hidden = "You're hidden."
 listed_declined = "You're not listed, since you can't go."
 show_instead = "Switch to:"
 name_display_label = "Show my name as"
-display_full = "Full name"
 display_partial = "First name + initial"
-display_hidden = "Hide my name"
-# A choice with what others would see.
-display_choice = "{label} ({name})"
 
 # Group sign-up
 join_group = "Invited with: {group}"
@@ -161,7 +114,6 @@ join_heading = "RSVP"
 join_notice = """
 We only save your name and how many are coming. Others see your name the way you pick \
 above. It's deleted 30 days after the party, or anytime you want."""
-your_name = "Your name"
 join_button = "I'm going!"
 
 # Errors and outcomes
@@ -169,73 +121,39 @@ invalid_party_size = "Pick a number."
 invalid_choice = "Pick one of the choices."
 invalid_name = "Use letters and spaces for the name, plus - ' . , & if you need them, up to 100 characters."
 confirm_delete = "Check the box to delete."
-gone_title = "This link doesn't work"
 gone_text = """
 It may be mistyped or replaced, or the RSVP was deleted. Ask the host for a new one."""
 deleted_title = "RSVP deleted"
 deleted_text = """
 Your name, your answer, and everything else are gone. Changed your mind? Ask the host \
 for a new invite."""
-to_home = "Back to the front page"
 too_many_attempts = "Too many tries. Try again in an hour."
-not_found_title = "Page not found"
 not_found_text = "Check the link or ask the host."
 
 # The host's admin pages. Pairs ending in _one and _other are for one of something
 # and for any other number.
 [admin]
-# After "Innby" in the header and the page titles.
-admin = "admin"
-log_out = "Log out"
-log_in = "Log in"
 log_in_text = "Log in with your username and password."
-logged_out = "You're logged out."
 user_name = "Username"
-password = "Password"
 wrong_login = "Incorrect username or password."
 too_many_logins = "Too many login tries. Try again in 15 minutes."
-# Single sign-on through an OpenID Connect provider, and roles
-log_in_with = "Log in with {name}"
 log_in_or = "Or use your username and password."
-login_expired = "That login took too long, or was started in another tab. Try again."
 login_cancelled = "The login was canceled."
 login_failed = "Couldn't log in with {name}. Try again in a bit; if it keeps failing, the admin log says why."
 no_role = "{user} doesn't have a role in Innby at {name}, or access to any event. Ask for a role, or for access to an event."
-forbidden = "Your role doesn't allow this page."
 not_found = "Guest or group not found."
 saved = "Saved!"
-
-# Events
-events = "Events"
-trail = "Where you are"
-no_events = "No events yet."
-new_event = "New event"
-create_event = "Create event"
 event_created = "Event created. Add invites and group links in its tabs."
-event_deleted = "Event deleted, with everything in it."
-details = "Details"
-event_language = "Written in"
 event_language_hint = "The language of the text below. Guests who read another one see it, unless you add theirs under In other languages."
-event_title = "Title"
-event_description = "Description"
-event_location = "Place"
-event_starts = "Starts"
-time_of = "{field}: time"
 time_hint = "Times use the 24-hour clock, like 19:00. 7 pm works too."
-event_ends = "Ends"
 event_ends_hint = "Leave it empty if there's no set end time. Guests' calendars then show it as three hours long."
 event_change_hint = "A new start, end or place gets emailed to every guest with a confirmed address, and shows on the pages of anyone who RSVPed before it."
-event_question = "Your question"
-event_choices = "Choices, one per line"
 event_question_hint = "Optional: a question guests answer by picking a choice. Other guests don't see the answers. Don't ask about health, diet, religion, or anything like that. Changing the choices here clears the answers. Translating them under In other languages doesn't."
-event_time_zone = "Time zone"
 event_deadline = "RSVP by"
 event_deadline_hint = "Leave it empty to take RSVPs until the event starts."
-event_languages = "In other languages"
 event_languages_hint = "Guests who read one of these see what you write for it. If it's empty, they see a nearby language, or the event's own."
 event_retention_hint = "An event is deleted {days} days after it starts, with every invite, group link and RSVP in it."
 delete_event = "Delete {title} with every invite, group link and RSVP in it"
-error_event_title = "Enter a title of up to 200 characters."
 error_event_text = "The description can be up to 5,000 characters, and the place up to 200."
 error_event_time = "Enter when the event starts, as a date and time."
 error_event_deadline = "Enter the RSVP deadline as a date and time, or leave it empty."
@@ -243,27 +161,12 @@ error_event_ends = "Enter when the event ends, as a date and time after it start
 error_event_question = "Give the question 2 to 20 choices, one per line of up to 100 characters, and the same number in every language that has its own."
 error_event_past = "Events are deleted {days} days after they start, so this one would be deleted right away. Check the date."
 error_time_zone = "Enter a time zone like Europe/Oslo."
-col_event = "Event"
-col_when = "When"
-# Event files: export, import and copying an event
-event_groups = "Group links"
 event_groups_hint = "Optional: one per line, with how many each sign-up can cover, like “Climbing club, 2”."
-import_event = "Import an event"
 import_hint = "Paste an event file, or choose one, to fill in the new event form below. You can change anything before you create it."
-event_file = "Event file"
-event_file_upload = "Choose a file"
-read_file = "Read file"
 imported_notice = "Read {title} from the file. Check the details, especially the date, then create it."
 copied_notice = "Copied {title}. Change what's different, especially the date, then create it."
-export_event = "Download as a file"
 export_hint = "The details and group links as a TOML file, without the guests, to keep or import as a new event."
-copy_event = "Copy to a new event"
-error_event_groups = "Group links: {error}"
-error_event_file = "The file isn't an event file: {error}"
-error_file_language = "{field}: “{code}” isn't one of Innby's languages: {codes}."
 error_file_too_large = "That file is bigger than an event file can be (64 KB)."
-error_file_not_text = "That file isn't text. Choose an event file (.toml)."
-error_no_file = "Paste an event file or choose one."
 error_file_unversioned = "The file doesn't say what it is. An event file starts with apiVersion = \"{api}\" and kind = \"{kind}\"."
 error_file_version = "The file uses the {found} format, but this Innby reads {api}."
 error_file_kind = "The file has a {found} in it, not an event."
@@ -281,9 +184,6 @@ new_invitations = "New invites"
 new_invitations_hint = """
 One guest or household per line. Each gets their own link. To set a line's max, end \
 it with a comma and a number."""
-names = "Names"
-# Example lines in the empty box, one per line. Keep the comma before a number.
-names_placeholder = "Kari & Ola Nordmann, 2\nPer Hansen"
 max_per_invitation = "Max people per invite"
 create_invitations = "Create invites"
 all_invitation_links = "All invite links"
@@ -294,27 +194,12 @@ The CSV has the same links for a mail merge."""
 no_invitations = "No invites yet."
 invitations_created_one = "{n} invite created."
 invitations_created_other = "{n} invites created."
-
-# Group links
-group_links = "Group links"
 group_links_hint = """
 One sign-up link for a whole group, for a group chat or a poster. Anyone with it can \
 sign up and gets their own link."""
 closed = "Closed: the RSVP deadline has passed."
-no_groups = "No groups yet."
-# The label of a group's link field, for screen readers.
-link_for = "Link for {name}"
-open_link = "Open"
-open_link_for = "Open link for {name}"
-copy_link_hint = "To copy a link, hold or right-click Open and copy it from the menu."
-new_groups = "New groups, one per line"
 # Example lines in the empty box, one per line. Keep the comma before a number.
 groups_placeholder = "Climbing club\nNeighbors, 4"
-max_per_sign_up = "Max people per sign-up"
-create_groups = "Create groups"
-groups_created_one = "{n} group created."
-groups_created_other = "{n} groups created."
-sign_up_link = "Sign-up link"
 group_link_hint_one = """
 Share this where the group will see it, like its group chat. Anyone with the link \
 can sign up for up to {n} person and gets their own link. People it's forwarded to \
@@ -326,30 +211,14 @@ can sign up too."""
 group_link = "Group link"
 group_new_link_hint = "The old link stops working. People who signed up keep their own links."
 no_sign_ups = "No one has signed up with this link yet."
-group_name = "Group name"
 max_for_new_sign_ups = "Max people per sign-up (new sign-ups only)"
-delete_group = "Delete the group {name} and its link"
 group_in_use_hint = """
 People signed up with this group, so it can't be deleted. To stop new sign-ups, make \
 a new link and don't share it."""
-
-# QR codes
-qr_heading = "QR codes"
 qr_hint = """
 How the QR codes on guest and group pages look. One style for the whole party, so \
 printed invites and posters match."""
-qr_shape = "Shape"
-qr_square = "Squares"
-qr_rounded = "Rounded"
-qr_dots = "Dots"
 qr_color = "Color"
-# What goes in the middle of the code.
-qr_icon = "In the middle"
-qr_none = "Nothing"
-qr_heart = "Heart"
-qr_star = "Star"
-qr_emoji = "Emoji"
-qr_save = "Save style"
 qr_saved = "QR code style saved!"
 # Under the example code on the QR codes page.
 qr_preview = "The saved style, as on the party page. Save to see a change."
@@ -364,63 +233,22 @@ error_user_name = "Enter the username they log in with, on one line, in {max} ch
 
 # Users: password users an admin makes
 password_hint = "At least 10 characters. Tell them the password, and how to get to this page."
-
-# Guests
-guests = "Guests"
 show_all = "Show all"
 no_guests_shown = "No one with this answer."
-no_guests = "No guests yet."
-download_csv = "Download CSV"
-link = "Link"
 guest_link = "Guest link"
 guest_link_hint = "Anyone with this link can answer for this guest. Only send it to them."
 new_link = "New link"
 new_link_hint = "The old link stops working."
-edit = "Edit"
-name_or_household = "Name or household"
-max_people = "Max people"
-save = "Save"
-delete = "Delete"
 delete_guest = "Delete {name} and all their data"
-
-# Reminders
-reminders = "Reminders"
 subscribers_one = "{n} guest has a confirmed email."
 subscribers_other = "{n} guests have a confirmed email."
 reminders_hint = "Everyone who hasn't said no gets one reminder."
-send_reminders = "Send reminders"
-reminders_queued_one = "{n} reminder queued."
-reminders_queued_other = "{n} reminders queued."
 change_notices_one = "Saved. {n} guest with a confirmed address will be told about the change."
 change_notices_other = "Saved. {n} guests with a confirmed address will be told about the change."
-# After the tally of picks for the host's question, on the Guests tab.
-tally_hint = "among those coming"
-
-# Table columns and facts, also the CSV's header
-col_name = "Name"
-col_answer = "Answer"
-col_people = "People"
-col_max_people = "Max people"
-col_source = "Source"
-col_guest_list = "Guest list"
 col_email = "Email"
-col_answered = "Answered"
-col_created = "Created"
-col_group = "Group"
-col_signed_up = "Signed up"
-col_people_each = "People each"
-col_link = "Link"
-
-# A guest's row
-answer_pending = "no answer"
 answer_attending = "going"
 answer_declined = "not going"
 source_invitation = "invite"
-# A sign-up through a group's link.
-source_group = "sign-up: {group}"
-email_unconfirmed = "unconfirmed"
-email_confirmed = "confirmed"
-listed_full = "full name"
 listed_partial = "first name + initial"
 listed_hidden = "hidden"
 
@@ -428,9 +256,6 @@ listed_hidden = "hidden"
 error_party_size = "Party size must be 1 to {max}."
 error_name = "Use letters and spaces for the name, plus - ' . , & if you need them, up to 100 characters."
 error_group_name = "Use letters, numbers, and spaces for the group name, plus - ' . , & if you need them, up to 100 characters."
-# A line of a batch that needs fixing.
-error_line = "Line {n}: {error}"
-error_no_names = "Enter at least one name."
 error_confirm_delete = "Check the box to delete."
 error_group_in_use = "People signed up with this group, so it can't be deleted."
 error_qr_color = "Pick a darker color so phones can scan the code."
@@ -473,7 +298,6 @@ Not you? Ignore this email."""
 
 # The guest's own link, after confirming or from /lost.
 [mail.rsvp_link]
-subject = "Your link – {title}"
 body = """
 Hi, {name}!
 
@@ -485,7 +309,6 @@ Don't share it."""
 
 # From the host's Send reminders. `{when}`, `{place}`, `{answer}`.
 [mail.reminder]
-subject = "Reminder: {title}"
 body = """
 Hi, {name}!
 

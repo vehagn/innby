@@ -43,17 +43,16 @@ impl fmt::Debug for Lang {
 }
 
 impl Lang {
-    /// Every language, as the language menu lists them: the base language first, then
-    /// the others by their own names.
+    /// Every language there's a file for, as a language menu lists them: by their own
+    /// names.
     pub fn all() -> &'static [Lang] {
         &language::registry().order
     }
 
     /// The language every other one falls back to in the end, which has every text: the
-    /// one whose file names no fallback. It's also the site's when the browser asks for
-    /// none it has.
+    /// one whose file names no fallback, English.
     pub fn base() -> Lang {
-        language::registry().order[0]
+        language::registry().base
     }
 
     /// The language with exactly this code, as `?lang=` and the database give it.
@@ -240,7 +239,10 @@ mod tests {
     use super::*;
     #[test]
     fn negotiates_by_quality_and_region() {
-        assert_eq!(Lang::negotiate("en-GB,en;q=0.9,nb;q=0.8"), Some(Lang::EN));
+        assert_eq!(
+            Lang::negotiate("en-GB,en;q=0.9,nb;q=0.8"),
+            Some(Lang::EN_GB)
+        );
         assert_eq!(Lang::negotiate("de-DE, nb;q=0.5, en;q=0.7"), Some(Lang::EN));
         assert_eq!(Lang::negotiate("nn-NO, nb;q=0.9"), Some(Lang::NN));
         assert_eq!(Lang::negotiate("no, en;q=0.3"), Some(Lang::NB));
@@ -279,7 +281,8 @@ mod tests {
         for (lang, date) in [
             (Lang::NB, "lørdag 12. desember 2026 kl. 19:00"),
             (Lang::NN, "laurdag 12. desember 2026 kl. 19:00"),
-            (Lang::EN, "Saturday 12 December 2026 at 7.00 pm"),
+            (Lang::EN, "Saturday 12 December 2026 at 19:00"),
+            (Lang::EN_GB, "Saturday 12 December 2026 at 7.00 pm"),
             (Lang::EN_US, "Sat, Dec 12, 2026, 7:00 PM"),
             (Lang::ZH_HANS, "2026年12月12日（星期六）19:00"),
             (Lang::ZH_HANT, "2026年12月12日（週六）19:00"),
@@ -289,10 +292,13 @@ mod tests {
     }
 
     #[test]
-    fn lists_the_base_language_first_then_by_name() {
-        assert_eq!(Lang::base(), Lang::NB);
+    fn lists_the_languages_by_name() {
+        assert_eq!(Lang::base(), Lang::EN);
         let codes: Vec<&str> = Lang::all().iter().map(|lang| lang.code()).collect();
-        assert_eq!(codes, ["nb", "en-us", "en", "nn", "zh-hans", "zh-hant"]);
+        assert_eq!(
+            codes,
+            ["nb", "en", "en-us", "en-gb", "nn", "zh-hans", "zh-hant"]
+        );
     }
 
     #[test]
@@ -304,10 +310,14 @@ mod tests {
         };
         assert_eq!(
             Lang::EN.format_when(at(12, 19), None),
-            "Saturday 12 December 2026 at 7.00 pm"
+            "Saturday 12 December 2026 at 19:00"
         );
         assert_eq!(
             Lang::EN.format_when(at(12, 19), Some(at(12, 23))),
+            "Saturday 12 December 2026 at 19:00 to 23:00"
+        );
+        assert_eq!(
+            Lang::EN_GB.format_when(at(12, 19), Some(at(12, 23))),
             "Saturday 12 December 2026 at 7.00 pm until 11.00 pm"
         );
         assert_eq!(

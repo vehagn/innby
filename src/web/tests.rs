@@ -60,14 +60,15 @@ async fn ready_with_database(pool: PgPool) {
 }
 
 #[tokio::test]
-async fn index_is_about_innby_in_norwegian() {
+async fn index_is_about_innby_in_the_base_language() {
+    // A browser that asks for no language gets English, the base.
     let html = body(get("/", None).await).await;
-    assert!(html.contains(r#"<html lang="nb" "#));
+    assert!(html.contains(r#"<html lang="en" "#));
     assert!(html.contains(r#"<span class="title-text">Innby<"#));
-    assert!(html.contains(&escape(&Lang::NB.messages().site_intro)));
+    assert!(html.contains(&escape(&Lang::EN.messages().site_intro)));
     // No event on the front page: that's on the invitation's.
-    assert!(!html.contains("Julebord"));
-    assert!(html.contains(r#"href="?lang=en""#));
+    assert!(!html.contains("Julebord") && !html.contains("Christmas"));
+    assert!(html.contains(r#"href="?lang=nb""#));
 }
 
 #[tokio::test]
@@ -82,9 +83,15 @@ async fn every_page_has_the_banner_home() {
 
 #[tokio::test]
 async fn index_follows_accept_language() {
+    let html = body(get("/", Some("nb-NO,nb;q=0.9")).await).await;
+    assert!(html.contains(r#"<html lang="nb" "#));
+    assert!(html.contains(&escape(&Lang::NB.messages().site_intro)));
+    // The traditional and simplified variants answer British and American browsers.
     let html = body(get("/", Some("en-GB,en;q=0.9")).await).await;
     assert!(html.contains(r#"<html lang="en-GB" "#));
-    assert!(html.contains(&escape(&Lang::EN.messages().site_intro)));
+    assert!(html.contains(&escape(&Lang::EN_GB.messages().site_intro)));
+    let html = body(get("/", Some("en-AU,en;q=0.9")).await).await;
+    assert!(html.contains(r#"<html lang="en" "#));
 }
 
 #[tokio::test]
@@ -94,7 +101,8 @@ async fn offers_every_language() {
     // The menu offers the others, each in its own language.
     for (code, tag, badge, name) in [
         ("nb", "nb", "NB", "Bokmål"),
-        ("en", "en-GB", "GB", "English (Traditional)"),
+        ("en", "en", "EN", "English"),
+        ("en-gb", "en-GB", "GB", "English (Traditional)"),
         ("en-us", "en-US", "US", "English (Simplified)"),
         ("zh-hans", "zh-Hans", "简", "简体中文"),
         ("zh-hant", "zh-Hant", "繁", "繁體中文"),
@@ -121,17 +129,17 @@ async fn query_parameter_overrides_accept_language() {
 
 #[tokio::test]
 async fn links_carry_the_colour_scheme() {
-    let html = body(get("/", None).await).await;
+    let html = body(get("/", Some("nb")).await).await;
     assert!(html.contains(r#"data-theme="auto""#));
     assert!(html.contains(r#"href="/privacy?lang=nb""#));
     assert!(html.contains(r#"href="?lang=nb" title="Som enheten" aria-current="true""#));
     assert!(html.contains(r#"href="?lang=nb&#38;theme=dark" title="Mørkt""#));
 
-    let html = body(get("/?lang=en&theme=dark", None).await).await;
+    let html = body(get("/?lang=en-gb&theme=dark", None).await).await;
     assert!(html.contains(r#"data-theme="dark""#));
-    assert!(html.contains(r#"href="/privacy?lang=en&#38;theme=dark""#));
+    assert!(html.contains(r#"href="/privacy?lang=en-gb&#38;theme=dark""#));
     assert!(html.contains(r#"href="?lang=nb&#38;theme=dark" hreflang="nb""#));
-    assert!(html.contains(r#"href="?lang=en" title="As one&#39;s device prefers">"#));
+    assert!(html.contains(r#"href="?lang=en-gb" title="As one&#39;s device prefers">"#));
 
     let html = body(get("/?theme=purple", None).await).await;
     assert!(html.contains(r#"data-theme="auto""#));
@@ -242,7 +250,7 @@ async fn never_gzips_a_page_that_holds_a_link(db: PgPool) {
 
 #[tokio::test]
 async fn privacy_notice_in_every_language() {
-    let html = body(get("/privacy", None).await).await;
+    let html = body(get("/privacy", Some("nb")).await).await;
     assert!(html.contains("<h1>Personvernerklæring</h1>"));
     assert!(html.contains(&format!("Versjon {PRIVACY_VERSION}")));
     assert!(html.contains("mailto:kari@example.com"));
@@ -262,10 +270,18 @@ async fn privacy_notice_in_every_language() {
     let html = body(get("/privacy?lang=zh-hant", None).await).await;
     assert!(html.contains("<h1>隱私聲明</h1>"));
 
-    let html = body(get("/privacy?lang=en", None).await).await;
-    assert!(html.contains("<h1>Privacy notice</h1>"));
-    assert!(html.contains("Kari Nordmann hosts the events on this site"));
-    assert!(html.contains("deleted after 7 days"));
+    // English, the base, and so what a browser that asks for no language gets.
+    for page in ["/privacy?lang=en", "/privacy"] {
+        let html = body(get(page, None).await).await;
+        assert!(html.contains("<h1>Privacy notice</h1>"));
+        assert!(html.contains("Kari Nordmann hosts the events on this site"));
+        assert!(html.contains("deleted after 7 days"));
+    }
+    let html = body(get("/privacy?lang=en-gb", None).await).await;
+    assert!(
+        html.contains("what is needed to plan the occasion"),
+        "{html}"
+    );
 }
 
 #[tokio::test]

@@ -232,7 +232,7 @@ impl<'w> Browser<'w> {
                 .uri(path)
                 .header(header::HOST, origin.split("://").last().unwrap())
                 // The tests read the British texts.
-                .header(header::ACCEPT_LANGUAGE, "en-GB");
+                .header(header::ACCEPT_LANGUAGE, "en");
             let cookies: Vec<String> = self
                 .cookies
                 .iter()

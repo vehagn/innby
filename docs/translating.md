@@ -5,12 +5,16 @@ Every text Innby shows, on the public site, in the admin UI and in its mails, is
 
 | File | Language |
 |---|---|
-| `nb.toml` | Norwegian Bokmål, which has every text |
+| `en.toml` | English, the base: plain British English, which has every text |
+| `en-gb.toml` | English (Traditional): British, a touch formal |
+| `en-us.toml` | English (Simplified): American, short |
+| `nb.toml` | Norwegian Bokmål |
 | `nn.toml` | Norwegian Nynorsk |
-| `en.toml` | British English: "traditional", a touch formal |
-| `en-us.toml` | American English: "simplified", short and plain |
 | `zh-hans.toml` | Simplified Chinese |
 | `zh-hant.toml` | Traditional Chinese |
+
+Each is a module: it holds the texts it has, and the rest come from the languages it
+falls back to. The two English variants hold only what they say differently.
 
 The privacy notice is a document rather than a set of texts, so it's an HTML file per
 language in [`templates/privacy/`](../templates/privacy/), with `{controller_name}`,
@@ -33,7 +37,7 @@ language.fallback = ["nb"]          # where texts this file leaves out come from
 Then come the texts, with the admin UI's under `[admin]` and the mails under `[mail]`.
 
 - **Placeholders** such as `{name}` mark where a value goes. Keep them exactly as they
-  are; the tests check every language has the same ones as Bokmål.
+  are; the tests check every language has the same ones as English.
 - **Punctuation** that differs between scripts, like "：" for ": ", is part of the text.
 - **Dates** use `date_format`, and a time alone (an event's end on the day it starts)
   `time_format`, both in [chrono's notation](https://docs.rs/chrono/latest/chrono/format/strftime/).
@@ -46,17 +50,17 @@ order, and from theirs in turn:
 
 | Language | Falls back to |
 |---|---|
-| American English | British English, then Bokmål |
-| Traditional Chinese | Simplified Chinese, British English, Bokmål |
-| Simplified Chinese | British English, Bokmål |
-| British English, Nynorsk | Bokmål |
+| Nynorsk | Bokmål, then English |
+| Traditional Chinese | Simplified Chinese, then English |
+| Bokmål, Simplified Chinese, English (Traditional), English (Simplified) | English |
+| English | nothing: it's the base |
 
-So a variant like American English only needs the texts it says differently, and a new
-text can go in `nb.toml` first and be translated later. Texts the host writes, such as an
-event's title, fall back the same way.
+So a variant like English (Simplified) only needs the texts it says differently, and a
+new text can go in `en.toml` first and be translated later. Texts the host writes, such
+as an event's title, fall back the same way.
 
-`just test` (or Innby itself, at start) refuses a text Bokmål doesn't have, which catches
-typos in key names, and a language that falls back to itself.
+`just test` (or Innby itself, at start) refuses a text English doesn't have, which
+catches typos in key names, and a language that falls back to itself.
 
 ## A new language
 
@@ -73,6 +77,5 @@ The database keeps a language as its code, so a new one needs no schema change, 
 code whose file has since gone reads as the base language. The menu lists the base
 language first, then the others by their own names.
 
-Exactly one language, the base, falls back to nothing: it has every text, a privacy
-notice, and is the site's language when the browser asks for none it has. Today that's
-Bokmål.
+Exactly one language, the base, falls back to nothing, and so has every text and a
+privacy notice: English.

@@ -1,7 +1,12 @@
 //! Helpers for driving the public site's router in tests. The generic HTTP ones are in
 //! `crate::testing`, and re-exported here.
 
-use axum::{Router, body::Body, http::Request, response::Response};
+use axum::{
+    Router,
+    body::Body,
+    http::{Request, header},
+    response::Response,
+};
 use sqlx::PgPool;
 use tower::ServiceExt;
 
@@ -83,14 +88,21 @@ impl Site {
         internal.oneshot(request).await.unwrap()
     }
 
+    /// A page, asked for by a browser set to Bokmål, as the tests' guests' are: the
+    /// site answers in it unless the address says `?lang=`.
     pub async fn get(&self, uri: &str) -> Response {
-        self.send(Request::get(uri).body(Body::empty()).unwrap())
-            .await
+        let request = Request::get(uri).header(header::ACCEPT_LANGUAGE, BROWSER);
+        self.send(request.body(Body::empty()).unwrap()).await
     }
 
-    /// A same-origin form post, as a browser sends it.
+    /// A same-origin form post, as that browser sends it.
     pub async fn post(&self, uri: &str, form: &str) -> Response {
-        self.send(form_post(uri, form, "same-origin")).await
+        let mut request = form_post(uri, form, "same-origin");
+        let browser = header::HeaderValue::from_static(BROWSER);
+        request
+            .headers_mut()
+            .insert(header::ACCEPT_LANGUAGE, browser);
+        self.send(request).await
     }
 
     pub async fn find(&self, rsvp: &Rsvp) -> Option<Rsvp> {
@@ -98,7 +110,10 @@ impl Site {
     }
 }
 
-/// The British English texts, which tests ask for with `?lang=en`.
+/// The language the tests' browsers ask for, in `Accept-Language`.
+const BROWSER: &str = "nb";
+
+/// The English texts, which tests ask for with `?lang=en`.
 pub fn en() -> &'static Messages {
     Lang::EN.messages()
 }

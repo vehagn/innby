@@ -1,98 +1,100 @@
-# British English, the "traditional" variant, with a touch of polish.
-# A text left out here comes from the `fallback` languages, in order, and from theirs
-# in turn; a text Bokmål doesn't have is refused.
+# English texts for the public site, the admin pages and the mails: plain British
+# English, with the 24-hour clock.
+# English is the base language: every other language falls back to it in the end, so
+# this file has every text and falls back to nothing.
 # `{name}` and the like are filled in; keep them as they are.
 
 # What the language is: its own name on the language switch, its tag for <html lang>,
 # its mark in the language menu, its locale for day and month names, the
 # Accept-Language tags it answers (a tag loses a part at a time until one matches), and
 # the languages that fill in what this file leaves out.
-language.name = "English (Traditional)"
-language.tag = "en-GB"
-language.badge = "GB"
+language.name = "English"
+language.tag = "en"
+language.badge = "EN"
 language.locale = "en_GB"
 language.serves = ["en"]
-language.fallback = ["nb"]
 
 # What the language switch is, for screen readers.
 languages = "Languages"
 # The colour scheme switch, and its three choices.
 theme = "Colour scheme"
-theme_auto = "As one's device prefers"
-theme_light = "Daylight"
-theme_dark = "Evening dress"
+theme_auto = "Automatic"
+theme_light = "Light"
+theme_dark = "Dark"
 privacy_link = "Privacy"
 
 # Event
-# `chrono` format for dates and times: "Saturday 12 December 2026 at 7.00 pm".
-date_format = "%A %-d %B %Y at %-I.%M %P"
+# `chrono` format for dates and times: "Saturday 12 December 2026 at 19:00".
+date_format = "%A %-d %B %Y at %H:%M"
 # The same for a time alone, when an event ends on the day it starts.
-time_format = "%-I.%M %P"
-when_until = "{start} until {end}"
+time_format = "%H:%M"
+when_until = "{start} to {end}"
 when = "When"
-place = "Venue"
+place = "Where"
 # The front page, which is about Innby rather than any one event.
-site_intro = "Innby is where you reply to an invitation: whether you shall attend, and with how many. No account is needed, and everything is deleted 30 days after the event."
+site_intro = """
+Innby is where you answer an invitation: whether you're coming, and how many of you. You \
+need no account, and everything is deleted 30 days after the event."""
 your_invitations = "Your invitations"
 past_invitations = "Past events"
-rsvp_hint = "Received an invitation? Kindly reply using the link that came with it."
+rsvp_hint = "Got an invitation? Use the link that came with it to answer."
 
 # RSVP page
-greeting = "Good day, {name}!"
+greeting = "Hello, {name}!"
 # Shown until the guest has answered: what we store and why (GDPR Art. 13/14).
 first_visit_notice = """
-You are cordially invited! To plan the occasion, we keep your name, your reply and the \
-size of your party. Nothing more, and every last bit is deleted 30 days after the event. \
-On the guest list, other guests see your first name and initial, and you may choose what \
-they see."""
-keep_link = """
-This page is yours alone. Do keep the link should you wish to change your reply, and \
-kindly don't share it."""
+You're invited! To plan the event, we keep your name, your answer and how many of you \
+are coming. Nothing more, and all of it is deleted 30 days after the event. On the guest \
+list, other guests see your first name and initial, and you can choose what they see."""
+keep_link = "This page is yours. Keep the link to change your answer later, and don't share it."
 # The tabs of a guest's pages, and what the bar is called for screen readers.
-tab_reply = "Your reply"
+tab_reply = "Your answer"
 tab_guests = "Guest list"
 tab_you = "Your details"
 tabs_label = "Your invitation"
 device_heading = "This device"
-changed_notice = "The time or place has changed since you replied. Kindly check it above, and change your reply should you need to."
+changed_notice = """
+The time or place has changed since you answered. Check it above, and change your answer \
+if you need to."""
 # The empty pick for the host's question.
 choice_none = "No answer"
 # The event for the guest's own calendar, once they're coming: a button and a hint.
-calendar_hint = "A file with the time and place for your phone's or computer's calendar. Should the plans change, add it again."
-add_to_calendar = "Add to my calendar"
-saved = "Splendid, all saved."
-your_answer = "Your reply: {answer}"
-answer_pending = "Not yet replied"
-answer_attending = "Attending"
-answer_declined = "Regretfully declined"
-how_many = "How many in your party?"
-people_one = "{n} guest"
-people_other = "{n} guests"
-attend = "I shall attend"
-decline = "Regretfully, I cannot"
-reply_by = "Kindly reply by {deadline}"
-answers_closed = """
-The time for replies has passed. Do contact the host should anything have changed."""
+calendar_hint = """
+A file with the time and place, for the calendar on your phone or computer. If the plans \
+change, add it again."""
+add_to_calendar = "Add to calendar"
+saved = "Saved."
+your_answer = "Your answer: {answer}"
+answer_pending = "No answer yet"
+answer_attending = "Coming"
+answer_declined = "Not coming"
+how_many = "How many are coming?"
+people_one = "{n} person"
+people_other = "{n} people"
+attend = "I'm coming"
+decline = "I can't come"
+reply_by = "Answer by {deadline}"
+answers_closed = "Answers have closed. Contact the host if something has changed."
 name_heading = "Name"
-change_name = "Amend name"
-data_heading = "Your particulars"
-data_text = "You may download everything we hold about you, or delete it forthwith."
+change_name = "Change name"
+data_heading = "Your data"
+data_text = "You can download everything we keep about you, or delete it now."
 export = "Download (JSON)"
-delete_confirm = "Yes, delete my reply and everything held about me"
+delete_confirm = "Yes, delete my answer and everything kept about me"
 delete = "Delete"
-save_link_title = "Do keep your link safe!"
+save_link_title = "Keep your link!"
 save_link_text = """
-It is the only means of changing or withdrawing your reply. Bookmark this page, or keep \
-the link somewhere safe."""
+It's the only way to change or delete your answer. Bookmark this page, or keep the link \
+somewhere safe."""
 
 # Remembering the guest on this device, with their consent, in one cookie
 remember_device = "Remember me on this device"
 remember_hint = """
-Then the front page of this site shall lead you straight here, on this device alone. \
-It keeps your link in one cookie, which you may remove again at any time."""
+The front page then leads straight here, on this device only. Your link is kept in one \
+cookie, which you can remove at any time."""
 remembered_text = "This device remembers you, so the front page leads here."
 forget_device = "Forget this device"
-remembered_notice = "Splendid. This device shall remember you."
+remembered_notice = "This device now remembers you."
 forgotten_notice = "This device no longer remembers you."
 # On the front page, for a guest this device remembers.
 welcome_back = "Welcome back, {name}!"
@@ -104,56 +106,56 @@ remembered_twice = "This device remembers more than one invitation to this event
 
 # Optional e-mail
 email_heading = "Reminders by e-mail"
-email_intro = "Should you care for a reminder and your link by e-mail? Entirely optional."
+email_intro = "Would you like a reminder and your link by e-mail? It's optional."
 email_label = "E-mail address"
 # The consent statement next to the unticked box (GDPR Art. 7).
 email_consent = """
-Yes, please e-mail me reminders, any change of time or place, and my link. I may remove \
-my address at any time."""
+Yes, e-mail me reminders, any change of time or place, and my link. I can remove my \
+address at any time."""
 email_add = "Add"
 email_pending = "We have sent a confirmation link to {email}."
-email_pending_hint = "The link remains valid for 48 hours."
-email_confirmed = "Reminders shall be sent to {email}."
+email_pending_hint = "The link works for 48 hours."
+email_confirmed = "Reminders go to {email}."
 email_remove = "Remove my e-mail address"
-email_sent_notice = "Do check your inbox to confirm the address."
+email_sent_notice = "Check your inbox to confirm the address."
 email_removed_notice = "Your e-mail address has been removed."
 email_confirmed_notice = "Your e-mail address is confirmed. Your link is on its way."
-invalid_email = "Kindly enter a valid e-mail address."
-consent_required = "Kindly tick the box to give your consent."
+invalid_email = "Enter a valid e-mail address."
+consent_required = "Tick the box to give your consent."
 confirm_title = "Confirm your e-mail address"
-confirm_text = """
-Kindly press the button to confirm that you wish to receive reminders and your link by \
-e-mail."""
+confirm_text = "Press the button to confirm that you want reminders and your link by e-mail."
 confirm_button = "Confirm"
 confirm_invalid_text = """
-Alas, the confirmation link has expired or is no longer valid. Do add your address again \
-from your RSVP page."""
-lost_link = "Mislaid your link?"
-lost_title = "Mislaid your link?"
-lost_text = "If you added and confirmed your e-mail address, we shall send your link again."
+The confirmation link has expired or is no longer valid. Add your address again from \
+your page."""
+lost_link = "Lost your link?"
+lost_title = "Lost your link?"
+lost_text = "If you added and confirmed your e-mail address, we'll send your link again."
 lost_button = "Send me my link"
-lost_sent_title = "Do check your inbox"
+lost_sent_title = "Check your inbox"
 lost_sent_text = "If the address is registered and confirmed, your link is on its way."
 
 # Guest list
-guest_list_heading = "The guest list"
+guest_list_heading = "Guest list"
 # The button to the guest list, which is on a page of its own.
-see_guest_list = "See who else is attending"
-back_to_sign_up = "Return to the reply form"
-guest_list_coming = "Attending"
-guest_list_pending = "Yet to reply"
+see_guest_list = "See who's coming"
+back_to_sign_up = "Back to the sign-up"
+guest_list_coming = "Coming"
+guest_list_pending = "No answer yet"
 # "+ {n} more", for guests who'd rather not be listed.
 guest_list_more = "+ {n} more"
 invitations_one = "{n} invitation"
 invitations_other = "{n} invitations"
-guest_list_empty = "Nobody on the list as yet."
-guest_list_note = "Guests who have sent their regrets are not listed."
+guest_list_empty = "Nobody on the list yet."
+guest_list_note = "Guests who aren't coming aren't listed."
 # After your own name on the guest list.
 you = "(you)"
 
 # Minigames on the guest's page
 games_heading = "Games"
-games_hint = "Your best score in each is kept, and shows here and in the game by your name as on the guest list."
+games_hint = """
+Your best score in each game is kept, and shows here and in the game by your name as on \
+the guest list."""
 play = "Play {name}"
 a_guest = "A guest"
 no_scores = "No scores yet."
@@ -162,44 +164,45 @@ col_score = "Score"
 decimal_mark = "."
 seconds = "{n} s"
 listed_as = "Other guests see you as {name}"
-listed_hidden = "Your name does not appear on the list."
-listed_declined = "You are not on the list, having sent your regrets."
+listed_hidden = "Your name isn't on the list."
+listed_declined = "You aren't on the list, since you aren't coming."
 show_instead = "Show instead:"
 name_display_label = "Your name on the guest list"
 display_full = "Full name"
 display_partial = "First name and initial"
-display_hidden = "Kindly omit my name"
+display_hidden = "Hide my name"
 # A choice with what others would see.
 display_choice = "{label} ({name})"
 
 # Group sign-up
-join_group = "Invited via {group}"
-join_heading = "Kindly confirm your attendance"
+join_group = "Invited through {group}"
+join_heading = "Sign up"
 # What we store and why (GDPR Art. 13), shown where the data is collected.
 join_notice = """
-We keep only your name and the size of your party, to plan the occasion. Other guests \
+We keep only your name and how many of you are coming, to plan the event. Other guests \
 see your name on the guest list as you choose above. Everything is deleted 30 days after \
-the event, and you may delete it yourself at any time."""
+the event, and you can delete it yourself at any time."""
 your_name = "Your name"
-join_button = "I shall attend!"
+join_button = "I'm coming!"
 
 # Errors and outcomes
-invalid_party_size = "Kindly choose a valid number."
-invalid_choice = "Kindly choose one of the choices."
-invalid_name = "Kindly write the name in letters and spaces, with - ' . , & if need be, up to 100 characters."
-confirm_delete = "Kindly tick the box to confirm the deletion."
-gone_title = "Alas, this link does not work"
+invalid_party_size = "Choose a valid number."
+invalid_choice = "Choose one of the choices."
+invalid_name = """
+Write the name in letters and spaces, with - ' . , & if needed, up to 100 characters."""
+confirm_delete = "Tick the box to confirm the deletion."
+gone_title = "This link doesn't work"
 gone_text = """
-It may have been mistyped, replaced by a new link, or the reply deleted. Do ask the host \
-for a fresh one."""
-deleted_title = "Your reply has been deleted"
+It may be mistyped or replaced by a new link, or the answer may have been deleted. Ask \
+the host for a new one."""
+deleted_title = "Your answer has been deleted"
 deleted_text = """
-We have deleted your name, your reply and everything else we held about you. A change of \
-heart? Do ask the host for a fresh invitation."""
-to_home = "Return to the front page"
-too_many_attempts = "Rather too many attempts from here, I'm afraid. Do try again in an hour."
+We have deleted your name, your answer and everything else we kept about you. Changed \
+your mind? Ask the host for a new invitation."""
+to_home = "Back to the front page"
+too_many_attempts = "Too many attempts from here. Try again in an hour."
 not_found_title = "Page not found"
-not_found_text = "Do check that the link is correct, or ask the host."
+not_found_text = "Check that the link is right, or ask the host."
 
 # The host's admin pages. Pairs ending in _one and _other are for one of something
 # and for any other number.
@@ -217,9 +220,11 @@ too_many_logins = "Too many login attempts. Try again in 15 minutes."
 # Single sign-on through an OpenID Connect provider, and roles
 log_in_with = "Log in with {name}"
 log_in_or = "Or use your user name and password."
-login_expired = "That login took too long, or was started in another tab. Do try again."
+login_expired = "That login took too long, or was started in another tab. Try again."
 login_cancelled = "The login was cancelled."
-login_failed = "Couldn't log in with {name}. Try again shortly; should it keep failing, the admin log says why."
+login_failed = """
+Couldn't log in with {name}. Try again shortly; if it keeps failing, the admin log says \
+why."""
 no_role = "{user} has no role in Innby at {name}, and no access to any event. Ask for a role, or for access to an event."
 forbidden = "Your role doesn't allow this page."
 not_found = "There is no such guest or group."
@@ -262,7 +267,9 @@ error_event_time = "Enter when the event starts, as a date and a time."
 error_event_deadline = "Enter when answers close as a date and a time, or leave it empty."
 error_event_ends = "Enter when the event ends, as a date and a time after it starts, or leave it empty."
 error_event_question = "Give the question at least two choices and at most twenty, one per line of up to 100 characters, and the same number in every language that has its own."
-error_event_past = "An event is deleted {days} days after it starts, so this one would be deleted at once. Kindly check the date."
+error_event_past = """
+An event is deleted {days} days after it starts, so this one would be deleted at once. \
+Check the date."""
 error_time_zone = "Enter a time zone such as Europe/Oslo."
 col_event = "Event"
 col_when = "When"
@@ -283,7 +290,7 @@ error_event_groups = "Group links: {error}"
 error_event_file = "The file isn't an event file: {error}"
 error_file_language = "{field}: “{code}” isn't one of Innby's languages: {codes}."
 error_file_too_large = "That file is larger than an event file can be (64 KB)."
-error_file_not_text = "That file isn't text. Kindly choose an event file (.toml)."
+error_file_not_text = "That file isn't text. Choose an event file (.toml)."
 error_no_file = "Paste an event file or choose one."
 error_file_unversioned = "The file doesn't say what it is. An event file begins with apiVersion = \"{api}\" and kind = \"{kind}\"."
 error_file_version = "The file is in the {found} format, but this Innby reads {api}."
@@ -450,8 +457,8 @@ reminders_hint = "A reminder goes to those who haven't declined, once per guest.
 send_reminders = "Send reminders"
 reminders_queued_one = "{n} reminder queued."
 reminders_queued_other = "{n} reminders queued."
-change_notices_one = "Saved. {n} guest with a confirmed address shall be told of the change."
-change_notices_other = "Saved. {n} guests with a confirmed address shall be told of the change."
+change_notices_one = "Saved. {n} guest with a confirmed address will be told of the change."
+change_notices_other = "Saved. {n} guests with a confirmed address will be told of the change."
 # After the tally of picks for the host's question, on the Guests tab.
 tally_hint = "among those coming"
 
@@ -499,72 +506,75 @@ error_qr_emoji = "Enter one emoji to put in the middle."
 [mail]
 # Under every mail. `{base}` is the site's address.
 footer = """
-You are receiving this e-mail because the address was added on {base}. You may remove it \
-from your RSVP page at any time."""
+You get this e-mail because the address was added on {base}. You can remove it from your \
+page at any time."""
 # After a reminder, when the event is attached for the guest's calendar.
-calendar_attached = "The event is attached as a calendar file, should you wish to add it to your calendar."
+calendar_attached = "The event is attached as a calendar file, to add to your calendar."
 
 # To an address a guest typed in, before it's confirmed. Anyone can type in
 # any address, so this mail must not include anything a guest wrote, such as `{name}`.
 [mail.confirm_email]
-subject = "Kindly confirm your e-mail address – {title}"
-body = """
-Good day,
+subject = "Confirm your e-mail address – {title}"
 
-Do open the link and press "Confirm" to receive reminders and your link for {title} by \
-e-mail:
+body = """
+Hello,
+
+Open the link and press "Confirm" to get reminders and your link for {title} by e-mail:
 
 {url}
 
-The link remains valid for 48 hours. If this was not you, kindly disregard this e-mail; \
-the address shall be deleted automatically."""
+The link works for 48 hours. If this wasn't you, ignore this e-mail; the address is \
+deleted automatically."""
 
 # To the confirmed owner when someone else adds their address.
 [mail.email_in_use]
 subject = "Your e-mail address is already registered – {title}"
-body = """
-Good day,
 
-Someone, perhaps yourself, attempted to add this e-mail address to a reply for {title}, \
-but it is already in use. Should you have mislaid your link, you may have it sent to you \
-here:
+body = """
+Hello,
+
+Someone, perhaps you, tried to add this e-mail address to an answer for {title}, but \
+it's already in use. If you've lost your link, you can have it sent here:
 
 {url}
 
-If this was not you, kindly disregard this e-mail."""
+If this wasn't you, ignore this e-mail."""
 
 # The guest's own link, after confirming or from /lost.
 [mail.rsvp_link]
 subject = "Your link – {title}"
-body = """
-Good day, {name},
 
-Herewith your personal link for {title}. Do use it to change or withdraw your reply:
+body = """
+Hello, {name},
+
+Here is your personal link for {title}. Use it to change or delete your answer:
 
 {url}
 
-Kindly share it with no one."""
+Don't share it with anyone."""
 
 # From the host's Send reminders. `{when}`, `{place}`, `{answer}`.
 [mail.reminder]
-subject = "A gentle reminder: {title}"
+subject = "Reminder: {title}"
+
 body = """
-Good day, {name},
+Hello, {name},
 
-A gentle reminder of {title}: {when}, {place}.
+A reminder of {title}: {when}, {place}.
 
-Your reply: {answer}. Should you wish to change it:
+Your answer: {answer}. To change it:
 
 {url}"""
 
 # When the host changes the event's start, end or place. `{when}`, `{place}`, `{answer}`.
 [mail.event_changed]
-subject = "A change to {title}"
+subject = "{title} has changed"
+
 body = """
-Good day, {name},
+Hello, {name},
 
 {title} has changed: it is now {when}, {place}.
 
-Your reply: {answer}. Should the change alter it:
+Your answer: {answer}. To change it:
 
 {url}"""

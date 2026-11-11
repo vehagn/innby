@@ -51,7 +51,7 @@ impl Admin {
         // The tests read the British texts.
         let request = request
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .header(header::ACCEPT_LANGUAGE, "en-GB")
+            .header(header::ACCEPT_LANGUAGE, "en")
             .header("sec-fetch-site", "same-origin")
             .body(Body::from(body.to_owned()))
             .unwrap();

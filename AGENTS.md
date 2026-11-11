@@ -118,7 +118,7 @@ parts too, so the top of a file is the way into it.
   compatibility freely: databases are made again. Once it's live, add a migration
   instead. Keep `seed/sample.sql` in step with the schema (`src/e2e/sample.rs` loads it).
 - A new text goes in `src/i18n/messages.rs` and the base language's file,
-  `locales/nb.toml`, at least; placeholders must match Bokmål's. Fill them with `i18n::fill` or `filled`, never `format!`.
+  `locales/en.toml`, at least; placeholders must match English's. Fill them with `i18n::fill` or `filled`, never `format!`.
 - Admin routes go in the router group of the role they need (`admin/mod.rs`), and
   templates hide what `Role::can_edit()` / `Role::is_admin()` rule out. Handlers are
   named for what they do (`list`, `show`, `create`, `edit`, `revoke`, `delete`), in a

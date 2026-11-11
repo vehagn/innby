@@ -490,6 +490,7 @@ mod tests {
     #[test]
     fn reads_and_checks_the_event_form() {
         let form = EventForm::from_fields(&fields(&[
+            ("lang", "nb"),
             ("title", " Julebord "),
             ("title-en", "Christmas party"),
             ("title-nn", ""),
@@ -506,7 +507,9 @@ mod tests {
         // And back into the form it came from.
         let again = EventForm::from_details(&form.details(Utc::now()).unwrap());
         assert_eq!(again.starts_at(), ("2054-12-12", "19:00"));
-        assert_eq!(again.translations()[1].title, "Christmas party");
+        let english = again.translations();
+        let english = english.iter().find(|other| other.language == "English");
+        assert_eq!(english.unwrap().title, "Christmas party");
 
         for (field, value) in [
             ("title", ""),
@@ -524,6 +527,7 @@ mod tests {
         ] {
             // The last of a name counts.
             let bad = fields(&[
+                ("lang", "nb"),
                 ("title", "Julebord"),
                 ("starts_at", "2054-12-12T19:00"),
                 ("time_zone", "Europe/Oslo"),
@@ -606,6 +610,7 @@ mod tests {
     fn checks_the_hosts_question() {
         let form = |extra: &[(&str, &str)]| {
             let mut all = fields(&[
+                ("lang", "nb"),
                 ("title", "Sommerfest"),
                 ("starts_at", "2054-06-20T15:00"),
                 ("time_zone", "Europe/Oslo"),

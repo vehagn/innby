@@ -444,7 +444,7 @@ mod tests {
         let file = EventFile::parse(
             "apiVersion = \"innby/v1\"\nkind = \"Event\"\n\
              starts = \"2055-06-20T15:00\"\ntime_zone = \"Europe/Oslo\"\n\
-             title = { nb = \"Sommerfest\" }\n[[groups]]\nname = \"Naboer\"",
+             language = \"nb\"\ntitle = { nb = \"Sommerfest\" }\n[[groups]]\nname = \"Naboer\"",
         )
         .unwrap();
         assert_eq!(file.groups[0].max_party_size, 2);

@@ -1,6 +1,7 @@
 # Norwegian (bokmål) texts for the public site, the admin pages and the mails.
-# Bokmål is where every other language ends up, so it has every text and falls back to
-# nothing.
+# A language is a module: it needs only the texts it has, and one left out here comes
+# from the `fallback` languages, in order, and from theirs in turn, down to English,
+# the base. A text English doesn't have is refused.
 # `{name}` and the like are filled in; keep them as they are.
 
 # What the language is: its own name on the language switch, its tag for <html lang>,
@@ -12,6 +13,7 @@ language.tag = "nb"
 language.badge = "NB"
 language.locale = "nb_NO"
 language.serves = ["nb", "no"]
+language.fallback = ["en"]
 
 # What the language switch is, for screen readers.
 languages = "Språk"

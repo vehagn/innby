@@ -125,7 +125,7 @@ async fn a_guest_hears_when_the_time_or_place_changes(db: PgPool) {
         .await
         .expect(&count(1, &a.change_notices_one, &a.change_notices_other));
     let notice = world.receive("kari@example.com").await;
-    assert!(notice.subject.contains("A change to"), "{}", notice.subject);
+    assert!(notice.subject.contains("has changed"), "{}", notice.subject);
     assert!(notice.body.contains("Bygdøy"), "{}", notice.body);
     // She's coming, so the event comes for her calendar again.
     assert!(notice.calendar.unwrap().contains("LOCATION:Bygdøy"));

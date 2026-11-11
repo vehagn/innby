@@ -113,7 +113,7 @@ agents, but it's the quickest tour for people too. In short:
   Handlers are named for what they do, so the router reads as a list of them: `list`,
   `show`, `create`, `edit`, `revoke`, `delete`, `qr`, as in `guests::edit`. A page that
   shows a form again to fix answers 422 (`http::render_form`).
-- **Add a text:** a field in `src/i18n/messages.rs`, the text in `locales/nb.toml`, and
+- **Add a text:** a field in `src/i18n/messages.rs`, the text in `locales/en.toml`, and
   its translations; see [translating.md](translating.md). Fill in placeholders with
   `i18n::fill` or `filled`.
 - **Change the look:** change the tokens at the top of `static/style.css`: colours

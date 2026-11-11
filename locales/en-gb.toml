@@ -1,0 +1,218 @@
+# British English, the "traditional" variant, with a touch of polish: only the texts it
+# says differently from plain English.
+# A language is a module: it needs only the texts it has, and one left out here comes
+# from the `fallback` languages, in order, and from theirs in turn, down to English,
+# the base. A text English doesn't have is refused.
+# `{name}` and the like are filled in; keep them as they are.
+
+# What the language is: its own name on the language switch, its tag for <html lang>,
+# its mark in the language menu, its locale for day and month names, the
+# Accept-Language tags it answers (a tag loses a part at a time until one matches), and
+# the languages that fill in what this file leaves out.
+language.name = "English (Traditional)"
+language.tag = "en-GB"
+language.badge = "GB"
+language.locale = "en_GB"
+language.serves = ["en-gb"]
+language.fallback = ["en"]
+
+theme_auto = "As one's device prefers"
+theme_light = "Daylight"
+theme_dark = "Evening dress"
+
+# Event
+# `chrono` format for dates and times: "Saturday 12 December 2026 at 7.00 pm".
+date_format = "%A %-d %B %Y at %-I.%M %P"
+# The same for a time alone, when an event ends on the day it starts.
+time_format = "%-I.%M %P"
+when_until = "{start} until {end}"
+place = "Venue"
+# The front page, which is about Innby rather than any one event.
+site_intro = "Innby is where you reply to an invitation: whether you shall attend, and with how many. No account is needed, and everything is deleted 30 days after the event."
+rsvp_hint = "Received an invitation? Kindly reply using the link that came with it."
+
+# RSVP page
+greeting = "Good day, {name}!"
+# Shown until the guest has answered: what we store and why (GDPR Art. 13/14).
+first_visit_notice = """
+You are cordially invited! To plan the occasion, we keep your name, your reply and the \
+size of your party. Nothing more, and every last bit is deleted 30 days after the event. \
+On the guest list, other guests see your first name and initial, and you may choose what \
+they see."""
+keep_link = """
+This page is yours alone. Do keep the link should you wish to change your reply, and \
+kindly don't share it."""
+# The tabs of a guest's pages, and what the bar is called for screen readers.
+tab_reply = "Your reply"
+changed_notice = "The time or place has changed since you replied. Kindly check it above, and change your reply should you need to."
+# The event for the guest's own calendar, once they're coming: a button and a hint.
+calendar_hint = "A file with the time and place for your phone's or computer's calendar. Should the plans change, add it again."
+add_to_calendar = "Add to my calendar"
+saved = "Splendid, all saved."
+your_answer = "Your reply: {answer}"
+answer_pending = "Not yet replied"
+answer_attending = "Attending"
+answer_declined = "Regretfully declined"
+how_many = "How many in your party?"
+people_one = "{n} guest"
+people_other = "{n} guests"
+attend = "I shall attend"
+decline = "Regretfully, I cannot"
+reply_by = "Kindly reply by {deadline}"
+answers_closed = """
+The time for replies has passed. Do contact the host should anything have changed."""
+change_name = "Amend name"
+data_heading = "Your particulars"
+data_text = "You may download everything we hold about you, or delete it forthwith."
+delete_confirm = "Yes, delete my reply and everything held about me"
+save_link_title = "Do keep your link safe!"
+save_link_text = """
+It is the only means of changing or withdrawing your reply. Bookmark this page, or keep \
+the link somewhere safe."""
+remember_hint = """
+Then the front page of this site shall lead you straight here, on this device alone. \
+It keeps your link in one cookie, which you may remove again at any time."""
+remembered_notice = "Splendid. This device shall remember you."
+email_intro = "Should you care for a reminder and your link by e-mail? Entirely optional."
+# The consent statement next to the unticked box (GDPR Art. 7).
+email_consent = """
+Yes, please e-mail me reminders, any change of time or place, and my link. I may remove \
+my address at any time."""
+email_pending_hint = "The link remains valid for 48 hours."
+email_confirmed = "Reminders shall be sent to {email}."
+email_sent_notice = "Do check your inbox to confirm the address."
+invalid_email = "Kindly enter a valid e-mail address."
+consent_required = "Kindly tick the box to give your consent."
+confirm_text = """
+Kindly press the button to confirm that you wish to receive reminders and your link by \
+e-mail."""
+confirm_invalid_text = """
+Alas, the confirmation link has expired or is no longer valid. Do add your address again \
+from your RSVP page."""
+lost_link = "Mislaid your link?"
+lost_title = "Mislaid your link?"
+lost_text = "If you added and confirmed your e-mail address, we shall send your link again."
+lost_sent_title = "Do check your inbox"
+
+# Guest list
+guest_list_heading = "The guest list"
+# The button to the guest list, which is on a page of its own.
+see_guest_list = "See who else is attending"
+back_to_sign_up = "Return to the reply form"
+guest_list_coming = "Attending"
+guest_list_pending = "Yet to reply"
+guest_list_empty = "Nobody on the list as yet."
+guest_list_note = "Guests who have sent their regrets are not listed."
+games_hint = "Your best score in each is kept, and shows here and in the game by your name as on the guest list."
+listed_hidden = "Your name does not appear on the list."
+listed_declined = "You are not on the list, having sent your regrets."
+display_hidden = "Kindly omit my name"
+
+# Group sign-up
+join_group = "Invited via {group}"
+join_heading = "Kindly confirm your attendance"
+# What we store and why (GDPR Art. 13), shown where the data is collected.
+join_notice = """
+We keep only your name and the size of your party, to plan the occasion. Other guests \
+see your name on the guest list as you choose above. Everything is deleted 30 days after \
+the event, and you may delete it yourself at any time."""
+join_button = "I shall attend!"
+
+# Errors and outcomes
+invalid_party_size = "Kindly choose a valid number."
+invalid_choice = "Kindly choose one of the choices."
+invalid_name = "Kindly write the name in letters and spaces, with - ' . , & if need be, up to 100 characters."
+confirm_delete = "Kindly tick the box to confirm the deletion."
+gone_title = "Alas, this link does not work"
+gone_text = """
+It may have been mistyped, replaced by a new link, or the reply deleted. Do ask the host \
+for a fresh one."""
+deleted_title = "Your reply has been deleted"
+deleted_text = """
+We have deleted your name, your reply and everything else we held about you. A change of \
+heart? Do ask the host for a fresh invitation."""
+to_home = "Return to the front page"
+too_many_attempts = "Rather too many attempts from here, I'm afraid. Do try again in an hour."
+not_found_text = "Do check that the link is correct, or ask the host."
+
+# The host's admin pages. Pairs ending in _one and _other are for one of something
+# and for any other number.
+[admin]
+login_expired = "That login took too long, or was started in another tab. Do try again."
+login_failed = "Couldn't log in with {name}. Try again shortly; should it keep failing, the admin log says why."
+error_event_past = "An event is deleted {days} days after it starts, so this one would be deleted at once. Kindly check the date."
+error_file_not_text = "That file isn't text. Kindly choose an event file (.toml)."
+change_notices_one = "Saved. {n} guest with a confirmed address shall be told of the change."
+change_notices_other = "Saved. {n} guests with a confirmed address shall be told of the change."
+
+# Mails. Each is plain text; `{url}` is a link on the site and `{title}` the event.
+[mail]
+# Under every mail. `{base}` is the site's address.
+footer = """
+You are receiving this e-mail because the address was added on {base}. You may remove it \
+from your RSVP page at any time."""
+# After a reminder, when the event is attached for the guest's calendar.
+calendar_attached = "The event is attached as a calendar file, should you wish to add it to your calendar."
+
+# To an address a guest typed in, before it's confirmed. Anyone can type in
+# any address, so this mail must not include anything a guest wrote, such as `{name}`.
+[mail.confirm_email]
+subject = "Kindly confirm your e-mail address – {title}"
+body = """
+Good day,
+
+Do open the link and press "Confirm" to receive reminders and your link for {title} by \
+e-mail:
+
+{url}
+
+The link remains valid for 48 hours. If this was not you, kindly disregard this e-mail; \
+the address shall be deleted automatically."""
+
+# To the confirmed owner when someone else adds their address.
+[mail.email_in_use]
+body = """
+Good day,
+
+Someone, perhaps yourself, attempted to add this e-mail address to a reply for {title}, \
+but it is already in use. Should you have mislaid your link, you may have it sent to you \
+here:
+
+{url}
+
+If this was not you, kindly disregard this e-mail."""
+
+# The guest's own link, after confirming or from /lost.
+[mail.rsvp_link]
+body = """
+Good day, {name},
+
+Herewith your personal link for {title}. Do use it to change or withdraw your reply:
+
+{url}
+
+Kindly share it with no one."""
+
+# From the host's Send reminders. `{when}`, `{place}`, `{answer}`.
+[mail.reminder]
+subject = "A gentle reminder: {title}"
+body = """
+Good day, {name},
+
+A gentle reminder of {title}: {when}, {place}.
+
+Your reply: {answer}. Should you wish to change it:
+
+{url}"""
+
+# When the host changes the event's start, end or place. `{when}`, `{place}`, `{answer}`.
+[mail.event_changed]
+subject = "A change to {title}"
+body = """
+Good day, {name},
+
+{title} has changed: it is now {when}, {place}.
+
+Your reply: {answer}. Should the change alter it:
+
+{url}"""
