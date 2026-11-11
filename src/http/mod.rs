@@ -291,14 +291,30 @@ mod tests {
                 .route(crate::paths::PRIVACY, get(|| async { "notice" })),
             false,
         );
-        for path in [
-            crate::paths::HEALTH,
-            crate::paths::READY,
-            crate::paths::PRIVACY,
-        ] {
-            let request = Request::get(path).body(Body::empty()).unwrap();
-            router.clone().oneshot(request).await.unwrap();
-        }
+        let ask = async || {
+            for path in [
+                crate::paths::HEALTH,
+                crate::paths::READY,
+                crate::paths::PRIVACY,
+            ] {
+                let request = Request::get(path).body(Body::empty()).unwrap();
+                router.clone().oneshot(request).await.unwrap();
+            }
+        };
+        // Once before anything listens, so every log line is known by the time
+        // something does. Other tests log the same lines from their own threads, and one
+        // first met there just as this test starts listening could be taken for a line
+        // nobody wants, and stay unlogged.
+        ask().await;
+        let logs = Logs::default();
+        let writer = logs.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .finish();
+        let _logging = tracing::subscriber::set_default(subscriber);
+        ask().await;
         let logs = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
         assert!(!logs.contains("/healthz"), "{logs}");
         assert!(
