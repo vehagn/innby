@@ -179,10 +179,10 @@ insert into board_post (id, event_id, parent_id, rsvp_id, host_name, body, creat
      'Gleder oss! Er det kleskode?', now() - interval '5 days'),
     ('00000000-5eed-7000-8000-000000002003', '00000000-5eed-7000-8000-000000000001',
      '00000000-5eed-7000-8000-000000002002', null, 'admin',
-     'Pent, men ingen slips-tvang.', now() - interval '5 days' + interval '2 hours'),
+     'Pent, men **ingen** slips-tvang. Se [kartet](https://www.openstreetmap.org/) for veien.', now() - interval '5 days' + interval '2 hours'),
     ('00000000-5eed-7000-8000-000000002004', '00000000-5eed-7000-8000-000000000001', null,
      '00000000-5eed-7000-8000-000000001004', null,
-     'Er det noen som vil dele taxi fra Majorstuen?', now() - interval '2 days'),
+     E'Er det noen som vil dele taxi fra Majorstuen?\n\n- avgang 18:30\n- plass til tre', now() - interval '2 days'),
     ('00000000-5eed-7000-8000-000000002005', '00000000-5eed-7000-8000-000000000001', null,
      '00000000-5eed-7000-8000-000000001006', null,
      'Pinnekjøtt er overvurdert.', now() - interval '1 day');

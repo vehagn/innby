@@ -30,7 +30,8 @@
 <section class="card" aria-label="{{ t.board_heading }}">
   <form method="post" action="{{ links.board_posts }}">
     <label for="new-post">{{ a.board_new_host }}</label>
-    <textarea id="new-post" name="body" rows="4" maxlength="{{ crate::db::board::MAX_BODY }}" required>{{ draft }}</textarea>
+    <textarea id="new-post" name="body" rows="4" maxlength="{{ crate::db::board::MAX_BODY }}" required aria-describedby="post-format">{{ draft }}</textarea>
+    <p class="hint" id="post-format">{{ crate::i18n::filled(t.board_format, "n", crate::db::board::MAX_BODY) }}</p>
     <button>{{ t.board_send }}</button>
   </form>
   {% if steps.is_empty() %}

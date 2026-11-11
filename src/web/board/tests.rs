@@ -132,6 +132,53 @@ async fn an_empty_post_is_kept_to_fix(db: PgPool) {
         .await;
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let html = body(response).await;
-    assert!(html.contains(&escape(&en().board_error_body)), "{html}");
+    let error = crate::i18n::filled(&en().board_error_body, "n", board::MAX_BODY);
+    assert!(html.contains(&escape(&error)), "{html}");
     assert!(html.contains(&long), "the draft is kept");
+}
+
+#[sqlx::test]
+async fn posts_are_markdown_and_never_html(db: PgPool) {
+    let site = Site::new(db);
+    set(&site, BoardState::Open).await;
+    let (_, link) = site.invite("Kari", 1).await;
+    let board = format!("/r/{link}/board?lang=en");
+    let text = "**Cake** at <b>8</b>\n- [map](https://example.com)";
+    site.post(
+        &board,
+        &format!("body={}", text.replace(' ', "+").replace('\n', "%0A")),
+    )
+    .await;
+    let html = body(site.get(&board).await).await;
+    assert!(
+        html.contains("<strong>Cake</strong> at &#60;b&#62;8&#60;/b&#62;"),
+        "{html}"
+    );
+    assert!(
+        html.contains(
+            r#"<li><a href="https://example.com" rel="nofollow ugc noopener">map</a></li>"#
+        ),
+        "{html}"
+    );
+}
+
+#[sqlx::test]
+async fn a_guest_posts_so_many_an_hour(db: PgPool) {
+    let site = Site::new(db);
+    set(&site, BoardState::Open).await;
+    let (_, kari) = site.invite("Kari", 1).await;
+    let (_, ola) = site.invite("Ola", 1).await;
+    let board = |link: &str| format!("/r/{link}/board?lang=en");
+    for n in 0..crate::web::BOARD_POSTS_AN_HOUR {
+        let response = site.post(&board(&kari), &format!("body=Post+{n}")).await;
+        assert_eq!(response.status(), StatusCode::SEE_OTHER, "post {n}");
+    }
+    let response = site.post(&board(&kari), "body=One+more").await;
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    let html = body(response).await;
+    assert!(html.contains(&escape(&en().board_error_busy)), "{html}");
+    assert!(html.contains("One more"), "the draft is kept");
+    // Others are counted apart.
+    let response = site.post(&board(&ola), "body=Hi").await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
 }

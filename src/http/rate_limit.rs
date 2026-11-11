@@ -1,16 +1,19 @@
 //! An in-memory rate limit, per client or for all clients together, for the forms anyone
-//! can post (group sign-up and the ones that send mail) and for admin logins. Addresses
-//! are only held in memory for the length of a window and never logged or stored, and
-//! only so many at once, so nobody can fill the memory with them.
+//! can post (group sign-up and the ones that send mail) and for admin logins; or per
+//! guest, by their RSVP's id, for posts on a message board. Addresses and ids are only
+//! held in memory for the length of a window and never logged or stored, and only so
+//! many at once, so nobody can fill the memory with them.
 
 use std::{
     collections::HashMap,
+    hash::Hash,
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::Mutex,
     time::{Duration, Instant},
 };
 
 use axum::{extract::ConnectInfo, http::request::Parts};
+use uuid::Uuid;
 
 /// The most clients a limiter counts at once, a megabyte or so. Someone with a great
 /// many addresses (an IPv6 /48 has 65 536 networks) could otherwise make it remember
@@ -21,14 +24,15 @@ const MOST_CLIENTS: usize = 20_000;
 /// The one count shared by the clients there's no room for: no client's own address.
 const EVERYONE_ELSE: IpAddr = IpAddr::V6(Ipv6Addr::UNSPECIFIED);
 
-/// A fixed-window counter per client, or for everyone with `check_all`.
-pub struct RateLimiter {
+/// A fixed-window counter per client, or for everyone with `check_all`; or, as a
+/// `RateLimiter<Uuid>`, per guest.
+pub struct RateLimiter<K = IpAddr> {
     limit: u32,
     window: Duration,
-    hits: Mutex<HashMap<IpAddr, (Instant, u32)>>,
+    hits: Mutex<HashMap<K, (Instant, u32)>>,
 }
 
-impl RateLimiter {
+impl<K: Copy + Eq + Hash> RateLimiter<K> {
     pub fn new(limit: u32, window: Duration) -> Self {
         Self {
             limit,
@@ -37,6 +41,38 @@ impl RateLimiter {
         }
     }
 
+    /// Counts a request by `key`, which shares `overflow`'s count when there are already
+    /// `most` others.
+    fn count(&self, mut key: K, now: Instant, most: usize, overflow: K) -> bool {
+        let mut hits = self
+            .hits
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        // Forget finished windows now and then; if it's still full of running ones,
+        // there's no room for a newcomer, who's counted with everyone else.
+        if hits.len() >= most.min(1024) && !hits.contains_key(&key) {
+            hits.retain(|_, (start, _)| now.duration_since(*start) < self.window);
+            if hits.len() >= most {
+                key = overflow;
+            }
+        }
+        let (start, count) = hits.entry(key).or_insert((now, 0));
+        if now.duration_since(*start) >= self.window {
+            (*start, *count) = (now, 0);
+        }
+        *count += 1;
+        *count <= self.limit
+    }
+}
+
+impl RateLimiter<Uuid> {
+    /// Counts a request by a guest, and says whether it's within the limit.
+    pub fn check_guest(&self, rsvp_id: Uuid) -> bool {
+        self.count(rsvp_id, Instant::now(), MOST_CLIENTS, Uuid::nil())
+    }
+}
+
+impl RateLimiter {
     /// Counts a request and says whether it's within the limit.
     pub fn check(&self, ClientIp(client): ClientIp) -> bool {
         self.check_at(client, Instant::now())
@@ -53,25 +89,7 @@ impl RateLimiter {
     }
 
     fn check_among(&self, client: IpAddr, now: Instant, most: usize) -> bool {
-        let mut hits = self
-            .hits
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let mut client = network(client);
-        // Forget finished windows now and then; if it's still full of running ones,
-        // there's no room for a newcomer, who's counted with everyone else.
-        if hits.len() >= most.min(1024) && !hits.contains_key(&client) {
-            hits.retain(|_, (start, _)| now.duration_since(*start) < self.window);
-            if hits.len() >= most {
-                client = EVERYONE_ELSE;
-            }
-        }
-        let (start, count) = hits.entry(client).or_insert((now, 0));
-        if now.duration_since(*start) >= self.window {
-            (*start, *count) = (now, 0);
-        }
-        *count += 1;
-        *count <= self.limit
+        self.count(network(client), now, most, EVERYONE_ELSE)
     }
 }
 
@@ -154,6 +172,15 @@ mod tests {
         let later = start + Duration::from_secs(60);
         assert!(limiter.check_among(ip("192.0.2.6"), later, most));
         assert_eq!(limiter.hits.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn counts_each_guest_apart() {
+        let limiter = RateLimiter::<Uuid>::new(1, Duration::from_secs(60));
+        let (kari, ola) = (Uuid::from_u128(1), Uuid::from_u128(2));
+        assert!(limiter.check_guest(kari));
+        assert!(!limiter.check_guest(kari));
+        assert!(limiter.check_guest(ola));
     }
 
     #[test]

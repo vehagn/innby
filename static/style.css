@@ -982,9 +982,33 @@ td {
   font-size: var(--text-s);
 }
 
+/* A post's text, in the little Markdown it's written in. */
 .post-body {
-  white-space: pre-line;
   overflow-wrap: anywhere;
+}
+
+.post-body > * {
+  margin: 0 0 var(--space-2);
+}
+
+.post-body > :last-child {
+  margin-bottom: 0;
+}
+
+.post-body ul,
+.post-body ol {
+  padding-left: var(--space-6);
+}
+
+.post-body blockquote {
+  padding-left: var(--space-3);
+  border-left: var(--rule-thick) solid var(--border);
+  color: var(--text-muted);
+}
+
+.post-body code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
 }
 
 .post-actions {

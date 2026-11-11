@@ -25,7 +25,7 @@ use crate::{
         event::Event,
     },
     http::render_with,
-    i18n::AdminMessages,
+    i18n::{AdminMessages, filled},
     paths::{self, EventLinks},
 };
 
@@ -188,11 +188,12 @@ pub(super) async fn create(
             Err(_) => return Ok(StatusCode::BAD_REQUEST.into_response()),
         },
     };
-    let refuse = |draft: Draft, pick: fn(&'static crate::i18n::Messages) -> &'static str| {
+    let t = lang::current().messages();
+    let refuse = |draft: Draft, error: String| {
         let state = &state;
         async move {
             let mut page = page(state, id, Some(draft)).await?;
-            page.error = Some(pick(lang::current().messages()).to_owned());
+            page.error = Some(error);
             Ok::<_, PageError>(render_with(StatusCode::UNPROCESSABLE_ENTITY, page))
         }
     };
@@ -201,13 +202,13 @@ pub(super) async fn create(
             parent,
             body: form.body,
         };
-        return refuse(draft, |t| &t.board_error_body).await;
+        return refuse(draft, filled(&t.board_error_body, "n", board::MAX_BODY)).await;
     };
     let host = Host::current();
     let posted =
         board::create(&state.db, event.id, parent, Writer::Host(&host.user), &body).await?;
     let Some(post) = posted else {
-        return refuse(Draft { parent: None, body }, |t| &t.board_error_gone).await;
+        return refuse(Draft { parent: None, body }, t.board_error_gone.clone()).await;
     };
     tracing::info!(event = %event.id, %post, "host posted on the board");
     Ok(redirect(&format!(

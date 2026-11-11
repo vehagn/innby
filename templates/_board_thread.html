@@ -9,7 +9,8 @@
     <article class="post">
       {% if let Some(body) = post.body %}
       <p class="post-by"><strong>{{ post.author }}</strong>{% if post.host %} <span class="badge">{{ t.board_host }}</span>{% endif %}{% if post.you %} {{ t.you }}{% endif %} <span class="muted">· {{ post.when }}</span></p>
-      <p class="post-body">{{ body }}</p>
+      {#- Escaped as it's made: Markdown, with no HTML of the writer's. #}
+      <div class="post-body">{{ body|safe }}</div>
       <div class="post-actions">
         {% if let Some(action) = post.vote_action %}
         <form class="votes" method="post" action="{{ action }}">

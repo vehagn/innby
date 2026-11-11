@@ -162,3 +162,21 @@ fn deep_replies_line_up_instead_of_nesting() {
     let steps = threads(posts, |post| post.id.as_u128());
     assert_eq!(shape(&steps), "1(2(3(4(5(6()7()8())))))");
 }
+
+#[sqlx::test]
+async fn the_board_goes_with_its_event(db: PgPool) {
+    let (event, kari, ola) = setup(&db).await;
+    let hello = post(&db, event, None, kari, "Hello").await;
+    create(&db, event, Some(hello), Writer::Host("admin"), "Hi")
+        .await
+        .unwrap();
+    vote(&db, event, hello, ola, 1).await.unwrap();
+    assert!(event::delete(&db, event).await.unwrap());
+    let left = sqlx::query_scalar!(
+        r#"select (select count(*) from board_post) + (select count(*) from board_vote) as "n!""#
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert_eq!(left, 0);
+}

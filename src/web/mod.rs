@@ -38,6 +38,8 @@ use crate::{
 pub const PRIVACY_VERSION: &str = "2026-11-11";
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
+/// How many posts and replies a guest may make on a message board in an hour.
+pub(crate) const BOARD_POSTS_AN_HOUR: u32 = 30;
 const DAY: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[derive(Clone)]
@@ -51,6 +53,8 @@ struct AppState {
     mail_limiter_all: Arc<RateLimiter>,
     /// Scores from the minigames, per client: a game sends one a round.
     score_limiter: Arc<RateLimiter>,
+    /// Posts on a message board, per guest.
+    board_limiter: Arc<RateLimiter<uuid::Uuid>>,
     /// The languages the site offers guests, as its admin picked them.
     languages: Arc<languages::SiteLanguages>,
 }
@@ -116,6 +120,8 @@ pub(crate) fn routers(config: Config, db: PgPool) -> (Router, Option<Router>) {
         mail_limiter_all: Arc::new(RateLimiter::new(100, DAY)),
         // A round every six seconds for an hour, for a household on one address.
         score_limiter: Arc::new(RateLimiter::new(600, HOUR)),
+        // A lively evening's worth, a post every two minutes.
+        board_limiter: Arc::new(RateLimiter::new(BOARD_POSTS_AN_HOUR, HOUR)),
     };
     let api = games::router(&state);
     // Not on any route: only the games' servers reach it, inside the cluster.

@@ -343,6 +343,13 @@ moderated: no filters, no automatic hiding beyond that. Guests vote with their p
 link, one vote a post, not on their own; the same vote again takes it back, and nobody
 sees who voted how, only the sum.
 
+A post is at most 2000 characters, in a little Markdown (`src/markdown.rs`): bold,
+italics, code, links to the web or an e-mail address, lists and quotes, and line breaks
+where the writer made them. Everything else is escaped, so a post holds no HTML of its
+own; links are marked `nofollow ugc`. A guest may post or reply 30 times an hour, counted
+in memory by their RSVP rather than their address, so a household on one network doesn't
+share it; hosts aren't counted.
+
 Guests sign as the guest list shows them ("A guest" when it doesn't), and see hosts only
 as "The hosts"; hosts see everyone in full. A guest may delete their own posts, and a
 host any. A deleted post with replies stays as "[deleted]", so the replies keep their
@@ -350,6 +357,7 @@ place; without replies it goes, with any empty posts above it that were only kep
 it. Deleting a guest does the same to their posts, in the database (`board_post_forget`),
 and deletes their votes. Forms post and the page comes back, with no JavaScript: a reply
 form folds out under each post, and the vote buttons say which way the guest voted.
+Everything on the board, posts, replies and votes, is deleted with its event.
 
 ## Data and retention
 

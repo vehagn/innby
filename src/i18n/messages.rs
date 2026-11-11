@@ -187,7 +187,12 @@ pub struct Messages {
     pub board_empty: String,
     pub board_posted: String,
     pub board_deleted_notice: String,
+    /// Under the box: the Markdown it takes, and "{n}" characters at most.
+    pub board_format: String,
+    /// "{n}" characters at most.
     pub board_error_body: String,
+    /// Too many posts in an hour.
+    pub board_error_busy: String,
     /// The post a reply answered was deleted meanwhile.
     pub board_error_gone: String,
     pub listed_as: String,

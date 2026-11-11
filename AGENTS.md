@@ -98,6 +98,7 @@ src/
                      picking among them for a request)
   calendar.rs        an event as an iCalendar file, for guests' pages and reminders
   board.rs           a message board post as both sites show it (_board_thread.html)
+  markdown.rs        the little Markdown posts are written in, everything else escaped
   link.rs            HMAC-signed links: possession is the authorisation
   paths.rs           every route pattern, and links built from them
   theme.rs           the colour scheme from ?theme=

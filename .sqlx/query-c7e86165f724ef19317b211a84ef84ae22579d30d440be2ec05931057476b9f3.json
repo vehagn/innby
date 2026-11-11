@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select (select count(*) from board_post) + (select count(*) from board_vote) as \"n!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "n!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c7e86165f724ef19317b211a84ef84ae22579d30d440be2ec05931057476b9f3"
+}

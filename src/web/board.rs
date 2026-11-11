@@ -1,7 +1,8 @@
 //! The Board tab of a guest's pages, `/r/{link}/board`: the event's message board, when
 //! its hosts have it on for guests (`db::board::BoardState`). Guests read and vote on
 //! what hosts post, and when it's open post and reply too, signed as the guest list
-//! shows them. A guest may delete their own posts; hosts any, in the admin UI.
+//! shows them, in a little Markdown (`crate::markdown`), so many an hour. A guest may
+//! delete their own posts; hosts any, in the admin UI.
 
 use askama::Template;
 use axum::{
@@ -23,7 +24,7 @@ use crate::{
     board::PostView,
     db::board::{self, Author, Step, Writer},
     http::{render, render_with},
-    i18n::{Lang, Messages},
+    i18n::{Lang, Messages, filled},
     icons::TabLink,
     paths::{self, GuestLinks},
 };
@@ -41,7 +42,7 @@ struct BoardPage {
     /// A new thread that couldn't be posted, to try again.
     draft: String,
     flash: Option<&'static str>,
-    error: Option<&'static str>,
+    error: Option<String>,
 }
 
 /// A post that couldn't be posted: its text, and what it answered.
@@ -151,19 +152,43 @@ pub async fn create(
             Err(_) => return Ok(StatusCode::BAD_REQUEST.into_response()),
         },
     };
+    let t = guest.lang.messages();
     let Some(body) = board::body(&form.body) else {
         let draft = Draft {
             parent,
             body: form.body,
         };
-        return Ok(refuse(&state, &guest, draft, |t| &t.board_error_body).await?);
+        let error = filled(&t.board_error_body, "n", board::MAX_BODY);
+        return Ok(refuse(
+            &state,
+            &guest,
+            draft,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            error,
+        )
+        .await?);
     };
+    // Kept to so many an hour each, so nobody can flood the board; counted by the guest
+    // rather than their address, so a household on one network doesn't share it.
+    if !state.board_limiter.check_guest(guest.rsvp.id) {
+        let draft = Draft { parent, body };
+        let error = t.board_error_busy.clone();
+        return Ok(refuse(&state, &guest, draft, StatusCode::TOO_MANY_REQUESTS, error).await?);
+    }
     let writer = Writer::Guest(guest.rsvp.id);
     let posted = board::create(&state.db, guest.event.id, parent, writer, &body).await?;
     let Some(id) = posted else {
         // What it answered was deleted meanwhile.
         let draft = Draft { parent: None, body };
-        return Ok(refuse(&state, &guest, draft, |t| &t.board_error_gone).await?);
+        let error = t.board_error_gone.clone();
+        return Ok(refuse(
+            &state,
+            &guest,
+            draft,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            error,
+        )
+        .await?);
     };
     tracing::info!(rsvp = %guest.rsvp.id, post = %id, "posted on the board");
     Ok(Notice::Posted.redirect_to(
@@ -174,16 +199,17 @@ pub async fn create(
     ))
 }
 
-/// The board again, with the post kept to try again and what was wrong with it.
+/// The board again, with the post kept to try again and why it wasn't posted.
 async fn refuse(
     state: &AppState,
     guest: &Guest,
     draft: Draft,
-    pick: fn(&'static Messages) -> &'static str,
+    status: StatusCode,
+    error: String,
 ) -> sqlx::Result<Response> {
     let mut page = page(state, guest, Some(draft), None).await?;
-    page.error = Some(pick(page.t));
-    Ok(render_with(StatusCode::UNPROCESSABLE_ENTITY, page))
+    page.error = Some(error);
+    Ok(render_with(status, page))
 }
 
 #[derive(Deserialize)]

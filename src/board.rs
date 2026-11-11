@@ -24,7 +24,8 @@ pub struct PostView {
     /// Whether the one looking did.
     pub you: bool,
     pub when: String,
-    /// None for a deleted post, kept for its replies.
+    /// Its text as HTML, from its Markdown (`crate::markdown`); None for a deleted post,
+    /// kept for its replies.
     pub body: Option<String>,
     pub score: i64,
     /// The looking guest's vote: 1, -1 or 0.
@@ -66,7 +67,7 @@ impl PostView {
             host,
             you: false,
             when: lang.format_date(post.created_at.with_timezone(&tz)),
-            body: post.body.clone(),
+            body: post.body.as_deref().map(crate::markdown::to_html),
             score: post.score,
             vote: post.vote,
             vote_action: None,
