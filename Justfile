@@ -173,6 +173,20 @@ db command="psql":
       *) echo "just db [psql|prepare|reset|seed|fresh]" >&2; exit 1 ;;
     esac
 
+# Draws the icon's other forms from static/favicon.svg, which is the one to change: the
+# .ico browsers ask for unprompted (16, 32 and 48 pixels), and the PNG an iPhone puts on
+# its home screen, square and opaque, since iOS rounds the corners itself. Both are
+# committed, so a build needs no ImageMagick.
+[doc("Draw static/favicon.ico and static/apple-touch-icon.png from static/favicon.svg")]
+[group("dev")]
+icons:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd static
+    magick -background none -density 1200 favicon.svg -define icon:auto-resize=48,32,16 favicon.ico
+    sed 's/ rx="7"//' favicon.svg | magick -density 1200 svg:- -resize 180x180 \
+      -alpha remove -strip PNG24:apple-touch-icon.png
+
 # E.g. `just innby invite "Kari & Ola" 2`, `just innby janitor`, or `just innby
 # hash-password`, which asks for the password without echoing it.
 [doc("Run an innby command against the dev database")]

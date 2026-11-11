@@ -188,6 +188,30 @@ async fn serves_stylesheet() {
     );
 }
 
+#[tokio::test]
+async fn serves_the_icon_where_browsers_look() {
+    let html = body(get("/", None).await).await;
+    for (uri, content_type, file) in [
+        (paths::FAVICON, "image/svg+xml", "favicon.svg"),
+        (
+            paths::FAVICON_ICO,
+            "image/vnd.microsoft.icon",
+            "favicon.ico",
+        ),
+        (paths::APPLE_TOUCH_ICON, "image/png", "apple-touch-icon.png"),
+    ] {
+        assert!(html.contains(&format!(r#"href="{uri}""#)), "{uri}: {html}");
+        let response = get(uri, None).await;
+        assert_eq!(response.status(), StatusCode::OK, "{uri}");
+        assert_eq!(response.headers()[header::CONTENT_TYPE], content_type);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let path = format!("{}/static/{file}", env!("CARGO_MANIFEST_DIR"));
+        assert_eq!(bytes, std::fs::read(path).unwrap(), "{uri}");
+    }
+}
+
 /// What a browser gets for `uri`, asking for gzip.
 async fn gzipped(db: PgPool, uri: &str) -> Response {
     let request = Request::get(uri)

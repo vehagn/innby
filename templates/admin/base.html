@@ -9,6 +9,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{% endblock %} · Innby {{ t.admin.admin }}</title>
   <link rel="stylesheet" href="{{ crate::admin::prefix() }}{{ crate::http::stylesheet_link() }}">
+  {% let prefix = crate::admin::prefix() %}
+  {% include "_icons.html" %}
 </head>
 <body class="admin">
   <header>

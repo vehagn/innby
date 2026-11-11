@@ -157,10 +157,14 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
     let games = !state.config.games.list.is_empty();
     let scoped = Arc::clone(&prefix);
     let router: Router = http::no_store(pages)
-        // Probes don't log in, and the login page has its style before anyone does.
+        // Probes don't log in, and the login page has its style and icon before anyone
+        // does.
         .route(paths::HEALTH, get(|| async { "ok" }))
         .route(paths::READY, get(http::ready))
         .route(paths::STYLESHEET, get(http::stylesheet))
+        .route(paths::FAVICON, get(http::icon::svg))
+        .route(paths::FAVICON_ICO, get(http::icon::ico))
+        .route(paths::APPLE_TOUCH_ICON, get(http::icon::apple_touch))
         .layer(middleware::from_fn(crate::theme::scope))
         .layer(middleware::from_fn(lang::scope))
         .layer(middleware::from_fn(

@@ -1,11 +1,12 @@
 //! What both listeners share, the public site's and the admin UI's: serving with
 //! timeouts and graceful shutdown, security headers, CSRF protection, rate limits,
-//! cookies, rendering templates and the stylesheet, gzip where it's safe, and the
-//! request's language.
+//! cookies, rendering templates and the stylesheet, the icon, gzip where it's safe, and
+//! the request's language.
 
 mod compress;
 pub mod cookie;
 mod csrf;
+pub mod icon;
 mod rate_limit;
 mod render;
 

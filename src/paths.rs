@@ -16,6 +16,10 @@ pub const PRIVACY: &str = "/privacy";
 pub const LOST: &str = "/lost";
 pub const STYLESHEET: &str = "/static/style.css";
 pub const ROBOTS: &str = "/robots.txt";
+pub const FAVICON: &str = "/static/favicon.svg";
+/// Where browsers look for an icon unasked, so the old format's is at the root.
+pub const FAVICON_ICO: &str = "/favicon.ico";
+pub const APPLE_TOUCH_ICON: &str = "/apple-touch-icon.png";
 pub const HEALTH: &str = "/healthz";
 pub const READY: &str = "/readyz";
 pub const RSVP: &str = "/r/{link}";

@@ -156,6 +156,9 @@ pub(crate) fn routers(config: Config, db: PgPool) -> (Router, Option<Router>) {
             languages::scope,
         ))
         .route(paths::STYLESHEET, get(http::stylesheet))
+        .route(paths::FAVICON, get(http::icon::svg))
+        .route(paths::FAVICON_ICO, get(http::icon::ico))
+        .route(paths::APPLE_TOUCH_ICON, get(http::icon::apple_touch))
         .route(paths::ROBOTS, get(pages::robots))
         .route(paths::HEALTH, get(|| async { "ok" }))
         .route(paths::READY, get(http::ready))

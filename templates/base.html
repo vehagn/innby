@@ -7,6 +7,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{% endblock %}</title>
   <link rel="stylesheet" href="{{ crate::http::stylesheet_link() }}">
+  {% let prefix = "" %}
+  {% include "_icons.html" %}
 </head>
 <body>
   <header>

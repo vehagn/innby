@@ -42,6 +42,7 @@ src/
     csrf.rs          refuses cross-site form posts (Sec-Fetch-Site / Origin)
     rate_limit.rs    in-memory limits per client or for everyone
     render.rs        askama templates to responses (render_form: 422 for a form to fix), the stylesheet
+    icon.rs          the site's icon: favicon.svg, and the .ico and iPhone PNG `just icons` draws from it
   web/               the public site; mod.rs has the router and every route
     rsvp.rs          a guest's pages /r/{link}: the link's guest, the Reply tab (event, answer)
                      and the Guest list tab
@@ -104,6 +105,7 @@ locales/*.toml       one file per language, found by build.rs: what it is, its f
                      its texts; templates/privacy/{code}.html its privacy notice
 templates/           askama pages: base.html and admin/base.html, partials named _*.html
 static/style.css     the one stylesheet: tokens first, then base, layout, components, pages
+static/favicon.*     the icon, drawn in favicon.svg; `just icons` makes the rest
 migrations/          the schema, applied by `innby migrate`: 0001_schema.sql, the whole of
                      it until Innby is live;
                      seed/sample.sql is sample data for dev

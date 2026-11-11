@@ -446,6 +446,12 @@ async fn serves_under_a_path_with_the_probes_at_the_root(db: PgPool) {
         "",
     );
     assert_eq!(status(css.await), StatusCode::OK);
+    assert!(
+        html.contains(r#"href="/admin/static/favicon.svg""#),
+        "{html}"
+    );
+    let icon = admin.send(Request::get("/admin/static/favicon.svg"), "");
+    assert_eq!(status(icon.await), StatusCode::OK);
     // Nothing of the admin's outside its path.
     assert_eq!(status(admin.get("/events").await), StatusCode::NOT_FOUND);
 
