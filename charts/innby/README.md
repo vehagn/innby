@@ -26,7 +26,10 @@ The least a working install needs, here with the admin UI at `https://fest.examp
 
 ```yaml
 siteUrl: https://fest.example.com
-controller: { name: Kari Nordmann, email: kari@example.com }
+controller:
+  name: Kari Nordmann
+  email: kari@example.com
+  mailProcessor: MailerSend (MailerSend UAB, Lithuania)   # as /privacy names it
 database:
   cnpg: { cluster: innby-db }     # a CloudNativePG cluster in the namespace
 secrets:

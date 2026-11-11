@@ -48,7 +48,7 @@ accounts, a JavaScript front end, and a public list of who's coming.
 | Copying a link | A link beside its field | A copy button needs JavaScript. Browsers already offer to copy a link that's held or right-clicked, so each link field has an Open link beside it, and a hint saying so. |
 | Styling | One stylesheet of tokens and components | The look changes in CSS alone: colours, type and spacing are tokens at the top, and each kind of thing is one class. A test keeps the templates and the stylesheet in step. |
 | Events as code | Import and export, not sync | A file per event, versioned like a Kubernetes manifest, read into the form for a new event. Syncing events from a ConfigMap or Secret was considered, but would put addresses in a public repository or need a watcher; a file the host keeps and imports when needed does what's wanted. Never guests, whose names mustn't outlive the event. |
-| Mail provider | MailerSend, in the homelab | An existing account in the EU. Any SMTP server works. |
+| Mail provider | Any SMTP server, named on `/privacy` by a setting | The notice must name who handles guests' addresses, so `INNBY_MAIL_PROCESSOR` says it, and without it the notice says the host's own server. The homelab uses MailerSend, an existing account in the EU. |
 | Compatibility before going live | None kept | Until Innby is live, the one install is a test, so the schema changes in place in its one file and databases are made again, and the event file's format changes within `innby/v1`. Migrations and new format versions come once it's live. |
 
 ## History

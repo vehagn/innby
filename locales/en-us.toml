@@ -132,6 +132,11 @@ not_found_text = "Check the link or ask the host."
 
 # The host's admin pages. Pairs ending in _one and _other are for one of something
 # and for any other number.
+# In the privacy notice: who sends the mail, `{processor}` as INNBY_MAIL_PROCESSOR
+# names it, or the host's own server where it's unset.
+privacy_mail_processor = "Emails go out through {processor}, which handles your email for the host as a \"processor.\""
+privacy_mail_own = "Emails go out through the host's own mail server."
+
 [admin]
 log_in_text = "Log in with your username and password."
 user_name = "Username"

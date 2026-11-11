@@ -292,3 +292,28 @@ async fn unknown_route_is_not_found() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
 }
+
+#[sqlx::test]
+async fn the_privacy_notice_names_the_mail_service_the_config_does(db: PgPool) {
+    // Unset: the host's own server, in each language.
+    let site = crate::web::testing::Site::new(db.clone());
+    let html = body(site.get("/privacy?lang=en").await).await;
+    assert!(
+        html.contains("sent through the host&#39;s own mail server"),
+        "{html}"
+    );
+    assert!(!html.contains("MailerSend") && !html.contains("{mail_processor}"));
+    let html = body(site.get("/privacy?lang=nb").await).await;
+    assert!(html.contains("vertens egen e-posttjener"), "{html}");
+
+    // Named, and escaped: it's a setting, but it goes into the markup.
+    let processor = "Post & Co <Mail> (Post AS, Norway)";
+    let site = crate::web::testing::Site::with(db, &[("INNBY_MAIL_PROCESSOR", processor)]);
+    let html = body(site.get("/privacy?lang=en").await).await;
+    assert!(
+        html.contains("sent through Post &#38; Co &#60;Mail&#62; (Post AS, Norway), which"),
+        "{html}"
+    );
+    let html = body(site.get("/privacy?lang=zh-hant").await).await;
+    assert!(html.contains("電子郵件透過 Post &#38; Co"), "{html}");
+}

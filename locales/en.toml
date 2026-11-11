@@ -22,6 +22,10 @@ theme_auto = "Automatic"
 theme_light = "Light"
 theme_dark = "Dark"
 privacy_link = "Privacy"
+# In the privacy notice: who sends the mail, `{processor}` as INNBY_MAIL_PROCESSOR
+# names it, or the host's own server where it's unset.
+privacy_mail_processor = "E-mail is sent through {processor}, which handles your address for the host as a \"processor\"."
+privacy_mail_own = "E-mail is sent through the host's own mail server."
 
 # Event
 # `chrono` format for dates and times: "Saturday 12 December 2026 at 19:00".

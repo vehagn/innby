@@ -16,7 +16,7 @@ use crate::{
     config::Controller,
     db::event::Details,
     http::{render, render_compressed, render_with, server_error},
-    i18n::{Lang, Messages, escape_html, fill},
+    i18n::{Lang, Messages, escape_html, fill, filled},
     janitor::{KEEP_AFTER_EVENT, KEEP_SENT_MAIL},
     paths,
 };
@@ -144,12 +144,18 @@ pub async fn privacy(State(state): State<AppState>, lang: Lang, headers: HeaderM
 /// come from the config, so each is escaped as it goes into the markup.
 fn notice(lang: Lang, controller: &Controller) -> String {
     let (after_event, sent_mail) = (KEEP_AFTER_EVENT.num_days(), KEEP_SENT_MAIL.num_days());
+    let t = lang.messages();
+    let mail_processor = match &controller.mail_processor {
+        Some(processor) => filled(&t.privacy_mail_processor, "processor", processor),
+        None => t.privacy_mail_own.clone(),
+    };
     let values = [
         ("controller_name", controller.name.clone()),
         ("controller_email", controller.email.clone()),
         ("version", PRIVACY_VERSION.to_owned()),
         ("keep_after_event_days", after_event.to_string()),
         ("keep_sent_mail_days", sent_mail.to_string()),
+        ("mail_processor", mail_processor),
     ]
     .map(|(key, value)| (key, escape_html(&value)));
     let values: Vec<(&str, &dyn std::fmt::Display)> = values

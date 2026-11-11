@@ -24,6 +24,10 @@ pub struct Messages {
     pub theme_light: String,
     pub theme_dark: String,
     pub privacy_link: String,
+    /// In the privacy notice, who sends the mail: a processor `INNBY_MAIL_PROCESSOR`
+    /// names, or the host's own server.
+    pub privacy_mail_processor: String,
+    pub privacy_mail_own: String,
 
     // Event
     /// `chrono` format for dates and times.

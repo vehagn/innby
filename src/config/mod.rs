@@ -59,10 +59,17 @@ impl Config {
     }
 }
 
+/// Who the privacy notice says is responsible for guests' data, and who handles it for
+/// them.
 #[derive(Debug, Clone)]
 pub struct Controller {
     pub name: String,
     pub email: String,
+    /// `INNBY_MAIL_PROCESSOR`: the service mail is sent through, which handles guests'
+    /// addresses on the host's behalf, as the notice must say (GDPR Art. 13(1)(e)), with
+    /// the company and the country, as "MailerSend (MailerSend UAB, Lithuania)". None
+    /// for the host's own mail server.
+    pub mail_processor: Option<String>,
 }
 
 /// The Postgres connection string. Kept apart from `Config` because `innby migrate`
@@ -123,6 +130,7 @@ impl Config {
             controller: Controller {
                 name: env.required("INNBY_CONTROLLER_NAME")?,
                 email: controller_email,
+                mail_processor: env.optional("INNBY_MAIL_PROCESSOR"),
             },
         })
     }
@@ -157,6 +165,16 @@ pub mod tests {
         let config = parse(&[]).unwrap();
         assert_eq!(config.listen, "0.0.0.0:8080".parse().unwrap());
         assert_eq!(config.controller.name, "Kari Nordmann");
+    }
+
+    #[test]
+    fn the_mail_processor_is_optional() {
+        assert_eq!(parse(&[]).unwrap().controller.mail_processor, None);
+        let named = parse(&[("INNBY_MAIL_PROCESSOR", "Postmark (ActiveCampaign, USA)")]);
+        assert_eq!(
+            named.unwrap().controller.mail_processor.as_deref(),
+            Some("Postmark (ActiveCampaign, USA)")
+        );
     }
 
     #[test]

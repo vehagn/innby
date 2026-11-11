@@ -20,6 +20,10 @@ siteUrl: ""
 controller:
   name: ""
   email: ""
+  # The service mail is sent through, which handles guests' addresses for you, as the
+  # privacy notice names it: the company and its country, e.g. "MailerSend (MailerSend
+  # UAB, Lithuania)". Empty, the notice says mail goes through your own server.
+  mailProcessor: ""
 
 # Postgres 18 or later, in one of three ways: a CloudNativePG cluster, a Secret holding a
 # postgres:// URL, or the URL itself.

@@ -6,6 +6,7 @@ siteUrl: https://fest.stonegarden.dev
 controller:
   name: Vegard Hagen
   email: fest@stonegarden.dev
+  mailProcessor: MailerSend (MailerSend UAB, Lithuania)
 
 # The CloudNativePG cluster in cnpg-db.yaml.
 database:

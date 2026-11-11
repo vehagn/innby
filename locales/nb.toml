@@ -23,6 +23,10 @@ theme_auto = "Som enheten"
 theme_light = "Lyst"
 theme_dark = "Mørkt"
 privacy_link = "Personvern"
+# In the privacy notice: who sends the mail, `{processor}` as INNBY_MAIL_PROCESSOR
+# names it, or the host's own server where it's unset.
+privacy_mail_processor = "E-post sendes gjennom {processor}, som behandler adressen din på vertens vegne som databehandler."
+privacy_mail_own = "E-post sendes gjennom vertens egen e-posttjener."
 
 # Event
 # `chrono` format for dates and times.

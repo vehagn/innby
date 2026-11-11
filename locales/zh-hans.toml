@@ -23,6 +23,10 @@ theme_auto = "跟随设备"
 theme_light = "浅色"
 theme_dark = "深色"
 privacy_link = "隐私"
+# In the privacy notice: who sends the mail, `{processor}` as INNBY_MAIL_PROCESSOR
+# names it, or the host's own server where it's unset.
+privacy_mail_processor = "电子邮件通过 {processor} 发送，它作为数据处理者代表主人处理你的地址。"
+privacy_mail_own = "电子邮件通过主人自己的邮件服务器发送。"
 
 # Event
 # `chrono` format for dates and times.
