@@ -190,8 +190,11 @@ innby *args:
     sqlx migrate run
     exec cargo run --quiet -- "$@"
 
-# Bumps Cargo.toml and the chart if needed, tags v<version> (signed) and pushes, which
-# builds and publishes the image and the chart.
+# Bumps Cargo.toml and the chart if needed, tags v<version> (signed) and pushes. The
+# tag's message holds the release's notes: the changes since the last release, a line a
+# commit, opened in your editor to tidy. CI then builds and publishes the image and the
+# chart, benchmarks the release's binary, and makes the GitHub release from the notes
+# and the benchmark's results.
 [doc("Release a version, e.g. `just release 0.3.0`")]
 [group("release")]
 release version:
@@ -215,11 +218,29 @@ release version:
       git commit --quiet --message "Release $tag" -- Cargo.toml Cargo.lock charts/innby/Chart.yaml
       echo "Bumped $current → $version"
     fi
-    git tag --sign --message "Innby $version" "$tag"
+    # The notes: what changed since the last release, oldest first, without the
+    # commits that only bumped a version.
+    notes=$(mktemp) && trap 'rm -f "$notes"' EXIT
+    previous=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+    {
+      echo "Innby $version"
+      echo
+      echo "## Changes${previous:+ since $previous}"
+      echo
+      git log --reverse --no-merges --format='- %s' ${previous:+"$previous.."}HEAD \
+        | grep -v '^- Release v' || echo "- Nothing but the version."
+    } > "$notes"
+    # `--edit` opens them to tidy; `--cleanup=verbatim` keeps the headings, which start
+    # with the # git would take for a comment.
+    git tag --sign --edit --cleanup=verbatim --file "$notes" "$tag"
     git --no-pager log --oneline --decorate -1
     read -rp "Push main and $tag to origin? [y/N] " answer
     if [[ "$answer" == [yY] ]]; then
       git push --atomic origin main "$tag"
+      repo=$(git remote get-url origin | sed -E 's#^(git@github\.com:|https://github\.com/)##; s#\.git$##')
+      echo "CI now builds, benchmarks and publishes it:"
+      echo "  https://github.com/$repo/actions"
+      echo "  https://github.com/$repo/releases/tag/$tag (once CI is done)"
     else
       echo "Not pushed. Later: git push --atomic origin main $tag"
     fi

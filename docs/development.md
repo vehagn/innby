@@ -166,7 +166,8 @@ responses.
 
 - **CI** (`.github/workflows/ci.yaml`) runs `just test` and `just lint` against Postgres,
   and `just chart`, on every push and pull request. On a release it also runs `just
-  bench` on the amd64 binary the image holds, with the results in the run's summary.
+  bench` on the amd64 binary the image holds, with the results in the run's summary and
+  the release's notes.
 - **Images:** on every push, CI builds static binaries for amd64 and arm64
   (`cargo zigbuild`) and `just image` packs each into an image holding nothing else: no
   shell, no CA bundle, no tzdata, all of which are compiled in. They're pushed to
@@ -176,8 +177,15 @@ responses.
   same tags (`just games-image`): `games/` on Google's distroless Node.js, for the
   chart's `games`.
 - **Releasing:** `just release 0.3.0` bumps the version in `Cargo.toml` and the chart,
-  makes a signed tag and pushes it. CI then publishes the image as `:v0.3.0` and the
-  chart as `oci://ghcr.io/vehagn/charts/innby` version `0.3.0`.
+  and makes a signed tag whose message is the release's notes: the changes since the
+  last release, a line a commit, opened in your editor to tidy before it's signed. It
+  then pushes. CI publishes the image as `:v0.3.0` and the chart as
+  `oci://ghcr.io/vehagn/charts/innby` version `0.3.0`, benchmarks the binary, and makes
+  the [GitHub release](https://github.com/vehagn/innby/releases) from the tag's notes,
+  how to get the version, and the benchmark's results with how far each language is
+  translated. The release comes last, so one that's there has its image and chart, and
+  passed the benchmark. A version with a suffix, such as `1.0.0-rc.1`, is marked a
+  pre-release.
 - **A local copy of the published image:** on your machine (not in the dev container),
   `just up` runs it with [`compose.yaml`](../compose.yaml), Postgres and Mailpit, on the
   same ports; `just up v0.3.0` runs a given release, and `just down` stops it. To run

@@ -196,7 +196,8 @@ jobs:
           path: target/x86_64-unknown-linux-musl/release/innby
 
   # Each release's binary, as the image has it, under load: every page must answer as it
-  # should and stay within its memory budget. The results are in the run's summary.
+  # should and stay within its memory budget. The results are in the run's summary, and
+  # in the release's notes.
   bench:
     needs: image
     if: startsWith(github.ref, 'refs/tags/v')
@@ -237,3 +238,53 @@ jobs:
         with:
           name: bench
           path: target/bench/results.*
+
+  # The GitHub release, once the image and the chart are published and the benchmark
+  # has passed: the notes `just release` wrote in the tag's message, how to get this
+  # version, and the benchmark's results with how far each language is translated.
+  release:
+    needs: [bench, chart-publish]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      # The checkout has the tag's commit, not the tag itself, whose message is the notes.
+      - name: Fetch the tag
+        run: git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+      - uses: actions/download-artifact@v8
+        with:
+          name: bench
+          path: bench
+      - name: Write the notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          {
+            # The message without its first line, the title, and without the signature.
+            git for-each-ref "refs/tags/$GITHUB_REF_NAME" --format='%(contents:body)'
+            echo
+            echo "## Getting it"
+            echo
+            echo "- Image: \`$image:$GITHUB_REF_NAME\` (amd64 and arm64)"
+            echo "- Example games: \`$image-games:$GITHUB_REF_NAME\`"
+            echo "- Chart: \`helm install innby oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts/innby --version $version\`"
+            echo
+            cat bench/results.md
+          } > notes.md
+          cat notes.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          flags=(--title "Innby $version" --notes-file notes.md)
+          # A version like 1.0.0-rc.1 is a pre-release.
+          if [[ "$version" == *-* ]]; then flags+=(--prerelease); fi
+          # A run started again finds the release there, and brings it up to date.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" "${flags[@]}"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag "${flags[@]}"
+          fi
