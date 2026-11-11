@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        insert into board_post (event_id, parent_id, rsvp_id, host_name, body)\n        select $1, $2, $3, $4, $5\n        where $2::uuid is null or exists (\n            select from board_post where id = $2 and event_id = $1 and body is not null\n        )\n        returning id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "board_post",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "55f0acbca8f43ccc3979e6331377d64efd5f7622903c05539c9c5d5514415ec7"
+}

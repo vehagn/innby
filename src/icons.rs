@@ -54,6 +54,9 @@ pub const QR_CODE: &str = svg!(
 );
 
 /// A game controller.
+/// A speech bubble, for the message board.
+pub const SPEECH: &str =
+    svg!(r#"<path d="M4 5.5h16v10H10l-4.5 3.5v-3.5H4z"/><path d="M8 9.5h8M8 12.5h5"/>"#);
 pub const GAMEPAD: &str = svg!(
     r#"<rect x="2.5" y="7" width="19" height="11" rx="5.5"/><path d="M7.5 11v3M6 12.5h3M15.5 12h.01M18 14h.01"/>"#
 );

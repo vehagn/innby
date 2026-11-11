@@ -38,12 +38,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tower_http::cors::CorsLayer;
 
-use super::{
-    AppState,
-    pages::Page,
-    rsvp::Guest,
-    views::{GuestTab, guest_tabs},
-};
+use super::{AppState, pages::Page, rsvp::Guest, views::GuestTab};
 use crate::{
     config::{Game, ScoreKind},
     db::{
@@ -104,7 +99,7 @@ pub async fn list(State(state): State<AppState>, guest: Guest) -> Page {
         lang,
         t,
         title: guest.event.details.title(lang).to_owned(),
-        tabs: guest_tabs(t, &links, true, GuestTab::Games),
+        tabs: guest.tabs(&state, &links, GuestTab::Games),
         games,
     }))
 }

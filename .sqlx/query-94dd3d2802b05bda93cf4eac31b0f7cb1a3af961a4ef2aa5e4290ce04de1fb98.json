@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from board_vote where post_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "94dd3d2802b05bda93cf4eac31b0f7cb1a3af961a4ef2aa5e4290ce04de1fb98"
+}

@@ -13,11 +13,11 @@ use axum::{
 use serde::Deserialize;
 
 use super::{
-    AppState, games,
+    AppState,
     pages::{MessagePage, Page, PageError},
     remember,
     rsvp::{Guest, Notice, ShowQuery},
-    views::{FormPage, GuestTab, guest_tabs},
+    views::{FormPage, GuestTab},
 };
 use crate::{
     db::rsvp::{self, EmailStatus, Rsvp},
@@ -49,12 +49,11 @@ impl<'a> YouPage<'a> {
     pub(super) fn new(state: &AppState, lang: Lang, guest: &'a Guest, headers: &HeaderMap) -> Self {
         let t = lang.messages();
         let links = GuestLinks::new(&guest.link, lang);
-        let games = games::offers_any(state, guest);
         Self {
             lang,
             t,
             title: guest.event.details.title(lang),
-            tabs: guest_tabs(t, &links, games, GuestTab::You),
+            tabs: guest.tabs(state, &links, GuestTab::You),
             links,
             rsvp: &guest.rsvp,
             email_confirmed: guest.rsvp.email_status == EmailStatus::Confirmed,
@@ -118,10 +117,15 @@ struct Export<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     picked: Option<&'a str>,
     scores: Vec<crate::db::games::Best>,
+    /// What they wrote on the event's board, and how they voted there.
+    posts: Vec<crate::db::board::Written>,
+    votes: Vec<crate::db::board::Voted>,
 }
 
 pub async fn export(State(state): State<AppState>, guest: Guest) -> Page {
     let scores = crate::db::games::of_guest(&state.db, guest.rsvp.id).await?;
+    let posts = crate::db::board::written_by(&state.db, guest.rsvp.id).await?;
+    let votes = crate::db::board::votes_by(&state.db, guest.rsvp.id).await?;
     let question = guest.event.details.question(guest.rsvp.lang);
     let picked = guest.rsvp.pick().and_then(|pick| {
         let choices = &question.as_ref()?.1;
@@ -132,6 +136,8 @@ pub async fn export(State(state): State<AppState>, guest: Guest) -> Page {
         question: question.as_ref().map(|(question, _)| *question),
         picked,
         scores,
+        posts,
+        votes,
     };
     let disposition = (
         header::CONTENT_DISPOSITION,

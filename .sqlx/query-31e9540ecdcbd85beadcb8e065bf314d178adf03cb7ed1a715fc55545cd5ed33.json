@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select body as \"body!\", created_at from board_post\n           where rsvp_id = $1 and body is not null order by id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "body!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "board_post",
+            "name": "body"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "board_post",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "31e9540ecdcbd85beadcb8e065bf314d178adf03cb7ed1a715fc55545cd5ed33"
+}

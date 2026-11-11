@@ -56,6 +56,7 @@ src/
                      kept a few seconds; each request is handled with them on offer
     games.rs         minigames: the Games tab and its high scores, the scores API /api/, and
                      the internal API for games' servers on its own port
+    board.rs         the Board tab: the event's message board, posting, replies, votes
     views.rs         what personal and group pages show alike (event, guest list, choices,
                      the host's question, a guest's tabs)
   admin/             the host's UI; mod.rs has the router, grouped by the role each page needs;
@@ -71,6 +72,7 @@ src/
     groups.rs        the Group links tab, and each group's page
     qr/              an event's QR code style tab and the SVG downloads; draw.rs draws them
     games.rs         an event's Games tab: the minigames it offers, and their scores
+    board.rs         an event's Board tab: what its board is, and hosts' posts and deletions
     access.rs        an event's Access tab: roles for that event alone, by login name
     users.rs         the Users tab, for admins: password users kept in the database
     languages.rs     the Languages tab, for admins: which languages the site offers
@@ -82,7 +84,8 @@ src/
     cli.rs           the host's commands: `innby invite`, `innby event list|export|import`
     testing.rs       a logged-in test host of any role
   db/                queries per table (access.rs: roles for one event; admin_user.rs:
-                     password users made in the admin UI; admin_form.rs: create forms
+                     password users made in the admin UI; board.rs: the message board's
+                     posts and votes, and its threads in page order; admin_form.rs: create forms
                      sent, so one sent twice makes once; languages.rs: the languages
                      the site offers); rsvp/ splits into the row,
                      names.rs and guest_list.rs
@@ -94,6 +97,7 @@ src/
                      texts.rs, fill.rs, offer.rs (which languages a page is offered in, and
                      picking among them for a request)
   calendar.rs        an event as an iCalendar file, for guests' pages and reminders
+  board.rs           a message board post as both sites show it (_board_thread.html)
   link.rs            HMAC-signed links: possession is the authorisation
   paths.rs           every route pattern, and links built from them
   theme.rs           the colour scheme from ?theme=

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.board_heading }} · {{ title }}{% endblock %}
+
+{% block content %}
+{% include "_guest_tabs.html" %}
+<h1>{{ title }}</h1>
+{% if let Some(flash) = flash %}<p class="notice success" role="status">{{ flash }}</p>{% endif %}
+{% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
+
+<section class="card" aria-label="{{ t.board_heading }}">
+  <p class="hint">{% if post_action.is_some() %}{{ t.board_hint_open }}{% else %}{{ t.board_hint_hosts }}{% endif %}</p>
+  {% if let Some(action) = post_action %}
+  <form method="post" action="{{ action }}">
+    <label for="new-post">{{ t.board_new }}</label>
+    <textarea id="new-post" name="body" rows="4" maxlength="{{ crate::db::board::MAX_BODY }}" required>{{ draft }}</textarea>
+    <button>{{ t.board_send }}</button>
+  </form>
+  {% endif %}
+  {% if steps.is_empty() %}
+  <p class="muted">{{ t.board_empty }}</p>
+  {% else %}
+  {% include "_board_thread.html" %}
+  {% endif %}
+</section>
+{% endblock %}

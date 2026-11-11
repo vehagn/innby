@@ -1,0 +1,43 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ crate::admin::lang::text().board }} · {{ event.details.title(crate::admin::lang::current()) }}{% endblock %}
+
+{% block tabs %}{% let tabs = crate::admin::tabs(Some(event.id), crate::admin::Tab::Board) %}{% let trail = crate::admin::event_trail(event) %}{% include "admin/_event_nav.html" %}{% endblock %}
+
+{% block content %}
+{% let a = crate::admin::lang::text() %}
+{% let t = crate::admin::lang::current().messages() %}
+{% if saved %}<p class="notice success" role="status">{{ a.saved }}</p>{% endif %}
+<h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
+<p class="hint">{{ a.board_hint }}</p>
+
+<section class="card">
+  <form method="post" action="{{ links.board }}">
+    <fieldset>
+      <legend>{{ a.board_state }}</legend>
+      {% for choice in choices %}
+      <label class="choice"><input type="radio" name="state" value="{{ choice.code }}"{% if choice.checked %} checked{% endif %}> <span><strong>{{ choice.name }}</strong>: {{ choice.hint }}</span></label>
+      {% endfor %}
+    </fieldset>
+    <button>{{ a.save_board }}</button>
+  </form>
+  {% if !state.for_hosts() && kept > 0 %}
+  <p class="muted">{{ crate::i18n::filled(a.board_kept, "n", kept) }}</p>
+  {% endif %}
+</section>
+
+{% if state.for_hosts() %}
+<section class="card" aria-label="{{ t.board_heading }}">
+  <form method="post" action="{{ links.board_posts }}">
+    <label for="new-post">{{ a.board_new_host }}</label>
+    <textarea id="new-post" name="body" rows="4" maxlength="{{ crate::db::board::MAX_BODY }}" required>{{ draft }}</textarea>
+    <button>{{ t.board_send }}</button>
+  </form>
+  {% if steps.is_empty() %}
+  <p class="muted">{{ t.board_empty }}</p>
+  {% else %}
+  {% include "_board_thread.html" %}
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

@@ -12,8 +12,9 @@
 --   Bursdag      ten days ago, so answers are closed; the janitor deletes it 30 days
 --                after it started.
 --
--- Julebord offers the example minigames, with some scores. helper, a user in .env.example
--- with no role of their own, may see who's coming to Julebord, and nothing else.
+-- Julebord offers the example minigames, with some scores, and an open message board.
+-- helper, a user in .env.example with no role of their own, may see who's coming to
+-- Julebord, and nothing else.
 --
 -- The ids are fixed, so loading it again replaces the sample (and nothing else) and
 -- every guest keeps the same link. Links are signed from the ids with the
@@ -166,3 +167,28 @@ insert into game_score (rsvp_id, game, score, scored_at) values
     ('00000000-5eed-7000-8000-000000001006', 'reaction', 241, now() - interval '2 days'),
     ('00000000-5eed-7000-8000-000000001101', 'reaction', 312, now() - interval '1 day'),
     ('00000000-5eed-7000-8000-000000001009', 'reaction', 265, now() - interval '5 hours');
+
+-- Julebord's board is open: a host's welcome with replies, a question, and a post voted
+-- below zero, which guests see folded away.
+update event set board = 'open' where id = '00000000-5eed-7000-8000-000000000001';
+insert into board_post (id, event_id, parent_id, rsvp_id, host_name, body, created_at) values
+    ('00000000-5eed-7000-8000-000000002001', '00000000-5eed-7000-8000-000000000001', null,
+     null, 'admin', E'Velkommen til julebordet!\nSi fra her om noe er uklart.', now() - interval '6 days'),
+    ('00000000-5eed-7000-8000-000000002002', '00000000-5eed-7000-8000-000000000001',
+     '00000000-5eed-7000-8000-000000002001', '00000000-5eed-7000-8000-000000001001', null,
+     'Gleder oss! Er det kleskode?', now() - interval '5 days'),
+    ('00000000-5eed-7000-8000-000000002003', '00000000-5eed-7000-8000-000000000001',
+     '00000000-5eed-7000-8000-000000002002', null, 'admin',
+     'Pent, men ingen slips-tvang.', now() - interval '5 days' + interval '2 hours'),
+    ('00000000-5eed-7000-8000-000000002004', '00000000-5eed-7000-8000-000000000001', null,
+     '00000000-5eed-7000-8000-000000001004', null,
+     'Er det noen som vil dele taxi fra Majorstuen?', now() - interval '2 days'),
+    ('00000000-5eed-7000-8000-000000002005', '00000000-5eed-7000-8000-000000000001', null,
+     '00000000-5eed-7000-8000-000000001006', null,
+     'Pinnekjøtt er overvurdert.', now() - interval '1 day');
+insert into board_vote (post_id, rsvp_id, vote) values
+    ('00000000-5eed-7000-8000-000000002001', '00000000-5eed-7000-8000-000000001001', 1),
+    ('00000000-5eed-7000-8000-000000002001', '00000000-5eed-7000-8000-000000001004', 1),
+    ('00000000-5eed-7000-8000-000000002004', '00000000-5eed-7000-8000-000000001001', 1),
+    ('00000000-5eed-7000-8000-000000002005', '00000000-5eed-7000-8000-000000001001', -1),
+    ('00000000-5eed-7000-8000-000000002005', '00000000-5eed-7000-8000-000000001004', -1);

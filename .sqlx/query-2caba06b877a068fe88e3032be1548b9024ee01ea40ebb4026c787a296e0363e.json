@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select v.vote, p.body as on from board_vote v join board_post p on p.id = v.post_id\n           where v.rsvp_id = $1 order by p.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "vote",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "board_vote",
+            "name": "vote"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "on",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "board_post",
+            "name": "body"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "2caba06b877a068fe88e3032be1548b9024ee01ea40ebb4026c787a296e0363e"
+}

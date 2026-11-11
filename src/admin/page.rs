@@ -67,6 +67,7 @@ pub enum Tab {
     Groups,
     Qr,
     Games,
+    Board,
     Details,
     Access,
 }
@@ -84,6 +85,7 @@ impl Tab {
             Tab::Groups => icons::PEOPLE,
             Tab::Qr => icons::QR_CODE,
             Tab::Games => icons::GAMEPAD,
+            Tab::Board => icons::SPEECH,
             Tab::Details => icons::PENCIL,
             Tab::Access => icons::KEY,
         }
@@ -135,6 +137,7 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
                     &text.games,
                     edit && super::has_games(),
                 ),
+                (Tab::Board, links.board, &text.board, edit),
                 (Tab::Details, links.details, &text.details, edit),
                 (Tab::Access, links.access, &text.access, manage),
             ]

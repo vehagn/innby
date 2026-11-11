@@ -21,7 +21,8 @@ explains why it's built this way, and [development.md](development.md) how to wo
 **A guest** opens their personal link (`/r/{link}`). Nothing else is needed: no account,
 no password, no e-mail address. Their pages are tabs, each a page of its own under the
 link: **Your reply** (the event and the answer), **Guest list**, **Games** when the event
-offers any, and **Your details** (name, e-mail, this device, their data). There they:
+offers any, **Board** when its board is on for guests, and **Your details** (name,
+e-mail, this device, their data). There they:
 
 - answer **Attending** or **Can't come**, with how many are coming, and the host's own
   question if the event asks one, by picking one of its choices;
@@ -36,6 +37,9 @@ offers any, and **Your details** (name, e-mail, this device, their data). There 
   ([below](#the-front-page-and-remembered-devices));
 - play the minigames the host offers, if any, each with a high score table
   ([games.md](games.md));
+- read the event's message board, if the host has one on, and vote posts up or down;
+  where it's open to guests, post and reply too, signed with their name as on the guest
+  list, and delete their own posts ([below](#the-message-board));
 - change any of it until the event, rename themselves, download everything kept about
   them as JSON, or delete it all.
 
@@ -49,7 +53,7 @@ leads to that first sign-up rather than making a second.
 beside it, admins have a **New event** tab, a **Users** tab and a **Languages** tab, for
 the languages the site offers guests. Each tab has an icon, and
 a host whose role allows only one tab gets no tab bar, just the page. An event has up to
-seven tabs:
+eight tabs:
 
 - **Guests:** the headcount (coming, no answer, not coming), every guest in a table,
   how many of those coming picked each of the host's choices, a CSV export, and *Send
@@ -64,6 +68,8 @@ seven tabs:
   party's printed invitations and posters look its own; a new event starts plain.
 - **Games**, when `INNBY_GAMES` lists any: which minigames the event offers, and each
   one's high scores. Turning a game off deletes its scores.
+- **Board:** what the event's message board is, and while there is one, its posts, with
+  every guest's name in full, to post and reply as a host, or delete any post.
 - **Details:** the language the event is written in, its title and description (in that
   language, and optionally in each other), place, start and end, time zone and answer
   deadline; the event as a file; or deleting the event. The host may ask guests one
@@ -318,6 +324,33 @@ role of their own, they see only the events that give them one; through the prov
 they can't log in until one does. The role for an event is looked up on each request, so
 taking it away works at once.
 
+## The message board
+
+An event can have a message board (`event.board`), which its editors set on the Board tab
+to one of four states:
+
+| State | Hosts | Guests |
+|---|---|---|
+| Off | no board; its posts are kept | no board |
+| Hidden | read, post, reply, delete | no board |
+| Hosts post | read, post, reply, delete | read and vote |
+| Open | read, post, reply, delete | read, vote, post and reply |
+
+Threads show the best score first, then the newest; replies the best, then the oldest,
+as a conversation reads, nested six deep and lined up below that. A post whose votes add
+up below zero is folded away with its replies, one click to open, and nothing else is
+moderated: no filters, no automatic hiding beyond that. Guests vote with their personal
+link, one vote a post, not on their own; the same vote again takes it back, and nobody
+sees who voted how, only the sum.
+
+Guests sign as the guest list shows them ("A guest" when it doesn't), and see hosts only
+as "The hosts"; hosts see everyone in full. A guest may delete their own posts, and a
+host any. A deleted post with replies stays as "[deleted]", so the replies keep their
+place; without replies it goes, with any empty posts above it that were only kept for
+it. Deleting a guest does the same to their posts, in the database (`board_post_forget`),
+and deletes their votes. Forms post and the page comes back, with no JavaScript: a reply
+form folds out under each post, and the vote buttons say which way the guest voted.
+
 ## Data and retention
 
 The schema is one commented file,
@@ -331,6 +364,7 @@ until Innby is live. In short:
 | `invite_group` | group links: name, maximum party size, link nonce |
 | `event_access` | roles for one event: the name a host logs in with, viewer or editor |
 | `event_game`, `game_score` | the minigames an event offers, and each guest's best score in each |
+| `board_post`, `board_vote` | the event's message board: each post's text, whose it is (a guest, or a host by login name) and what it answers; each guest's vote on a post, up or down |
 | `outbox` | mail to send: kind, attempts, next try, when sent, last error |
 | `admin_user` | password users an admin makes: name, role, argon2 hash, and a version that a new password bumps |
 | `site_languages` | the languages the site offers guests and its default, once an admin has picked: one row |

@@ -275,14 +275,17 @@ pub enum GuestTab {
     Reply,
     Guests,
     Games,
+    Board,
     You,
 }
 
-/// The guest's tabs, with Games only when the event offers any (`_guest_tabs.html`).
+/// The guest's tabs, with Games only when the event offers any, and Board only when its
+/// board is for guests (`_guest_tabs.html`).
 pub fn guest_tabs(
     t: &'static Messages,
     links: &crate::paths::GuestLinks,
     games: bool,
+    board: bool,
     current: GuestTab,
 ) -> Vec<TabLink> {
     [
@@ -306,6 +309,13 @@ pub fn guest_tabs(
             &t.games_heading,
             icons::GAMEPAD,
             games,
+        ),
+        (
+            GuestTab::Board,
+            &links.board,
+            &t.board_heading,
+            icons::SPEECH,
+            board,
         ),
         (GuestTab::You, &links.you, &t.tab_you, icons::PERSON, true),
     ]

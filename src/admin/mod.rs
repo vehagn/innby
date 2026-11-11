@@ -5,7 +5,7 @@
 //! - `mod.rs`: `router`, which lists every page and the role it needs. Handlers are
 //!   named for what they do: `list`, `show`, `create`, `edit`, `revoke`, `delete`.
 //! - `page`: what pages share: state, tabs, errors. `forms`: what their forms share.
-//! - `events`, `guests`, `invitations`, `groups`, `qr`, `games`, `access`: the pages,
+//! - `events`, `guests`, `invitations`, `groups`, `qr`, `games`, `board`, `access`: the pages,
 //!   one module per tab; `users`, the password users, and `languages`, those the site
 //!   offers guests, for admins.
 //! - `cli`: the host's commands: `innby invite` and `innby event`.
@@ -15,6 +15,7 @@
 
 mod access;
 pub mod auth;
+mod board;
 pub mod cli;
 mod events;
 mod forms;
@@ -110,6 +111,9 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route(paths::GROUP_QR, get(groups::qr))
         .route(paths::EVENT_QR, get(qr::show).post(qr::save))
         .route(paths::EVENT_GAMES, get(games::show).post(games::edit))
+        .route(paths::EVENT_BOARD, get(board::show).post(board::edit))
+        .route(paths::EVENT_BOARD_POSTS, post(board::create))
+        .route(paths::EVENT_BOARD_DELETE, post(board::delete))
         .route_layer(middleware::from_fn(role::editor));
     let creator = Router::new()
         .route(

@@ -1,0 +1,49 @@
+{#- An event's board, as `db::board::threads` orders it: each post, then the list of its
+    replies. One with a score below zero is folded away with its replies. #}
+<ul class="thread">
+  {% for step in steps %}
+  {% match step %}
+  {% when crate::db::board::Step::Open with { post, collapsed } %}
+  <li id="post-{{ post.id }}">
+    {% if collapsed %}<details class="folded"><summary>{{ crate::i18n::filled(t.board_folded, "score", post.score) }}</summary>{% endif %}
+    <article class="post">
+      {% if let Some(body) = post.body %}
+      <p class="post-by"><strong>{{ post.author }}</strong>{% if post.host %} <span class="badge">{{ t.board_host }}</span>{% endif %}{% if post.you %} {{ t.you }}{% endif %} <span class="muted">· {{ post.when }}</span></p>
+      <p class="post-body">{{ body }}</p>
+      <div class="post-actions">
+        {% if let Some(action) = post.vote_action %}
+        <form class="votes" method="post" action="{{ action }}">
+          <button class="vote" name="vote" value="up" aria-pressed="{{ post.vote == 1 }}" title="{{ t.board_up }}"><span aria-hidden="true">▲</span><span class="visually-hidden">{{ t.board_up }}</span></button>
+          <span class="score" title="{{ t.board_score }}">{{ post.score }}</span>
+          <button class="vote" name="vote" value="down" aria-pressed="{{ post.vote == -1 }}" title="{{ t.board_down }}"><span aria-hidden="true">▼</span><span class="visually-hidden">{{ t.board_down }}</span></button>
+        </form>
+        {% else %}
+        <span class="score" title="{{ t.board_score }}">{{ post.score }}</span>
+        {% endif %}
+        {% if let Some(action) = post.delete_action %}
+        <form method="post" action="{{ action }}"><button class="link">{{ t.board_delete }}</button></form>
+        {% endif %}
+      </div>
+      {% if let Some(action) = post.reply_action %}
+      <details class="reply"{% if post.draft.is_some() %} open{% endif %}>
+        <summary>{{ t.board_reply }}</summary>
+        <form method="post" action="{{ action }}">
+          <input type="hidden" name="parent" value="{{ post.id }}">
+          <label class="visually-hidden" for="reply-{{ post.id }}">{{ t.board_reply }}</label>
+          <textarea id="reply-{{ post.id }}" name="body" rows="3" maxlength="{{ crate::db::board::MAX_BODY }}" required>{% if let Some(draft) = post.draft %}{{ draft }}{% endif %}</textarea>
+          <button>{{ t.board_send }}</button>
+        </form>
+      </details>
+      {% endif %}
+      {% else %}
+      <p class="post-by muted">{{ t.board_deleted }}</p>
+      {% endif %}
+    </article>
+    <ul class="thread">
+  {% when crate::db::board::Step::Close with { collapsed } %}
+    </ul>
+    {% if collapsed %}</details>{% endif %}
+  </li>
+  {% endmatch %}
+  {% endfor %}
+</ul>

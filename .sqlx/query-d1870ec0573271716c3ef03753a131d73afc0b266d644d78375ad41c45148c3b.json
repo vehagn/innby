@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select board as \"board: BoardState\" from event where id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "board: BoardState",
+        "type_info": {
+          "Custom": {
+            "name": "board_state",
+            "kind": {
+              "Enum": [
+                "off",
+                "hidden",
+                "hosts",
+                "open"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "board"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d1870ec0573271716c3ef03753a131d73afc0b266d644d78375ad41c45148c3b"
+}

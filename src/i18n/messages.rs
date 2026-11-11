@@ -166,6 +166,30 @@ pub struct Messages {
     /// Between whole seconds and hundredths: "12.34".
     pub decimal_mark: String,
     pub seconds: String,
+    // The message board on the guest's page
+    pub board_heading: String,
+    /// What a guest may do: post too, or read and vote on what hosts post.
+    pub board_hint_open: String,
+    pub board_hint_hosts: String,
+    pub board_new: String,
+    pub board_send: String,
+    pub board_reply: String,
+    pub board_delete: String,
+    pub board_up: String,
+    pub board_down: String,
+    pub board_score: String,
+    /// A post folded away for its score below zero: "{score}".
+    pub board_folded: String,
+    pub board_deleted: String,
+    /// Beside a host's name, and a host as guests see them.
+    pub board_host: String,
+    pub board_a_host: String,
+    pub board_empty: String,
+    pub board_posted: String,
+    pub board_deleted_notice: String,
+    pub board_error_body: String,
+    /// The post a reply answered was deleted meanwhile.
+    pub board_error_gone: String,
     pub listed_as: String,
     pub listed_hidden: String,
     pub listed_declined: String,
@@ -378,6 +402,24 @@ pub struct AdminMessages {
     pub games_hint: String,
     pub games_none: String,
     pub save_games: String,
+
+    // Message board
+    pub board: String,
+    pub board_hint: String,
+    /// What the board is, each with what it means.
+    pub board_state: String,
+    pub board_off: String,
+    pub board_off_hint: String,
+    pub board_hidden: String,
+    pub board_hidden_hint: String,
+    pub board_hosts: String,
+    pub board_hosts_hint: String,
+    pub board_open: String,
+    pub board_open_hint: String,
+    pub save_board: String,
+    /// While it's off: "{n}" posts kept.
+    pub board_kept: String,
+    pub board_new_host: String,
 
     // Access: roles for one event
     pub access: String,

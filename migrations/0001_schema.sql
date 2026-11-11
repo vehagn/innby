@@ -1,7 +1,7 @@
 -- Innby's schema. Events hold everything else: their guests' answers, the group links
 -- guests sign up through, the mail queued for those guests, who besides the hosts may
--- see the event, and the games it offers with their scores; deleting an event deletes
--- all of it. The admin's login tables stand apart; of them, only the password users an
+-- see the event, the games it offers with their scores, and its message board; deleting
+-- an event deletes all of it. The admin's login tables stand apart; of them, only the password users an
 -- admin makes hold personal data.
 --
 -- Until Innby is live, this file is the whole schema and changes in place, and a
@@ -38,6 +38,9 @@ language sql immutable as $$
 $$;
 
 create type qr_shape as enum ('square', 'rounded', 'dots');
+-- An event's message board: off, none at all, its posts kept; hidden, for hosts alone;
+-- hosts, where hosts post and guests read and vote; open, where guests post too.
+create type board_state as enum ('off', 'hidden', 'hosts', 'open');
 create type qr_icon as enum ('none', 'heart', 'star', 'emoji');
 
 -- One party, as the host describes it, with the style its QR codes are drawn in.
@@ -79,7 +82,8 @@ create table event (
     qr_color            text not null default '#00695c' check (qr_color ~ '^#[0-9a-f]{6}$'),
     qr_icon             qr_icon not null default 'none',
     -- The emoji in the middle, when qr_icon is 'emoji'.
-    qr_emoji            text not null default '' check (length(qr_emoji) <= 8)
+    qr_emoji            text not null default '' check (length(qr_emoji) <= 8),
+    board               board_state not null default 'off'
 );
 
 -- Sign-up links the host makes, one per group of people, e.g. "Climbing club". Anyone
@@ -142,6 +146,8 @@ create table rsvp (
     -- this sign-up rather than making another.
     sign_up_token    text check (sign_up_token ~ '^[A-Za-z0-9_-]{16,64}$'),
     foreign key (group_id, event_id) references invite_group (id, event_id),
+    -- For posts on the board to name their guest and its event together.
+    unique (id, event_id),
     check (party_size between 1 and max_party_size),
     check ((email is null) = (email_status = 'none')),
     check ((email_consent_at is null) = (email is null))
@@ -268,3 +274,54 @@ create table game_score (
     scored_at timestamptz not null default now(),
     primary key (rsvp_id, game)
 );
+
+-- Posts on an event's message board (`event.board`), each a thread's first or a reply to
+-- another of the same event's. A guest's or a host's: a guest by their RSVP, shown as on
+-- the guest list; a host by the name they log in with, shown to guests only as a host.
+create table board_post (
+    id         uuid primary key default uuidv7(),
+    event_id   uuid not null references event on delete cascade,
+    -- The post it answers; none for a thread's first.
+    parent_id  uuid,
+    rsvp_id    uuid,
+    host_name  text check (length(host_name) between 1 and 254 and host_name !~ '[[:cntrl:]]'),
+    -- Lines and tabs allowed. None for a post deleted, or whose guest was, which stays,
+    -- empty, while there are replies to it.
+    body       text check (length(body) between 1 and 2000
+                           and body !~ '[\x01-\x08\x0b\x0c\x0d\x0e-\x1f\x7f]'),
+    created_at timestamptz not null default now(),
+    unique (id, event_id),
+    foreign key (parent_id, event_id) references board_post (id, event_id) on delete cascade,
+    foreign key (rsvp_id, event_id) references rsvp (id, event_id) on delete set null (rsvp_id),
+    check (rsvp_id is null or host_name is null),
+    check ((body is null) = (rsvp_id is null and host_name is null))
+);
+
+create index board_post_event on board_post (event_id, id);
+create index board_post_parent on board_post (parent_id) where parent_id is not null;
+create index board_post_rsvp on board_post (rsvp_id) where rsvp_id is not null;
+
+-- A post whose guest is deleted loses its text with them.
+create function board_post_forget() returns trigger
+language plpgsql as $$
+begin
+    if new.rsvp_id is null and old.rsvp_id is not null then
+        new.body := null;
+    end if;
+    return new;
+end
+$$;
+
+create trigger board_post_forget before update of rsvp_id on board_post
+    for each row execute function board_post_forget();
+
+-- Guests' votes on posts, up or down, one each a post. Never shown, only their sum.
+-- Deleted with the guest, and with the post.
+create table board_vote (
+    post_id uuid not null references board_post on delete cascade,
+    rsvp_id uuid not null references rsvp on delete cascade,
+    vote    smallint not null check (vote in (-1, 1)),
+    primary key (post_id, rsvp_id)
+);
+
+create index board_vote_rsvp on board_vote (rsvp_id);

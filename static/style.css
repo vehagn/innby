@@ -7,7 +7,7 @@
  *   2. Base         the page, text, headings, links
  *   3. Layout       header, main and footer
  *   4. Components   button, field, card, notice, disclosure, facts, table, tabs,
- *                   tiles, status, QR code, icon, header controls
+ *                   tiles, status, QR code, icon, header controls, board
  *   5. Guests       the event's title, confetti, the guest list, the front page
  *   6. Admin        the QR style form
  *   7. Utilities    hint, muted, small, visually hidden, honeypot
@@ -643,6 +643,13 @@ td {
   border-bottom-color: var(--accent-text);
 }
 
+/* A guest's few tabs share the width, closer together, so all of them show. */
+.spread a {
+  flex: 1 1 auto;
+  justify-content: center;
+  padding-inline: var(--space-2);
+}
+
 /* On a phone, closer together, so more fit before the bar scrolls. */
 @media (max-width: 30rem) {
   .tabs a {
@@ -942,6 +949,93 @@ td {
 
 @keyframes drop-in {
   from { opacity: 0; transform: translateY(-0.25rem); }
+}
+
+/* Board: a message board's threads, each post a list item whose replies are a list
+   inside it, under a rule; a post folded away for its score shows a line to open. */
+.thread {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.thread .thread {
+  margin-left: var(--space-3);
+  padding-left: var(--space-4);
+  border-left: var(--rule-thick) solid var(--border);
+}
+
+.thread:empty {
+  display: none;
+}
+
+.post {
+  padding: var(--space-3) 0;
+}
+
+.post p {
+  margin: 0;
+}
+
+/* Who wrote it, and when, above the text. */
+.post-by {
+  font-size: var(--text-s);
+}
+
+.post-body {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.post-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+  font-size: var(--text-s);
+}
+
+.votes {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+button.vote {
+  --button-bg: transparent;
+  --button-fg: var(--text-muted);
+  --button-border: var(--border);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+  line-height: 1.8;
+}
+
+button.vote[aria-pressed="true"] {
+  --button-bg: var(--accent);
+  --button-fg: var(--on-accent);
+  --button-border: var(--accent);
+}
+
+.score {
+  min-width: 1.5rem;
+  font-family: var(--font-mono);
+  text-align: center;
+}
+
+.folded > summary,
+.reply > summary {
+  color: var(--text-muted);
+  font-size: var(--text-s);
+  cursor: pointer;
+}
+
+.folded > summary {
+  padding: var(--space-2) 0;
+}
+
+.reply {
+  margin-top: var(--space-2);
 }
 
 /* 5. Guests */

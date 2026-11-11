@@ -23,10 +23,7 @@ use super::{
     rsvp::{Guest, Notice},
 };
 use crate::{
-    db::{
-        event::Event,
-        rsvp::{self, Rsvp},
-    },
+    db::{event::Event, rsvp},
     http::cookie,
     i18n::Lang,
     link::IdLink,
@@ -161,19 +158,19 @@ impl Remembered {
             .iter()
             .filter_map(|(_, _, parsed)| Some(parsed.as_ref()?.id))
             .collect();
-        let mut found: HashMap<Uuid, (Rsvp, Event, Vec<String>)> = if ids.is_empty() {
+        let mut found: HashMap<Uuid, rsvp::WithEvent> = if ids.is_empty() {
             HashMap::new()
         } else {
             rsvp::find_with_events(&state.db, &ids)
                 .await?
                 .into_iter()
-                .map(|(rsvp, event, games)| (rsvp.id, (rsvp, event, games)))
+                .map(|found| (found.rsvp.id, found))
                 .collect()
         };
         for (cookie_name, link, parsed) in read {
             let guest = parsed.and_then(|parsed| {
-                let (rsvp, event, games) = found.remove(&parsed.id)?;
-                Guest::checked(state, link, &parsed, rsvp, event, games)
+                let found = found.remove(&parsed.id)?;
+                Guest::checked(state, link, &parsed, found)
             });
             let Some(guest) = guest else {
                 remembered

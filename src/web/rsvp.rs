@@ -23,6 +23,7 @@ use super::{
 };
 use crate::{
     db::{
+        board::BoardState,
         event::Event,
         rsvp::{self, NameDisplay, Rsvp},
     },
@@ -47,6 +48,13 @@ pub(super) struct Guest {
     pub event: Event,
     /// The games the event offers, by id, which the config may no longer have.
     pub games: Vec<String>,
+    /// What the event's message board is.
+    pub board: BoardState,
+}
+
+#[derive(Deserialize)]
+struct LinkPath {
+    link: String,
 }
 
 impl FromRequestParts<AppState> for Guest {
@@ -56,9 +64,11 @@ impl FromRequestParts<AppState> for Guest {
         let asked = Asked::from_parts(parts);
         // A link that doesn't work has no event: its page is in a language of the site's.
         let gone = || PageError::Gone(asked.among(Offer::current()));
-        let Ok(Path(link)) = Path::<String>::from_request_parts(parts, state).await else {
+        // By name: a path may hold more than the link, as a post's id.
+        let Ok(Path(params)) = Path::<LinkPath>::from_request_parts(parts, state).await else {
             return Err(gone());
         };
+        let link = params.link;
         let mut guest = Self::find(state, &link).await?.ok_or_else(gone)?;
         // From here on the request is offered the event's languages, the menu too.
         guest.lang = asked.among(guest.event.details.offer());
@@ -73,9 +83,10 @@ impl Guest {
             return Ok(None);
         };
         let found = rsvp::find_with_events(&state.db, &[parsed.id]).await?;
-        Ok(found.into_iter().next().and_then(|(rsvp, event, games)| {
-            Self::checked(state, link, &parsed, rsvp, event, games)
-        }))
+        Ok(found
+            .into_iter()
+            .next()
+            .and_then(|found| Self::checked(state, link, &parsed, found)))
     }
 
     /// The guest, if the link's signature is the one their RSVP has now: not forged, and
@@ -84,10 +95,14 @@ impl Guest {
         state: &AppState,
         link: &str,
         parsed: &IdLink,
-        rsvp: Rsvp,
-        event: Event,
-        games: Vec<String>,
+        found: rsvp::WithEvent,
     ) -> Option<Self> {
+        let rsvp::WithEvent {
+            rsvp,
+            event,
+            games,
+            board,
+        } = found;
         let genuine = state
             .config
             .link_key
@@ -98,7 +113,25 @@ impl Guest {
             rsvp,
             event,
             games,
+            board,
         })
+    }
+
+    /// The guest's tabs, with Games and Board only when the event has them for guests.
+    pub(super) fn tabs(
+        &self,
+        state: &AppState,
+        links: &GuestLinks,
+        current: GuestTab,
+    ) -> Vec<TabLink> {
+        let games = games::offers_any(state, self);
+        guest_tabs(
+            self.lang.messages(),
+            links,
+            games,
+            self.board.for_guests(),
+            current,
+        )
     }
 }
 
@@ -187,16 +220,20 @@ pub(super) enum Notice {
     EmailConfirmed,
     Remembered,
     Forgotten,
+    Posted,
+    PostDeleted,
 }
 
 impl Notice {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 8] = [
         Self::Saved,
         Self::EmailSent,
         Self::EmailRemoved,
         Self::EmailConfirmed,
         Self::Remembered,
         Self::Forgotten,
+        Self::Posted,
+        Self::PostDeleted,
     ];
 
     fn code(self) -> &'static str {
@@ -207,6 +244,8 @@ impl Notice {
             Self::EmailConfirmed => "email_confirmed",
             Self::Remembered => "remembered",
             Self::Forgotten => "forgotten",
+            Self::Posted => "posted",
+            Self::PostDeleted => "post_deleted",
         }
     }
 
@@ -222,6 +261,8 @@ impl Notice {
             Self::EmailConfirmed => &t.email_confirmed_notice,
             Self::Remembered => &t.remembered_notice,
             Self::Forgotten => &t.forgotten_notice,
+            Self::Posted => &t.board_posted,
+            Self::PostDeleted => &t.board_deleted_notice,
         }
     }
 
@@ -237,6 +278,18 @@ impl Notice {
     pub(super) fn redirect(self, pattern: &str, link: &str, lang: Lang) -> Response {
         let page = paths::localized(&paths::path(pattern, link), lang);
         Redirect::to(&format!("{page}&notice={}", self.code())).into_response()
+    }
+
+    /// The same, at `#{anchor}` on the page.
+    pub(super) fn redirect_to(
+        self,
+        pattern: &str,
+        link: &str,
+        lang: Lang,
+        anchor: &str,
+    ) -> Response {
+        let page = paths::localized(&paths::path(pattern, link), lang);
+        Redirect::to(&format!("{page}&notice={}#{anchor}", self.code())).into_response()
     }
 }
 
@@ -256,8 +309,7 @@ pub async fn show(
     let lang = guest.lang;
     let mut page = RsvpPage::new(lang, &guest);
     page.remembered = remember::remembers(&headers, state.config.is_https(), &guest);
-    let games = games::offers_any(&state, &guest);
-    page.tabs = guest_tabs(page.t, &page.links, games, GuestTab::Reply);
+    page.tabs = guest.tabs(&state, &page.links, GuestTab::Reply);
     let notice = query.notice.as_deref().and_then(Notice::from_code);
     page.flash = notice.map(|notice| notice.text(page.t));
     page.celebrate = guest.rsvp.response == rsvp::Response::Attending
@@ -276,7 +328,6 @@ pub async fn guests(
 ) -> Page {
     let lang = guest.lang;
     let guests = GuestList::load(&state.db, guest.event.id, Some(guest.rsvp.id)).await?;
-    let games = games::offers_any(&state, &guest);
     let t = lang.messages();
     let links = GuestLinks::new(&guest.link, lang);
     Ok(render(GuestsPage {
@@ -286,7 +337,7 @@ pub async fn guests(
         guests,
         you: Some(YourListing::new(t, &guest.rsvp, links.listing.clone())),
         flash: Notice::flash(query.notice.as_deref(), t),
-        tabs: guest_tabs(t, &links, games, GuestTab::Guests),
+        tabs: guest.tabs(&state, &links, GuestTab::Guests),
         back: None,
     }))
 }

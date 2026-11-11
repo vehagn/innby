@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update board_post set body = null, rsvp_id = null, host_name = null where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3c5673126992e6ebc766d3ecbd3d07ff9ba2526786ca65a1eafaf5bf4be25a02"
+}

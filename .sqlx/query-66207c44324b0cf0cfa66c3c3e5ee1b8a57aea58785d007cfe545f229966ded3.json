@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                delete from board_post p\n                where id = $1 and body is null\n                    and not exists (select from board_post c where c.parent_id = p.id)\n                returning parent_id\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "parent_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "board_post",
+            "name": "parent_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "66207c44324b0cf0cfa66c3c3e5ee1b8a57aea58785d007cfe545f229966ded3"
+}

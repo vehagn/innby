@@ -20,6 +20,7 @@ use uuid::Uuid;
 use sqlx::types::Json;
 
 use super::{
+    board::BoardState,
     event::{self, Event},
     group::Group,
 };
@@ -233,10 +234,20 @@ pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Rsvp
 /// RSVPs by id, each with its event and the games it offers, in one query: what a link
 /// leads to, before its signature is checked. The front page asks for all its remembered
 /// links at once, so made-up ones cost a single round trip however many there are.
+/// A guest with their event, as `find_with_events` finds them.
+pub struct WithEvent {
+    pub rsvp: Rsvp,
+    pub event: Event,
+    /// The games the event offers, by id.
+    pub games: Vec<String>,
+    /// What the event's message board is.
+    pub board: BoardState,
+}
+
 pub async fn find_with_events(
     db: impl PgExecutor<'_>,
     ids: &[Uuid],
-) -> sqlx::Result<Vec<(Rsvp, Event, Vec<String>)>> {
+) -> sqlx::Result<Vec<WithEvent>> {
     let rows = sqlx::query!(
         r#"
         select r.id, r.event_id, r.name, r.response as "response: Response", r.party_size,
@@ -250,7 +261,8 @@ pub async fn find_with_events(
             e.question as "question: Json<Texts>", e.choices as "choices: Json<Texts>",
             e.langs, r.choice,
             array(select g.game from event_game g where g.event_id = e.id order by g.game)
-                as "games!"
+                as "games!",
+            e.board as "board: BoardState"
         from rsvp r join event e on e.id = r.event_id
         where r.id = any($1)
         "#,
@@ -295,7 +307,12 @@ pub async fn find_with_events(
                 name_display: row.name_display,
                 choice: row.choice,
             };
-            (rsvp, event, row.games)
+            WithEvent {
+                rsvp,
+                event,
+                games: row.games,
+                board: row.board,
+            }
         })
         .collect())
 }

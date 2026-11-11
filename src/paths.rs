@@ -26,6 +26,10 @@ pub const RSVP: &str = "/r/{link}";
 pub const RSVP_NAME: &str = "/r/{link}/name";
 pub const RSVP_GUESTS: &str = "/r/{link}/guests";
 pub const RSVP_GAMES: &str = "/r/{link}/games";
+/// The event's message board, and posting on it.
+pub const RSVP_BOARD: &str = "/r/{link}/board";
+pub const RSVP_BOARD_VOTE: &str = "/r/{link}/board/{post}/vote";
+pub const RSVP_BOARD_DELETE: &str = "/r/{link}/board/{post}/delete";
 /// The guest's details: name, e-mail, this device, their data.
 pub const RSVP_YOU: &str = "/r/{link}/you";
 pub const RSVP_LISTING: &str = "/r/{link}/listing";
@@ -65,6 +69,9 @@ pub const EVENTS_IMPORT: &str = "/events/import";
 pub const EVENT_REMINDERS: &str = "/events/{event}/reminders";
 pub const EVENT_QR: &str = "/events/{event}/qr-style";
 pub const EVENT_GAMES: &str = "/events/{event}/games";
+pub const EVENT_BOARD: &str = "/events/{event}/board";
+pub const EVENT_BOARD_POSTS: &str = "/events/{event}/board/posts";
+pub const EVENT_BOARD_DELETE: &str = "/events/{event}/board/{post}/delete";
 pub const EVENT_ACCESS: &str = "/events/{event}/access";
 pub const EVENT_ACCESS_REMOVE: &str = "/events/{event}/access/remove";
 pub const GUEST: &str = "/guests/{guest}";
@@ -183,6 +190,7 @@ pub struct GuestLinks {
     pub delete: String,
     pub export: String,
     pub games: String,
+    pub board: String,
     pub you: String,
     /// The event as a calendar file, in the guest's language.
     pub calendar: String,
@@ -203,6 +211,7 @@ impl GuestLinks {
             delete: at(RSVP_DELETE),
             export: path(RSVP_EXPORT, link),
             games: at(RSVP_GAMES),
+            board: at(RSVP_BOARD),
             you: at(RSVP_YOU),
             calendar: at(RSVP_CALENDAR),
             remember: at(RSVP_REMEMBER),
@@ -250,6 +259,9 @@ pub struct EventLinks {
     pub qr_style: String,
     /// The minigames the event offers.
     pub games: String,
+    /// The message board, and where hosts post on it.
+    pub board: String,
+    pub board_posts: String,
     /// Who else may see or run the event.
     pub access: String,
     pub access_remove: String,
@@ -272,6 +284,8 @@ impl EventLinks {
             details: at(EVENT_DETAILS),
             qr_style: at(EVENT_QR),
             games: at(EVENT_GAMES),
+            board: at(EVENT_BOARD),
+            board_posts: at(EVENT_BOARD_POSTS),
             access: at(EVENT_ACCESS),
             access_remove: at(EVENT_ACCESS_REMOVE),
             delete: at(EVENT_DELETE),

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select r.id, r.event_id, r.name, r.response as \"response: Response\", r.party_size,\n            r.max_party_size, r.link_nonce, r.lang as \"lang: Lang\", r.email,\n            r.email_status as \"email_status: EmailStatus\", r.email_consent_at,\n            r.privacy_version, r.responded_at, r.created_at, r.group_id,\n            r.name_display as \"name_display: NameDisplay\",\n            e.lang as \"event_lang: Lang\",\n            e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,\n            e.question as \"question: Json<Texts>\", e.choices as \"choices: Json<Texts>\",\n            e.langs, r.choice,\n            array(select g.game from event_game g where g.event_id = e.id order by g.game)\n                as \"games!\"\n        from rsvp r join event e on e.id = r.event_id\n        where r.id = any($1)\n        ",
+  "query": "\n        select r.id, r.event_id, r.name, r.response as \"response: Response\", r.party_size,\n            r.max_party_size, r.link_nonce, r.lang as \"lang: Lang\", r.email,\n            r.email_status as \"email_status: EmailStatus\", r.email_consent_at,\n            r.privacy_version, r.responded_at, r.created_at, r.group_id,\n            r.name_display as \"name_display: NameDisplay\",\n            e.lang as \"event_lang: Lang\",\n            e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,\n            e.question as \"question: Json<Texts>\", e.choices as \"choices: Json<Texts>\",\n            e.langs, r.choice,\n            array(select g.game from event_game g where g.event_id = e.id order by g.game)\n                as \"games!\",\n            e.board as \"board: BoardState\"\n        from rsvp r join event e on e.id = r.event_id\n        where r.id = any($1)\n        ",
   "describe": {
     "columns": [
       {
@@ -360,6 +360,29 @@
         "name": "games!",
         "type_info": "TextArray",
         "origin": "Expression"
+      },
+      {
+        "ordinal": 30,
+        "name": "board: BoardState",
+        "type_info": {
+          "Custom": {
+            "name": "board_state",
+            "kind": {
+              "Enum": [
+                "off",
+                "hidden",
+                "hosts",
+                "open"
+              ]
+            }
+          }
+        },
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "board"
+          }
+        }
       }
     ],
     "parameters": {
@@ -397,8 +420,9 @@
       false,
       false,
       true,
-      null
+      null,
+      false
     ]
   },
-  "hash": "b151bd266824b58b05d70552175f969bb05731974caf08e44d0767015d46e0db"
+  "hash": "57c27d6b6af0311889cc808ce1dc5f25fa4eb0bad88b130031c0508738a70cbf"
 }

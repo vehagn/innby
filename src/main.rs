@@ -7,10 +7,12 @@
 //! - `db`: the queries, per table. `config`: the settings. `i18n`: languages and texts.
 //! - `link`: signed links. `paths`: every route and link. `theme`: the colour scheme.
 //! - `random`: tokens. `testing` and `e2e`: test helpers and end-to-end journeys.
+//! - `board`: a message board post as both sites show it.
 //! - `metrics`: anonymous metrics for Prometheus. `alloc`: the memory allocator.
 
 mod admin;
 mod alloc;
+mod board;
 mod calendar;
 mod config;
 mod db;

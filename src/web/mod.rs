@@ -1,8 +1,9 @@
 //! The public site: the front page, guests' personal and group link pages, e-mail, the
-//! event as a calendar file, the privacy notice. `router` lists every route; the shared
+//! event as a calendar file, the message board, the privacy notice. `router` lists every route; the shared
 //! plumbing is in `crate::http`. Every page is in one of the languages the site offers
 //! (`languages`), an event's in one of the event's.
 
+mod board;
 mod calendar;
 mod email;
 mod games;
@@ -34,7 +35,7 @@ use crate::{
 
 /// Version of the privacy notice, recorded with each answer.
 /// Bump it whenever the notice in `templates/privacy/` changes in substance.
-pub const PRIVACY_VERSION: &str = "2026-11-09";
+pub const PRIVACY_VERSION: &str = "2026-11-11";
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
 const DAY: Duration = Duration::from_secs(24 * 60 * 60);
@@ -127,6 +128,9 @@ pub(crate) fn routers(config: Config, db: PgPool) -> (Router, Option<Router>) {
         .route(paths::RSVP_GUESTS, get(rsvp::guests))
         .route(paths::RSVP_GAMES, get(games::list))
         .route(paths::RSVP_YOU, get(you::show))
+        .route(paths::RSVP_BOARD, get(board::show).post(board::create))
+        .route(paths::RSVP_BOARD_VOTE, post(board::vote))
+        .route(paths::RSVP_BOARD_DELETE, post(board::delete))
         .route(paths::RSVP_NAME, post(you::rename))
         .route(paths::RSVP_LISTING, post(rsvp::listing))
         .route(paths::RSVP_EXPORT, get(you::export))
