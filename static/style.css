@@ -111,6 +111,13 @@
   box-sizing: border-box;
 }
 
+/* Room for the scrollbar always, so a page doesn't shift sideways going to or from one
+   that's long enough to scroll. Phones' and macOS's scrollbars float over the page, and
+   take none. */
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   background: var(--bg);
