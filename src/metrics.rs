@@ -410,6 +410,32 @@ mod tests {
         assert_eq!(Label::route(None), "unmatched".into());
     }
 
+    /// Every metric the chart's Grafana dashboard asks for is one there is, so renaming
+    /// one here can't leave a panel empty.
+    #[test]
+    fn the_dashboard_asks_for_metrics_there_are() {
+        let dashboard = include_str!("../charts/innby/dashboards/innby.json");
+        let code = include_str!("metrics.rs");
+        let mut asked = 0;
+        for (start, _) in dashboard.match_indices("innby_") {
+            let name: String = dashboard[start..]
+                .chars()
+                .take_while(|c| c.is_ascii_lowercase() || *c == '_')
+                .collect();
+            let name = ["_bucket", "_sum", "_count"]
+                .iter()
+                .fold(name.as_str(), |name, suffix| {
+                    name.strip_suffix(suffix).unwrap_or(name)
+                });
+            assert!(
+                code.contains(&format!("\"{name}\"")),
+                "the dashboard asks for {name}"
+            );
+            asked += 1;
+        }
+        assert!(asked > 10, "the dashboard asks for {asked} metrics");
+    }
+
     #[test]
     fn escapes_label_values() {
         assert_eq!(escape("a\"b\\c\nd"), r#"a\"b\\c\nd"#);

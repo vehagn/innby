@@ -386,8 +386,9 @@ processing, with the legal bases; the privacy notice is at `/privacy` in every l
 With `INNBY_METRICS_LISTEN` set, the site, the admin UI and the mailer each serve
 metrics for Prometheus at `/metrics` on that address, a port apart from the pages, which
 no route or Ingress leads to and the network policies open only to whoever scrapes them.
-The chart's `metrics` turns them on, with a ClusterIP Service each and a
-ServiceMonitor for the Prometheus Operator.
+The chart's `metrics` turns them on, with a ClusterIP Service each, a
+ServiceMonitor for the Prometheus Operator, and a dashboard for Grafana
+(`charts/innby/dashboards/innby.json`).
 
 They say how Innby is doing, never who did what:
 

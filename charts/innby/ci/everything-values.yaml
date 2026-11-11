@@ -29,6 +29,10 @@ ingress:
 metrics:
   enabled: true
   serviceMonitor: { enabled: true, interval: 30s, labels: { release: prometheus } }
+  grafanaDashboard:
+    enabled: true
+    instanceSelector: { matchLabels: { app: grafana } }
+    resyncPeriod: 10m
 networkPolicy:
   enabled: true
   metricsFrom: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } } }]

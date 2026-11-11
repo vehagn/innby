@@ -196,6 +196,17 @@ metrics:
     interval: ""
     # The labels your Prometheus picks ServiceMonitors by, e.g. { release: prometheus }.
     labels: {}
+  # A dashboard of them, dashboards/innby.json, for a cluster with the Grafana Operator's
+  # CRDs. The JSON imports into any Grafana by hand too.
+  grafanaDashboard:
+    enabled: false
+    # Which Grafana instances get it, e.g. { matchLabels: { app: grafana } }.
+    instanceSelector: {}
+    # Grafana in another namespace takes it only with this.
+    allowCrossNamespaceImport: true
+    folder: Innby
+    # How often the operator checks the dashboard is as here, e.g. 10m.
+    resyncPeriod: ""
 
 # Gateway API routes, for a cluster with its CRDs: one for the site's hostname and one for
 # the admin UI's path or hostname. Gateways pick the longest matching path, so /admin can

@@ -174,6 +174,13 @@ or NodePort for those never exposes them. With the Prometheus Operator,
 their workload, and `metrics.serviceMonitor.labels` the labels your Prometheus selects it
 by.
 
+`dashboards/innby.json` is a Grafana dashboard of them: requests by status and route,
+answer times, mail and the outbox, memory and database connections. With the Grafana
+Operator, `metrics.grafanaDashboard.enabled` adds it as a GrafanaDashboard for the
+Grafanas `metrics.grafanaDashboard.instanceSelector` picks, in the folder `folder`;
+without it, import the file by hand. It asks for the Prometheus data source and the
+namespace.
+
 The network policies open the port to `networkPolicy.metricsFrom`, or
 `ciliumNetworkPolicy.metricsFromEndpoints`, e.g. Prometheus's namespace; when empty, to
 anyone, or for Cilium to anything in the cluster.

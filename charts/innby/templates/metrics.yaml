@@ -55,3 +55,33 @@ spec:
       {{- end }}
 {{- end }}
 {{- end }}
+{{- with .Values.metrics.grafanaDashboard }}
+{{- if .enabled }}
+{{- if not $.Values.metrics.enabled }}
+{{- fail "metrics.grafanaDashboard: turn on metrics.enabled too, or the dashboard has nothing to show" }}
+{{- end }}
+{{- if not .instanceSelector }}
+{{- fail "metrics.grafanaDashboard.instanceSelector: which Grafanas get the dashboard, e.g. { matchLabels: { app: grafana } }" }}
+{{- end }}
+---
+# The dashboard in dashboards/innby.json, for the Grafana Operator.
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDashboard
+metadata:
+  name: {{ include "innby.fullname" $ }}
+  labels:
+    {{- include "innby.labels" (dict "root" $ "component" "metrics") | nindent 4 }}
+spec:
+  instanceSelector:
+    {{- toYaml .instanceSelector | nindent 4 }}
+  allowCrossNamespaceImport: {{ .allowCrossNamespaceImport }}
+  {{- with .folder }}
+  folder: {{ . | quote }}
+  {{- end }}
+  {{- with .resyncPeriod }}
+  resyncPeriod: {{ . }}
+  {{- end }}
+  json: |
+    {{- $.Files.Get "dashboards/innby.json" | nindent 4 }}
+{{- end }}
+{{- end }}

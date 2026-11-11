@@ -151,6 +151,8 @@ chart:
     fails --set games.internal.enabled=true --set networkPolicy.enabled=true
     fails --set games.enabled=true
     fails --set metrics.serviceMonitor.enabled=true
+    fails --set metrics.grafanaDashboard.enabled=true
+    fails --set metrics.enabled=true --set metrics.grafanaDashboard.enabled=true
     fails --set games.enabled=true --set games.url=https://fest.example.com/games
     fails --set games.internal.enabled=true --set ciliumNetworkPolicy.enabled=true \
       --set ciliumNetworkPolicy.ingressFromEntities[0]=ingress

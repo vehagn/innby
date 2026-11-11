@@ -189,6 +189,17 @@
             "interval": { "type": "string", "pattern": "^([0-9]+(ms|s|m|h))*$" },
             "labels": { "type": "object", "additionalProperties": { "type": "string" } }
           }
+        },
+        "grafanaDashboard": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "instanceSelector": { "type": "object" },
+            "allowCrossNamespaceImport": { "type": "boolean" },
+            "folder": { "type": "string" },
+            "resyncPeriod": { "type": "string", "pattern": "^([0-9]+(ms|s|m|h))*$" }
+          }
         }
       }
     },
