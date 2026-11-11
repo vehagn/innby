@@ -1,17 +1,54 @@
 //! A post on an event's message board as a page shows it, for the guests' Board tab
 //! (`web::board`) and the hosts' (`admin::board`) alike, which `_board_thread.html`
-//! draws. The posts themselves are in `db::board`.
+//! draws, and the links between the board's pages (`_board_pager.html`). The posts
+//! themselves are in `db::board`.
 
 use chrono_tz::Tz;
 use uuid::Uuid;
 
 use crate::{
     db::{
-        board::{Author, Post},
+        board::{self, Author, Page, Post, Refused},
         rsvp::NameDisplay,
     },
-    i18n::{Lang, Messages},
+    i18n::{Lang, Messages, fill, filled},
 };
+
+/// The links between a board's pages, when it has more than one.
+pub struct Pager {
+    pub previous: Option<String>,
+    pub next: Option<String>,
+    /// "Page 2 of 3".
+    pub at: String,
+}
+
+impl Pager {
+    /// For `page`, with `url` the address of a page by its number from 0.
+    pub fn new(t: &Messages, page: &Page, url: impl Fn(usize) -> String) -> Option<Self> {
+        (page.count > 1).then(|| Self {
+            previous: page.number.checked_sub(1).map(&url),
+            next: (page.number + 1 < page.count).then(|| url(page.number + 1)),
+            at: fill(
+                &t.board_page,
+                &[("n", &(page.number + 1)), ("count", &page.count)],
+            ),
+        })
+    }
+}
+
+/// Why a post wasn't posted, as a page says it.
+pub fn refusal(t: &Messages, refused: Refused) -> String {
+    match refused {
+        Refused::Gone => t.board_error_gone.clone(),
+        Refused::ThreadFull => filled(&t.board_error_thread, "n", board::MAX_THREAD),
+        Refused::BoardFull => filled(&t.board_error_full, "n", board::MAX_POSTS),
+    }
+}
+
+/// The page asked for as `?page=`, from 1, as a number from 0.
+pub fn page_number(asked: Option<usize>) -> usize {
+    asked.unwrap_or(1).saturating_sub(1)
+}
 
 /// A post, with what the one looking may do with it.
 pub struct PostView {

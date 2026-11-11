@@ -281,8 +281,9 @@ create table game_score (
 create table board_post (
     id         uuid primary key default uuidv7(),
     event_id   uuid not null references event on delete cascade,
-    -- The post it answers; none for a thread's first.
+    -- The post it answers, and the first of its thread; none for a thread's first.
     parent_id  uuid,
+    thread_id  uuid,
     rsvp_id    uuid,
     host_name  text check (length(host_name) between 1 and 254 and host_name !~ '[[:cntrl:]]'),
     -- Lines and tabs allowed. None for a post deleted, or whose guest was, which stays,
@@ -292,6 +293,8 @@ create table board_post (
     created_at timestamptz not null default now(),
     unique (id, event_id),
     foreign key (parent_id, event_id) references board_post (id, event_id) on delete cascade,
+    foreign key (thread_id, event_id) references board_post (id, event_id) on delete cascade,
+    check ((parent_id is null) = (thread_id is null)),
     foreign key (rsvp_id, event_id) references rsvp (id, event_id) on delete set null (rsvp_id),
     check (rsvp_id is null or host_name is null),
     check ((body is null) = (rsvp_id is null and host_name is null))
@@ -299,6 +302,7 @@ create table board_post (
 
 create index board_post_event on board_post (event_id, id);
 create index board_post_parent on board_post (parent_id) where parent_id is not null;
+create index board_post_thread on board_post (thread_id) where thread_id is not null;
 create index board_post_rsvp on board_post (rsvp_id) where rsvp_id is not null;
 
 -- A post whose guest is deleted loses its text with them.

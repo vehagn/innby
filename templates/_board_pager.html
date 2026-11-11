@@ -1,0 +1,8 @@
+{#- The links between a board's pages, when it has more than one. #}
+{% if let Some(pager) = pager %}
+<nav class="pager" aria-label="{{ t.board_pages }}">
+  {% if let Some(href) = pager.previous %}<a href="{{ href }}">{{ t.board_previous }}</a>{% endif %}
+  <span class="muted">{{ pager.at }}</span>
+  {% if let Some(href) = pager.next %}<a href="{{ href }}">{{ t.board_next }}</a>{% endif %}
+</nav>
+{% endif %}

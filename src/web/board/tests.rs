@@ -29,6 +29,7 @@ async fn the_board_is_for_guests_only_when_its_hosts_say(db: PgPool) {
     let event = site.event().await.id;
     board::create(&site.db, event, None, Writer::Host("admin"), "Welcome!")
         .await
+        .unwrap()
         .unwrap();
     let html = body(site.get(&board).await).await;
     assert!(html.contains("Welcome!"), "{html}");
@@ -181,4 +182,46 @@ async fn a_guest_posts_so_many_an_hour(db: PgPool) {
     // Others are counted apart.
     let response = site.post(&board(&ola), "body=Hi").await;
     assert_eq!(response.status(), StatusCode::SEE_OTHER);
+}
+
+#[sqlx::test]
+async fn a_long_board_has_pages_and_a_vote_stays_on_its_own(db: PgPool) {
+    let site = Site::new(db);
+    set(&site, BoardState::Open).await;
+    let (kari, _) = site.invite("Kari", 1).await;
+    let (_, ola) = site.invite("Ola", 1).await;
+    let event = site.event().await.id;
+    // The first thread is the oldest, so it's on the second page.
+    let mut first = None;
+    for n in 0..=board::PAGE_POSTS {
+        let post = board::create(
+            &site.db,
+            event,
+            None,
+            Writer::Guest(kari.id),
+            &format!("Post {n}"),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        first.get_or_insert(post);
+    }
+    let first = first.unwrap();
+    let html = body(site.get(&format!("/r/{ola}/board?lang=en")).await).await;
+    assert!(
+        html.contains(&escape(&format!("/r/{ola}/board?lang=en&page=2"))),
+        "{html}"
+    );
+    assert!(!html.contains("Post 0<"), "{html}");
+    let html = body(site.get(&format!("/r/{ola}/board?lang=en&page=2")).await).await;
+    assert!(html.contains("Post 0<"), "{html}");
+
+    // Voted down, it stays on the second page, and the vote leads back there.
+    let response = site
+        .post(&format!("/r/{ola}/board/{first}/vote?lang=en"), "vote=down")
+        .await;
+    assert_eq!(
+        location(&response),
+        format!("/r/{ola}/board?lang=en&page=2#post-{first}")
+    );
 }

@@ -50,7 +50,7 @@ pub fn to_html(text: &str) -> String {
                 out.push_str(&format!("<{tag}>"));
                 for item in items {
                     out.push_str("<li>");
-                    inline(item, &mut out);
+                    inline(item, true, &mut out);
                     out.push_str("</li>");
                 }
                 out.push_str(&format!("</{tag}>"));
@@ -66,7 +66,7 @@ fn join(lines: &[&str], out: &mut String) {
         if n > 0 {
             out.push_str("<br>");
         }
-        inline(line, out);
+        inline(line, true, out);
     }
 }
 
@@ -113,8 +113,9 @@ fn numbered(line: &str) -> Option<&str> {
         .flatten()
 }
 
-/// A line's text, escaped, with its bold, italics, code and links.
-fn inline(text: &str, out: &mut String) {
+/// A line's text, escaped, with its bold, italics, code and, if `links`, links: not in
+/// a link's own text, where a link would make one inside another.
+fn inline(text: &str, links: bool, out: &mut String) {
     let mut rest = text;
     while let Some(c) = rest.chars().next() {
         let at_word_start = text.len() == rest.len()
@@ -122,18 +123,18 @@ fn inline(text: &str, out: &mut String) {
                 .chars()
                 .next_back()
                 .is_some_and(char::is_alphanumeric);
-        if let Some(after) = span(rest, at_word_start, out) {
+        if let Some(after) = span(rest, at_word_start, links, out) {
             rest = after;
             continue;
         }
-        out.push_str(&escape_html(&c.to_string()));
+        escape_char(c, out);
         rest = &rest[c.len_utf8()..];
     }
 }
 
 /// Writes the code, emphasis or link `rest` starts with, if it does, and returns what
 /// follows it.
-fn span<'a>(rest: &'a str, at_word_start: bool, out: &mut String) -> Option<&'a str> {
+fn span<'a>(rest: &'a str, at_word_start: bool, links: bool, out: &mut String) -> Option<&'a str> {
     if let Some(after) = rest.strip_prefix('`') {
         let end = after.find('`').filter(|&end| end > 0)?;
         out.push_str("<code>");
@@ -144,7 +145,7 @@ fn span<'a>(rest: &'a str, at_word_start: bool, out: &mut String) -> Option<&'a 
     if let Some(after) = rest.strip_prefix("**") {
         let end = closing(after, "**")?;
         out.push_str("<strong>");
-        inline(&after[..end], out);
+        inline(&after[..end], links, out);
         out.push_str("</strong>");
         return Some(&after[end + 2..]);
     }
@@ -156,10 +157,13 @@ fn span<'a>(rest: &'a str, at_word_start: bool, out: &mut String) -> Option<&'a 
         if let Some(after) = rest.strip_prefix(mark) {
             let end = closing(after, mark)?;
             out.push_str("<em>");
-            inline(&after[..end], out);
+            inline(&after[..end], links, out);
             out.push_str("</em>");
             return Some(&after[end + 1..]);
         }
+    }
+    if !links {
+        return None;
     }
     if let Some(after) = rest.strip_prefix('[') {
         let close = after.find("](")?;
@@ -169,7 +173,7 @@ fn span<'a>(rest: &'a str, at_word_start: bool, out: &mut String) -> Option<&'a 
         if close == 0 || !linkable(url) {
             return None;
         }
-        link(url, out, |out| inline(&after[..close], out));
+        link(url, out, |out| inline(&after[..close], false, out));
         return Some(&tail[end + 1..]);
     }
     if at_word_start && (rest.starts_with("https://") || rest.starts_with("http://")) {
@@ -183,6 +187,18 @@ fn span<'a>(rest: &'a str, at_word_start: bool, out: &mut String) -> Option<&'a 
         return Some(&rest[url.len()..]);
     }
     None
+}
+
+/// A character as HTML text, as `escape_html` writes it, without a string for each.
+fn escape_char(c: char, out: &mut String) {
+    match c {
+        '&' => out.push_str("&#38;"),
+        '<' => out.push_str("&#60;"),
+        '>' => out.push_str("&#62;"),
+        '"' => out.push_str("&#34;"),
+        '\'' => out.push_str("&#39;"),
+        c => out.push(c),
+    }
 }
 
 /// Where emphasis that opened just before `text` closes: the next `mark` with something
@@ -260,6 +276,12 @@ mod tests {
             assert!(!html.contains("<a "), "{unsafe_link}: {html}");
         }
         assert!(to_html("[mail](mailto:kari@example.com)").contains("href=\"mailto:"));
+        // Not one inside another.
+        let html = to_html("[[a](https://a.example)](https://b.example)");
+        let nested = html
+            .split("</a>")
+            .any(|link| link.matches("<a ").count() > 1);
+        assert!(!nested, "{html}");
     }
 
     #[test]

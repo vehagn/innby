@@ -30,7 +30,7 @@ async fn votes_add_up_and_the_same_vote_takes_it_back(db: PgPool) {
     let (event, kari, ola) = setup(&db).await;
     let hello = post(&db, event, None, kari, "Hello").await;
     vote(&db, event, hello, ola, 1).await.unwrap();
-    let posts = posts(&db, event, Some(ola)).await.unwrap();
+    let posts = page(&db, event, Some(ola), 0).await.unwrap().posts;
     assert_eq!(
         (find(&posts, hello).score, find(&posts, hello).vote),
         (1, 1)
@@ -61,7 +61,7 @@ async fn a_reply_is_to_a_post_of_the_same_event(db: PgPool) {
     let reply = create(&db, event, Some(elsewhere), Writer::Guest(kari), "Hi")
         .await
         .unwrap();
-    assert_eq!(reply, None);
+    assert_eq!(reply, Err(Refused::Gone));
 }
 
 #[sqlx::test]
@@ -73,7 +73,7 @@ async fn a_deleted_post_stays_for_its_replies_only(db: PgPool) {
     // Not someone else's.
     assert!(!delete(&db, event, hello, Some(ola)).await.unwrap());
     assert!(delete(&db, event, hello, Some(kari)).await.unwrap());
-    let posts = posts(&db, event, None).await.unwrap();
+    let posts = page(&db, event, None, 0).await.unwrap().posts;
     assert_eq!(find(&posts, hello).body, None);
     assert_eq!(find(&posts, hello).author, Author::Gone);
 
@@ -90,7 +90,7 @@ async fn a_deleted_guests_posts_lose_their_text(db: PgPool) {
     vote(&db, event, reply, kari, 1).await.unwrap();
     rsvp::delete(&db, kari).await.unwrap();
 
-    let posts = posts(&db, event, None).await.unwrap();
+    let posts = page(&db, event, None, 0).await.unwrap().posts;
     assert_eq!(find(&posts, hello).body, None);
     assert_eq!(find(&posts, hello).author, Author::Gone);
     assert_eq!(find(&posts, reply).body.as_deref(), Some("Hi Kari"));
@@ -104,6 +104,7 @@ fn a_body_is_trimmed_and_checked() {
     assert_eq!(body("  Hi\r\nthere \n").as_deref(), Some("Hi\nthere"));
     assert_eq!(body(" \n "), None);
     assert_eq!(body("bell\u{7}"), None);
+    assert_eq!(body("moc.elpmaxe\u{202e}"), None);
     assert_eq!(body(&"x".repeat(MAX_BODY + 1)), None);
     assert!(body(&"ø".repeat(MAX_BODY)).is_some());
 }
@@ -112,7 +113,9 @@ fn at(id: u128, parent: Option<u128>, minute: i64, score: i64, body: bool) -> Po
     Post {
         id: Uuid::from_u128(id),
         parent_id: parent.map(Uuid::from_u128),
+        thread_id: Uuid::from_u128(id),
         author: Author::Gone,
+        deleted: !body,
         body: body.then(|| format!("post {id}")),
         created_at: DateTime::from_timestamp(minute * 60, 0).unwrap(),
         score,
@@ -169,6 +172,7 @@ async fn the_board_goes_with_its_event(db: PgPool) {
     let hello = post(&db, event, None, kari, "Hello").await;
     create(&db, event, Some(hello), Writer::Host("admin"), "Hi")
         .await
+        .unwrap()
         .unwrap();
     vote(&db, event, hello, ola, 1).await.unwrap();
     assert!(event::delete(&db, event).await.unwrap());
@@ -179,4 +183,52 @@ async fn the_board_goes_with_its_event(db: PgPool) {
     .await
     .unwrap();
     assert_eq!(left, 0);
+}
+
+#[sqlx::test]
+async fn a_thread_and_the_board_hold_so_many(db: PgPool) {
+    let (event, kari, _) = setup(&db).await;
+    let first = post(&db, event, None, kari, "First").await;
+    // Replies to replies count for the thread too.
+    let mut last = first;
+    for _ in 1..MAX_THREAD {
+        last = post(&db, event, Some(last), kari, "Reply").await;
+    }
+    let refused = create(&db, event, Some(first), Writer::Guest(kari), "One more")
+        .await
+        .unwrap();
+    assert_eq!(refused, Err(Refused::ThreadFull));
+
+    for _ in MAX_THREAD..MAX_POSTS {
+        post(&db, event, None, kari, "Thread").await;
+    }
+    let refused = create(&db, event, None, Writer::Host("admin"), "Full")
+        .await
+        .unwrap();
+    assert_eq!(refused, Err(Refused::BoardFull));
+}
+
+#[sqlx::test]
+async fn a_page_is_whole_threads_with_their_text(db: PgPool) {
+    let (event, kari, _) = setup(&db).await;
+    // A thread of PAGE_POSTS - 1, then threads of one, the newest first.
+    let big = post(&db, event, None, kari, "Big").await;
+    for _ in 2..PAGE_POSTS {
+        post(&db, event, Some(big), kari, "Reply").await;
+    }
+    for n in 0..PAGE_POSTS + 2 {
+        post(&db, event, None, kari, &format!("Small {n}")).await;
+    }
+    let first = page(&db, event, None, 0).await.unwrap();
+    // The newest small threads come first, until there are PAGE_POSTS; the next page has
+    // the last two, and the big thread, whole, though that takes it past PAGE_POSTS.
+    assert_eq!(first.posts.len(), PAGE_POSTS);
+    assert!(first.posts.iter().all(|post| post.body.is_some()));
+    let second = page(&db, event, None, 1).await.unwrap();
+    assert_eq!(second.count, 2);
+    assert_eq!(second.posts.len(), 2 + PAGE_POSTS - 1);
+    assert!(second.posts.iter().any(|post| post.id == big));
+    // Past the last, the last.
+    let past = page(&db, event, None, 99).await.unwrap();
+    assert_eq!(past.number, 1);
 }

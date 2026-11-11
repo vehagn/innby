@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select p.id, p.parent_id, p.rsvp_id, p.host_name, p.body, p.created_at,\n            r.name as \"name?\", r.response as \"response?: Response\",\n            r.name_display as \"name_display: NameDisplay\",\n            coalesce((select sum(v.vote) from board_vote v where v.post_id = p.id), 0)\n                as \"score!\",\n            coalesce((select v.vote from board_vote v\n                      where v.post_id = p.id and v.rsvp_id = $2), 0)::smallint as \"vote!\"\n        from board_post p left join rsvp r on r.id = p.rsvp_id\n        where p.event_id = $1\n        order by p.id\n        ",
+  "query": "\n        select p.id, p.parent_id, p.thread_id, p.rsvp_id, p.host_name,\n            p.body is null as \"deleted!\", p.created_at,\n            r.name as \"name?\", r.response as \"response?: Response\",\n            r.name_display as \"name_display: NameDisplay\",\n            coalesce((select sum(v.vote) from board_vote v where v.post_id = p.id), 0)\n                as \"score!\",\n            coalesce((select v.vote from board_vote v\n                      where v.post_id = p.id and v.rsvp_id = $2), 0)::smallint as \"vote!\"\n        from board_post p left join rsvp r on r.id = p.rsvp_id\n        where p.event_id = $1\n        order by p.id\n        ",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,17 @@
       },
       {
         "ordinal": 2,
+        "name": "thread_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "board_post",
+            "name": "thread_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
         "name": "rsvp_id",
         "type_info": "Uuid",
         "origin": {
@@ -37,7 +48,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "host_name",
         "type_info": "Text",
         "origin": {
@@ -48,18 +59,13 @@
         }
       },
       {
-        "ordinal": 4,
-        "name": "body",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "board_post",
-            "name": "body"
-          }
-        }
+        "ordinal": 5,
+        "name": "deleted!",
+        "type_info": "Bool",
+        "origin": "Expression"
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -70,7 +76,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "name?",
         "type_info": "Text",
         "origin": {
@@ -81,7 +87,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "response?: Response",
         "type_info": {
           "Custom": {
@@ -103,7 +109,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "name_display: NameDisplay",
         "type_info": {
           "Custom": {
@@ -125,13 +131,13 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "score!",
         "type_info": "Int8",
         "origin": "Expression"
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "vote!",
         "type_info": "Int2",
         "origin": "Expression"
@@ -149,6 +155,7 @@
       true,
       true,
       true,
+      null,
       false,
       false,
       false,
@@ -157,5 +164,5 @@
       null
     ]
   },
-  "hash": "c130e2c96b1cf6ae47a853a0114a82bfb97ca5f11a2a7fbf1b8869171d8fce3c"
+  "hash": "4f1f8343eb7925f2d4e23dc1c54dae069e04457c192baca93fac857643e8abd3"
 }

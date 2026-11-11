@@ -1062,6 +1062,16 @@ button.vote[aria-pressed="true"] {
   margin-top: var(--space-2);
 }
 
+/* The links between a board's pages, either side of where it is. */
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
 /* 5. Guests */
 
 /* The event's title and facts, centred at the top of its pages. */

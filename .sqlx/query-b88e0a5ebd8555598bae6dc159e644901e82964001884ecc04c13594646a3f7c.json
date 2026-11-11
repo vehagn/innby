@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select from event where id = $1 for update",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b88e0a5ebd8555598bae6dc159e644901e82964001884ecc04c13594646a3f7c"
+}

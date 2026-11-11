@@ -64,6 +64,8 @@ group=$(curl -s -H "Cookie: $host" $admin/groups/00000000-be4c-7000-8000-0000000
 # Ten forged "remember me" cookies, the most the front page reads.
 remember=$(for i in $(seq 0 9); do printf 'innby-0000000%d-0000-7000-8000-000000000000=x.y; ' $i; done)
 form=(-H 'Sec-Fetch-Site: same-origin' -H 'Content-Type: application/x-www-form-urlencoded')
+# A thread's first post on the wedding's board (bench/data.sql).
+post=00000000-be4c-7000-8001-000000000001
 
 results=$out/results.tsv
 : > "$results"
@@ -106,6 +108,16 @@ page 'Site: group sign-up page'                 200 $site$group
 page 'Site: forged link'                        404 $site/r/AAAAAAAAAAAAAAAAAAAAAA.AAAAAAAAAAAAAAAAAAAAAA
 page 'Site: answering'                          303 -m POST "${form[@]}" \
   -d 'response=attending&party_size=2' $site$link
+page 'Site: board, a full thread of long posts' 200 $site$link/board
+page 'Site: board, another page'                200 "$site$link/board?page=2"
+page 'Site: voting on a post'                   303 -m POST "${form[@]}" \
+  -d 'vote=up' $site$link/board/$post/vote
+# The hour's posts first, so the run measures what a flood gets: the page again, refused.
+for i in $(seq 30); do
+  curl -s -o /dev/null "${form[@]}" -d "body=Post+$i" $site$link/board
+done
+page 'Site: posting, over the limit'          429 -m POST "${form[@]}" \
+  -d 'body=One+more' $site$link/board
 page 'Admin: events (54)'                       200 -H "Cookie: $host" $admin/
 page 'Admin: Guests tab (1500 guests)'          200 -H "Cookie: $host" $admin/events/$wedding
 page 'Admin: Guests tab, with a role for it'    200 -H "Cookie: $helper" $admin/events/$wedding
@@ -114,6 +126,7 @@ page 'Admin: group links'                       200 -H "Cookie: $host" $admin/ev
 page 'Admin: guests CSV (1500 guests)'          200 -H "Cookie: $host" $admin/events/$wedding/guests.csv
 page 'Admin: a guest QR code'                   200 -H "Cookie: $host" $admin/guests/$guest/qr.svg
 page 'Admin: QR code style'                     200 -H "Cookie: $host" $admin/events/$wedding/qr-style
+page 'Admin: Board tab, a full thread'          200 -H "Cookie: $host" $admin/events/$wedding/board
 page 'Admin: not logged in'                     303 $admin/events/$wedding
 # Last, so the peak includes a login's argon2 check on top of all that.
 log_in admin >/dev/null

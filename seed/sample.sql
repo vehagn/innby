@@ -171,19 +171,20 @@ insert into game_score (rsvp_id, game, score, scored_at) values
 -- Julebord's board is open: a host's welcome with replies, a question, and a post voted
 -- below zero, which guests see folded away.
 update event set board = 'open' where id = '00000000-5eed-7000-8000-000000000001';
-insert into board_post (id, event_id, parent_id, rsvp_id, host_name, body, created_at) values
-    ('00000000-5eed-7000-8000-000000002001', '00000000-5eed-7000-8000-000000000001', null,
+insert into board_post (id, event_id, parent_id, thread_id, rsvp_id, host_name, body, created_at) values
+    ('00000000-5eed-7000-8000-000000002001', '00000000-5eed-7000-8000-000000000001', null, null,
      null, 'admin', E'Velkommen til julebordet!\nSi fra her om noe er uklart.', now() - interval '6 days'),
     ('00000000-5eed-7000-8000-000000002002', '00000000-5eed-7000-8000-000000000001',
-     '00000000-5eed-7000-8000-000000002001', '00000000-5eed-7000-8000-000000001001', null,
+     '00000000-5eed-7000-8000-000000002001', '00000000-5eed-7000-8000-000000002001',
+     '00000000-5eed-7000-8000-000000001001', null,
      'Gleder oss! Er det kleskode?', now() - interval '5 days'),
     ('00000000-5eed-7000-8000-000000002003', '00000000-5eed-7000-8000-000000000001',
-     '00000000-5eed-7000-8000-000000002002', null, 'admin',
+     '00000000-5eed-7000-8000-000000002002', '00000000-5eed-7000-8000-000000002001', null, 'admin',
      'Pent, men **ingen** slips-tvang. Se [kartet](https://www.openstreetmap.org/) for veien.', now() - interval '5 days' + interval '2 hours'),
-    ('00000000-5eed-7000-8000-000000002004', '00000000-5eed-7000-8000-000000000001', null,
+    ('00000000-5eed-7000-8000-000000002004', '00000000-5eed-7000-8000-000000000001', null, null,
      '00000000-5eed-7000-8000-000000001004', null,
      E'Er det noen som vil dele taxi fra Majorstuen?\n\n- avgang 18:30\n- plass til tre', now() - interval '2 days'),
-    ('00000000-5eed-7000-8000-000000002005', '00000000-5eed-7000-8000-000000000001', null,
+    ('00000000-5eed-7000-8000-000000002005', '00000000-5eed-7000-8000-000000000001', null, null,
      '00000000-5eed-7000-8000-000000001006', null,
      'Pinnekjøtt er overvurdert.', now() - interval '1 day');
 insert into board_vote (post_id, rsvp_id, vote) values

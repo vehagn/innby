@@ -236,7 +236,7 @@ impl Notice {
         Self::PostDeleted,
     ];
 
-    fn code(self) -> &'static str {
+    pub(super) fn code(self) -> &'static str {
         match self {
             Self::Saved => "saved",
             Self::EmailSent => "email_sent",
@@ -278,18 +278,6 @@ impl Notice {
     pub(super) fn redirect(self, pattern: &str, link: &str, lang: Lang) -> Response {
         let page = paths::localized(&paths::path(pattern, link), lang);
         Redirect::to(&format!("{page}&notice={}", self.code())).into_response()
-    }
-
-    /// The same, at `#{anchor}` on the page.
-    pub(super) fn redirect_to(
-        self,
-        pattern: &str,
-        link: &str,
-        lang: Lang,
-        anchor: &str,
-    ) -> Response {
-        let page = paths::localized(&paths::path(pattern, link), lang);
-        Redirect::to(&format!("{page}&notice={}#{anchor}", self.code())).into_response()
     }
 }
 

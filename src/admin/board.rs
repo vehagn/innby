@@ -13,15 +13,14 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use super::{
-    forms::SavedQuery,
     lang,
     page::{AdminState, PageError, load_event, redirect, saved},
     role::Host,
 };
 use crate::{
-    board::PostView,
+    board::{Pager, PostView, page_number, refusal},
     db::{
-        board::{self, BoardState, Step, Writer},
+        board::{self, BoardState, Refused, Step, Writer},
         event::Event,
     },
     http::render_with,
@@ -47,6 +46,7 @@ struct BoardPage {
     /// While it's off, how many posts it keeps.
     kept: i64,
     steps: Vec<Step<PostView>>,
+    pager: Option<Pager>,
     /// A new thread that couldn't be posted, to try again.
     draft: String,
     saved: bool,
@@ -79,7 +79,24 @@ struct Draft {
     body: String,
 }
 
-async fn page(state: &AdminState, id: Uuid, draft: Option<Draft>) -> Result<BoardPage, PageError> {
+/// The board's page `number`, from 0, maybe at a post.
+fn url(event: Uuid, number: usize, post: Option<Uuid>) -> String {
+    let mut url = paths::path(paths::EVENT_BOARD, event);
+    if number > 0 {
+        url.push_str(&format!("?page={}", number + 1));
+    }
+    if let Some(post) = post {
+        url.push_str(&format!("#post-{post}"));
+    }
+    url
+}
+
+async fn page(
+    state: &AdminState,
+    id: Uuid,
+    number: usize,
+    draft: Option<Draft>,
+) -> Result<BoardPage, PageError> {
     let event = load_event(state, id).await?;
     let board_state = board::state(&state.db, event.id)
         .await?
@@ -87,7 +104,7 @@ async fn page(state: &AdminState, id: Uuid, draft: Option<Draft>) -> Result<Boar
     let lang = lang::current();
     let (t, a) = (lang.messages(), lang::text());
     let links = EventLinks::new(event.id);
-    let (mut steps, mut kept) = (Vec::new(), 0);
+    let (mut steps, mut kept, mut pager) = (Vec::new(), 0, None);
     let (mut thread_draft, mut reply_draft) = (String::new(), None);
     match draft {
         Some(Draft { parent: None, body }) => thread_draft = body,
@@ -99,8 +116,9 @@ async fn page(state: &AdminState, id: Uuid, draft: Option<Draft>) -> Result<Boar
     }
     if board_state.for_hosts() {
         let tz = event.details.starts_at.timezone();
-        let posts = board::posts(&state.db, event.id, None).await?;
-        steps = board::threads(posts, |post| {
+        let shown = board::page(&state.db, event.id, None, number).await?;
+        pager = Pager::new(t, &shown, |n| paths::admin(&url(event.id, n, None)));
+        steps = board::threads(shown.posts, |post| {
             let mut view = PostView::new(post, t, lang, tz, true);
             view.reply_action = Some(links.board_posts.clone());
             view.delete_action = Some(paths::admin(
@@ -124,18 +142,26 @@ async fn page(state: &AdminState, id: Uuid, draft: Option<Draft>) -> Result<Boar
         links,
         kept,
         steps,
+        pager,
         draft: thread_draft,
         saved: false,
         error: None,
     })
 }
 
+#[derive(Deserialize)]
+pub(super) struct BoardQuery {
+    saved: Option<String>,
+    /// From 1.
+    page: Option<usize>,
+}
+
 pub(super) async fn show(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
-    Query(query): Query<SavedQuery>,
+    Query(query): Query<BoardQuery>,
 ) -> Result<Response, PageError> {
-    let mut page = page(&state, id, None).await?;
+    let mut page = page(&state, id, page_number(query.page), None).await?;
     page.saved = query.saved.is_some();
     Ok(render_with(StatusCode::OK, page))
 }
@@ -192,7 +218,12 @@ pub(super) async fn create(
     let refuse = |draft: Draft, error: String| {
         let state = &state;
         async move {
-            let mut page = page(state, id, Some(draft)).await?;
+            // The page with the thread it answers, or the first.
+            let number = match draft.parent {
+                Some(parent) => board::page_of(&state.db, id, parent).await?,
+                None => 0,
+            };
+            let mut page = page(state, id, number, Some(draft)).await?;
             page.error = Some(error);
             Ok::<_, PageError>(render_with(StatusCode::UNPROCESSABLE_ENTITY, page))
         }
@@ -205,16 +236,17 @@ pub(super) async fn create(
         return refuse(draft, filled(&t.board_error_body, "n", board::MAX_BODY)).await;
     };
     let host = Host::current();
-    let posted =
-        board::create(&state.db, event.id, parent, Writer::Host(&host.user), &body).await?;
-    let Some(post) = posted else {
-        return refuse(Draft { parent: None, body }, t.board_error_gone.clone()).await;
+    let writer = Writer::Host(&host.user);
+    let post = match board::create(&state.db, event.id, parent, writer, &body).await? {
+        Ok(post) => post,
+        Err(refused) => {
+            let parent = parent.filter(|_| refused != Refused::Gone);
+            return refuse(Draft { parent, body }, refusal(t, refused)).await;
+        }
     };
     tracing::info!(event = %event.id, %post, "host posted on the board");
-    Ok(redirect(&format!(
-        "{}#post-{post}",
-        paths::path(paths::EVENT_BOARD, event.id)
-    )))
+    let number = board::page_of(&state.db, event.id, post).await?;
+    Ok(redirect(&url(event.id, number, Some(post))))
 }
 
 #[derive(Deserialize)]
@@ -229,11 +261,18 @@ pub(super) async fn delete(
     Path(PostPath { event, post }): Path<PostPath>,
 ) -> Result<Response, PageError> {
     let event = load_event(&state, event).await?;
+    // Back to where it was.
+    let number = board::page_of(&state.db, event.id, post).await?;
     if !board::delete(&state.db, event.id, post, None).await? {
         return Err(PageError::Missing);
     }
     tracing::info!(event = %event.id, %post, "host deleted a post on the board");
-    Ok(saved(paths::EVENT_BOARD, event.id))
+    let to = url(event.id, number, None);
+    let to = match to.contains('?') {
+        true => format!("{to}&saved"),
+        false => format!("{to}?saved"),
+    };
+    Ok(redirect(&to))
 }
 
 #[cfg(test)]
@@ -297,7 +336,7 @@ mod tests {
             location(&admin.post(&delete, "").await),
             format!("{tab}?saved")
         );
-        let shown = board::posts(&db, event, None).await.unwrap();
+        let shown = board::page(&db, event, None, 0).await.unwrap().posts;
         assert_eq!(shown.len(), 2, "hers stays, empty, for the reply");
         assert!(
             shown

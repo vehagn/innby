@@ -193,6 +193,14 @@ pub struct Messages {
     pub board_error_body: String,
     /// Too many posts in an hour.
     pub board_error_busy: String,
+    /// A thread, or the board, holds "{n}" posts at most.
+    pub board_error_thread: String,
+    pub board_error_full: String,
+    /// The links between pages: what they are, and "{n}" of "{count}".
+    pub board_pages: String,
+    pub board_previous: String,
+    pub board_next: String,
+    pub board_page: String,
     /// The post a reply answered was deleted meanwhile.
     pub board_error_gone: String,
     pub listed_as: String,

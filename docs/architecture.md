@@ -337,7 +337,11 @@ to one of four states:
 | Open | read, post, reply, delete | read, vote, post and reply |
 
 Threads show the best score first, then the newest; replies the best, then the oldest,
-as a conversation reads, nested six deep and lined up below that. A post whose votes add
+as a conversation reads, nested six deep and lined up below that. A page holds whole
+threads until it has 50 posts, and only its posts' text is read from the database; a vote,
+post or deletion leads back to the page the thread is on now. A board holds 500 posts
+at most, and a thread 100, so the largest page is bounded: the benchmark draws a full
+thread of the longest posts, in characters of three bytes each, under the memory budget. A post whose votes add
 up below zero is folded away with its replies, one click to open, and nothing else is
 moderated: no filters, no automatic hiding beyond that. Guests vote with their personal
 link, one vote a post, not on their own; the same vote again takes it back, and nobody
@@ -346,7 +350,9 @@ sees who voted how, only the sum.
 A post is at most 2000 characters, in a little Markdown (`src/markdown.rs`): bold,
 italics, code, links to the web or an e-mail address, lists and quotes, and line breaks
 where the writer made them. Everything else is escaped, so a post holds no HTML of its
-own; links are marked `nofollow ugc`. A guest may post or reply 30 times an hour, counted
+own; links are marked `nofollow ugc`, and characters that turn text around, with which a
+link's address could show back to front, are refused. A guest may post or reply 30 times
+an hour, counted
 in memory by their RSVP rather than their address, so a household on one network doesn't
 share it; hosts aren't counted.
 
