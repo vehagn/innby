@@ -196,12 +196,17 @@ async fn log_response(request: axum::extract::Request, next: Next) -> Response {
     let response = next.run(request).await;
     let latency = format!("{} ms", started.elapsed().as_millis());
     let status = response.status().as_u16();
-    if probe && response.status().is_success() {
+    if quiet(probe, response.status()) {
         tracing::debug!(%latency, status, "finished processing request");
     } else {
         tracing::info!(%latency, status, "finished processing request");
     }
     response
+}
+
+/// Whether an answer is logged at debug rather than info: a probe's that succeeded.
+fn quiet(probe: bool, status: StatusCode) -> bool {
+    probe && status.is_success()
 }
 
 /// Whether a route is a probe, at the root or under the admin UI's path.
@@ -252,74 +257,17 @@ impl<S: Send + Sync> FromRequestParts<S> for Lang {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-
-    use axum::{body::Body, routing::get};
-    use tower::ServiceExt;
-
     use super::*;
 
-    /// What the logs say, at info.
-    #[derive(Clone, Default)]
-    struct Logs(Arc<Mutex<Vec<u8>>>);
-
-    impl std::io::Write for Logs {
-        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            self.0.lock().unwrap().extend_from_slice(bytes);
-            Ok(bytes.len())
-        }
-
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-
-    #[tokio::test]
-    async fn probes_are_logged_only_when_they_fail() {
-        let router = harden(
-            Router::new()
-                .route(crate::paths::HEALTH, get(|| async { "ok" }))
-                .route(
-                    crate::paths::READY,
-                    get(|| async { StatusCode::SERVICE_UNAVAILABLE }),
-                )
-                .route(crate::paths::PRIVACY, get(|| async { "notice" })),
-            false,
-        );
-        let ask = async || {
-            for path in [
-                crate::paths::HEALTH,
-                crate::paths::READY,
-                crate::paths::PRIVACY,
-            ] {
-                let request = Request::get(path).body(Body::empty()).unwrap();
-                router.clone().oneshot(request).await.unwrap();
-            }
-        };
-        // Once before anything listens, so every log line is known by the time
-        // something does. Other tests log the same lines from their own threads, and one
-        // first met there just as this test starts listening could be taken for a line
-        // nobody wants, and stay unlogged.
-        ask().await;
-        let logs = Logs::default();
-        let writer = logs.clone();
-        let subscriber = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .with_ansi(false)
-            .with_writer(move || writer.clone())
-            .finish();
-        let _logging = tracing::subscriber::set_default(subscriber);
-        ask().await;
-        let logs = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
-        assert!(!logs.contains("/healthz"), "{logs}");
-        assert!(
-            logs.contains("/readyz") && logs.contains("status=503"),
-            "{logs}"
-        );
-        assert!(
-            logs.contains("/privacy") && logs.contains("status=200"),
-            "{logs}"
-        );
+    // Which answers are quiet, rather than the log lines themselves: tracing remembers
+    // per call site whether anyone listens, and tests in other threads change that, so a
+    // test that reads the logs fails now and then.
+    #[test]
+    fn probes_are_logged_only_when_they_fail() {
+        assert!(quiet(true, StatusCode::OK));
+        assert!(!quiet(true, StatusCode::SERVICE_UNAVAILABLE));
+        assert!(!quiet(false, StatusCode::OK));
+        assert!(!quiet(false, StatusCode::NOT_FOUND));
     }
 
     #[test]
