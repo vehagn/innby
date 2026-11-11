@@ -15,6 +15,7 @@ async fn someone_signs_up_through_a_group_link_and_keeps_their_own(db: PgPool) {
 
     // The host makes a link for the climbing club, where each may bring one more.
     let mut host = world.host().await;
+    host.click(&a.section_invitations).await;
     host.click(&a.group_links).await;
     host.fill(&a.names, "Climbing club, 2");
     host.press(&a.create_groups).await.expect(&count(
@@ -59,6 +60,7 @@ async fn a_new_group_link_retires_the_old_one(db: PgPool) {
     let world = World::new(db);
     let (t, a) = (en(), admin());
     let mut host = world.host().await;
+    host.click(&a.section_invitations).await;
     host.click(&a.group_links).await;
     host.fill(&a.names, "Neighbours");
     host.press(&a.create_groups).await;

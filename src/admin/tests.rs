@@ -115,7 +115,12 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
     assert!(html.contains(&on(paths::GUEST, i)) && html.contains("guests.csv"));
     let copy = format!(r#"href="/events/new?copy={e}#new-event""#);
     assert!(html.contains("<th>E-mail</th>"));
-    assert!(html.contains(&on(paths::EVENT_QR, e)));
+    // Its pages are in sections: Invitations leads to the invitation links, whose page
+    // has the section's others, the QR codes among them, as sub-tabs.
+    assert!(html.contains(&on(paths::EVENT_INVITATIONS, e)));
+    assert!(!html.contains(&on(paths::EVENT_QR, e)));
+    let html = body(editor.get(&on(paths::EVENT_INVITATIONS, e)).await).await;
+    assert!(html.contains(r#"class="subtabs""#) && html.contains(&on(paths::EVENT_QR, e)));
     let html = body(editor.get(&on(paths::EVENT_DETAILS, e)).await).await;
     assert!(!html.contains("/delete") && !html.contains("/access\""));
     assert!(!html.contains(&copy), "{html}");

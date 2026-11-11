@@ -33,7 +33,7 @@ pub mod role;
 pub(crate) mod testing;
 mod users;
 
-pub use page::{Tab, event_trail, group_trail, guest_trail, tabs, user_trail};
+pub use page::{Tab, event_trail, group_trail, guest_trail, subtabs, tabs, user_trail};
 pub use users::role_name as users_role_name;
 
 use std::sync::Arc;

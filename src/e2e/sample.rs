@@ -23,12 +23,13 @@ async fn the_sample_shows_on_the_pages(db: PgPool) {
         .expect("Kari & Ola Nordmann")
         .expect("李伟")
         .expect("Tor Eriksen");
+    host.click(&a.section_invitations).await;
     host.click(&a.group_links)
         .await
         .expect("Klatreklubben")
         .expect("Naboer i Storgata")
         .expect("Kolleger");
-    host.click(&a.details).await;
+    host.click(&a.section_settings).await;
     host.click(&a.guests).await;
     host.click("Kari & Ola Nordmann").await;
     let kari_link = host.value(&a.guest_link);
@@ -62,11 +63,13 @@ async fn the_sample_shows_on_the_pages(db: PgPool) {
     // Julebord, and no other event gives anyone a role.
     host.click(&a.events).await;
     host.click("Christmas party").await;
+    host.click(&a.section_settings).await;
     host.click(&a.access)
         .await
         .expect("helper")
         .expect(&a.role_viewer);
     host.click(&a.events).await;
     host.click("Summer party").await;
+    host.click(&a.section_settings).await;
     host.click(&a.access).await.expect(&a.no_access);
 }

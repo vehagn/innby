@@ -119,7 +119,9 @@ async fn a_guest_hears_when_the_time_or_place_changes(db: PgPool) {
 
     // The host moves the party.
     let mut host = world.host().await;
-    host.click(&a.details).await.expect(&a.event_change_hint);
+    host.click(&a.section_settings)
+        .await
+        .expect(&a.event_change_hint);
     host.fill(&a.event_location, "Bygdøy");
     host.press(&a.save)
         .await

@@ -1,3 +1,12 @@
-{#- An event's pages, and its guests' and groups': where they are, then its tabs. #}
+{#- An event's pages, and its guests' and groups': where they are, then its sections,
+    and the section's own pages, when it has more than one. #}
 {% include "admin/_trail.html" %}
 {% include "admin/_tabs.html" %}
+{% let subtabs = crate::admin::subtabs(event.id, current) %}
+{% if !subtabs.is_empty() %}
+<nav class="subtabs" aria-label="{{ crate::admin::lang::text().section_pages }}">
+  {% for tab in subtabs %}
+  <a href="{{ tab.href }}"{% if tab.current %} aria-current="page"{% endif %}>{{ tab.label }}</a>
+  {% endfor %}
+</nav>
+{% endif %}

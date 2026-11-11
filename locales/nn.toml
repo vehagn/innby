@@ -450,6 +450,9 @@ board_kept = "{n} innlegg tekne vare på."
 board_new_host = "Skriv som vert"
 
 # Tilgang: roller for eitt arrangement
+section_invitations = "Invitasjonar"
+section_settings = "Innstillingar"
+section_pages = "Sider i denne delen"
 access = "Tilgang"
 access_hint = """
 Alle med ei eiga rolle i Innby ser alle arrangementa. Her kan du gje nokon ei rolle berre \

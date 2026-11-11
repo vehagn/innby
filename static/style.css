@@ -650,6 +650,32 @@ td {
   padding-inline: var(--space-2);
 }
 
+/* A section's own pages, under its tab: a quieter row of links, with no icons. */
+.subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-5);
+  margin: calc(-1 * var(--space-4)) 0 var(--space-6);
+  font-size: var(--text-s);
+}
+
+.subtabs a {
+  padding: var(--space-1) 0;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.subtabs a:hover {
+  color: var(--text);
+}
+
+.subtabs a[aria-current] {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--accent-text);
+}
+
 /* On a phone, closer together, so more fit before the bar scrolls. */
 @media (max-width: 30rem) {
   .tabs a {
@@ -657,9 +683,10 @@ td {
     padding-inline: var(--space-2);
   }
 
-  /* A guest's few tabs share the width, each its icon over a small label, as a phone's
-     own tab bars do, so all of them show. */
-  .spread a {
+  /* A guest's few tabs, and an admin's sections, share the width, each its icon over
+     a small label, as a phone's own tab bars do, so all of them show. */
+  .spread a,
+  .admin .tabs a {
     --icon-size: 1.25rem;
     flex: 1;
     flex-direction: column;

@@ -25,11 +25,12 @@ async fn a_host_logs_in_through_the_provider_with_their_role(db: PgPool) {
     kari.page().expect_not(&a.new_event);
     kari.click("Christmas party")
         .await
-        .expect(&a.invitation_links)
-        .expect(&a.qr_heading);
+        .expect(&a.section_invitations);
+    kari.click(&a.section_invitations).await;
     kari.click(&a.invitation_links)
         .await
-        .expect(&a.create_invitations);
+        .expect(&a.create_invitations)
+        .expect(&a.qr_heading);
 
     // Logging out of Innby doesn't log in again by itself.
     kari.press(&a.log_out).await.expect(&a.logged_out);
@@ -51,7 +52,7 @@ async fn a_viewer_sees_whos_coming_but_not_their_links(db: PgPool) {
     per.click("Christmas party")
         .await
         .expect("Ola Nordmann")
-        .expect_not(&a.invitation_links)
+        .expect_not(&a.section_invitations)
         .expect_not(&a.download_csv)
         .expect_not(&a.send_reminders);
     assert!(
@@ -113,6 +114,7 @@ async fn a_host_given_one_event_sees_it_alone(db: PgPool) {
     // Until an admin makes them an editor of the Christmas party, by their user name.
     let mut host = world.admin().await;
     host.click("Christmas party").await;
+    host.click(&a.section_settings).await;
     host.click(&a.access).await.expect(&a.no_access);
     host.fill(&a.user_name, "nils").check(&a.role_editor);
     host.press(&a.give_access)
@@ -136,12 +138,12 @@ async fn a_host_given_one_event_sees_it_alone(db: PgPool) {
         .iter()
         .map(|link| &link.text)
         .collect();
-    assert!(tabs.contains(&&a.invitation_links), "{tabs:?}");
+    assert!(tabs.contains(&&a.section_invitations), "{tabs:?}");
     assert!(!tabs.contains(&&a.access), "{tabs:?}");
 
     // Taken away, it's gone at once.
     host.press(&a.remove_access).await.expect(&a.no_access);
-    let page = nils.click(&a.invitation_links).await;
+    let page = nils.click(&a.section_invitations).await;
     assert_eq!(page.status, StatusCode::FORBIDDEN);
 }
 

@@ -13,6 +13,7 @@ async fn the_host_and_guests_type_only_names_as_names(db: PgPool) {
 
     // A batch with markup in one line makes nothing, and says which line.
     let mut host = world.host().await;
+    host.click(&a.section_invitations).await;
     host.click(&a.invitation_links).await;
     host.fill(&a.names, "Kari Nordmann\n<b>Per</b> Hansen");
     let line_2 = fill(&a.error_line, &[("n", &2), ("error", &a.error_name)]);
@@ -45,6 +46,7 @@ async fn the_host_and_guests_type_only_names_as_names(db: PgPool) {
         .expect(&filled(&t.greeting, "name", "Kari Nordmann-Hansen"));
 
     // A group's name may have digits; who signs up through it still needs a name.
+    host.click(&a.section_invitations).await;
     host.click(&a.group_links).await;
     host.fill(&a.names, "Class of 2010, 2");
     host.press(&a.create_groups).await;

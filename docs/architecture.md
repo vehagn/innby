@@ -52,8 +52,12 @@ leads to that first sign-up rather than making a second.
 **The host** works in the admin UI (`innby admin`). Its first page lists the **Events**;
 beside it, admins have a **New event** tab, a **Users** tab and a **Languages** tab, for
 the languages the site offers guests. Each tab has an icon, and
-a host whose role allows only one tab gets no tab bar, just the page. An event has up to
-eight tabs:
+a host whose role allows only one tab gets no tab bar, just the page. An event's pages
+come in up to five sections, its tabs: **Guests**; **Invitations**, with the invitation
+links, the group links and the QR codes; **Board**; **Games**; and **Settings**, with the
+details and access. A section's tab opens the first of its pages the host may see, and a
+section with more than one shows them as a quieter row of sub-tabs under it, so the bar
+fits on a phone. The pages are:
 
 - **Guests:** the headcount (coming, no answer, not coming), every guest in a table,
   how many of those coming picked each of the host's choices, a CSV export, and *Send

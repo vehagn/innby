@@ -62,6 +62,7 @@ async fn the_host_styles_each_events_qr_codes(db: PgPool) {
     let world = World::new(db);
     let a = admin();
     let mut host = world.host().await;
+    host.click(&a.section_invitations).await;
     host.click(&a.qr_heading).await;
 
     // A colour too light to scan is refused.
@@ -81,6 +82,7 @@ async fn the_host_styles_each_events_qr_codes(db: PgPool) {
     world.summer_party().await;
     host.click(&a.events).await;
     host.click("Summer party").await;
+    host.click(&a.section_invitations).await;
     host.click(&a.qr_heading).await;
     let svg = &host.page().body;
     assert!(!svg.contains("🥂") && !svg.contains("#1a237e"), "{svg}");
@@ -97,6 +99,7 @@ async fn the_admin_ui_can_live_under_the_sites_hostname(db: PgPool) {
     assert_eq!(host.page().url, world.site("/admin"));
     host.click("Christmas party").await.expect(&a.guests);
     assert!(host.page().url.starts_with(&world.site("/admin/events/")));
+    host.click(&a.section_invitations).await;
     host.click(&a.invitation_links).await;
     host.fill(&a.names, "Kari Nordmann, 2");
     host.press(&a.create_invitations)

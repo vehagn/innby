@@ -434,6 +434,11 @@ pub struct AdminMessages {
     pub board_kept: String,
     pub board_new_host: String,
 
+    // An event's sections in its tab bar, where they aren't a page's name, and the row
+    // of a section's own pages
+    pub section_invitations: String,
+    pub section_settings: String,
+    pub section_pages: String,
     // Access: roles for one event
     pub access: String,
     pub access_hint: String,

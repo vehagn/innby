@@ -32,7 +32,7 @@ async fn an_event_title_falls_back_through_each_languages_chain(db: PgPool) {
 
     // Once the host writes it in Nynorsk, Nynorsk readers get that.
     let mut host = world.host().await;
-    host.click(&a.details).await;
+    host.click(&a.section_settings).await;
     host.fill(&format!("{} · Nynorsk", a.event_title), "Juleselskap");
     host.press(&a.save).await.expect(&a.saved);
     title(

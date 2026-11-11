@@ -458,6 +458,9 @@ board_kept = "{n} posts kept."
 board_new_host = "Post as a host"
 
 # Access: roles for one event
+section_invitations = "Invitations"
+section_settings = "Settings"
+section_pages = "Pages of this section"
 access = "Access"
 access_hint = """
 Everyone with a role of their own in Innby sees every event. Here you can give someone a \

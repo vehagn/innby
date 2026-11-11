@@ -2,7 +2,7 @@
 //! where a page is, loading the event a path names, how a moment shows in a table, and
 //! the error a page can end in.
 
-use std::sync::Arc;
+use std::{borrow::Borrow, sync::Arc};
 
 use axum::{
     extract::{FromRef, FromRequestParts},
@@ -54,8 +54,9 @@ impl FromRequestParts<AdminState> for ClientIp {
     }
 }
 
-/// The admin's sections, as tabs under the header: the events and, for an admin, a new
-/// event, the users and the site's languages, or, within an event, its own pages.
+/// The admin's pages that have a tab: the events and, for an admin, a new event, the users
+/// and the site's languages, or, within an event, its own pages, which its tab bar groups
+/// into sections (`Section`).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Events,
@@ -92,12 +93,101 @@ impl Tab {
     }
 }
 
-/// The tabs of the site, or with `event`, that event's tabs.
-pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
+/// An event's pages, grouped into the sections its tab bar shows, so it stays short:
+/// a section's tab leads to the first of its pages the host may open, and a section with
+/// more than one shows them as sub-tabs (`subtabs`).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Section {
+    Guests,
+    Invitations,
+    Board,
+    Games,
+    Settings,
+}
+
+impl Section {
+    const ALL: [Self; 5] = [
+        Self::Guests,
+        Self::Invitations,
+        Self::Board,
+        Self::Games,
+        Self::Settings,
+    ];
+
+    fn of(tab: Tab) -> Option<Self> {
+        Some(match tab {
+            Tab::Guests => Self::Guests,
+            Tab::Invitations | Tab::Groups | Tab::Qr => Self::Invitations,
+            Tab::Board => Self::Board,
+            Tab::Games => Self::Games,
+            Tab::Details | Tab::Access => Self::Settings,
+            Tab::Events | Tab::NewEvent | Tab::Users | Tab::Languages => return None,
+        })
+    }
+
+    fn icon(self) -> &'static str {
+        match self {
+            Self::Guests => icons::PERSON_TICK,
+            Self::Invitations => icons::ENVELOPE,
+            Self::Board => icons::SPEECH,
+            Self::Games => icons::GAMEPAD,
+            Self::Settings => icons::SLIDERS,
+        }
+    }
+
+    fn label(self) -> &'static str {
+        let text = lang::text();
+        match self {
+            Self::Guests => &text.guests,
+            Self::Invitations => &text.section_invitations,
+            Self::Board => &text.board,
+            Self::Games => &text.games,
+            Self::Settings => &text.section_settings,
+        }
+    }
+}
+
+/// An event's pages the host's role may open, in order: each with its link and name.
+fn event_pages(id: Uuid) -> Vec<(Tab, String, &'static str)> {
     let text = lang::text();
-    // Only the tabs the host's role may open.
-    let tabs = match event {
-        None => vec![
+    let links = EventLinks::new(id);
+    let (organise, edit, manage) = (
+        Role::can_organise(),
+        Role::can_edit(),
+        Role::can_manage_event(),
+    );
+    [
+        (Tab::Guests, links.guests, &text.guests, true),
+        (
+            Tab::Invitations,
+            links.invitations,
+            &text.invitation_links,
+            edit,
+        ),
+        (Tab::Groups, links.groups, &text.group_links, edit),
+        (Tab::Qr, links.qr_style, &text.qr_heading, edit),
+        (Tab::Board, links.board, &text.board, organise),
+        (
+            Tab::Games,
+            links.games,
+            &text.games,
+            edit && super::has_games(),
+        ),
+        (Tab::Details, links.details, &text.details, edit),
+        (Tab::Access, links.access, &text.access, manage),
+    ]
+    .into_iter()
+    .filter(|(.., allowed)| *allowed)
+    .map(|(tab, href, label, _)| (tab, href, label.as_str()))
+    .collect()
+}
+
+/// The tabs of the site, or with `event`, that event's sections.
+pub fn tabs(event: Option<&Uuid>, current: impl Borrow<Tab>) -> Vec<TabLink> {
+    let (text, current) = (lang::text(), *current.borrow());
+    let Some(&id) = event else {
+        // Only the tabs the host's role may open.
+        return [
             (Tab::Events, paths::admin(paths::HOME), &text.events, true),
             (
                 Tab::NewEvent,
@@ -117,46 +207,54 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
                 &text.languages,
                 Role::is_admin(),
             ),
-        ],
-        Some(&id) => {
-            let links = EventLinks::new(id);
-            let (organise, edit, manage) = (
-                Role::can_organise(),
-                Role::can_edit(),
-                Role::can_manage_event(),
-            );
-            vec![
-                (Tab::Guests, links.guests, &text.guests, true),
-                (
-                    Tab::Invitations,
-                    links.invitations,
-                    &text.invitation_links,
-                    edit,
-                ),
-                (Tab::Groups, links.groups, &text.group_links, edit),
-                (Tab::Qr, links.qr_style, &text.qr_heading, edit),
-                (
-                    Tab::Games,
-                    links.games,
-                    &text.games,
-                    edit && super::has_games(),
-                ),
-                (Tab::Board, links.board, &text.board, organise),
-                (Tab::Details, links.details, &text.details, edit),
-                (Tab::Access, links.access, &text.access, manage),
-            ]
-        }
+        ]
+        .into_iter()
+        .filter(|(.., allowed)| *allowed)
+        .map(|(tab, href, label, _)| TabLink {
+            href,
+            label,
+            icon: tab.icon(),
+            current: tab == current,
+        })
+        .collect();
     };
-    tabs.into_iter()
-        .filter(|(_, _, _, allowed)| *allowed)
-        .map(|(tab, href, label, _)| (tab, href, label))
+    let pages = event_pages(id);
+    Section::ALL
+        .into_iter()
+        .filter_map(|section| {
+            // The section's first page the host may open.
+            let (_, href, _) = pages
+                .iter()
+                .find(|(tab, ..)| Section::of(*tab) == Some(section))?;
+            Some(TabLink {
+                href: href.clone(),
+                label: section.label(),
+                icon: section.icon(),
+                current: Section::of(current) == Some(section),
+            })
+        })
+        .collect()
+}
+
+/// The pages of the event's section `current` is in, when it has more than one the host
+/// may open, as the row of sub-tabs under its tab.
+pub fn subtabs(event: &Uuid, current: impl Borrow<Tab>) -> Vec<TabLink> {
+    let current = *current.borrow();
+    let section = Section::of(current);
+    let pages: Vec<TabLink> = event_pages(*event)
+        .into_iter()
+        .filter(|(tab, ..)| Section::of(*tab) == section)
         .map(|(tab, href, label)| TabLink {
             href,
             label,
             icon: tab.icon(),
             current: tab == current,
         })
-        .collect()
+        .collect();
+    match pages.len() {
+        0 | 1 => Vec::new(),
+        _ => pages,
+    }
 }
 
 /// One step of the trail above a page's tabs, from the top down to the page: a link

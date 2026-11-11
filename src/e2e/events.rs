@@ -36,6 +36,7 @@ async fn the_host_creates_an_event_invites_to_it_and_deletes_it(db: PgPool) {
         .expect(&a.event_created)
         .expect("Summer party");
 
+    host.click(&a.section_invitations).await;
     host.click(&a.invitation_links).await;
     host.fill(&a.names, "Kari Nordmann");
     host.press(&a.create_invitations).await;
@@ -53,7 +54,7 @@ async fn the_host_creates_an_event_invites_to_it_and_deletes_it(db: PgPool) {
         .expect(&t.answer(Response::Attending, 1));
 
     // The host moves it; Kari's page follows.
-    host.click(&a.details).await;
+    host.click(&a.section_settings).await;
     host.fill(&a.event_location, "Huk");
     host.press(&a.save).await.expect(&a.saved);
     kari.open(&link).await.expect("Huk").expect_not("Bygdøy");
@@ -61,7 +62,7 @@ async fn the_host_creates_an_event_invites_to_it_and_deletes_it(db: PgPool) {
     // The list of events shows the headcount, and deleting takes everything with it.
     host.click(&a.events).await.expect("Summer party");
     host.click("Summer party").await;
-    host.click(&a.details).await;
+    host.click(&a.section_settings).await;
     host.check(&filled(&a.delete_event, "title", "Summer party"));
     host.press(&a.delete)
         .await
@@ -85,6 +86,7 @@ async fn one_device_remembers_invitations_to_two_events(db: PgPool) {
         // As some would rather write it.
         .fill(&filled(&a.time_of, "field", &a.event_starts), "3 pm");
     host.press(&a.create_event).await;
+    host.click(&a.section_invitations).await;
     host.click(&a.invitation_links).await;
     host.fill(&a.names, "Kari Nordmann");
     host.press(&a.create_invitations).await;
@@ -178,6 +180,7 @@ async fn the_host_runs_two_events_side_by_side(db: PgPool) {
     assert!(csv.body.contains("Per Hansen") && !csv.body.contains("Kari Nordmann"));
 
     // Invitations made on one event's tab belong to it alone.
+    host.click(&a.section_invitations).await;
     host.click(&a.invitation_links).await;
     host.fill(&a.names, "Ola Nordmann");
     host.press(&a.create_invitations).await;
@@ -299,11 +302,13 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
 
     // This year's party has a group link for the climbing club.
     let mut host = world.host().await;
+    host.click(&a.section_invitations).await;
     host.click(&a.group_links).await;
     host.fill(&a.names, "Climbing club, 3");
     host.press(&a.create_groups).await;
     let old_link = host.value(&filled(&a.link_for, "name", "Climbing club"));
     // Its QR codes are dots with a glass in the middle.
+    host.click(&a.section_invitations).await;
     host.click(&a.qr_heading).await;
     host.check(&a.qr_dots)
         .check(&a.qr_emoji)
@@ -312,7 +317,7 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
 
     // Its file has the details, the group and the QR style, versioned, and none of
     // the guests.
-    host.click(&a.details).await;
+    host.click(&a.section_settings).await;
     let file = host.download(&a.export_event).await;
     assert_eq!(
         file.headers["content-disposition"],
@@ -371,8 +376,10 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
     host.press(&a.create_event).await.expect(&a.event_created);
 
     // It has the climbing club, with a link of its own, and last year's QR codes.
+    host.click(&a.section_invitations).await;
     host.click(&a.qr_heading).await;
     assert!(host.page().body.contains("🥂</text>"));
+    host.click(&a.section_invitations).await;
     host.click(&a.group_links).await.expect("Climbing club");
     let new_link = host.value(&filled(&a.link_for, "name", "Climbing club"));
     assert_ne!(new_link, old_link);
@@ -382,7 +389,7 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
 
     // Copying skips the file: the form fills in from the event itself.
     host.click("Christmas party").await;
-    host.click(&a.details).await;
+    host.click(&a.section_settings).await;
     host.click(&a.copy_event)
         .await
         .expect(&filled(&a.copied_notice, "title", "Christmas party"))

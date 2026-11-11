@@ -408,6 +408,9 @@ board_kept = "已保留 {n} 則留言。"
 board_new_host = "以主人身分發言"
 
 # Access: roles for one event
+section_invitations = "邀請"
+section_settings = "設定"
+section_pages = "本部分的頁面"
 access = "存取權限"
 access_hint = "在 Innby 中有自己角色的人都能看到所有活動。你可以在這裡依對方登入用的使用者名稱，給其只針對本活動的角色。"
 no_access = "還沒有人只擁有本活動的角色。"

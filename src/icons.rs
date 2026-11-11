@@ -54,6 +54,10 @@ pub const QR_CODE: &str = svg!(
 );
 
 /// A game controller.
+/// Sliders, for an event's settings.
+pub const SLIDERS: &str = svg!(
+    r#"<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>"#
+);
 /// A speech bubble, for the message board.
 pub const SPEECH: &str =
     svg!(r#"<path d="M4 5.5h16v10H10l-4.5 3.5v-3.5H4z"/><path d="M8 9.5h8M8 12.5h5"/>"#);

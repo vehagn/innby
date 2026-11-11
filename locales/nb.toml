@@ -449,6 +449,9 @@ board_kept = "{n} innlegg tatt vare på."
 board_new_host = "Skriv som vert"
 
 # Tilgang: roller for ett arrangement
+section_invitations = "Invitasjoner"
+section_settings = "Innstillinger"
+section_pages = "Sider i denne delen"
 access = "Tilgang"
 access_hint = """
 Alle med en egen rolle i Innby ser alle arrangementer. Her kan du gi noen en rolle bare \

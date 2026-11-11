@@ -16,6 +16,7 @@ async fn an_invited_household_answers_and_shows_on_the_guest_list(db: PgPool) {
 
     // The host invites two households and copies the first one's link.
     let mut host = world.host().await;
+    host.click(&a.section_invitations).await;
     host.click(&a.invitation_links).await;
     host.fill(&a.names, "Kari Nordmann, 3\nPer Hansen");
     host.press(&a.create_invitations).await.expect(&count(
@@ -126,6 +127,7 @@ async fn a_guest_downloads_and_deletes_their_data(db: PgPool) {
     gone.expect(&t.gone_title);
     let mut host = world.host().await;
     host.page().expect(&admin().no_guests);
+    host.click(&admin().section_invitations).await;
     host.click(&admin().invitation_links)
         .await
         .expect(&admin().no_invitations);
@@ -174,7 +176,9 @@ async fn the_host_asks_a_question_and_sees_what_guests_pick(db: PgPool) {
 
     // The host asks what each guest brings, in the event's Bokmål and in English.
     let mut host = world.host().await;
-    host.click(&a.details).await.expect(&a.event_question_hint);
+    host.click(&a.section_settings)
+        .await
+        .expect(&a.event_question_hint);
     host.fill(&a.event_question, "Hva tar du med?")
         .fill(&a.event_choices, "Salat\nDessert")
         .fill(
@@ -195,6 +199,7 @@ async fn the_host_asks_a_question_and_sees_what_guests_pick(db: PgPool) {
     kari.press(&t.attend).await.expect(&t.saved);
 
     // Per signs up through a group link, with a salad.
+    host.click(&a.section_invitations).await;
     host.click(&a.group_links).await;
     host.fill(&a.names, "Climbing club, 2");
     host.press(&a.create_groups).await;
@@ -218,7 +223,7 @@ async fn the_host_asks_a_question_and_sees_what_guests_pick(db: PgPool) {
     assert!(csv.body.contains(r#","Dessert""#), "{}", csv.body);
 
     // New choices mean the old picks may mean something else, so they're cleared.
-    host.click(&a.details).await;
+    host.click(&a.section_settings).await;
     host.fill(&a.event_choices, "Salat\nDessert\nDrikke").fill(
         &format!("{} · {english}", a.event_choices),
         "Salad\nDessert\nDrinks",

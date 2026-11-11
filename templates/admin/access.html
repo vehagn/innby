@@ -2,7 +2,7 @@
 
 {% block title %}{{ crate::admin::lang::text().access }} · {{ event.details.title(crate::admin::lang::current()) }}{% endblock %}
 
-{% block tabs %}{% let tabs = crate::admin::tabs(Some(event.id), crate::admin::Tab::Access) %}{% let trail = crate::admin::event_trail(event) %}{% include "admin/_event_nav.html" %}{% endblock %}
+{% block tabs %}{% let current = crate::admin::Tab::Access %}{% let tabs = crate::admin::tabs(Some(event.id), current) %}{% let trail = crate::admin::event_trail(event) %}{% include "admin/_event_nav.html" %}{% endblock %}
 
 {% block content %}
 {% let a = crate::admin::lang::text() %}
