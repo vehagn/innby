@@ -164,18 +164,64 @@ Splitting it this way keeps each part to what it needs: the public site has no S
 credentials, the admin UI can be kept off the internet, and each workload can have its
 own network policy.
 
-```
-         public site                                   admin UI
-        (innby serve)                                (innby admin)
-              │ answers, and mail to send                    │ events, invitations
-              ▼                                               ▼
-      ┌──────────────────────────── Postgres ───────────────────────────────┐
-      │  event · rsvp · invite_group · outbox · admin logins              │
-      └──────────────▲────────────────────────────────────▲────────────────┘
-                     │ takes mail jobs                     │ deletes what's due
-              ┌──────┴───────┐                     ┌───────┴───────┐
-              │ innby mailer │──▶ SMTP server       │ innby janitor │
-              └──────────────┘                     └───────────────┘
+How the parts fit together, and what they say to each other. Every workload is the same
+binary; only Postgres links them, and the gateways decide who reaches which. The games run
+apart from Innby, on an origin of their own (see [games.md](games.md)), and monitoring is
+optional (`metrics` in the chart).
+
+```mermaid
+flowchart TB
+    guest([Guest's browser])
+    host([Host's browser])
+
+    subgraph games [Minigames]
+        gamepages[Game pages]
+        gameservers[Game servers<br/>replay the moves]
+    end
+
+    external[External gateway<br/>HTTPRoute or Ingress]
+    internal[Internal gateway]
+
+    subgraph innby [Innby's workloads]
+        direction TB
+        migrate["innby migrate<br/>init container"]
+        serve["innby serve<br/>public site :8080<br/>internal API :8083"]
+        admin["innby admin<br/>admin UI :8081"]
+        mailer["innby mailer<br/>sends the outbox"]
+        janitor["innby janitor<br/>CronJob, hourly"]
+    end
+
+    db[("Postgres 18<br/>CloudNativePG")]
+
+    oidc[OpenID Connect provider<br/>such as Authelia]
+    smtp[Mail service<br/>such as MailerSend]
+    inbox([Guests' and hosts' inboxes])
+
+    subgraph monitoring [Monitoring]
+        prometheus[Prometheus<br/>ServiceMonitor]
+        grafana[Grafana<br/>GrafanaDashboard]
+    end
+
+    guest -->|"answers, guest list, board"| external --> serve
+    host -->|"events, guests, users"| internal --> admin
+    host -.->|logs in| oidc
+    admin -->|"keys, tokens"| oidc
+
+    guest -->|"plays, with a score token"| gamepages
+    gamepages -->|"scores, CORS"| serve
+    gamepages --> gameservers
+    gameservers -->|"scores, internal API"| serve
+
+    migrate -->|schema| db
+    serve <--> db
+    admin <--> db
+    mailer <-->|"mail jobs"| db
+    janitor -->|"deletes what's due"| db
+
+    mailer -->|SMTP| smtp --> inbox
+
+    grafana -->|queries| prometheus
+    prometheus -.->|"/metrics :9090"| innby
 ```
 
 Pages are rendered on the server from [askama](https://github.com/askama-rs/askama)
@@ -382,7 +428,149 @@ Everything on the board, posts, replies and votes, is deleted with its event.
 
 The schema is one commented file,
 [`migrations/0001_schema.sql`](../migrations/0001_schema.sql), which changes in place
-until Innby is live. In short:
+until Innby is live. Every table, with how they hang together: a solid line is a foreign
+key, a dashed one a login name the database doesn't tie to a row, since a name in the
+config or at the provider has no row. The tables on their own are the admin's logins and
+settings.
+
+```mermaid
+erDiagram
+    event ||--o{ invite_group : "has group links"
+    event ||--o{ rsvp : "has guests"
+    invite_group |o--o{ rsvp : "signed up through"
+    event ||--o{ event_access : "gives a role for"
+    event ||--o{ event_game : offers
+    rsvp ||--o{ game_score : "has a best"
+    event ||--o{ board_post : "has on its board"
+    board_post |o--o{ board_post : "answers, in a thread"
+    rsvp |o--o{ board_post : writes
+    board_post ||--o{ board_vote : gets
+    rsvp ||--o{ board_vote : casts
+    rsvp |o--o{ outbox : "is mailed"
+    admin_user |o--o{ outbox : "is mailed"
+    admin_user |o..o{ event : "made, by name"
+    admin_user |o..o{ event_access : "is given, by name"
+
+    event {
+        uuid id PK
+        text lang "written in"
+        text created_by "host's login name"
+        text_array langs "offered in"
+        jsonb title "by language"
+        jsonb description "by language"
+        text location
+        timestamptz starts_at
+        timestamptz ends_at
+        timestamptz changed_at "time or place"
+        jsonb question "by language"
+        jsonb choices "by language"
+        text time_zone
+        timestamptz rsvp_deadline
+        qr_shape qr_shape
+        text qr_color
+        qr_icon qr_icon
+        text qr_emoji
+        board_state board "off, hidden, hosts, open"
+    }
+    invite_group {
+        uuid id PK
+        uuid event_id FK
+        text name
+        int max_party_size
+        int link_nonce "bumped to revoke"
+        timestamptz created_at
+    }
+    rsvp {
+        uuid id PK
+        uuid event_id FK
+        uuid group_id FK
+        text name
+        rsvp_response response
+        int party_size
+        int max_party_size
+        name_display name_display
+        int link_nonce "bumped to revoke"
+        text lang
+        text email UK "per event, once confirmed"
+        email_status email_status
+        timestamptz email_consent_at
+        text privacy_version
+        timestamptz responded_at
+        timestamptz created_at
+        smallint choice "the host's question"
+        text sign_up_token
+    }
+    outbox {
+        bigint id PK
+        uuid rsvp_id FK "a guest's"
+        text admin_user FK "or a host's"
+        text lang "a host's mail's"
+        outbox_kind kind
+        timestamptz created_at
+        int attempts
+        timestamptz next_try_at
+        timestamptz sent_at
+        text last_error
+    }
+    event_access {
+        uuid event_id PK, FK
+        text user_name PK "login name"
+        event_role role "viewer, organiser, editor"
+    }
+    event_game {
+        uuid event_id PK, FK
+        text game PK "id in INNBY_GAMES"
+    }
+    game_score {
+        uuid rsvp_id PK, FK
+        text game PK
+        bigint score "points or ms"
+        timestamptz scored_at
+    }
+    board_post {
+        uuid id PK
+        uuid event_id FK
+        uuid parent_id FK "the post it answers"
+        uuid thread_id FK "its thread's first"
+        uuid rsvp_id FK "a guest's"
+        text host_name "or a host's"
+        text body "none once deleted"
+        timestamptz created_at
+    }
+    board_vote {
+        uuid post_id PK, FK
+        uuid rsvp_id PK, FK
+        smallint vote "1 or -1"
+    }
+    admin_user {
+        text name PK
+        text role "or none"
+        text password_hash "argon2, none until set"
+        text email UK
+        int version "bumped by a new password"
+        timestamptz created_at
+    }
+    site_languages {
+        boolean only_row PK
+        text_array offered
+        text default_lang
+    }
+    admin_form_sent {
+        text token PK
+        text page
+        timestamptz sent_at
+    }
+    admin_refresh_token {
+        bytea digest PK "keyed hash"
+        timestamptz expires_at
+    }
+    admin_revoked_jwt {
+        uuid jti PK
+        timestamptz expires_at
+    }
+```
+
+In short:
 
 | Table | Holds |
 |---|---|
