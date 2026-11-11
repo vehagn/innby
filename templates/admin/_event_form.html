@@ -40,8 +40,15 @@
   <label for="choices">{{ a.event_choices }}</label>
   <textarea id="choices" name="choices" rows="3">{{ form.choices() }}</textarea>
 </details>
-<details>
+<details{% if form.narrowed() %} open{% endif %}>
   <summary>{{ a.event_languages }}</summary>
+  <fieldset>
+    <legend>{{ a.event_offered }}</legend>
+    <p class="hint">{{ a.event_offered_hint }}</p>
+    {% for choice in form.offered() %}
+    <label class="checkbox"><input type="checkbox" name="offer-{{ choice.code }}" value="yes"{% if choice.checked %} checked{% endif %}> {{ choice.name }}</label>
+    {% endfor %}
+  </fieldset>
   <p class="hint">{{ a.event_languages_hint }}</p>
   {% for translation in form.translations() %}
   <fieldset>

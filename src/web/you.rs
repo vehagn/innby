@@ -73,11 +73,11 @@ impl FormPage for YouPage<'_> {
 
 pub async fn show(
     State(state): State<AppState>,
-    lang: Lang,
     guest: Guest,
     headers: HeaderMap,
     Query(query): Query<ShowQuery>,
 ) -> Response {
+    let lang = guest.lang;
     let mut page = YouPage::new(&state, lang, &guest, &headers);
     page.flash = Notice::flash(query.notice.as_deref(), page.t);
     render(page)
@@ -90,11 +90,11 @@ pub struct NameForm {
 
 pub async fn rename(
     State(state): State<AppState>,
-    lang: Lang,
     guest: Guest,
     headers: HeaderMap,
     Form(form): Form<NameForm>,
 ) -> Page {
+    let lang = guest.lang;
     let Some(name) = rsvp::normalize_name(&form.name, rsvp::NameKind::Person) else {
         return Ok(YouPage::new(&state, lang, &guest, &headers)
             .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name));
@@ -148,11 +148,11 @@ pub struct DeleteForm {
 /// Deletes the RSVP for good (GDPR Art. 17).
 pub async fn delete(
     State(state): State<AppState>,
-    lang: Lang,
     guest: Guest,
     headers: HeaderMap,
     Form(form): Form<DeleteForm>,
 ) -> Page {
+    let lang = guest.lang;
     if form.confirm.is_none() {
         return Ok(YouPage::new(&state, lang, &guest, &headers)
             .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.confirm_delete));

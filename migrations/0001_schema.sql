@@ -15,6 +15,12 @@ create function lang_ok(code text) returns boolean
 language sql immutable as $$
     select code ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length(code) <= 20
 $$;
+-- Whether these are all language codes: a set of languages, as the site and each event
+-- keep the ones they offer.
+create function langs_ok(codes text[]) returns boolean
+language sql immutable as $$
+    select coalesce(bool_and(lang_ok(code)), true) from unnest(codes) code
+$$;
 -- Whether a map of texts by language code holds only language codes, each a text
 -- of at most `longest` characters with no control characters, but for line breaks and
 -- tabs when `lines` allows them. The app checks the same; this keeps a stray query or
@@ -40,6 +46,9 @@ create table event (
     -- The language the host writes the event in: it has a title in it, and the other
     -- languages fall back to it.
     lang                text not null check (lang_ok(lang)),
+    -- The languages its pages are offered in, of those the site offers: empty for all
+    -- of them. Its own language always is.
+    langs               text[] not null default '{}' check (langs_ok(langs)),
     -- Each by language code, as `{"nb": "Julebord", "en": "Christmas party"}`, so a new
     -- language needs no new column.
     title               jsonb not null
@@ -183,6 +192,16 @@ create table event_access (
 
 -- The events a host has access to, for their list of events.
 create index event_access_user on event_access (user_name);
+
+-- What an admin has picked on the admin UI's Languages tab: the languages the site
+-- offers guests, of those it has files for, and the one a guest gets whose browser asks
+-- for none of them. One row at most; without it, the site offers every language it has,
+-- and English by default. No personal data.
+create table site_languages (
+    only_row     boolean primary key default true check (only_row),
+    offered      text[] not null check (cardinality(offered) > 0 and langs_ok(offered)),
+    default_lang text not null check (default_lang = any (offered))
+);
 
 -- Admin forms that made something, by the random token each form carries, for a day:
 -- the same form sent again, as when the answer to the first was lost on the way, goes

@@ -104,7 +104,8 @@ pub(super) fn as_answered(
 
 /// Remembers the guest's link on this device until their data is deleted, once answers
 /// have closed and there's no answer to tick the box on.
-pub async fn remember(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
+pub async fn remember(State(state): State<AppState>, guest: Guest) -> Response {
+    let lang = guest.lang;
     let https = state.config.is_https();
     let cookie = remember_cookie(https, &guest.event, guest.rsvp.id, &guest.link);
     tracing::info!(rsvp = %guest.rsvp.id, "device remembered");
@@ -113,7 +114,8 @@ pub async fn remember(State(state): State<AppState>, lang: Lang, guest: Guest) -
 }
 
 /// Forgets the guest on this device, from their page.
-pub async fn forget_here(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
+pub async fn forget_here(State(state): State<AppState>, guest: Guest) -> Response {
+    let lang = guest.lang;
     let cookie = forget_cookie(state.config.is_https(), guest.rsvp.id);
     let back = Notice::Forgotten.redirect(paths::RSVP_YOU, &guest.link, lang);
     cookie::with(back, cookie)

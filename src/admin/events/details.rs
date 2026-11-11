@@ -18,6 +18,7 @@ use uuid::Uuid;
 use super::{
     file::{EventFile, file_name},
     form::EventForm,
+    site_languages,
 };
 use crate::{
     admin::{
@@ -30,7 +31,7 @@ use crate::{
         group, outbox, qr, rsvp,
     },
     http::{render, render_with},
-    i18n::count,
+    i18n::{LangSet, count},
     janitor::KEEP_AFTER_EVENT,
     paths::{self, EventLinks},
 };
@@ -48,7 +49,9 @@ struct DetailsPage {
 }
 
 impl DetailsPage {
-    fn new(event: Event, form: EventForm) -> Self {
+    /// The page, its form asking about the languages the site offers.
+    fn new(event: Event, form: EventForm, site: LangSet) -> Self {
+        let form = form.on_site(site);
         Self {
             links: EventLinks::new(event.id),
             event,
@@ -92,7 +95,7 @@ pub(in crate::admin) async fn show(
     };
     Ok(render(DetailsPage {
         notice,
-        ..DetailsPage::new(event, form)
+        ..DetailsPage::new(event, form, site_languages(&state).await?)
     }))
 }
 
@@ -105,7 +108,10 @@ pub(in crate::admin) async fn edit(
     let form = EventForm::from_fields(&fields);
     let details = match form.details(Utc::now()) {
         Ok(details) => details,
-        Err(error) => return Ok(DetailsPage::new(event, form).render_error(error)),
+        Err(error) => {
+            let site = site_languages(&state).await?;
+            return Ok(DetailsPage::new(event, form, site).render_error(error));
+        }
     };
     let mut tx = state.db.begin().await?;
     let updated = event::update(&mut *tx, id, &details)
@@ -166,7 +172,8 @@ pub(in crate::admin) async fn delete(
 ) -> Result<Response, PageError> {
     let event = load_event(&state, id).await?;
     if form.confirm.is_none() {
-        let page = DetailsPage::new(event.clone(), EventForm::from_details(&event.details));
+        let form = EventForm::from_details(&event.details);
+        let page = DetailsPage::new(event.clone(), form, site_languages(&state).await?);
         return Ok(page.render_error(lang::text().error_confirm_delete.clone()));
     }
     event::delete(&state.db, id).await?;

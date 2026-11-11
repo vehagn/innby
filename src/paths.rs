@@ -73,6 +73,8 @@ pub const GROUP_QR: &str = "/groups/{group}/qr.svg";
 pub const USERS: &str = "/users";
 pub const USER: &str = "/users/{user}";
 pub const USER_DELETE: &str = "/users/{user}/delete";
+/// The languages the site offers guests, for admins.
+pub const LANGUAGES: &str = "/languages";
 pub const LOGIN: &str = "/login";
 /// Logging in through the OpenID Connect provider, and coming back from it.
 pub const LOGIN_OIDC: &str = "/login/oidc";

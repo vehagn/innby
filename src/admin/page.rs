@@ -55,12 +55,13 @@ impl FromRequestParts<AdminState> for ClientIp {
 }
 
 /// The admin's sections, as tabs under the header: the events and, for an admin, a new
-/// event and the users, or, within an event, its own pages.
+/// event, the users and the site's languages, or, within an event, its own pages.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Events,
     NewEvent,
     Users,
+    Languages,
     Guests,
     Invitations,
     Groups,
@@ -77,6 +78,7 @@ impl Tab {
             Tab::Events => icons::CALENDAR,
             Tab::NewEvent => icons::CALENDAR_PLUS,
             Tab::Users => icons::PERSON,
+            Tab::Languages => icons::GLOBE,
             Tab::Guests => icons::PERSON_TICK,
             Tab::Invitations => icons::ENVELOPE,
             Tab::Groups => icons::PEOPLE,
@@ -105,6 +107,12 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
                 Tab::Users,
                 paths::admin(paths::USERS),
                 &text.users,
+                Role::is_admin(),
+            ),
+            (
+                Tab::Languages,
+                paths::admin(paths::LANGUAGES),
+                &text.languages,
                 Role::is_admin(),
             ),
         ],

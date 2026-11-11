@@ -92,7 +92,8 @@ struct GamesPage {
 
 /// The Games tab: each game the event offers, with its best scores. An event with none
 /// has no such tab, so this leads back to the guest's reply.
-pub async fn list(State(state): State<AppState>, lang: Lang, guest: Guest) -> Page {
+pub async fn list(State(state): State<AppState>, guest: Guest) -> Page {
+    let lang = guest.lang;
     let games = for_page(&state, lang, &guest).await?;
     let links = GuestLinks::new(&guest.link, lang);
     if games.is_empty() {

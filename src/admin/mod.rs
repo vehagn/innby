@@ -6,7 +6,8 @@
 //!   named for what they do: `list`, `show`, `create`, `edit`, `revoke`, `delete`.
 //! - `page`: what pages share: state, tabs, errors. `forms`: what their forms share.
 //! - `events`, `guests`, `invitations`, `groups`, `qr`, `games`, `access`: the pages,
-//!   one module per tab; `users`, the password users, for admins.
+//!   one module per tab; `users`, the password users, and `languages`, those the site
+//!   offers guests, for admins.
 //! - `cli`: the host's commands: `innby invite` and `innby event`.
 //! - `auth`: logging in, with a password or through an OIDC provider, and sessions.
 //! - `role`: what each role may do, for every event or for one. `lang`: the page's
@@ -22,6 +23,7 @@ mod groups;
 mod guests;
 mod invitations;
 pub mod lang;
+mod languages;
 mod page;
 mod qr;
 pub mod role;
@@ -121,6 +123,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route(paths::USERS, get(users::list).post(users::create))
         .route(paths::USER, get(users::show).post(users::edit))
         .route(paths::USER_DELETE, post(users::delete))
+        .route(paths::LANGUAGES, get(languages::show).post(languages::edit))
         .route_layer(middleware::from_fn(role::admin));
     let mut pages = anyone
         .merge(viewer)

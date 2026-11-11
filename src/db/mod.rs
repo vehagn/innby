@@ -9,6 +9,7 @@
 //! - `admin_login`: refresh tokens and revoked JWTs. `admin_user`: hosts who log in with
 //!   a password, made in the admin UI.
 //! - `admin_form`: admin forms that made something, so one sent twice makes it once.
+//! - `languages`: the languages the site offers guests, as an admin picks them.
 //! - `retention`: deleting what's no longer needed.
 
 pub mod access;
@@ -18,6 +19,7 @@ pub mod admin_user;
 pub mod event;
 pub mod games;
 pub mod group;
+pub mod languages;
 pub mod outbox;
 pub mod qr;
 pub mod retention;

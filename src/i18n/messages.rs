@@ -248,6 +248,9 @@ pub struct AdminMessages {
     pub event_deadline_hint: String,
     pub event_languages: String,
     pub event_languages_hint: String,
+    /// The languages an event's pages are offered in, ticked in its form.
+    pub event_offered: String,
+    pub event_offered_hint: String,
     pub event_retention_hint: String,
     pub delete_event: String,
     pub error_event_title: String,
@@ -400,6 +403,26 @@ pub struct AdminMessages {
     pub error_new_user_name: String,
     pub error_user_taken: String,
     pub error_yourself: String,
+
+    // Languages: which of them the site offers guests, for admins
+    pub languages: String,
+    pub languages_hint: String,
+    pub languages_default_hint: String,
+    pub languages_translated_hint: String,
+    pub col_language: String,
+    pub col_offered: String,
+    pub col_default: String,
+    pub col_fallback: String,
+    pub col_translated: String,
+    /// What the base language falls back to.
+    pub fallback_none: String,
+    /// How far a language is translated: `{percent}`, `{own}` texts of `{total}`.
+    pub translated_share: String,
+    /// What screen readers call a language's tick and its default button.
+    pub offer_language: String,
+    pub default_language: String,
+    pub error_no_languages: String,
+    pub error_default_language: String,
 
     // Guests
     pub guests: String,

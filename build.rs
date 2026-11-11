@@ -57,8 +57,9 @@ fn files(dir: &Path, extension: &str) -> Vec<(String, String)> {
         })
         .collect();
     found.sort();
+    // `LangSet` keeps a set of them in the bits of a u64.
     assert!(
-        found.len() < 256,
+        found.len() <= 64,
         "{}: more languages than fit",
         dir.display()
     );

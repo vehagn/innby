@@ -10,16 +10,20 @@
 //!   the mails).
 //! - `texts`: `Texts`, a text the host writes in several languages, which falls back
 //!   the same way.
+//! - `offer`: which of the languages a page is offered in, as the site's admin and an
+//!   event's host choose, and picking among them for a request.
 //! - `fill`: filling in `{placeholders}` and counting.
 
 mod fill;
 mod language;
 mod messages;
+mod offer;
 mod texts;
 
 pub use fill::{bold, bold_count, count, escape_html, fill, filled};
 pub use language::load;
 pub use messages::{AdminMessages, Messages};
+pub use offer::{Asked, LangSet, Offer};
 pub use texts::Texts;
 
 use std::fmt;
@@ -102,50 +106,23 @@ impl Lang {
         &language::of(self).fallbacks
     }
 
-    /// Parses a `?lang=` value or a language tag such as "nn-NO", as the languages'
-    /// files say which tags they answer. The tag loses a part at a time from the end
-    /// until a language answers it, as in RFC 4647's lookup: "zh-Hant-TW" tries
-    /// "zh-hant-tw", "zh-hant" and "zh".
+    /// The language that answers a `?lang=` value or a language tag such as "nn-NO", of
+    /// every language there is; see `LangSet::lookup`.
     pub fn from_code(code: &str) -> Option<Self> {
-        let mut tag = code.trim().to_ascii_lowercase().replace('_', "-");
-        loop {
-            let found = Lang::all()
-                .iter()
-                .copied()
-                .find(|lang| language::of(*lang).serves.contains(&tag));
-            if found.is_some() {
-                return found;
-            }
-            tag.truncate(tag.rfind('-')?);
-        }
+        LangSet::all().lookup(code)
     }
 
-    /// Picks the most preferred supported language from an `Accept-Language` header.
+    /// The most preferred language in an `Accept-Language` header, of every language
+    /// there is; see `LangSet::negotiate`.
+    #[cfg(test)]
     pub fn negotiate(accept_language: &str) -> Option<Self> {
-        let mut best: Option<(f32, Lang)> = None;
-        for item in accept_language.split(',') {
-            let mut parts = item.split(';');
-            let tag = parts.next().unwrap_or_default();
-            let quality = parts
-                .find_map(|param| param.trim().strip_prefix("q="))
-                .map_or(Some(1.0), |q| q.parse::<f32>().ok());
-            if let (Some(lang), Some(quality)) = (Lang::from_code(tag), quality)
-                && quality > 0.0
-                && best.is_none_or(|(best_quality, _)| quality > best_quality)
-            {
-                best = Some((quality, lang));
-            }
-        }
-        best.map(|(_, lang)| lang)
+        LangSet::all().negotiate(accept_language)
     }
 
-    /// The languages to offer on the language switch.
+    /// The other languages the page being handled is offered in, for the language menu.
     pub fn others(self) -> Vec<Lang> {
-        Lang::all()
-            .iter()
-            .copied()
-            .filter(|&lang| lang != self)
-            .collect()
+        let offered = Offer::current().languages;
+        offered.iter().filter(|&lang| lang != self).collect()
     }
 
     pub fn messages(self) -> &'static Messages {

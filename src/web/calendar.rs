@@ -8,10 +8,11 @@ use axum::{
 };
 
 use super::{AppState, rsvp::Guest};
-use crate::{calendar, i18n::Lang};
+use crate::calendar;
 
 /// The guest's event, in their language.
-pub async fn show(State(state): State<AppState>, lang: Lang, guest: Guest) -> Response {
+pub async fn show(State(state): State<AppState>, guest: Guest) -> Response {
+    let lang = guest.lang;
     let file = calendar::file(&guest.event, lang, &state.config.base_url);
     (
         [

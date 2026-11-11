@@ -10,8 +10,7 @@ Innby is for a host's private events, a hundred guests or so each. It aims to:
   or a group's link;
 - show every guest who's coming, with each name shown as its guest chose;
 - keep as little as it can, and delete all of it 30 days after each event;
-- work in Bokmål, Nynorsk, two kinds of English and two scripts of Chinese, with no
-  JavaScript.
+- work in whichever languages it has a file for, with no JavaScript.
 
 It deliberately leaves out payments and tickets, capacity limits and waitlists, guest
 accounts, a JavaScript front end, and a public list of who's coming.
@@ -32,7 +31,8 @@ accounts, a JavaScript front end, and a public list of who's coming.
 | Events | As many as the host likes, made in the admin UI | Each with its own QR code style, so each party's printed invitations look its own. |
 | Front page | About Innby, plus a way back to remembered invitations | Event details only on link pages, so the front page says nothing about anyone's party. |
 | Retention | 30 days after each event | Long enough for afterthoughts, and then gone. No backups, on purpose. |
-| Languages | A TOML file each, with fallbacks, found when built | Plain strings don't need Fluent; each language is a file that names its fallbacks. Adding one is adding its file: no list of languages in the code, the schema or the templates, so a translator needn't touch Rust. |
+| Languages | A TOML file each, with fallbacks, found when built | Plain strings don't need Fluent; each language is a module that holds the texts it has and names where the rest come from, in the end English, the base, which a translator into anything can read. Adding one is adding its file: no list of languages in the code, the schema or the templates, so a translator needn't touch Rust. |
+| Which languages are offered | The admin picks the site's, a host narrows their event's | A file being there doesn't mean a host wants it: a formal party needn't offer English (Simplified), and an event written in two languages needn't offer seven. The standards cover naming and matching, which Innby follows: BCP 47 tags, and RFC 4647's lookup of the browser's `Accept-Language` among the languages on offer. Which ones are on offer is each site's to say, so that's a setting in the admin UI, kept in the database, where the event's is too. |
 | CSRF | `Sec-Fetch-Site` and `Origin` | No tokens or cookies needed, as Go's `CrossOriginProtection` does it. |
 | Admin login | Passwords, single sign-on, or both | A user or a few with passwords and roles in the config, for a small install, and more that an admin makes in the admin UI, without a restart; an OpenID Connect provider, with roles, where there is one. Config users stay read-only in the UI, so the config can always let someone in. |
 | Roles for one event | In the database, given on the event's Access tab | Events come and go in the admin UI, so neither the config nor the provider can name them. A role by login name, deleted with the event, lets a helper run one party without seeing the others. Admins give it, as they make and delete events. |
@@ -100,5 +100,9 @@ main steps, oldest first:
     link, user names with a letter or digit, and the janitor sweeping expired tokens.
 26. Times on the 24-hour clock, a trail of where an admin page is, and languages as
     files alone: a new one is its file in `locales/`, with no list to change.
+27. English as the base language, with its Traditional and Simplified variants as
+    modules beside the others; a score of how far each is translated, in `innby
+    languages` and the benchmark's results; and the admin choosing which languages the
+    site offers, each host which their event does.
 
 `git log` has the details.

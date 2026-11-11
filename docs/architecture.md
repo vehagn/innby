@@ -46,7 +46,8 @@ token of its own: sent again, as when the answer to the first was lost on the wa
 leads to that first sign-up rather than making a second.
 
 **The host** works in the admin UI (`innby admin`). Its first page lists the **Events**;
-beside it, admins have a **New event** tab and a **Users** tab. Each tab has an icon, and
+beside it, admins have a **New event** tab, a **Users** tab and a **Languages** tab, for
+the languages the site offers guests. Each tab has an icon, and
 a host whose role allows only one tab gets no tab bar, just the page. An event has up to
 seven tabs:
 
@@ -115,12 +116,27 @@ kind, is refused by name rather than misread. Once Innby is live, a change to th
 gets a new version, read alongside the old one; until then, `innby/v1` changes in place.
 `innby event list`, `export` and `import` do the same from the command line.
 
-**Languages:** every page is in Bokmål, Nynorsk, British English (formal), American
-English (plain), and Simplified and Traditional Chinese, from the browser's languages or
-`?lang=`. [translating.md](translating.md) has the details. An event is written in one
-language, the host's own when they make it, and may have its texts in others too; a
-guest reading a language it lacks gets the nearest it has, as the site's texts fall
-back, and in the end the event's own.
+**Languages:** each language is a file in `locales/`, a module that holds the texts it
+has and falls back to others for the rest, in the end to English, the base. Innby comes
+with English, its Traditional (British, formal) and Simplified (American) variants,
+Bokmål, Nynorsk, and Simplified and Traditional Chinese.
+[translating.md](translating.md) has the details. A page's language comes from `?lang=`
+or the browser's `Accept-Language`, matched as BCP 47's lookup does (RFC 4647), among
+the languages on offer:
+
+- **The site** offers the languages an admin ticks on the **Languages** tab, with one of
+  them the default for a browser that asks for none. A file may be there without the
+  site using it. Until an admin picks, it offers them all, with English the default.
+  `innby serve` reads the choice from the database and keeps it for ten seconds.
+- **An event** is written in one language, the host's own when they make it, and may
+  have its texts in others; a guest reading a language it lacks gets the nearest it
+  has, as the site's texts fall back, and in the end the event's own. Its host can
+  narrow its pages to some of the site's languages, in its form. Its own language is
+  always offered there, and is those pages' default.
+- **The admin UI** stays in every language.
+
+A guest's language is kept with their answer, for their mail: the language of the page
+they answered on.
 
 ## One binary, several workloads
 
@@ -307,13 +323,14 @@ until Innby is live. In short:
 
 | Table | Holds |
 |---|---|
-| `event` | the language it's written in, title and description (maps by language code, with that language always there), place, start and any end, time zone, answer deadline, when its time or place last changed, the host's question and its choices, the style of its QR codes |
+| `event` | the language it's written in and those its pages are offered in, title and description (maps by language code, with that language always there), place, start and any end, time zone, answer deadline, when its time or place last changed, the host's question and its choices, the style of its QR codes |
 | `rsvp` | each invitation or sign-up: name, answer, party size and its maximum, link nonce, language, optional e-mail and its status and consent time, privacy notice version, how the name shows, the group it came through, the pick for the host's question |
 | `invite_group` | group links: name, maximum party size, link nonce |
 | `event_access` | roles for one event: the name a host logs in with, viewer or editor |
 | `event_game`, `game_score` | the minigames an event offers, and each guest's best score in each |
 | `outbox` | mail to send: kind, attempts, next try, when sent, last error |
 | `admin_user` | password users an admin makes: name, role, argon2 hash, and a version that a new password bumps |
+| `site_languages` | the languages the site offers guests and its default, once an admin has picked: one row |
 | `admin_form_sent` | for a day, the token of each admin form that made something, and where it led, so the same form sent twice makes it once |
 | `admin_refresh_token`, `admin_revoked_jwt` | keyed hashes of refresh tokens, and logged-out JWTs, until they'd expire |
 

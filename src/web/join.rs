@@ -27,7 +27,7 @@ use crate::{
         rsvp::{self, NameDisplay, SignUp},
     },
     http::{ClientIp, cookie, render, render_with},
-    i18n::{Lang, Messages},
+    i18n::{Asked, Lang, Messages, Offer},
     link::{IdLink, Purpose},
     paths,
 };
@@ -88,15 +88,19 @@ impl FormPage for JoinPage<'_> {
 struct Joining {
     group: Group,
     event: Event,
+    /// The language of the page: what the request asks for, of those the event is
+    /// offered in.
+    lang: Lang,
 }
 
 impl Joining {
     /// The group behind a sign-up link. A link that's malformed, forged or revoked is
     /// gone, like a guest's.
-    async fn find(state: &AppState, link: &str, lang: Lang) -> Result<Self, PageError> {
-        let gone = PageError::Gone(lang);
+    async fn find(state: &AppState, link: &str, asked: &Asked) -> Result<Self, PageError> {
+        // A link that doesn't work has no event: its page is in a language of the site's.
+        let gone = || PageError::Gone(asked.among(Offer::current()));
         let Ok(parsed) = link.parse::<IdLink>() else {
-            return Err(gone);
+            return Err(gone());
         };
         let group = group::find(&state.db, parsed.id).await?.filter(|group| {
             state
@@ -105,21 +109,26 @@ impl Joining {
                 .verify(Purpose::Group, &parsed, group.link_nonce)
         });
         let Some(group) = group else {
-            return Err(gone);
+            return Err(gone());
         };
-        let event = event::find(&state.db, group.event_id).await?.ok_or(gone)?;
-        Ok(Self { group, event })
+        let event = event::find(&state.db, group.event_id)
+            .await?
+            .ok_or_else(gone)?;
+        // From here on the request is offered the event's languages, the menu too.
+        let lang = asked.among(event.details.offer());
+        Ok(Self { group, event, lang })
     }
 }
 
-pub async fn show(State(state): State<AppState>, lang: Lang, Path(link): Path<String>) -> Page {
-    let joining = Joining::find(&state, &link, lang).await?;
-    Ok(render(JoinPage::new(lang, &joining, &link)))
+pub async fn show(State(state): State<AppState>, asked: Asked, Path(link): Path<String>) -> Page {
+    let joining = Joining::find(&state, &link, &asked).await?;
+    Ok(render(JoinPage::new(joining.lang, &joining, &link)))
 }
 
 /// The guest list, for someone deciding whether to sign up.
-pub async fn guests(State(state): State<AppState>, lang: Lang, Path(link): Path<String>) -> Page {
-    let joining = Joining::find(&state, &link, lang).await?;
+pub async fn guests(State(state): State<AppState>, asked: Asked, Path(link): Path<String>) -> Page {
+    let joining = Joining::find(&state, &link, &asked).await?;
+    let lang = joining.lang;
     let guests = GuestList::load(&state.db, joining.event.id, None).await?;
     let t = lang.messages();
     Ok(render(GuestsPage {
@@ -155,12 +164,13 @@ pub struct JoinForm {
 
 pub async fn join(
     State(state): State<AppState>,
-    lang: Lang,
+    asked: Asked,
     client: ClientIp,
     Path(link): Path<String>,
     Form(form): Form<JoinForm>,
 ) -> Page {
-    let joining = Joining::find(&state, &link, lang).await?;
+    let joining = Joining::find(&state, &link, &asked).await?;
+    let lang = joining.lang;
     let group = &joining.group;
     if !form.website.is_empty() {
         tracing::info!("group sign-up honeypot triggered");

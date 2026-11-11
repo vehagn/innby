@@ -62,6 +62,21 @@ as an event's title, fall back the same way.
 `just test` (or Innby itself, at start) refuses a text English doesn't have, which
 catches typos in key names, and a language that falls back to itself.
 
+## Which languages are offered
+
+A language's file being there doesn't put it on the site. An admin ticks the languages
+the site offers guests on the admin UI's **Languages** tab, and picks the default, which
+a guest gets whose browser asks for none of them. Until an admin does, the site offers
+every language it has, with English the default. A host can narrow an event's pages
+further, under *In other languages* in the event's form: to some of the site's
+languages, always with the one the event is written in.
+
+A page's language is what `?lang=` or the browser asks for among those on offer. Tags
+are matched as BCP 47's lookup does (RFC 4647): `zh-Hant-TW` tries `zh-hant-tw`,
+`zh-hant` and `zh` against each file's `serves`. Should nothing answer, a language of
+the same primary language does, so `en-AU` gets English (Traditional) on a site that
+doesn't offer plain English.
+
 ## How far a language has come
 
 `innby languages` lists every language with what it falls back to and its progress: the

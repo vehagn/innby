@@ -248,7 +248,7 @@ pub async fn find_with_events(
             e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
             e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,
             e.question as "question: Json<Texts>", e.choices as "choices: Json<Texts>",
-            r.choice,
+            e.langs, r.choice,
             array(select g.game from event_game g where g.event_id = e.id order by g.game)
                 as "games!"
         from rsvp r join event e on e.id = r.event_id
@@ -274,6 +274,7 @@ pub async fn find_with_events(
                 changed_at: row.changed_at,
                 question: row.question,
                 choices: row.choices,
+                langs: row.langs,
             });
             let rsvp = Rsvp {
                 id: row.id,

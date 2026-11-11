@@ -10,7 +10,7 @@ use chrono_tz::Tz;
 use crate::{
     admin::lang,
     db::event::Details,
-    i18n::{Lang, Texts, filled},
+    i18n::{Lang, LangSet, Texts, filled},
     janitor::KEEP_AFTER_EVENT,
 };
 
@@ -45,6 +45,17 @@ pub(in crate::admin) struct EventForm {
     question: Texts,
     /// A line each.
     choices: Texts,
+    /// The languages the host ticked for the event's pages: none for all the site's.
+    offered: LangSet,
+    /// The languages the site offers, which are the ones the form asks about.
+    site: LangSet,
+}
+
+/// A language the event's pages may be offered in, for the form's ticks.
+pub(in crate::admin) struct OfferedChoice {
+    pub code: &'static str,
+    pub name: &'static str,
+    pub checked: bool,
 }
 
 /// The texts in one of the languages besides the event's own, for the form.
@@ -91,7 +102,27 @@ impl EventForm {
             rsvp_deadline: String::new(),
             question: Texts::default(),
             choices: Texts::default(),
+            offered: LangSet::default(),
+            site: LangSet::all(),
         }
+    }
+
+    /// The form for a site that offers these languages: it asks about them alone, and
+    /// about any other the event already has a text in, so that saving keeps it.
+    pub(in crate::admin) fn on_site(mut self, site: LangSet) -> Self {
+        self.site = site;
+        self
+    }
+
+    /// The same, for a form that's already somewhere.
+    pub(super) fn set_site(&mut self, site: LangSet) {
+        self.site = site;
+    }
+
+    /// The form with the languages the event's pages are offered in.
+    pub(super) fn offered_in(mut self, offered: LangSet) -> Self {
+        self.offered = offered;
+        self
     }
 
     /// A form filled in from an event file's parts.
@@ -148,6 +179,8 @@ impl EventForm {
                 .unwrap_or_default(),
             question: details.question.clone(),
             choices: details.choices.clone(),
+            offered: details.offered,
+            ..Self::blank()
         }
     }
 
@@ -183,6 +216,9 @@ impl EventForm {
             form.description.set(lang, &field("description"));
             form.question.set(lang, &field("question"));
             form.choices.set(lang, &choice_lines(&field("choices")));
+            if !get(&format!("offer-{}", lang.code())).is_empty() {
+                form.offered.insert(lang);
+            }
         }
         form
     }
@@ -196,11 +232,26 @@ impl EventForm {
         self.description.own(self.lang)
     }
 
+    /// Whether the form asks about a language: the site offers it, or the event is
+    /// written in it or has a text in it already.
+    fn asks_about(&self, lang: Lang) -> bool {
+        let written = [
+            &self.title,
+            &self.description,
+            &self.question,
+            &self.choices,
+        ];
+        self.site.contains(lang)
+            || lang == self.lang
+            || written.iter().any(|texts| !texts.own(lang).is_empty())
+    }
+
     /// The languages the event may be written in, with its own chosen.
     pub fn languages(&self) -> Vec<LanguageChoice> {
         Lang::all()
             .iter()
             .copied()
+            .filter(|lang| self.site.contains(*lang) || *lang == self.lang)
             .map(|lang| LanguageChoice {
                 code: lang.code(),
                 name: lang.name(),
@@ -239,12 +290,30 @@ impl EventForm {
         self.choices.own(self.lang)
     }
 
+    /// The languages the event's pages may be offered in, those the site offers, with
+    /// the host's ticked.
+    pub fn offered(&self) -> Vec<OfferedChoice> {
+        self.site
+            .iter()
+            .map(|lang| OfferedChoice {
+                code: lang.code(),
+                name: lang.name(),
+                checked: self.offered.contains(lang),
+            })
+            .collect()
+    }
+
+    /// Whether the host has ticked any, which the form then opens at.
+    pub fn narrowed(&self) -> bool {
+        !self.offered.is_empty()
+    }
+
     /// The other languages' fields, in the order of the language menu.
     pub fn translations(&self) -> Vec<Translation> {
         Lang::all()
             .iter()
             .copied()
-            .filter(|lang| *lang != self.lang)
+            .filter(|lang| *lang != self.lang && self.asks_about(*lang))
             .map(|lang| Translation {
                 language: lang.name(),
                 title_field: field("title", lang, self.lang),
@@ -334,6 +403,7 @@ impl EventForm {
             ends_at,
             question: self.question.clone(),
             choices: self.choices.clone(),
+            offered: self.offered,
         })
     }
 
@@ -604,6 +674,55 @@ mod tests {
             ("time_zone", "Europe/Oslo"),
         ]));
         assert!(missing.details(Utc::now()).is_err());
+    }
+
+    #[test]
+    fn asks_about_the_sites_languages_and_keeps_the_hosts_ticks() {
+        // A site that offers Bokmål and English, and an event with a Chinese title
+        // from before it stopped offering Chinese.
+        let site: LangSet = [Lang::NB, Lang::EN].into_iter().collect();
+        let form = EventForm::from_fields(&fields(&[
+            ("lang", "nb"),
+            ("title", "Sommerfest"),
+            ("title-zh-hans", "夏日派对"),
+            ("starts_at", "2054-06-20T15:00"),
+            ("time_zone", "Europe/Oslo"),
+            ("offer-nb", "yes"),
+            ("offer-en", "yes"),
+        ]))
+        .on_site(site);
+        let details = form.details(Utc::now()).unwrap();
+        assert_eq!(details.offered, site);
+
+        let again = EventForm::from_details(&details).on_site(site);
+        assert!(again.narrowed());
+        let ticks: Vec<_> = again
+            .offered()
+            .iter()
+            .map(|choice| (choice.code, choice.checked))
+            .collect();
+        assert_eq!(ticks, [("nb", true), ("en", true)]);
+        // It asks for texts in the site's other language, and in the one the event
+        // already has a text in, so that saving doesn't lose it.
+        let asked: Vec<_> = again
+            .translations()
+            .iter()
+            .map(|other| other.title_field.clone())
+            .collect();
+        assert_eq!(asked, ["title-en", "title-zh-hans"]);
+        // The event may be written in a language of the site's, or the one it is in.
+        let written: Vec<_> = again.languages().iter().map(|l| l.code).collect();
+        assert_eq!(written, ["nb", "en"]);
+
+        // No ticks is every language the site offers.
+        let open = EventForm::from_fields(&fields(&[
+            ("lang", "nb"),
+            ("title", "Sommerfest"),
+            ("starts_at", "2054-06-20T15:00"),
+            ("time_zone", "Europe/Oslo"),
+        ]));
+        assert!(open.details(Utc::now()).unwrap().offered.is_empty());
+        assert!(!open.narrowed());
     }
 
     #[test]

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into site_languages (offered, default_lang) values ($1, 'xx')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dbc1a784349e353e1a370943cd1fe3e2af767cfb74a5ac5c31d54110df9e8624"
+}

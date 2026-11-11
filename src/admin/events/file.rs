@@ -44,7 +44,7 @@ use crate::{
         group::Group,
         qr::{Icon, Shape, Style},
     },
-    i18n::{Lang, Texts, fill, filled},
+    i18n::{Lang, LangSet, Texts, fill, filled},
 };
 
 /// The largest event file read, far more than any event needs.
@@ -79,10 +79,14 @@ pub struct EventFile {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub location: String,
     /// The language code the event is written in, which its title must have and the
-    /// others fall back to; `nb` if the file doesn't say.
+    /// others fall back to; English if the file doesn't say.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
-    /// By language code: `nb`, `nn`, `en`, `en-us`, `zh-hans` and `zh-hant`.
+    /// The language codes its pages are offered in, of those the site offers; none
+    /// for all of them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub offered_in: Vec<String>,
+    /// By language code, as `nb`, `en` and `zh-hans`: a file in `locales/` each.
     #[serde(serialize_with = "in_language_order")]
     pub title: BTreeMap<String, String>,
     #[serde(
@@ -136,7 +140,7 @@ fn default_party_size() -> i32 {
     2
 }
 
-/// Texts in the language menu's order, Bokmål first, rather than alphabetically.
+/// Texts in the language menu's order, rather than their codes'.
 fn in_language_order<S: serde::Serializer, T: Serialize>(
     texts: &BTreeMap<String, T>,
     serializer: S,
@@ -198,8 +202,9 @@ const HEADER: &str = "\
 #
 # apiVersion and kind say what this file is; leave them as they are. starts, ends and
 # answer_by are local times in time_zone, as 2026-12-12T19:00. The title and description
-# are by language: nb, nn, en, en-us, zh-hans, zh-hant; language is the one the event is
-# written in, which needs a title and which the others fall back to. A
+# are by language code, as nb, en or zh-hans; language is the one the event is written
+# in, which needs a title and which the others fall back to. offered_in lists the
+# languages its pages are offered in, of those the site offers; without it, all of them. A
 # group's max_party_size is how many each sign-up may cover. question is the host's own
 # question to guests, by language, and choices its choices, a list by language. qr is the
 # style of the QR codes: shape (square, rounded, dots), color, and icon (none, heart,
@@ -230,6 +235,7 @@ impl EventFile {
                 .map(|at| at.format(LOCAL_TIME).to_string()),
             location: details.location.clone(),
             language: Some(details.lang.code().to_owned()),
+            offered_in: details.offered.codes(),
             title: texts(&details.title),
             description: texts(&details.description),
             question: texts(&details.question),
@@ -292,6 +298,11 @@ impl EventFile {
                 code,
             })?,
         };
+        let mut offered = LangSet::default();
+        for code in self.offered_in {
+            let field = "offered_in";
+            offered.insert(Lang::by_code(&code).ok_or(FileError::Language { field, code })?);
+        }
         let question = texts("question", self.question)?;
         let choices = self
             .choices
@@ -308,6 +319,7 @@ impl EventFile {
             self.answer_by.unwrap_or_default(),
         )
         .in_language(lang)
+        .offered_in(offered)
         .with_question(question, texts("choices", choices)?);
         let groups = self
             .groups
@@ -396,6 +408,7 @@ mod tests {
         details.question.set(Lang::EN, "What will you bring?");
         details.choices.set(Lang::NB, "Salat\nDessert");
         details.choices.set(Lang::EN, "Salad\nDessert");
+        details.offered = [Lang::NB, Lang::EN].into_iter().collect();
         let groups = [group("Climbing club", 2), group("Naboer", 4)];
         let style = Style {
             shape: Shape::Dots,
@@ -415,6 +428,10 @@ mod tests {
             "{toml}"
         );
         assert!(toml.contains("\nlanguage = \"nb\"\n"), "{toml}");
+        assert!(
+            toml.contains("offered_in = [\n    \"nb\",\n    \"en\",\n]"),
+            "{toml}"
+        );
         assert!(
             toml.contains("starts = \"2054-12-12T19:00\"\nends = \"2054-12-13T01:00\"\n"),
             "{toml}"

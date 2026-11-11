@@ -27,7 +27,7 @@ use crate::{
         rsvp::{self, NameDisplay, Rsvp},
     },
     http::{cookie, render},
-    i18n::{Lang, Messages},
+    i18n::{Asked, Lang, Messages, Offer},
     icons::TabLink,
     link::{IdLink, Purpose},
     paths::{self, GuestLinks},
@@ -37,6 +37,11 @@ use crate::{
 /// links are all turned away with the same page.
 pub(super) struct Guest {
     pub link: String,
+    /// The language to answer them in. On their pages it's what the request asks for
+    /// of the languages their event is offered in, which may be fewer than the site's,
+    /// so handlers go by this rather than asking for a `Lang` of their own. For a guest
+    /// found another way, it's the one they last used.
+    pub lang: Lang,
     pub rsvp: Rsvp,
     /// The event the guest is invited to.
     pub event: Event,
@@ -48,11 +53,16 @@ impl FromRequestParts<AppState> for Guest {
     type Rejection = PageError;
 
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, PageError> {
-        let Ok(lang) = Lang::from_request_parts(parts, state).await;
-        let Path(link) = Path::<String>::from_request_parts(parts, state)
-            .await
-            .map_err(|_| PageError::Gone(lang))?;
-        Self::find(state, &link).await?.ok_or(PageError::Gone(lang))
+        let asked = Asked::from_parts(parts);
+        // A link that doesn't work has no event: its page is in a language of the site's.
+        let gone = || PageError::Gone(asked.among(Offer::current()));
+        let Ok(Path(link)) = Path::<String>::from_request_parts(parts, state).await else {
+            return Err(gone());
+        };
+        let mut guest = Self::find(state, &link).await?.ok_or_else(gone)?;
+        // From here on the request is offered the event's languages, the menu too.
+        guest.lang = asked.among(guest.event.details.offer());
+        Ok(guest)
     }
 }
 
@@ -84,6 +94,7 @@ impl Guest {
             .verify(Purpose::Rsvp, parsed, rsvp.link_nonce);
         genuine.then(|| Self {
             link: link.to_owned(),
+            lang: rsvp.lang,
             rsvp,
             event,
             games,
@@ -238,11 +249,11 @@ pub struct ShowQuery {
 
 pub async fn show(
     State(state): State<AppState>,
-    lang: Lang,
     guest: Guest,
     headers: HeaderMap,
     Query(query): Query<ShowQuery>,
 ) -> Response {
+    let lang = guest.lang;
     let mut page = RsvpPage::new(lang, &guest);
     page.remembered = remember::remembers(&headers, state.config.is_https(), &guest);
     let games = games::offers_any(&state, &guest);
@@ -260,10 +271,10 @@ pub async fn show(
 /// The guest list, with how the guest shows up in it.
 pub async fn guests(
     State(state): State<AppState>,
-    lang: Lang,
     guest: Guest,
     Query(query): Query<ShowQuery>,
 ) -> Page {
+    let lang = guest.lang;
     let guests = GuestList::load(&state.db, guest.event.id, Some(guest.rsvp.id)).await?;
     let games = games::offers_any(&state, &guest);
     let t = lang.messages();
@@ -300,11 +311,11 @@ pub struct AnswerForm {
 
 pub async fn answer(
     State(state): State<AppState>,
-    lang: Lang,
     guest: Guest,
     headers: HeaderMap,
     Form(form): Form<AnswerForm>,
 ) -> Page {
+    let lang = guest.lang;
     let https = state.config.is_https();
     // Shown again to fix, with the box as this device has it.
     let refuse = |status, pick: fn(&'static Messages) -> &'static str| -> Page {
@@ -355,10 +366,10 @@ pub struct ListingForm {
 /// Changes how the guest's name shows in the guest list.
 pub async fn listing(
     State(state): State<AppState>,
-    lang: Lang,
     guest: Guest,
     Form(form): Form<ListingForm>,
 ) -> Page {
+    let lang = guest.lang;
     if !rsvp::set_name_display(&state.db, guest.rsvp.id, form.name_display).await? {
         return Err(PageError::Gone(lang));
     }

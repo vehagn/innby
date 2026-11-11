@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update site_languages set offered = $1, default_lang = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e754962cf2e68e97033392b0de1ea81e6cec2b476016b6cb0c648299444af0e6"
+}

@@ -36,7 +36,8 @@ src/
   alloc.rs           the allocator: mimalloc, giving freed memory back at once
   icons.rs           the tabs' icons, as inline SVG
   http/              what both listeners share
-    mod.rs           listen (timeouts, graceful shutdown), harden (security headers), no_store, ready, Lang extractor
+    mod.rs           listen (timeouts, graceful shutdown), harden (security headers), no_store, ready,
+                     the Lang and Asked extractors
     cookie.rs        reading Cookie headers, writing Set-Cookie
     csrf.rs          refuses cross-site form posts (Sec-Fetch-Site / Origin)
     rate_limit.rs    in-memory limits per client or for everyone
@@ -50,6 +51,8 @@ src/
     email.rs         the optional e-mail address: consent, double opt-in, "I lost my link"
     remember.rs      "remember me on this device": one cookie per event
     pages.rs         front page, privacy notice, message pages
+    languages.rs     the languages the site offers guests, read from the database and
+                     kept a few seconds; each request is handled with them on offer
     games.rs         minigames: the Games tab and its high scores, the scores API /api/, and
                      the internal API for games' servers on its own port
     views.rs         what personal and group pages show alike (event, guest list, choices,
@@ -69,6 +72,8 @@ src/
     games.rs         an event's Games tab: the minigames it offers, and their scores
     access.rs        an event's Access tab: roles for that event alone, by login name
     users.rs         the Users tab, for admins: password users kept in the database
+    languages.rs     the Languages tab, for admins: which languages the site offers
+                     guests, its default, and how far each is translated
     role.rs          viewer < editor < admin, and the role a request has for its event
     lang.rs          the admin page's language
     auth/            logging in: sessions (mod.rs), login.rs, password.rs (argon2), jwt.rs
@@ -77,13 +82,16 @@ src/
     testing.rs       a logged-in test host of any role
   db/                queries per table (access.rs: roles for one event; admin_user.rs:
                      password users made in the admin UI; admin_form.rs: create forms
-                     sent, so one sent twice makes once); rsvp/ splits into the row,
+                     sent, so one sent twice makes once; languages.rs: the languages
+                     the site offers); rsvp/ splits into the row,
                      names.rs and guest_list.rs
   mailer/            the outbox worker; compose.rs writes the mails
   janitor.rs         deletes what retention says is due
   config/            settings from INNBY_* variables: mod.rs (site), admin.rs, mail.rs,
                      games.rs (INNBY_GAMES), env.rs
-  i18n/              Lang (mod.rs), language.rs (a locale file and its fallbacks), messages.rs, texts.rs, fill.rs
+  i18n/              Lang (mod.rs), language.rs (a locale file and its fallbacks), messages.rs,
+                     texts.rs, fill.rs, offer.rs (which languages a page is offered in, and
+                     picking among them for a request)
   calendar.rs        an event as an iCalendar file, for guests' pages and reminders
   link.rs            HMAC-signed links: possession is the authorisation
   paths.rs           every route pattern, and links built from them
@@ -118,7 +126,11 @@ parts too, so the top of a file is the way into it.
   compatibility freely: databases are made again. Once it's live, add a migration
   instead. Keep `seed/sample.sql` in step with the schema (`src/e2e/sample.rs` loads it).
 - A new text goes in `src/i18n/messages.rs` and the base language's file,
-  `locales/en.toml`, at least; placeholders must match English's. Fill them with `i18n::fill` or `filled`, never `format!`.
+  `locales/en.toml`, at least; placeholders must match English's. Fill them with
+  `i18n::fill` or `filled`, never `format!`.
+- A handler of a guest's or a group's page goes by `guest.lang` or `joining.lang`, the
+  language among those the event offers, not a `Lang` of its own, which knows only the
+  site's.
 - Admin routes go in the router group of the role they need (`admin/mod.rs`), and
   templates hide what `Role::can_edit()` / `Role::is_admin()` rule out. Handlers are
   named for what they do (`list`, `show`, `create`, `edit`, `revoke`, `delete`), in a

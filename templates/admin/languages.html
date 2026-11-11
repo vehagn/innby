@@ -1,0 +1,38 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ crate::admin::lang::text().languages }}{% endblock %}
+
+{% block tabs %}{% let tabs = crate::admin::tabs(None, crate::admin::Tab::Languages) %}{% include "admin/_tabs.html" %}{% endblock %}
+
+{% block content %}
+{% let a = crate::admin::lang::text() %}
+{% if let Some(notice) = notice %}<p class="notice success" role="status">{{ notice }}</p>{% endif %}
+<h1>{{ a.languages }}</h1>
+<p class="hint">{{ a.languages_hint }}</p>
+
+<section class="card">
+  <form method="post" action="{{ crate::paths::admin(crate::paths::LANGUAGES) }}">
+    <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>{{ a.col_offered }}</th><th>{{ a.col_default }}</th><th>{{ a.col_language }}</th><th>{{ a.col_fallback }}</th><th>{{ a.col_translated }}</th></tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td><input type="checkbox" name="offer" value="{{ row.code }}" aria-label="{{ crate::i18n::filled(a.offer_language, "name", row.name) }}"{% if row.offered %} checked{% endif %}></td>
+          <td><input type="radio" name="default" value="{{ row.code }}" aria-label="{{ crate::i18n::filled(a.default_language, "name", row.name) }}"{% if row.default %} checked{% endif %}></td>
+          <td>{{ row.name }} <span class="muted">{{ row.code }}</span></td>
+          <td>{% if row.fallbacks.is_empty() %}{{ a.fallback_none }}{% else %}{{ row.fallbacks }}{% endif %}</td>
+          <td>{{ row.translated }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="hint">{{ a.languages_default_hint }}</p>
+    <p class="hint">{{ a.languages_translated_hint }}</p>
+    <button>{{ a.save }}</button>
+  </form>
+</section>
+{% endblock %}

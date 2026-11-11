@@ -12,8 +12,9 @@ An RSVP site for a host's events that keeps as little about its guests as it can
 - **E-mail is optional**, for reminders and a guest's own link, with double opt-in.
 - **Everything goes 30 days after each event.** No tracking, no third parties, and on the
   public site no cookies but those a guest asks for.
-- **Six languages:** Bokmål, Nynorsk, British and American English, and Simplified and
-  Traditional Chinese. No JavaScript.
+- **Languages as modules:** English, Bokmål, Nynorsk, and Simplified and Traditional
+  Chinese, each a file that falls back to another for what it lacks, with the admin
+  choosing which the site offers and each host which their event does. No JavaScript.
 - **For the host:** an admin UI for events, invitations and group links in batches, QR
   codes, the headcount and reminders, a question of their own for guests, with a built-in login or single sign-on. An event
   and its group links go into a versioned TOML file, to keep, or to import as next

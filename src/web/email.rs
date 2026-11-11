@@ -41,12 +41,12 @@ pub struct AddForm {
 /// for confirmation either way, so it never tells whether someone else has it.
 pub async fn add(
     State(state): State<AppState>,
-    lang: Lang,
     client: ClientIp,
     guest: Guest,
     headers: HeaderMap,
     Form(form): Form<AddForm>,
 ) -> Page {
+    let lang = guest.lang;
     // The guest's details again, with what to fix.
     let refuse = |status, pick: fn(&'static Messages) -> &'static str| -> Page {
         Ok(YouPage::new(&state, lang, &guest, &headers).render_error(status, pick))
@@ -91,7 +91,8 @@ async fn add_email(db: &PgPool, guest: &Rsvp, email: &str, lang: Lang) -> sqlx::
 }
 
 /// Withdraws consent: the address and any mail waiting for it are deleted.
-pub async fn remove(State(state): State<AppState>, lang: Lang, guest: Guest) -> Page {
+pub async fn remove(State(state): State<AppState>, guest: Guest) -> Page {
+    let lang = guest.lang;
     let mut tx = state.db.begin().await?;
     rsvp::remove_email(&mut *tx, guest.rsvp.id).await?;
     outbox::cancel_unsent(&mut *tx, guest.rsvp.id).await?;

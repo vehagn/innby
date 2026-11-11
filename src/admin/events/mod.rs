@@ -36,7 +36,7 @@ use crate::{
         rsvp::{self, Headcount, NameKind},
     },
     http::render,
-    i18n::filled,
+    i18n::{LangSet, filled},
     paths,
 };
 
@@ -103,6 +103,11 @@ async fn events_page(state: &AdminState, notice: Option<String>) -> Result<Respo
         notice,
         error: None,
     }))
+}
+
+/// The languages the site offers guests, which are the ones an event's form asks about.
+pub(super) async fn site_languages(state: &AdminState) -> Result<LangSet, PageError> {
+    Ok(crate::db::languages::site(&state.db).await?.languages)
 }
 
 /// The group links in the new event's box, a line each: `Climbing club, 2`, or a name

@@ -43,7 +43,10 @@ use tokio::{
 use tower::ServiceExt;
 use tower_http::{set_header::SetResponseHeaderLayer, timeout::TimeoutLayer, trace::TraceLayer};
 
-use crate::{db, i18n::Lang};
+use crate::{
+    db,
+    i18n::{Asked, Lang, Offer},
+};
 
 pub(crate) const SECURITY_HEADERS: [(header::HeaderName, &str); 6] = [
     (
@@ -226,24 +229,24 @@ pub async fn shutdown_signal() {
     tracing::info!("shutting down");
 }
 
-/// The page language: an explicit `?lang=` wins over the browser's `Accept-Language`.
+/// What the request asks for in the way of language, for a page that must find its
+/// event before it knows which languages it's offered in.
+impl<S: Send + Sync> FromRequestParts<S> for Asked {
+    type Rejection = Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        Ok(Asked::from_parts(parts))
+    }
+}
+
+/// The page language, of those the request is offered (`i18n::Offer`): an explicit
+/// `?lang=` wins over the browser's `Accept-Language`. On an event's pages the event
+/// narrows the offer once it's known, so those go by `web::rsvp::Guest::lang` instead.
 impl<S: Send + Sync> FromRequestParts<S> for Lang {
     type Rejection = Infallible;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        let from_query = parts
-            .uri
-            .query()
-            .and_then(|query| query.split('&').find_map(|pair| pair.strip_prefix("lang=")))
-            .and_then(Lang::from_code);
-        let from_header = || {
-            parts
-                .headers
-                .get(header::ACCEPT_LANGUAGE)
-                .and_then(|value| value.to_str().ok())
-                .and_then(Lang::negotiate)
-        };
-        Ok(from_query.or_else(from_header).unwrap_or_else(Lang::base))
+        Ok(Asked::from_parts(parts).among(Offer::current()))
     }
 }
 
@@ -273,14 +276,6 @@ mod tests {
 
     #[tokio::test]
     async fn probes_are_logged_only_when_they_fail() {
-        let logs = Logs::default();
-        let writer = logs.clone();
-        let subscriber = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .with_ansi(false)
-            .with_writer(move || writer.clone())
-            .finish();
-        let _logging = tracing::subscriber::set_default(subscriber);
         let router = harden(
             Router::new()
                 .route(crate::paths::HEALTH, get(|| async { "ok" }))

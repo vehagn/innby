@@ -18,7 +18,7 @@ use super::{
     create_event,
     file::{EventFile, MAX_BYTES},
     form::EventForm,
-    group_lines,
+    group_lines, site_languages,
 };
 use crate::{
     admin::{
@@ -32,7 +32,7 @@ use crate::{
         qr::{self, Icon, Shape, Style},
     },
     http::render_form,
-    i18n::filled,
+    i18n::{LangSet, filled},
     paths,
 };
 
@@ -103,8 +103,9 @@ pub(in crate::admin) async fn show(
     State(state): State<AdminState>,
     Query(query): Query<NewEventQuery>,
 ) -> Result<Response, PageError> {
+    let site = site_languages(&state).await?;
     let Some(id) = query.copy else {
-        return Ok(page(Draft::blank()));
+        return Ok(page(Draft::blank(), site));
     };
     let event = load_event(&state, id).await?;
     let groups = group::list(&state.db, id).await?;
@@ -113,14 +114,19 @@ pub(in crate::admin) async fn show(
     let (form, groups, style) = EventFile::new(&event.details, &groups, &style)
         .into_form()
         .expect("an event's own file reads back");
-    Ok(page(Draft {
-        notice: Some(filled(&lang::text().copied_notice, "title", title)),
-        qr: style,
-        ..Draft::new(form, groups)
-    }))
+    Ok(page(
+        Draft {
+            notice: Some(filled(&lang::text().copied_notice, "title", title)),
+            qr: style,
+            ..Draft::new(form, groups)
+        },
+        site,
+    ))
 }
 
-fn page(draft: Draft) -> Response {
+/// The page, its form asking about the languages the site offers.
+fn page(mut draft: Draft, site: LangSet) -> Response {
+    draft.form.set_site(site);
     let needs_fixing = draft.error.is_some() || draft.file_error.is_some();
     render_form(NewEventPage { draft, error: None }, needs_fixing)
 }
@@ -150,7 +156,8 @@ pub(in crate::admin) async fn create(
         Ok(checked) => checked,
         Err(error) => {
             draft.error = Some(error);
-            return Ok(page(draft));
+            let site = site_languages(&state).await?;
+            return Ok(page(draft, site));
         }
     };
     let mut tx = state.db.begin().await?;
@@ -176,8 +183,13 @@ fn carried_style(fields: &HashMap<String, String>) -> Option<Style> {
 
 /// Reads an event file, uploaded or pasted, into the form for a new event, for the host
 /// to check and create. Nothing is made yet.
-pub(in crate::admin) async fn import(mut multipart: Multipart) -> Result<Response, PageError> {
+pub(in crate::admin) async fn import(
+    State(state): State<AdminState>,
+    mut multipart: Multipart,
+) -> Result<Response, PageError> {
     let text = lang::text();
+    let site = site_languages(&state).await?;
+    let file_error = |file: String, error: String| file_error(file, error, site);
     let (mut pasted, mut uploaded) = (String::new(), None);
     loop {
         let field = match multipart.next_field().await {
@@ -228,15 +240,15 @@ pub(in crate::admin) async fn import(mut multipart: Multipart) -> Result<Respons
         qr: style,
         ..Draft::new(form, groups)
     };
-    Ok(page(draft))
+    Ok(page(draft, site))
 }
 
 /// The page with the file kept to fix, and what's wrong with it.
-fn file_error(file: String, error: String) -> Response {
+fn file_error(file: String, error: String, site: LangSet) -> Response {
     let draft = Draft {
         file,
         file_error: Some(error),
         ..Draft::blank()
     };
-    page(draft)
+    page(draft, site)
 }

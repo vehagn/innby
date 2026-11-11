@@ -1,10 +1,13 @@
 //! The public site: the front page, guests' personal and group link pages, e-mail, the
-//! event as a calendar file, the privacy notice. `router` lists every route; the shared plumbing is in `crate::http`.
+//! event as a calendar file, the privacy notice. `router` lists every route; the shared
+//! plumbing is in `crate::http`. Every page is in one of the languages the site offers
+//! (`languages`), an event's in one of the event's.
 
 mod calendar;
 mod email;
 mod games;
 mod join;
+mod languages;
 mod pages;
 mod remember;
 mod rsvp;
@@ -47,6 +50,8 @@ struct AppState {
     mail_limiter_all: Arc<RateLimiter>,
     /// Scores from the minigames, per client: a game sends one a round.
     score_limiter: Arc<RateLimiter>,
+    /// The languages the site offers guests, as its admin picked them.
+    languages: Arc<languages::SiteLanguages>,
 }
 
 impl AppState {
@@ -101,6 +106,7 @@ pub(crate) fn routers(config: Config, db: PgPool) -> (Router, Option<Router>) {
     let https = config.is_https();
     let state = AppState {
         config: Arc::new(config),
+        languages: Arc::new(languages::SiteLanguages::new(db.clone())),
         db,
         // Generous enough for a household sharing one address.
         join_limiter: Arc::new(RateLimiter::new(10, HOUR)),
@@ -140,13 +146,19 @@ pub(crate) fn routers(config: Config, db: PgPool) -> (Router, Option<Router>) {
         .route(paths::LOST, get(email::lost_page).post(email::lost));
     let router = Router::new()
         .route(paths::PRIVACY, get(pages::privacy))
+        .merge(http::no_store(links))
+        .merge(http::no_store(api.unwrap_or_default()))
+        .fallback(pages::not_found)
+        // The pages above are in one of the languages the site offers. What follows
+        // has no language, and the probes must answer without the database.
+        .layer(middleware::from_fn_with_state(
+            Arc::clone(&state.languages),
+            languages::scope,
+        ))
         .route(paths::STYLESHEET, get(http::stylesheet))
         .route(paths::ROBOTS, get(pages::robots))
         .route(paths::HEALTH, get(|| async { "ok" }))
         .route(paths::READY, get(http::ready))
-        .merge(http::no_store(links))
-        .merge(http::no_store(api.unwrap_or_default()))
-        .fallback(pages::not_found)
         .layer(middleware::from_fn(crate::theme::scope))
         .with_state(state);
     (http::harden(router, https), internal)

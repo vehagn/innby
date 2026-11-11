@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        select r.id, r.event_id, r.name, r.response as \"response: Response\", r.party_size,\n            r.max_party_size, r.link_nonce, r.lang as \"lang: Lang\", r.email,\n            r.email_status as \"email_status: EmailStatus\", r.email_consent_at,\n            r.privacy_version, r.responded_at, r.created_at, r.group_id,\n            r.name_display as \"name_display: NameDisplay\",\n            e.lang as \"event_lang: Lang\",\n            e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,\n            e.question as \"question: Json<Texts>\", e.choices as \"choices: Json<Texts>\",\n            r.choice,\n            array(select g.game from event_game g where g.event_id = e.id order by g.game)\n                as \"games!\"\n        from rsvp r join event e on e.id = r.event_id\n        where r.id = any($1)\n        ",
+  "query": "\n        select r.id, r.event_id, r.name, r.response as \"response: Response\", r.party_size,\n            r.max_party_size, r.link_nonce, r.lang as \"lang: Lang\", r.email,\n            r.email_status as \"email_status: EmailStatus\", r.email_consent_at,\n            r.privacy_version, r.responded_at, r.created_at, r.group_id,\n            r.name_display as \"name_display: NameDisplay\",\n            e.lang as \"event_lang: Lang\",\n            e.title as \"title: Json<Texts>\", e.description as \"description: Json<Texts>\",\n            e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,\n            e.question as \"question: Json<Texts>\", e.choices as \"choices: Json<Texts>\",\n            e.langs, r.choice,\n            array(select g.game from event_game g where g.event_id = e.id order by g.game)\n                as \"games!\"\n        from rsvp r join event e on e.id = r.event_id\n        where r.id = any($1)\n        ",
   "describe": {
     "columns": [
       {
@@ -335,6 +335,17 @@
       },
       {
         "ordinal": 27,
+        "name": "langs",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "event",
+            "name": "langs"
+          }
+        }
+      },
+      {
+        "ordinal": 28,
         "name": "choice",
         "type_info": "Int2",
         "origin": {
@@ -345,7 +356,7 @@
         }
       },
       {
-        "ordinal": 28,
+        "ordinal": 29,
         "name": "games!",
         "type_info": "TextArray",
         "origin": "Expression"
@@ -384,9 +395,10 @@
       true,
       false,
       false,
+      false,
       true,
       null
     ]
   },
-  "hash": "bb100713f98c370321b8f545bad793dd48e7af41e3cd7ac69e78f20d06752b9e"
+  "hash": "b151bd266824b58b05d70552175f969bb05731974caf08e44d0767015d46e0db"
 }
