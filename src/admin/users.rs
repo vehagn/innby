@@ -30,7 +30,7 @@ use crate::{
 const PASSWORD_LEN: std::ops::RangeInclusive<usize> = 10..=200;
 
 /// The roles a user can have, as the forms name them: `none` for none of their own.
-const ROLES: [&str; 4] = ["admin", "editor", "viewer", "none"];
+const ROLES: [&str; 5] = ["admin", "creator", "editor", "viewer", "none"];
 
 /// A user as the pages show them.
 pub(super) struct UserRow {
@@ -72,6 +72,7 @@ pub fn role_name(role: &str) -> &'static str {
     let text = lang::text();
     match role {
         "admin" => &text.role_admin,
+        "creator" => &text.role_creator,
         "editor" => &text.role_editor,
         "viewer" => &text.role_viewer,
         _ => &text.role_none,

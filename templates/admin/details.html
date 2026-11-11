@@ -21,7 +21,7 @@
   <h2>{{ a.event_file }}</h2>
   <p class="hint">{{ a.export_hint }}</p>
   <p><a class="button secondary" href="{{ links.export }}" download>{{ a.export_event }}</a>
-  {% if crate::admin::role::Role::is_admin() %} <a class="button secondary" href="{{ links.copy }}">{{ a.copy_event }}</a>{% endif %}</p>
+  {% if crate::admin::role::Role::can_create() %} <a class="button secondary" href="{{ links.copy }}">{{ a.copy_event }}</a>{% endif %}</p>
 </section>
 
 {% if crate::admin::role::Role::is_admin() %}

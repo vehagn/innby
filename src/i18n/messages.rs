@@ -392,6 +392,7 @@ pub struct AdminMessages {
     pub new_user: String,
     pub create_user: String,
     pub role_admin: String,
+    pub role_creator: String,
     pub role_none: String,
     pub users_roles_hint: String,
     pub password_hint: String,

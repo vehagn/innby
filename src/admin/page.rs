@@ -101,7 +101,7 @@ pub fn tabs(event: Option<&Uuid>, current: Tab) -> Vec<TabLink> {
                 Tab::NewEvent,
                 paths::admin(paths::EVENTS_NEW),
                 &text.new_event,
-                Role::is_admin(),
+                Role::can_create(),
             ),
             (
                 Tab::Users,

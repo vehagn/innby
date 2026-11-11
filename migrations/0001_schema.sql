@@ -238,7 +238,7 @@ create table admin_user (
         check (name ~ '^[A-Za-z0-9._@-]{1,100}$' and name ~ '[A-Za-z0-9]'),
     -- Their role for every event; null for none, so they see only the events that give
     -- them one.
-    role          text check (role in ('admin', 'editor', 'viewer')),
+    role          text check (role in ('admin', 'creator', 'editor', 'viewer')),
     -- argon2, as `innby hash-password` makes it.
     password_hash text not null check (password_hash like '$argon2%'),
     -- Bumped by a new password. Sessions carry it, so a new password logs the user out

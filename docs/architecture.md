@@ -302,9 +302,10 @@ word until the token expires.
 **Roles:** a *viewer* sees events, headcounts and who's coming, but not links, e-mail
 status or the guest export, since those let you act as a guest. An *editor* also runs
 events: invitations, group links, guests, reminders, the guest export, the details, the
-QR codes' style and the event file. An *admin* also creates (by hand, by copying or from
-a file) and deletes events, and gives roles for one event. Pages check the role, and only
-show what it allows.
+QR codes' style and the event file. A *creator* also makes new events, by hand, by
+copying one or from a file. An *admin* also deletes events, gives roles for one event,
+makes password users and picks the site's languages. Pages check the role, and only show
+what it allows.
 
 A host's own role, from the config (`none` there for no role) or the provider, is for
 every event. On an event's Access tab, an admin can give anyone a role for that event

@@ -9,7 +9,7 @@ use sqlx::{PgExecutor, PgPool};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdminUser {
     pub name: String,
-    /// `admin`, `editor` or `viewer`, or none of their own.
+    /// `admin`, `creator`, `editor` or `viewer`, or none of their own.
     pub role: Option<String>,
     pub password_hash: String,
     pub version: i32,

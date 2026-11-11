@@ -7,7 +7,9 @@
 //! - **editor** runs events that exist: invites guests, makes group links, sends
 //!   reminders, downloads the guest list, and changes an event's details and the style
 //!   of its QR codes.
-//! - **admin** also creates and deletes events, and gives hosts roles for one event.
+//! - **creator** also makes new events: typed, copied from another, or read from a file.
+//! - **admin** also deletes events, gives hosts roles for one event, makes password
+//!   users, and picks the languages the site offers.
 //!
 //! A host's own role is for every event. An admin can give anyone a role for one event,
 //! viewer or editor, by the name they log in with (`db::access`): on that event's pages,
@@ -40,6 +42,7 @@ use crate::{
 pub enum Role {
     Viewer,
     Editor,
+    Creator,
     Admin,
 }
 
@@ -87,13 +90,14 @@ impl Host {
 }
 
 impl Role {
-    pub const ALL: [Role; 3] = [Role::Viewer, Role::Editor, Role::Admin];
+    pub const ALL: [Role; 4] = [Role::Viewer, Role::Editor, Role::Creator, Role::Admin];
 
     /// The name an identity provider lists, as in `innby: [editor]`, and the config.
     pub fn name(self) -> &'static str {
         match self {
             Role::Viewer => "viewer",
             Role::Editor => "editor",
+            Role::Creator => "creator",
             Role::Admin => "admin",
         }
     }
@@ -112,7 +116,13 @@ impl Role {
         Role::current() >= Some(Role::Editor)
     }
 
-    /// Whether the request may create and delete events, and give roles for one.
+    /// Whether the request may make new events.
+    pub fn can_create() -> bool {
+        Role::current() >= Some(Role::Creator)
+    }
+
+    /// Whether the request may delete events, give roles for one, make users and pick
+    /// the site's languages.
     pub fn is_admin() -> bool {
         Role::current() >= Some(Role::Admin)
     }
@@ -176,6 +186,11 @@ pub async fn editor(request: Request, next: Next) -> Response {
     require(Role::Editor, request, next).await
 }
 
+/// Middleware for routes that need a creator.
+pub async fn creator(request: Request, next: Next) -> Response {
+    require(Role::Creator, request, next).await
+}
+
 /// Middleware for routes that need an admin.
 pub async fn admin(request: Request, next: Next) -> Response {
     require(Role::Admin, request, next).await
@@ -214,12 +229,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_creator_makes_events_but_is_no_admin() {
+        assert!(Role::Editor < Role::Creator && Role::Creator < Role::Admin);
+        assert_eq!(Role::from_name("creator"), Some(Role::Creator));
+        assert_eq!(
+            Role::from_claim(&json!(["editor", "creator"])),
+            Some(Role::Creator)
+        );
+        Host::new("ola", Some(Role::Creator))
+            .scope(async {
+                assert!(Role::can_edit() && Role::can_create());
+                assert!(!Role::is_admin());
+            })
+            .await;
+    }
+
+    #[tokio::test]
     async fn the_role_lasts_for_the_request() {
         assert_eq!(Role::current(), None);
         Host::new("ola", Some(Role::Editor))
             .scope(async {
                 assert!(Role::can_edit());
-                assert!(!Role::is_admin());
+                assert!(!Role::can_create() && !Role::is_admin());
                 assert_eq!(&*Host::current().user, "ola");
             })
             .await;

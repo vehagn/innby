@@ -48,11 +48,13 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
         (Method::POST, on(paths::GROUP, g), Role::Editor),
         (Method::GET, on(paths::GROUP_QR, g), Role::Editor),
         (Method::POST, on(paths::GROUP_DELETE, g), Role::Editor),
-        (Method::GET, paths::EVENTS_NEW.to_owned(), Role::Admin),
-        (Method::POST, paths::EVENTS_NEW.to_owned(), Role::Admin),
+        (Method::GET, paths::EVENTS_NEW.to_owned(), Role::Creator),
+        (Method::POST, paths::EVENTS_NEW.to_owned(), Role::Creator),
         (Method::POST, on(paths::EVENT_DELETE, e), Role::Admin),
         (Method::GET, on(paths::EVENT_EXPORT, e), Role::Editor),
-        (Method::POST, paths::EVENTS_IMPORT.to_owned(), Role::Admin),
+        (Method::POST, paths::EVENTS_IMPORT.to_owned(), Role::Creator),
+        (Method::GET, paths::USERS.to_owned(), Role::Admin),
+        (Method::GET, paths::LANGUAGES.to_owned(), Role::Admin),
         (Method::GET, on(paths::EVENT_QR, e), Role::Editor),
         (Method::POST, on(paths::EVENT_QR, e), Role::Editor),
         (Method::GET, on(paths::EVENT_GAMES, e), Role::Editor),
@@ -104,12 +106,24 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
     let editor = Admin::as_role(db.clone(), Role::Editor);
     let html = body(editor.get(&on(paths::EVENT, e)).await).await;
     assert!(html.contains(&on(paths::GUEST, i)) && html.contains("guests.csv"));
+    let copy = format!(r#"href="/events/new?copy={e}#new-event""#);
     assert!(html.contains("<th>E-mail</th>"));
     assert!(html.contains(&on(paths::EVENT_QR, e)));
     let html = body(editor.get(&on(paths::EVENT_DETAILS, e)).await).await;
     assert!(!html.contains("/delete") && !html.contains("/access\""));
+    assert!(!html.contains(&copy), "{html}");
     let html = body(editor.get(paths::HOME).await).await;
     assert!(!html.contains(r#"href="/events/new""#));
+
+    // A creator makes events, and copies them, but neither deletes them nor sees the
+    // admin's tabs.
+    let creator = Admin::as_role(db.clone(), Role::Creator);
+    let html = body(creator.get(&on(paths::EVENT_DETAILS, e)).await).await;
+    assert!(html.contains(&copy), "{html}");
+    assert!(!html.contains("/delete") && !html.contains("/access\""));
+    let html = body(creator.get(paths::HOME).await).await;
+    assert!(html.contains(r#"href="/events/new""#), "{html}");
+    assert!(!html.contains(r#"href="/users""#) && !html.contains(r#"href="/languages""#));
 
     let admin = Admin::new(db);
     let html = body(admin.get(&on(paths::EVENT_DETAILS, e)).await).await;

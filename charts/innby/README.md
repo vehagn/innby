@@ -56,7 +56,7 @@ secret`), with these keys, and name it in `secrets.existingSecret`:
 | `INNBY_LINK_KEY` | Signs the guests' links: `openssl rand -base64 32`. Changing it breaks every link. |
 | `INNBY_ADMIN_JWT_SECRET` | Signs the admin's logins: `openssl rand -base64 32` |
 | `INNBY_ADMIN_PASSWORD_HASH` | The built-in admin user's password, from `innby hash-password`. Leave it out to log in only through OIDC. |
-| `INNBY_ADMIN_USERS` | More users who log in with a password, each `name:role:hash`, apart by spaces or lines, as `ola:editor:$argon2id$…`. The role is `admin`, `editor`, `viewer`, or `none` for a user who sees only the events an admin gives them a role for. |
+| `INNBY_ADMIN_USERS` | More users who log in with a password, each `name:role:hash`, apart by spaces or lines, as `ola:editor:$argon2id$…`. The role is `admin`, `creator`, `editor`, `viewer`, or `none` for a user who sees only the events an admin gives them a role for. |
 | `INNBY_OIDC_CLIENT_SECRET` | With `oidc.issuer` |
 | `INNBY_SMTP_USER`, `INNBY_SMTP_PASSWORD` | If the SMTP server wants them |
 
