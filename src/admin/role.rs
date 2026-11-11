@@ -7,9 +7,10 @@
 //! - **editor** runs events that exist: invites guests, makes group links, sends
 //!   reminders, downloads the guest list, and changes an event's details and the style
 //!   of its QR codes.
-//! - **creator** also makes new events: typed, copied from another, or read from a file.
-//! - **admin** also deletes events, gives hosts roles for one event, makes password
-//!   users, and picks the languages the site offers.
+//! - **creator** also makes new events, typed, copied from another, or read from a file,
+//!   and deletes the ones they made and gives roles for them.
+//! - **admin** also deletes any event and gives roles for any, makes password users, and
+//!   picks the languages the site offers.
 //!
 //! A host's own role is for every event. An admin can give anyone a role for one event,
 //! viewer or editor, by the name they log in with (`db::access`): on that event's pages,
@@ -63,6 +64,9 @@ pub struct Host {
     /// Their role for every event, or on an event's pages, the higher of that and the
     /// event's for them.
     pub role: Option<Role>,
+    /// On an event's pages, whether they made it, which lets a creator delete it and
+    /// give roles for it.
+    pub made_it: bool,
 }
 
 tokio::task_local! {
@@ -74,6 +78,7 @@ impl Host {
         Self {
             user: Arc::from(user),
             role,
+            made_it: false,
         }
     }
 
@@ -121,7 +126,14 @@ impl Role {
         Role::current() >= Some(Role::Creator)
     }
 
-    /// Whether the request may delete events, give roles for one, make users and pick
+    /// Whether the request may delete the event it's about and give roles for it: an
+    /// admin may for any event, a creator for those they made.
+    pub fn can_manage_event() -> bool {
+        let host = Host::current();
+        host.role >= Some(Role::Admin) || (host.role >= Some(Role::Creator) && host.made_it)
+    }
+
+    /// Whether the request may delete any event, give roles for any, make users and pick
     /// the site's languages.
     pub fn is_admin() -> bool {
         Role::current() >= Some(Role::Admin)
@@ -160,17 +172,36 @@ pub async fn for_event(
             .find(|(key, _)| *key == name)
             .and_then(|(_, value)| value.parse::<Uuid>().ok())
     };
-    let scope = (id("event").map(Scope::Event))
+    let event = id("event");
+    let scope = (event.map(Scope::Event))
         .or_else(|| id("guest").map(Scope::Guest))
         .or_else(|| id("group").map(Scope::Group));
-    // No event gives more than an editor's role.
-    let Some(scope) = scope.filter(|_| host.role < Some(Role::Editor)) else {
+    let Some(scope) = scope else {
         return next.run(request).await;
     };
-    match access::role(&db, scope, &host.user).await {
-        Ok(given) => {
+    // No event gives more than an editor's role, and only a creator's own events give
+    // them more than they have.
+    let given = async {
+        let given = match host.role < Some(Role::Editor) {
+            true => access::role(&db, scope, &host.user).await?,
+            false => None,
+        };
+        let made_it = match (event, host.role) {
+            (Some(event), Some(Role::Creator)) => access::made(&db, event, &host.user).await?,
+            _ => false,
+        };
+        Ok::<_, sqlx::Error>((given, made_it))
+    };
+    match given.await {
+        Ok((given, made_it)) => {
             let role = host.role.max(given.map(Role::from));
-            Host { role, ..host }.scope(next.run(request)).await
+            Host {
+                role,
+                made_it,
+                ..host
+            }
+            .scope(next.run(request))
+            .await
         }
         Err(err) => server_error(err),
     }
@@ -189,6 +220,15 @@ pub async fn editor(request: Request, next: Next) -> Response {
 /// Middleware for routes that need a creator.
 pub async fn creator(request: Request, next: Next) -> Response {
     require(Role::Creator, request, next).await
+}
+
+/// Middleware for an event's routes that need an admin, or the creator who made it.
+pub async fn event_manager(request: Request, next: Next) -> Response {
+    if Role::can_manage_event() {
+        next.run(request).await
+    } else {
+        (StatusCode::FORBIDDEN, lang::text().forbidden.as_str()).into_response()
+    }
 }
 
 /// Middleware for routes that need an admin.

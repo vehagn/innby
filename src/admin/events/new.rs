@@ -26,6 +26,7 @@ use crate::{
         lang,
         page::{AdminState, PageError, load_event, redirect},
         qr as admin_qr,
+        role::Host,
     },
     db::{
         group,
@@ -161,7 +162,15 @@ pub(in crate::admin) async fn create(
         }
     };
     let mut tx = state.db.begin().await?;
-    let event = create_event(&mut tx, &details, &groups, style.as_ref()).await?;
+    let maker = Host::current();
+    let event = create_event(
+        &mut tx,
+        &details,
+        &groups,
+        style.as_ref(),
+        Some(&maker.user),
+    )
+    .await?;
     let page = format!("{}?created", paths::path(paths::EVENT, event.id));
     if let Some(first) = commit_once(&state.db, tx, token, &page, paths::HOME).await? {
         return Ok(first);

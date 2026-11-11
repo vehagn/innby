@@ -303,8 +303,10 @@ word until the token expires.
 status or the guest export, since those let you act as a guest. An *editor* also runs
 events: invitations, group links, guests, reminders, the guest export, the details, the
 QR codes' style and the event file. A *creator* also makes new events, by hand, by
-copying one or from a file. An *admin* also deletes events, gives roles for one event,
-makes password users and picks the site's languages. Pages check the role, and only show
+copying one or from a file, and deletes the events they made and gives roles for them.
+An *admin* does that for every event, makes password users and picks the site's
+languages. Each event keeps the name of the host who made it for this, which goes with
+the event. Pages check the role, and only show
 what it allows.
 
 A host's own role, from the config (`none` there for no role) or the provider, is for

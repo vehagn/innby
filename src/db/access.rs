@@ -1,7 +1,8 @@
 //! Who may see or run one event, by the name they log in with: a role for that event
 //! alone, which an admin gives on its Access tab. A host's own role, from the config or
 //! their identity provider, is for every event; this gives others one event, or more
-//! than their own role for it. It goes with the event.
+//! than their own role for it. It goes with the event. So does the name of the host who
+//! made it, which lets a creator delete the events they made and give roles for them.
 
 use serde::Deserialize;
 use sqlx::PgExecutor;
@@ -129,6 +130,30 @@ pub async fn role(
             .await
         }
     }
+}
+
+/// Notes that the user made the event, so that, as a creator, they may delete it and
+/// give roles for it.
+pub async fn set_maker(db: impl PgExecutor<'_>, event_id: Uuid, user: &str) -> sqlx::Result<()> {
+    sqlx::query!(
+        "update event set created_by = $2 where id = $1",
+        event_id,
+        user
+    )
+    .execute(db)
+    .await
+    .map(drop)
+}
+
+/// Whether the user made the event.
+pub async fn made(db: impl PgExecutor<'_>, event_id: Uuid, user: &str) -> sqlx::Result<bool> {
+    sqlx::query_scalar!(
+        r#"select exists (select from event where id = $1 and created_by = $2) as "made!""#,
+        event_id,
+        user
+    )
+    .fetch_one(db)
+    .await
 }
 
 /// Whether the user has a role for any event, so may log in without one of their own.

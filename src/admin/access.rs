@@ -1,6 +1,6 @@
 //! An event's Access tab: who may see or run this event alone, by the name they log in
-//! with. Only admins give and take this; anyone with a role of their own already has it
-//! for every event (see `role`).
+//! with. Admins give and take this for any event, and creators for the events they made;
+//! anyone with a role of their own already has it for every event (see `role`).
 
 use askama::Template;
 use axum::{

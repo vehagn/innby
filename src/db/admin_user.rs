@@ -92,13 +92,19 @@ pub async fn set_password(
     Ok(result.rows_affected() == 1)
 }
 
-/// Deletes the user, and the roles events gave them by name, which another login of the
-/// same name mustn't inherit.
+/// Deletes the user, the roles events gave them by name, and their name on the events
+/// they made, none of which another login of the same name may inherit.
 pub async fn delete(db: &PgPool, name: &str) -> sqlx::Result<bool> {
     let mut tx = db.begin().await?;
     sqlx::query!("delete from event_access where user_name = $1", name)
         .execute(&mut *tx)
         .await?;
+    sqlx::query!(
+        "update event set created_by = null where created_by = $1",
+        name
+    )
+    .execute(&mut *tx)
+    .await?;
     let result = sqlx::query!("delete from admin_user where name = $1", name)
         .execute(&mut *tx)
         .await?;

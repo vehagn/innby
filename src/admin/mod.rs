@@ -118,10 +118,13 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         )
         .route(paths::EVENTS_IMPORT, post(events::new::import))
         .route_layer(middleware::from_fn(role::creator));
-    let admin = Router::new()
+    // An event's own: an admin's, or the creator's who made it.
+    let manager = Router::new()
         .route(paths::EVENT_DELETE, post(events::details::delete))
         .route(paths::EVENT_ACCESS, get(access::list).post(access::create))
         .route(paths::EVENT_ACCESS_REMOVE, post(access::delete))
+        .route_layer(middleware::from_fn(role::event_manager));
+    let admin = Router::new()
         .route(paths::USERS, get(users::list).post(users::create))
         .route(paths::USER, get(users::show).post(users::edit))
         .route(paths::USER_DELETE, post(users::delete))
@@ -131,6 +134,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .merge(viewer)
         .merge(editor)
         .merge(creator)
+        .merge(manager)
         .merge(admin)
         // On an event's pages, before the checks above, the role it gives the host.
         .route_layer(middleware::from_fn_with_state(

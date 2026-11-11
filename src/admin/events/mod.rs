@@ -127,14 +127,19 @@ pub(super) fn group_lines(lines: &str) -> Result<Vec<(String, i32)>, String> {
 }
 
 /// Makes an event, its group links, and its QR codes' style if it has one other than
-/// the plain one, in the caller's transaction, so it's all or none.
+/// the plain one, in the caller's transaction, so it's all or none, noting who made it
+/// if a host did.
 pub(super) async fn create_event(
     tx: &mut PgConnection,
     details: &Details,
     groups: &[(String, i32)],
     style: Option<&Style>,
+    maker: Option<&str>,
 ) -> sqlx::Result<Event> {
     let event = event::create(&mut *tx, details).await?;
+    if let Some(maker) = maker {
+        crate::db::access::set_maker(&mut *tx, event.id, maker).await?;
+    }
     if let Some(style) = style {
         qr::save(&mut *tx, event.id, style).await?;
     }

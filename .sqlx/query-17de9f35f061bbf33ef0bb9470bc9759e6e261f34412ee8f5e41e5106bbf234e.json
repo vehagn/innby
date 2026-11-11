@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update event set created_by = $2 where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "17de9f35f061bbf33ef0bb9470bc9759e6e261f34412ee8f5e41e5106bbf234e"
+}

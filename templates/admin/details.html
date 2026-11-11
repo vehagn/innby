@@ -24,7 +24,7 @@
   {% if crate::admin::role::Role::can_create() %} <a class="button secondary" href="{{ links.copy }}">{{ a.copy_event }}</a>{% endif %}</p>
 </section>
 
-{% if crate::admin::role::Role::is_admin() %}
+{% if crate::admin::role::Role::can_manage_event() %}
 <details>
   <summary>{{ a.delete }}</summary>
   <p class="hint">{{ crate::i18n::filled(a.event_retention_hint, "days", keep_after_event_days) }}</p>

@@ -46,6 +46,10 @@ create table event (
     -- The language the host writes the event in: it has a title in it, and the other
     -- languages fall back to it.
     lang                text not null check (lang_ok(lang)),
+    -- The name the host who made it logs in with, so a creator may delete it and give
+    -- roles for it; null for one made from the command line, or by a user since deleted.
+    created_by          text check (length(created_by) between 1 and 254
+                                    and created_by !~ '[[:cntrl:]]'),
     -- The languages its pages are offered in, of those the site offers: empty for all
     -- of them. Its own language always is.
     langs               text[] not null default '{}' check (langs_ok(langs)),

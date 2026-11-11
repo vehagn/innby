@@ -732,3 +732,72 @@ async fn each_page_says_where_it_is(db: PgPool) {
     // The events themselves are the top: no trail.
     assert!(trail(&body(admin.get("/").await).await).is_empty());
 }
+
+#[sqlx::test]
+async fn a_creator_manages_the_events_they_made_and_no_others(db: PgPool) {
+    let kari = Admin::as_user(db.clone(), "kari", Some(Role::Creator));
+    let ola = Admin::as_user(db.clone(), "ola", Some(Role::Creator));
+    // An event made from the command line, by nobody; then Kari makes one.
+    let theirs = paths::path(paths::EVENT, crate::db::event::tests::event(&db).await.id);
+    let response = kari
+        .post(
+            paths::EVENTS_NEW,
+            "lang=en&title=Kari%27s+party&starts_at_date=2054-06-20&starts_at_time=19%3A00\
+             &time_zone=Europe%2FOslo",
+        )
+        .await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    let hers = location(&response).split('?').next().unwrap().to_owned();
+    for (host, event, may) in [
+        (&kari, &hers, true),
+        (&kari, &theirs, false),
+        (&ola, &hers, false),
+    ] {
+        let access = host.get(&format!("{event}/access")).await;
+        assert_eq!(access.status() == StatusCode::OK, may, "{event}");
+        let details = body(host.get(&format!("{event}/details")).await).await;
+        assert_eq!(details.contains("/delete"), may, "{event}");
+        assert_eq!(
+            details.contains(&format!(r#"href="{event}/access""#)),
+            may,
+            "{event}"
+        );
+        // An empty form: refused for want of a tick, by one who may; forbidden otherwise.
+        let delete = host.post(&format!("{event}/delete"), "").await;
+        assert_eq!(delete.status() != StatusCode::FORBIDDEN, may, "{event}");
+    }
+
+    // Kari gives a helper the event, and deletes it.
+    let given = kari
+        .post(&format!("{hers}/access"), "user=helper&role=viewer")
+        .await;
+    assert_eq!(given.status(), StatusCode::SEE_OTHER);
+    assert!(crate::db::access::has_any(&db, "helper").await.unwrap());
+    let deleted = kari.post(&format!("{hers}/delete"), "confirm=yes").await;
+    assert_eq!(deleted.status(), StatusCode::SEE_OTHER);
+    assert_eq!(kari.get(&hers).await.status(), StatusCode::NOT_FOUND);
+}
+
+#[sqlx::test]
+async fn a_deleted_user_leaves_no_claim_on_the_events_they_made(db: PgPool) {
+    let event = crate::db::event::tests::event(&db).await;
+    crate::db::access::set_maker(&db, event.id, "kari")
+        .await
+        .unwrap();
+    assert!(
+        crate::db::access::made(&db, event.id, "kari")
+            .await
+            .unwrap()
+    );
+    let hash = crate::admin::auth::tests::cheap_hash("a-long-password");
+    crate::db::admin_user::create(&db, "kari", Some("creator"), &hash)
+        .await
+        .unwrap();
+    crate::db::admin_user::delete(&db, "kari").await.unwrap();
+    // A new login by that name mustn't inherit it.
+    assert!(
+        !crate::db::access::made(&db, event.id, "kari")
+            .await
+            .unwrap()
+    );
+}
