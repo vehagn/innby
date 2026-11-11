@@ -1,7 +1,7 @@
-//! The site's icon, an open door with confetti, for browser tabs, bookmarks and home
-//! screens. `static/favicon.svg` is the drawing; `just icons` draws the other two from
-//! it. Browsers ask for `/favicon.ico` and iPhones for `/apple-touch-icon.png` whether a
-//! page links them or not, so both sites answer at those paths too.
+//! The site's icon, an open door with light behind it, for browser tabs, bookmarks
+//! and home screens. `static/favicon.svg` is the drawing; `just icons` draws the other
+//! two from it. Browsers ask for `/favicon.ico` and iPhones for `/apple-touch-icon.png`
+//! whether a page links them or not, so both sites answer at those paths too.
 
 use axum::{
     http::header,
