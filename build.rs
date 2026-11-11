@@ -1,12 +1,17 @@
 //! Finds the languages: every file in `locales/`, and the privacy notices in
 //! `templates/privacy/`, compiled into the binary by code. A language is added by adding
 //! its file, with no list in the code to change; `src/i18n` reads them.
+//!
+//! Also stamps the build with where it came from, for `src/version.rs`: the commit, its
+//! date, and the release tag if it's exactly one. The commit's date rather than the
+//! build's keeps a build reproducible.
 
-use std::{env, fmt::Write, fs, path::Path};
+use std::{env, fmt::Write, fs, path::Path, process::Command};
 
 fn main() {
     let root = env::var("CARGO_MANIFEST_DIR").expect("cargo sets it");
     let root = Path::new(&root);
+    stamp(root);
     let locales = files(&root.join("locales"), "toml");
     let notices = files(&root.join("templates/privacy"), "html");
 
@@ -64,4 +69,53 @@ fn files(dir: &Path, extension: &str) -> Vec<(String, String)> {
         dir.display()
     );
     found
+}
+
+/// What git says, trimmed, or nothing where there's no git or no repository, as when
+/// building from a source archive.
+fn git(root: &Path, args: &[&str]) -> Option<String> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(root)
+        .output()
+        .ok()?;
+    let text = String::from_utf8(output.stdout).ok()?.trim().to_owned();
+    (output.status.success() && !text.is_empty()).then_some(text)
+}
+
+/// Sets `INNBY_COMMIT`, `INNBY_COMMIT_DATE` and `INNBY_TAG` for the build, as far as
+/// they're known, and rebuilds when a commit or a tag changes them.
+fn stamp(root: &Path) {
+    let commit = git(root, &["rev-parse", "HEAD"]);
+    let date = git(root, &["log", "-1", "--format=%cs"]);
+    // A tag pushed to CI may not be fetched with the commit, but CI names it.
+    let tag = git(
+        root,
+        &["describe", "--tags", "--exact-match", "--match", "v*"],
+    )
+    .or_else(|| {
+        let tagged = env::var("GITHUB_REF_TYPE").is_ok_and(|kind| kind == "tag");
+        tagged.then(|| env::var("GITHUB_REF_NAME").ok()).flatten()
+    });
+    for (name, value) in [
+        ("INNBY_COMMIT", commit),
+        ("INNBY_COMMIT_DATE", date),
+        ("INNBY_TAG", tag),
+    ] {
+        if let Some(value) = value {
+            println!("cargo::rustc-env={name}={value}");
+        }
+    }
+    // A new commit moves the branch HEAD points to, and a new tag adds a ref.
+    if let Some(dir) = git(root, &["rev-parse", "--absolute-git-dir"]) {
+        let dir = Path::new(&dir);
+        println!("cargo::rerun-if-changed={}", dir.join("HEAD").display());
+        if let Some(branch) = git(root, &["symbolic-ref", "-q", "HEAD"]) {
+            println!("cargo::rerun-if-changed={}", dir.join(branch).display());
+        }
+        for refs in ["refs/tags", "packed-refs"] {
+            println!("cargo::rerun-if-changed={}", dir.join(refs).display());
+        }
+    }
+    println!("cargo::rerun-if-env-changed=GITHUB_REF_NAME");
 }

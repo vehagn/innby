@@ -27,6 +27,7 @@ mod random;
 #[cfg(test)]
 mod testing;
 mod theme;
+mod version;
 mod web;
 
 use std::io::Read;
@@ -39,7 +40,7 @@ use crate::config::{AdminConfig, Config, MailConfig};
 
 /// RSVP service for a host's events.
 #[derive(Parser)]
-#[command(version, about)]
+#[command(version = version::long(), about)]
 struct Cli {
     #[command(subcommand)]
     command: Command,

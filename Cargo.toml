@@ -4,6 +4,8 @@ version = "0.7.0"
 edition = "2024"
 rust-version = "1.99"
 publish = false
+# Where `innby` links a build's commit, in the pages' footers.
+repository = "https://github.com/vehagn/innby"
 
 [dependencies]
 anyhow = "1.0.104"

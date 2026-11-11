@@ -200,6 +200,14 @@ footer a {
   color: var(--text-muted);
 }
 
+/* Which build of Innby this is: there for whoever looks, out of everyone else's way. */
+.build {
+  margin: var(--space-3) 0 0;
+  font: var(--text-xs) var(--font-mono);
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
 /* 4. Components */
 
 /* Button: a <button>, or a link that looks like one (.button). Variants set the

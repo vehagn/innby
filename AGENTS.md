@@ -96,6 +96,7 @@ src/
   link.rs            HMAC-signed links: possession is the authorisation
   paths.rs           every route pattern, and links built from them
   theme.rs           the colour scheme from ?theme=
+  version.rs         which build this is: release, commit and date, as build.rs stamps them
   random.rs          tokens from the OS
   testing.rs         HTTP helpers for tests (body, location, escape, form posts, Set-Cookie)
   e2e/               end-to-end journeys through both sites and the mailer, by a test Browser
