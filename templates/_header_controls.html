@@ -1,14 +1,14 @@
-{#- The link to Innby's source, the colour scheme switch and the language menu, in both
+{#- The colour scheme switch, the link to Innby's source and the language menu, in both
     sites' headers. The base template sets `lang`, `t`, `theme`, and `theme_choices` with
     each scheme's link. -#}
-{% if let Some(url) = crate::version::repository() %}
-<a class="pill" href="{{ url }}" title="{{ t.source_code }}">{{ crate::icons::GITHUB|safe }}<span class="visually-hidden">{{ t.source_code }}</span></a>
-{% endif %}
 <nav class="theme-switch" aria-label="{{ t.theme }}">
   {% for choice in theme_choices %}
   <a href="{{ choice.href }}" title="{{ choice.theme.label(t) }}"{% if choice.current %} aria-current="true"{% endif %}>{{ choice.theme.icon()|safe }}<span class="visually-hidden">{{ choice.theme.label(t) }}</span></a>
   {% endfor %}
 </nav>
+{% if let Some(url) = crate::version::repository() %}
+<a class="pill" href="{{ url }}" title="{{ t.source_code }}">{{ crate::icons::GITHUB|safe }}<span class="visually-hidden">{{ t.source_code }}</span></a>
+{% endif %}
 <nav class="lang-menu" aria-label="{{ t.languages }}">
   <details>
     <summary title="{{ t.languages }}">
