@@ -277,6 +277,12 @@ impl EventForm {
         &self.time_zone
     }
 
+    /// The times the time fields suggest, every half hour on the 24-hour clock, for a
+    /// host who'd rather pick one than type it.
+    pub fn times(&self) -> impl Iterator<Item = String> {
+        (0..24).flat_map(|hour| ["00", "30"].map(|minute| format!("{hour:02}:{minute}")))
+    }
+
     pub fn rsvp_deadline(&self) -> (&str, &str) {
         date_and_time(&self.rsvp_deadline)
     }
@@ -448,7 +454,8 @@ fn date_and_time(when: &str) -> (&str, &str) {
 /// takes `19.00`, `1900` and `19` for it too; a time with am or pm, `7 pm` or
 /// `7:30 p.m.`, is read as that, for those who'd rather write it so. A browser's own
 /// time field isn't used: it asks for am or pm wherever the device's settings do,
-/// whatever the page says.
+/// whatever the page says. The field suggests times to pick instead (`times`), which
+/// leaves typing first.
 fn time_of_day(typed: &str) -> Option<NaiveTime> {
     let typed: String = typed
         .chars()
@@ -537,6 +544,17 @@ mod tests {
             "", "late", "24:00", "19:60", "13 pm", "0 am", "7:5", "pm", "-7",
         ] {
             assert_eq!(time(typed), None, "{typed}");
+        }
+    }
+
+    #[test]
+    fn suggests_every_half_hour_as_the_form_reads_it() {
+        let times: Vec<String> = EventForm::blank().times().collect();
+        assert_eq!(times.len(), 48);
+        assert_eq!((times[0].as_str(), times[39].as_str()), ("00:00", "19:30"));
+        for time in &times {
+            let read = time_of_day(time).expect(time);
+            assert_eq!(&read.format("%H:%M").to_string(), time);
         }
     }
 
