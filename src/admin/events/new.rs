@@ -133,7 +133,7 @@ fn page(mut draft: Draft, site: LangSet) -> Response {
 }
 
 /// Creates an event, with any group links, and opens its guests, where invitations
-/// start; or shows the form again with its time fields switched.
+/// start.
 pub(in crate::admin) async fn create(
     State(state): State<AdminState>,
     Form(fields): Form<HashMap<String, String>>,
@@ -149,10 +149,6 @@ pub(in crate::admin) async fn create(
             fields.get("groups").cloned().unwrap_or_default(),
         )
     };
-    if EventForm::switching(&fields) {
-        let site = site_languages(&state).await?;
-        return Ok(page(draft, site));
-    }
     let checked = draft.form.details(Utc::now()).and_then(|details| {
         let style = draft.qr.clone().map(admin_qr::check).transpose()?;
         Ok((details, group_lines(&draft.groups)?, style))

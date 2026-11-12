@@ -1,7 +1,4 @@
 {% let a = crate::admin::lang::text() %}
-{#- Enter in a field sends the form by its first button, which would otherwise be the
-    time fields' switch below: this one saves, as the form's own button does. -#}
-<button class="visually-hidden" tabindex="-1" aria-hidden="true"></button>
 <label for="lang">{{ a.event_language }}</label>
 <select id="lang" name="lang">
   {% for language in form.languages() %}
@@ -18,16 +15,12 @@
 <label for="starts_at">{{ a.event_starts }}</label>
 <div class="date-time">
   <input id="starts_at" name="starts_at_date" type="date" required value="{{ form.starts_at().0 }}">
-  <input name="starts_at_time" type="{{ form.time_type() }}" required maxlength="10" placeholder="19:00" autocomplete="off" value="{{ form.starts_at().1 }}" aria-label="{{ crate::i18n::filled(a.time_of, "field", a.event_starts) }}">
+  <input name="starts_at_time" type="time" required value="{{ form.starts_at().1 }}" aria-label="{{ crate::i18n::filled(a.time_of, "field", a.event_starts) }}">
 </div>
-<p class="hint">
-  {% if form.picker() %}<input type="hidden" name="clock" value="picker">{% else %}{{ a.time_hint }}{% endif %}
-  <button class="link" name="switch_clock" value="{% if form.picker() %}text{% else %}picker{% endif %}" formnovalidate>{% if form.picker() %}{{ a.time_typed }}{% else %}{{ a.time_picker }}{% endif %}</button>
-</p>
 <label for="ends_at">{{ a.event_ends }}</label>
 <div class="date-time">
   <input id="ends_at" name="ends_at_date" type="date" value="{{ form.ends_at().0 }}">
-  <input name="ends_at_time" type="{{ form.time_type() }}" maxlength="10" placeholder="19:00" autocomplete="off" value="{{ form.ends_at().1 }}" aria-label="{{ crate::i18n::filled(a.time_of, "field", a.event_ends) }}">
+  <input name="ends_at_time" type="time" value="{{ form.ends_at().1 }}" aria-label="{{ crate::i18n::filled(a.time_of, "field", a.event_ends) }}">
 </div>
 <p class="hint">{{ a.event_ends_hint }}</p>
 <label for="time_zone">{{ a.event_time_zone }}</label>
@@ -35,7 +28,7 @@
 <label for="rsvp_deadline">{{ a.event_deadline }}</label>
 <div class="date-time">
   <input id="rsvp_deadline" name="rsvp_deadline_date" type="date" value="{{ form.rsvp_deadline().0 }}">
-  <input name="rsvp_deadline_time" type="{{ form.time_type() }}" maxlength="10" placeholder="19:00" autocomplete="off" value="{{ form.rsvp_deadline().1 }}" aria-label="{{ crate::i18n::filled(a.time_of, "field", a.event_deadline) }}">
+  <input name="rsvp_deadline_time" type="time" value="{{ form.rsvp_deadline().1 }}" aria-label="{{ crate::i18n::filled(a.time_of, "field", a.event_deadline) }}">
 </div>
 <p class="hint">{{ a.event_deadline_hint }}</p>
 <details{% if !form.question().is_empty() %} open{% endif %}>

@@ -355,20 +355,14 @@ input[type="number"] {
   width: 6rem;
 }
 
-/* A date and its time of day, side by side: the time is typed, as 19:00, since a
-   browser's own time field asks for am or pm wherever the device does; or picked with
-   that field, for a host who switches to it. */
+/* A date and its time of day, side by side, each in the browser's own field. The time's
+   has room for its clock button, and for am or pm where the device shows them. */
 .date-time {
   display: flex;
   gap: var(--space-2);
   max-width: var(--field);
 }
 
-.date-time input[type="text"] {
-  flex: 0 0 6rem;
-}
-
-/* The browser's own time field has its clock button, and an am or pm, to fit too. */
 .date-time input[type="time"] {
   flex: 0 0 9rem;
 }
