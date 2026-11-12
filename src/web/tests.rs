@@ -69,6 +69,8 @@ async fn index_is_about_innby_in_the_base_language() {
     // No event on the front page: that's on the invitation's.
     assert!(!html.contains("Julebord") && !html.contains("Christmas"));
     assert!(html.contains(r#"href="?lang=nb""#));
+    // And where its source is, in the footer.
+    assert!(html.contains(r#"<a href="https://github.com/vehagn/innby">Innby</a>"#));
 }
 
 #[tokio::test]

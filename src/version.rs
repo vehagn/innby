@@ -26,14 +26,16 @@ pub fn short_commit() -> Option<&'static str> {
     COMMIT.map(|commit| &commit[..commit.len().min(7)])
 }
 
+/// Where Innby's source is, from Cargo.toml, so whoever uses a site can find what runs it.
+pub fn repository() -> Option<&'static str> {
+    option_env!("CARGO_PKG_REPOSITORY")
+        .map(|url| url.trim_end_matches('/'))
+        .filter(|url| !url.is_empty())
+}
+
 /// The commit's page in the repository, if both are known.
 pub fn commit_url() -> Option<String> {
-    let repository = option_env!("CARGO_PKG_REPOSITORY").filter(|url| !url.is_empty())?;
-    Some(format!(
-        "{}/commit/{}",
-        repository.trim_end_matches('/'),
-        COMMIT?
-    ))
+    Some(format!("{}/commit/{}", repository()?, COMMIT?))
 }
 
 /// Everything known, for `innby --version`: `0.7.0 (v0.7.0, 67e1386e1157…, 2026-11-11)`.
@@ -61,5 +63,6 @@ mod tests {
         assert!(release == TAG.unwrap_or_default() || release == format!("{VERSION}+{commit}"));
         assert!(long().starts_with(VERSION) && long().contains(COMMIT.unwrap()));
         assert!(DATE.is_some_and(|date| date.len() == 10));
+        assert_eq!(repository(), Some("https://github.com/vehagn/innby"));
     }
 }

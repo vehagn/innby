@@ -1,2 +1,3 @@
-{#- Which build of Innby this is, small: the release, its commit and that commit's date. #}
-<p class="build">Innby {{ crate::version::release() }}{% if let Some(commit) = crate::version::short_commit() %} · {% if let Some(url) = crate::version::commit_url() %}<a href="{{ url }}">{{ commit }}</a>{% else %}{{ commit }}{% endif %}{% endif %}{% if let Some(date) = crate::version::DATE %} · {{ date }}{% endif %}</p>
+{#- Which build of Innby this is, small: the release, its commit and that commit's date, and
+    Innby's name a link to its source. #}
+<p class="build">{% if let Some(url) = crate::version::repository() %}<a href="{{ url }}">Innby</a>{% else %}Innby{% endif %} {{ crate::version::release() }}{% if let Some(commit) = crate::version::short_commit() %} · {% if let Some(url) = crate::version::commit_url() %}<a href="{{ url }}">{{ commit }}</a>{% else %}{{ commit }}{% endif %}{% endif %}{% if let Some(date) = crate::version::DATE %} · {{ date }}{% endif %}</p>
