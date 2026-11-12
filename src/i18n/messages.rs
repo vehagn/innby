@@ -23,6 +23,8 @@ pub struct Messages {
     pub theme_auto: String,
     pub theme_light: String,
     pub theme_dark: String,
+    /// The link to Innby's source, by its icon in the header.
+    pub source_code: String,
     pub privacy_link: String,
     /// In the privacy notice, who sends the mail: a processor `INNBY_MAIL_PROCESSOR`
     /// names, or the host's own server.

@@ -503,6 +503,7 @@ async fn requires_login_except_for_probes(db: PgPool) {
     let html = body(response).await;
     assert!(html.contains(r#"type="password""#));
     // Anyone who reaches it can find what runs it.
+    assert!(html.contains(r#"<a class="pill" href="https://github.com/vehagn/innby""#));
     assert!(html.contains(r#"<a href="https://github.com/vehagn/innby">Innby</a>"#));
 
     let response = admin.get("/").await;

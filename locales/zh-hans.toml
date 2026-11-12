@@ -22,6 +22,7 @@ theme = "配色"
 theme_auto = "跟随设备"
 theme_light = "浅色"
 theme_dark = "深色"
+source_code = "GitHub 上的源代码"
 privacy_link = "隐私"
 # In the privacy notice: who sends the mail, `{processor}` as INNBY_MAIL_PROCESSOR
 # names it, or the host's own server where it's unset.

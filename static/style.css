@@ -827,8 +827,14 @@ td {
   stroke-linejoin: round;
 }
 
-/* Header controls: Innby's name, the colour scheme switch, the language menu and
-   logging out. */
+/* GitHub's mark: a filled shape, not a line drawing. */
+.icon.mark {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* Header controls: Innby's name, the link to its source, the colour scheme switch, the
+   language menu and logging out. */
 
 /* The banner on every page: Innby, back to the front page, or "Innby admin". */
 .brand {
