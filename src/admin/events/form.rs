@@ -49,6 +49,9 @@ pub(in crate::admin) struct EventForm {
     offered: LangSet,
     /// The languages the site offers, which are the ones the form asks about.
     site: LangSet,
+    /// Whether the host switched the time fields to the browser's own: typing comes
+    /// first, as the browser's would ask for am or pm on some devices.
+    picker: bool,
 }
 
 /// A language the event's pages may be offered in, for the form's ticks.
@@ -104,6 +107,7 @@ impl EventForm {
             choices: Texts::default(),
             offered: LangSet::default(),
             site: LangSet::all(),
+            picker: false,
         }
     }
 
@@ -184,6 +188,12 @@ impl EventForm {
         }
     }
 
+    /// Whether the form was sent by the button that switches its time fields, to show
+    /// it again that way, not to save it.
+    pub(in crate::admin) fn switching(fields: &HashMap<String, String>) -> bool {
+        fields.contains_key("switch_clock")
+    }
+
     /// The form as posted. Without a language, as from an older page, it's the base.
     pub(super) fn from_fields(fields: &HashMap<String, String>) -> Self {
         let get = |name: &str| fields.get(name).map_or("", |value| value.trim());
@@ -208,6 +218,11 @@ impl EventForm {
             ends_at: when("ends_at"),
             time_zone: get("time_zone").to_owned(),
             rsvp_deadline: when("rsvp_deadline"),
+            // The switch's button says which way it goes; otherwise the form keeps its way.
+            picker: match get("switch_clock") {
+                "" => get("clock") == "picker",
+                to => to == "picker",
+            },
             ..Self::blank()
         };
         for &lang in Lang::all() {
@@ -277,10 +292,14 @@ impl EventForm {
         &self.time_zone
     }
 
-    /// The times the time fields suggest, every half hour on the 24-hour clock, for a
-    /// host who'd rather pick one than type it.
-    pub fn times(&self) -> impl Iterator<Item = String> {
-        (0..24).flat_map(|hour| ["00", "30"].map(|minute| format!("{hour:02}:{minute}")))
+    /// Whether the times are picked with the browser's own time field rather than typed.
+    pub fn picker(&self) -> bool {
+        self.picker
+    }
+
+    /// The time fields' type: text by default, or the browser's own time field.
+    pub fn time_type(&self) -> &'static str {
+        if self.picker { "time" } else { "text" }
     }
 
     pub fn rsvp_deadline(&self) -> (&str, &str) {
@@ -454,8 +473,8 @@ fn date_and_time(when: &str) -> (&str, &str) {
 /// takes `19.00`, `1900` and `19` for it too; a time with am or pm, `7 pm` or
 /// `7:30 p.m.`, is read as that, for those who'd rather write it so. A browser's own
 /// time field isn't used: it asks for am or pm wherever the device's settings do,
-/// whatever the page says. The field suggests times to pick instead (`times`), which
-/// leaves typing first.
+/// whatever the page says. A host may switch to it all the same, to pick times with it
+/// (`EventForm::picker`); it sends them as `19:00`, which this reads.
 fn time_of_day(typed: &str) -> Option<NaiveTime> {
     let typed: String = typed
         .chars()
@@ -544,17 +563,6 @@ mod tests {
             "", "late", "24:00", "19:60", "13 pm", "0 am", "7:5", "pm", "-7",
         ] {
             assert_eq!(time(typed), None, "{typed}");
-        }
-    }
-
-    #[test]
-    fn suggests_every_half_hour_as_the_form_reads_it() {
-        let times: Vec<String> = EventForm::blank().times().collect();
-        assert_eq!(times.len(), 48);
-        assert_eq!((times[0].as_str(), times[39].as_str()), ("00:00", "19:30"));
-        for time in &times {
-            let read = time_of_day(time).expect(time);
-            assert_eq!(&read.format("%H:%M").to_string(), time);
         }
     }
 

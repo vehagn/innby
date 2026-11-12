@@ -326,6 +326,7 @@ input[type="email"],
 input[type="number"],
 input[type="password"],
 input[type="date"],
+input[type="time"],
 input[type="file"],
 select,
 textarea {
@@ -355,7 +356,8 @@ input[type="number"] {
 }
 
 /* A date and its time of day, side by side: the time is typed, as 19:00, since a
-   browser's own time field asks for am or pm wherever the device does. */
+   browser's own time field asks for am or pm wherever the device does; or picked with
+   that field, for a host who switches to it. */
 .date-time {
   display: flex;
   gap: var(--space-2);
@@ -364,6 +366,11 @@ input[type="number"] {
 
 .date-time input[type="text"] {
   flex: 0 0 6rem;
+}
+
+/* The browser's own time field has its clock button, and an am or pm, to fit too. */
+.date-time input[type="time"] {
+  flex: 0 0 9rem;
 }
 
 /* A link to copy, which may be long. */

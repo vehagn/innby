@@ -106,6 +106,10 @@ pub(in crate::admin) async fn edit(
 ) -> Result<Response, PageError> {
     let event = load_event(&state, id).await?;
     let form = EventForm::from_fields(&fields);
+    if EventForm::switching(&fields) {
+        let site = site_languages(&state).await?;
+        return Ok(render(DetailsPage::new(event, form, site)));
+    }
     let details = match form.details(Utc::now()) {
         Ok(details) => details,
         Err(error) => {

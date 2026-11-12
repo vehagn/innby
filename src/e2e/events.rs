@@ -74,6 +74,37 @@ async fn the_host_creates_an_event_invites_to_it_and_deletes_it(db: PgPool) {
 }
 
 #[sqlx::test]
+async fn the_host_picks_the_times_with_the_browsers_own_field(db: PgPool) {
+    let world = World::new(db);
+    let a = admin();
+    let starts = filled(&a.time_of, "field", &a.event_starts);
+    let picker = |page: &str| page.contains(r#"name="starts_at_time" type="time""#);
+
+    let mut host = world.admin().await;
+    host.click(&a.new_event).await;
+    host.fill(&a.event_title, "Summer party")
+        .fill(&a.event_starts, "2054-12-20")
+        .fill(&starts, "7 pm");
+    // Switching keeps what's typed, the time as the browser's field reads it, and
+    // makes nothing yet.
+    let page = host.press(&a.time_picker).await;
+    assert!(picker(&page.body), "{}", page.body);
+    page.expect_not(&a.event_created);
+    assert_eq!(host.value(&a.event_title), "Summer party");
+    assert_eq!(host.value(&starts), "19:00");
+    host.fill(&starts, "15:30");
+    host.press(&a.create_event).await.expect(&a.event_created);
+
+    // An event's details start out typed again, and switch the same way.
+    host.click(&a.section_settings).await;
+    assert_eq!(host.value(&starts), "15:30");
+    assert!(!picker(&host.page().body));
+    assert!(picker(&host.press(&a.time_picker).await.body));
+    host.press(&a.time_typed).await;
+    assert!(!picker(&host.page().body));
+}
+
+#[sqlx::test]
 async fn one_device_remembers_invitations_to_two_events(db: PgPool) {
     let world = World::new(db);
     let (t, a) = (en(), admin());
