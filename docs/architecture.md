@@ -146,7 +146,9 @@ the languages on offer:
 - **The admin UI** stays in every language.
 
 A guest's language is kept with their answer, for their mail: the language of the page
-they answered on.
+they answered on. Calculating an event's offer does not change request state: the
+`Guest` and `Joining` boundaries install it explicitly before choosing the language,
+so the page and its language menu use the same offer.
 
 ## One binary, several workloads
 

@@ -71,7 +71,9 @@ impl FromRequestParts<AppState> for Guest {
         let link = params.link;
         let mut guest = Self::find(state, &link).await?.ok_or_else(gone)?;
         // From here on the request is offered the event's languages, the menu too.
-        guest.lang = asked.among(guest.event.details.offer());
+        let offer = guest.event.details.offer(Offer::current());
+        offer.install();
+        guest.lang = asked.among(offer);
         Ok(guest)
     }
 }

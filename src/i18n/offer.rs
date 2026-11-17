@@ -168,19 +168,20 @@ impl Offer {
         OFFER.scope(Cell::new(self), work).await
     }
 
-    /// Narrows what the request being handled is offered to these languages of it, with
-    /// `default` in any case: an event's, on its pages, once the event is known.
-    /// Returns what's now offered.
-    pub fn narrow(chosen: LangSet, default: Lang) -> Self {
-        let site = Self::current();
+    /// Narrows this offer to these languages of it, with `default` in any case: an
+    /// event's, on its pages, once the event is known.
+    pub fn narrow(self, chosen: LangSet, default: Lang) -> Self {
         let languages = match chosen.is_empty() {
-            true => site.languages,
-            false => site.languages.and(chosen),
+            true => self.languages,
+            false => self.languages.and(chosen),
         };
-        let narrowed = Self::new(languages, default);
-        // Outside a request there's nothing to narrow for.
-        let _ = OFFER.try_with(|offer| offer.set(narrowed));
-        narrowed
+        Self::new(languages, default)
+    }
+
+    /// Offers this for the rest of the request. Outside a request there's nothing to
+    /// install it for.
+    pub fn install(self) {
+        let _ = OFFER.try_with(|offer| offer.set(self));
     }
 }
 
@@ -285,22 +286,70 @@ mod tests {
         assert_eq!(Offer::everything().default, Lang::base());
     }
 
+    #[test]
+    fn narrowing_keeps_the_sites_choices_and_the_events_default() {
+        let site = Offer::new(set(&[Lang::NB, Lang::NN, Lang::EN]), Lang::NN);
+        let event = site.narrow(set(&[Lang::NB, Lang::EN, Lang::ZH_HANS]), Lang::NB);
+        assert_eq!(event, Offer::new(set(&[Lang::NB, Lang::EN]), Lang::NB));
+        assert_eq!(asked(Some("zh-hans"), Some("en-GB")).among(event), Lang::EN);
+        assert_eq!(asked(Some("zh-hans"), Some("zh-CN")).among(event), Lang::NB);
+        // Picking none means all the site's languages, plus the event's own.
+        let open = site.narrow(LangSet::default(), Lang::ZH_HANT);
+        assert_eq!(open.languages.codes(), ["nb", "en", "nn", "zh-hant"]);
+        assert_eq!(open.default, Lang::ZH_HANT);
+        // Even when none of the chosen languages are on offer, the default is.
+        let own = site.narrow(set(&[Lang::ZH_HANS]), Lang::ZH_HANT);
+        assert_eq!(own, Offer::new(set(&[Lang::ZH_HANT]), Lang::ZH_HANT));
+    }
+
     #[tokio::test]
-    async fn an_event_narrows_what_its_request_is_offered() {
-        // Outside a request everything is offered, and narrowing changes nothing.
+    async fn narrowing_is_pure_until_explicitly_installed() {
         assert_eq!(Offer::current(), Offer::everything());
         let site = Offer::new(set(&[Lang::NB, Lang::NN, Lang::EN]), Lang::NB);
-        site.scope(async {
-            assert_eq!(Offer::current(), site);
-            // An event in English, offered in English and Chinese: of those the site
-            // has English alone, which is also its default.
-            let event = Offer::narrow(set(&[Lang::EN, Lang::ZH_HANS]), Lang::EN);
-            assert_eq!(event, Offer::new(set(&[Lang::EN]), Lang::EN));
-            assert_eq!(Offer::current(), event);
-            // One that picks none is offered in all the site has, and always its own.
-            let open = Offer::narrow(LangSet::default(), Lang::ZH_HANT);
-            assert_eq!(open.languages, set(&[Lang::EN, Lang::ZH_HANT]));
-        })
-        .await;
+        let event = site.narrow(set(&[Lang::EN, Lang::ZH_HANS]), Lang::EN);
+        assert_eq!(event, Offer::new(set(&[Lang::EN]), Lang::EN));
+        event.install();
+        assert_eq!(Offer::current(), Offer::everything());
+
+        let other = Offer::new(set(&[Lang::ZH_HANS]), Lang::ZH_HANS);
+        other
+            .scope(async {
+                assert_eq!(
+                    site.narrow(set(&[Lang::EN, Lang::ZH_HANS]), Lang::EN),
+                    event
+                );
+                assert_eq!(Offer::current(), other);
+                event.install();
+                assert_eq!(Offer::current(), event);
+                let open = site.narrow(LangSet::default(), Lang::ZH_HANT);
+                assert_eq!(
+                    open.languages,
+                    set(&[Lang::NB, Lang::NN, Lang::EN, Lang::ZH_HANT])
+                );
+                assert_eq!(Offer::current(), event);
+            })
+            .await;
+        assert_eq!(Offer::current(), Offer::everything());
+    }
+
+    #[tokio::test]
+    async fn installed_offers_stay_in_their_own_requests() {
+        let barrier = tokio::sync::Barrier::new(2);
+        let request = |lang| {
+            let barrier = &barrier;
+            async move {
+                Offer::everything()
+                    .scope(async {
+                        let event = Offer::current().narrow(set(&[lang]), lang);
+                        event.install();
+                        barrier.wait().await;
+                        tokio::task::yield_now().await;
+                        assert_eq!(Offer::current(), event);
+                    })
+                    .await;
+            }
+        };
+        tokio::join!(request(Lang::NB), request(Lang::EN));
+        assert_eq!(Offer::current(), Offer::everything());
     }
 }

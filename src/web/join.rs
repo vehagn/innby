@@ -115,7 +115,9 @@ impl Joining {
             .await?
             .ok_or_else(gone)?;
         // From here on the request is offered the event's languages, the menu too.
-        let lang = asked.among(event.details.offer());
+        let offer = event.details.offer(Offer::current());
+        offer.install();
+        let lang = asked.among(offer);
         Ok(Self { group, event, lang })
     }
 }

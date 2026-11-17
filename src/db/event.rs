@@ -43,11 +43,10 @@ pub struct Details {
 }
 
 impl Details {
-    /// Narrows what the request being handled is offered to the event's languages, for
-    /// its pages: those of the site's the host picked, or all of them, and the event's
-    /// own by default. Returns what's now offered.
-    pub fn offer(&self) -> Offer {
-        Offer::narrow(self.offered, self.lang)
+    /// Narrows the site's offer to the event's languages: those the host picked, or
+    /// all of them, and the event's own by default.
+    pub fn offer(&self, site: Offer) -> Offer {
+        site.narrow(self.offered, self.lang)
     }
 
     /// Whether guests can still answer or change their answer.
