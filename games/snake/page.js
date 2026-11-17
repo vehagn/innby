@@ -43,10 +43,11 @@ button.addEventListener("click", async () => {
     if (answer.scores) showScores(table, note, answer, who);
   } catch (error) {
     result.textContent = error.message;
+  } finally {
+    round = null;
+    button.disabled = false;
+    button.textContent = "Play again";
   }
-  round = null;
-  button.disabled = false;
-  button.textContent = "Play again";
 });
 
 draw(logic.start(0));

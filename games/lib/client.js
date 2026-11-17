@@ -29,7 +29,8 @@ async function api(path, { method = "GET", body, token } = {}) {
  * Plays one round of a game: asks the server for a seed, ticks the logic every
  * `logic.TICK_MS`, and gives the server the moves at the end, which works out the
  * score. `draw(state)` is called after each tick. Returns `{ move, done }`: `move(name)`
- * makes a move on the next tick, and `done` resolves with the server's answer.
+ * makes a move on the next tick, and `done` resolves with the server's answer or
+ * rejects if playing or submitting the round fails.
  */
 export async function play(logic, who, draw) {
   const started = await api("rounds", { method: "POST" });
@@ -40,29 +41,36 @@ export async function play(logic, who, draw) {
   let queued = [];
   draw(state);
 
-  let finish;
-  const done = new Promise((resolve) => (finish = resolve));
+  let finish, fail;
+  const done = new Promise((resolve, reject) => {
+    finish = resolve;
+    fail = reject;
+  });
   let last = performance.now();
   let owed = 0;
   const frame = (now) => {
-    // A hidden tab doesn't play on, and doesn't catch up in a rush either: taking
-    // longer than the moves need is fine, taking less isn't.
-    owed = Math.min(owed + (now - last), logic.TICK_MS * 2);
-    last = now;
-    while (owed >= logic.TICK_MS && !state.over) {
-      owed -= logic.TICK_MS;
-      for (const name of queued) moves.push([state.tick, name]);
-      logic.step(state, queued);
-      queued = [];
-      draw(state);
-    }
-    if (state.over) {
-      api(`rounds/${round}`, {
-        method: "POST",
-        body: { moves, token: who.token, lang: who.lang },
-      }).then(finish);
-    } else {
-      requestAnimationFrame(frame);
+    try {
+      // A hidden tab doesn't play on, and doesn't catch up in a rush either: taking
+      // longer than the moves need is fine, taking less isn't.
+      owed = Math.min(owed + (now - last), logic.TICK_MS * 2);
+      last = now;
+      while (owed >= logic.TICK_MS && !state.over) {
+        owed -= logic.TICK_MS;
+        for (const name of queued) moves.push([state.tick, name]);
+        logic.step(state, queued);
+        queued = [];
+        draw(state);
+      }
+      if (state.over) {
+        api(`rounds/${round}`, {
+          method: "POST",
+          body: { moves, token: who.token, lang: who.lang },
+        }).then(finish, fail);
+      } else {
+        requestAnimationFrame(frame);
+      }
+    } catch (error) {
+      fail(error);
     }
   };
   requestAnimationFrame(frame);
