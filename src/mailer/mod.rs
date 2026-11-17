@@ -14,6 +14,7 @@ use lettre::{
     transport::smtp::authentication::Credentials,
 };
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::{
     config::{Config, MailConfig},
@@ -123,29 +124,15 @@ pub async fn process_batch(
         let Some(event) = event::find(&mut *tx, guest.event_id).await? else {
             continue;
         };
-        let mail = match compose::compose(config, job.kind, &guest, &event) {
-            Ok(mail) => mail,
-            Err(reason) => {
-                tracing::info!(job = job.id, rsvp = %guest.id, kind = ?job.kind, reason, "mail dropped");
-                MAILS.inc(&[("outcome", "dropped".into())]);
-                outbox::mark_done(&mut tx, job.id, Some(reason)).await?;
-                continue;
-            }
-        };
-        match sender.send(from, mail).await {
-            Ok(()) => {
-                tracing::info!(job = job.id, rsvp = %guest.id, kind = ?job.kind, "mail sent");
-                MAILS.inc(&[("outcome", "sent".into())]);
-                outbox::mark_done(&mut tx, job.id, None).await?;
-            }
-            Err(err) => {
-                // SMTP errors often quote the address, so the details stay in the
-                // database (deleted with the guest) rather than in the logs.
-                tracing::warn!(job = job.id, rsvp = %guest.id, kind = ?job.kind, attempt = job.attempts + 1, "mail failed, see outbox.last_error");
-                MAILS.inc(&[("outcome", "failed".into())]);
-                outbox::mark_failed(&mut tx, job.id, &format!("{err:#}")).await?;
-            }
-        }
+        deliver(
+            &mut tx,
+            from,
+            sender,
+            job,
+            compose::compose(config, job.kind, &guest, &event),
+            Some(guest.id),
+        )
+        .await?;
     }
     tx.commit().await?;
     Ok(jobs.len())
@@ -174,22 +161,36 @@ async fn send_to_host(
     };
     let composed =
         compose::compose_for_host(config, admin_url, job.kind, &host, lang, job.created_at);
+    deliver(tx, from, sender, job, composed, None).await
+}
+
+/// Sends a composed message and records its outcome in the batch transaction. Identity
+/// fields and provider errors stay out of logs; delivery details remain in the outbox.
+async fn deliver(
+    tx: &mut sqlx::PgConnection,
+    from: &Mailbox,
+    sender: &impl Sender,
+    job: &outbox::Job,
+    composed: std::result::Result<Mail, &'static str>,
+    rsvp: Option<Uuid>,
+) -> Result<()> {
     let mail = match composed {
         Ok(mail) => mail,
         Err(reason) => {
-            tracing::info!(job = job.id, kind = ?job.kind, reason, "mail dropped");
+            tracing::info!(job = job.id, ?rsvp, kind = ?job.kind, "mail dropped");
             MAILS.inc(&[("outcome", "dropped".into())]);
-            return Ok(outbox::mark_done(tx, job.id, Some(reason)).await?);
+            outbox::mark_done(tx, job.id, Some(reason)).await?;
+            return Ok(());
         }
     };
     match sender.send(from, mail).await {
         Ok(()) => {
-            tracing::info!(job = job.id, kind = ?job.kind, "mail sent");
+            tracing::info!(job = job.id, ?rsvp, kind = ?job.kind, "mail sent");
             MAILS.inc(&[("outcome", "sent".into())]);
             outbox::mark_done(tx, job.id, None).await?;
         }
         Err(err) => {
-            tracing::warn!(job = job.id, kind = ?job.kind, attempt = job.attempts + 1, "mail failed, see outbox.last_error");
+            tracing::warn!(job = job.id, ?rsvp, kind = ?job.kind, attempt = job.attempts + 1, "mail failed, see outbox.last_error");
             MAILS.inc(&[("outcome", "failed".into())]);
             outbox::mark_failed(tx, job.id, &format!("{err:#}")).await?;
         }

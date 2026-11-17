@@ -70,12 +70,16 @@ fn a_calendar_file_goes_beside_the_text() {
 #[derive(Default)]
 struct Outbox {
     sent: Mutex<Vec<Mail>>,
-    fail: bool,
+    failure: Option<String>,
 }
 
 impl Sender for Outbox {
     async fn send(&self, from: &Mailbox, mail: Mail) -> Result<()> {
-        anyhow::ensure!(!self.fail, "connection refused");
+        anyhow::ensure!(
+            self.failure.is_none(),
+            "{}",
+            self.failure.as_deref().unwrap_or("connection refused")
+        );
         // What SMTP would send must build, too.
         message(from, mail.clone())?;
         self.sent.lock().unwrap().push(mail);
@@ -222,7 +226,7 @@ async fn failed_sends_are_retried_later(db: PgPool) {
         .unwrap();
 
     let failing = Outbox {
-        fail: true,
+        failure: Some("connection refused".into()),
         ..Outbox::default()
     };
     assert_eq!(
@@ -247,4 +251,149 @@ async fn failed_sends_are_retried_later(db: PgPool) {
             .unwrap(),
         0
     );
+}
+
+#[sqlx::test]
+async fn failed_guest_and_host_mail_keep_identities_and_provider_details_out_of_logs(db: PgPool) {
+    const GUEST: &str = "guest-private@example.com";
+    const HOST_NAME: &str = "host-private@example.com";
+    const HOST_ADDRESS: &str = "host-address-private@example.com";
+    const PROVIDER_ERROR: &str = "provider rejected guest-private@example.com host-address-private@example.com bearer-secret signed-link-secret";
+
+    let config = config();
+    let guest = guest_with_email(&db, GUEST, Lang::EN).await;
+    outbox::enqueue(&db, guest.id, Kind::ConfirmEmail)
+        .await
+        .unwrap();
+    admin_user::create(
+        &db,
+        HOST_NAME,
+        Some("editor"),
+        Some("$argon2id$v=19$m=8,t=1,p=1$c2FsdHNhbHQ$aGFzaA"),
+        Some(HOST_ADDRESS),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    outbox::enqueue_for_host(&db, HOST_NAME, Kind::PasswordSet, Lang::EN)
+        .await
+        .unwrap();
+
+    let logs = crate::testing::logs::Capture::new();
+    logs.run(async {
+        let failing = Outbox {
+            failure: Some(PROVIDER_ERROR.into()),
+            ..Outbox::default()
+        };
+        assert_eq!(
+            process_batch(
+                &config,
+                &from(),
+                Some("https://admin.example.com"),
+                &db,
+                &failing,
+            )
+            .await
+            .unwrap(),
+            2
+        );
+        let failed_logs = logs.text();
+        assert_eq!(
+            failed_logs.matches("mail failed,").count(),
+            2,
+            "{failed_logs}"
+        );
+        assert_eq!(failed_logs.matches("attempt=1").count(), 2, "{failed_logs}");
+        assert_eq!(unsent(&db).await, 2);
+        let errors =
+            sqlx::query_scalar!("select last_error from outbox where last_error is not null")
+                .fetch_all(&db)
+                .await
+                .unwrap();
+        assert_eq!(errors.len(), 2);
+        assert!(
+            errors
+                .iter()
+                .all(|error| error.as_deref() == Some(PROVIDER_ERROR))
+        );
+
+        // Both branches wait before retrying, then use the same success bookkeeping.
+        let sender = Outbox::default();
+        assert_eq!(
+            process_batch(
+                &config,
+                &from(),
+                Some("https://admin.example.com"),
+                &db,
+                &sender
+            )
+            .await
+            .unwrap(),
+            0
+        );
+        sqlx::query!("update outbox set next_try_at = now() - interval '1 second'")
+            .execute(&db)
+            .await
+            .unwrap();
+        assert_eq!(
+            process_batch(
+                &config,
+                &from(),
+                Some("https://admin.example.com"),
+                &db,
+                &sender
+            )
+            .await
+            .unwrap(),
+            2
+        );
+        assert_eq!(sender.mails().len(), 2);
+        assert_eq!(unsent(&db).await, 0);
+        assert_eq!(logs.text().matches("mail sent").count(), 2);
+
+        // Composition failures also finish both kinds of job without sending anything.
+        outbox::enqueue(&db, guest.id, Kind::RsvpLink)
+            .await
+            .unwrap();
+        outbox::enqueue_for_host(&db, HOST_NAME, Kind::PasswordSet, Lang::EN)
+            .await
+            .unwrap();
+        assert_eq!(
+            process_batch(&config, &from(), None, &db, &sender)
+                .await
+                .unwrap(),
+            2
+        );
+        assert_eq!(sender.mails().len(), 2);
+        assert_eq!(unsent(&db).await, 0);
+        assert_eq!(
+            logs.text().matches("mail dropped").count(),
+            2,
+            "{}",
+            logs.text()
+        );
+
+        let logs = logs.text();
+        for private in [
+            GUEST,
+            HOST_NAME,
+            HOST_ADDRESS,
+            "bearer-secret",
+            "signed-link-secret",
+        ] {
+            assert!(!logs.contains(private), "{private} appears in logs: {logs}");
+        }
+        let errors =
+            sqlx::query_scalar!("select last_error from outbox where last_error is not null")
+                .fetch_all(&db)
+                .await
+                .unwrap();
+        assert_eq!(errors.len(), 2);
+        assert!(
+            errors
+                .iter()
+                .all(|error| error.as_deref() != Some(PROVIDER_ERROR))
+        );
+    })
+    .await;
 }

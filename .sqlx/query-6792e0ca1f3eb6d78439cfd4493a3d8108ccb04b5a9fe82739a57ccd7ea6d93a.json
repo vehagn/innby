@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update outbox set next_try_at = now() - interval '1 second'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "6792e0ca1f3eb6d78439cfd4493a3d8108ccb04b5a9fe82739a57ccd7ea6d93a"
+}
