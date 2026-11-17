@@ -20,6 +20,37 @@ async fn guest_can_rename(db: PgPool) {
 }
 
 #[sqlx::test]
+async fn a_guest_changes_their_name_once_an_hour(db: PgPool) {
+    let site = Site::new(db);
+    let (invite, link) = site.invite("Kari", 1).await;
+    let (other, other_link) = site.invite("Ola", 1).await;
+    let site = &site;
+    let rename = |link: &str, name: &str| {
+        let (link, form) = (format!("/r/{link}/name?lang=en"), format!("name={name}"));
+        async move { site.post(&link, &form).await }
+    };
+
+    let html = body(site.get(&format!("/r/{link}/you?lang=en")).await).await;
+    assert!(html.contains(&escape(&en().name_once_an_hour)), "{html}");
+    let response = rename(&link, "Kari+Nordmann").await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    // The same name again changes nothing, so it's no change.
+    let response = rename(&link, "Kari+Nordmann").await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    // Another within the hour is refused, and the name stays.
+    let response = rename(&link, "Kari+Hansen").await;
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    let html = body(response).await;
+    assert!(html.contains(&escape(&en().name_error_busy)), "{html}");
+    assert_eq!(site.find(&invite).await.unwrap().name, "Kari Nordmann");
+
+    // Each guest has an hour of their own.
+    let response = rename(&other_link, "Ola+Hansen").await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    assert_eq!(site.find(&other).await.unwrap().name, "Ola Hansen");
+}
+
+#[sqlx::test]
 async fn guest_can_export_their_data(db: PgPool) {
     let site = Site::new(db);
     let (invite, link) = site.invite("Kari", 1).await;

@@ -98,6 +98,11 @@ pub async fn rename(
         return Ok(YouPage::new(&state, lang, &guest, &headers)
             .render_error(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name));
     };
+    // The same name again changes nothing, so it isn't counted.
+    if name != guest.rsvp.name && !state.name_limiter.check_guest(guest.rsvp.id) {
+        return Ok(YouPage::new(&state, lang, &guest, &headers)
+            .render_error(StatusCode::TOO_MANY_REQUESTS, |t| &t.name_error_busy));
+    }
     if !rsvp::rename(&state.db, guest.rsvp.id, &name).await? {
         return Err(PageError::Gone(lang));
     }

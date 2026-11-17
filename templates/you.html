@@ -13,7 +13,8 @@
   <form method="post" action="{{ links.name }}">
     {#- The heading says it already, so the label is for screen readers. #}
     <label for="name" class="visually-hidden">{{ t.name_heading }}</label>
-    <input id="name" name="name" value="{{ rsvp.name }}" required maxlength="100" autocomplete="name">
+    <input id="name" name="name" value="{{ rsvp.name }}" required maxlength="100" autocomplete="name" aria-describedby="name-hint">
+    <p class="hint" id="name-hint">{{ t.name_once_an_hour }}</p>
     <button class="secondary">{{ t.change_name }}</button>
   </form>
 </section>

@@ -87,6 +87,10 @@ pub struct Messages {
     pub answers_closed: String,
     pub name_heading: String,
     pub change_name: String,
+    /// Under a guest's name: they may change it once an hour.
+    pub name_once_an_hour: String,
+    /// They changed it less than an hour ago.
+    pub name_error_busy: String,
     pub data_heading: String,
     pub data_text: String,
     pub export: String,

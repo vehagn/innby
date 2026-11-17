@@ -41,8 +41,8 @@ e-mail, this device, their data). There they:
   where it's open to guests, post and reply too while their name is on the guest list,
   signed with it as the list shows it, and delete their own posts
   ([below](#the-message-board));
-- change any of it until the event, rename themselves, download everything kept about
-  them as JSON, or delete it all.
+- change any of it until the event, rename themselves once an hour, download everything
+  kept about them as JSON, or delete it all.
 
 Someone with a **group link** (`/join/{link}`) types their name and party size, answers
 the host's question if there is one, may have the device remember them, and is then sent
@@ -446,7 +446,9 @@ Nobody posts anonymously. A post shows its guest's name as the guest list does a
 time it's read, so only a guest on the list may post or reply: one who hid their name is
 pointed to the guest list to show it, and one who isn't coming, and so isn't on it, reads
 and votes only. A guest who leaves the list after posting keeps their first name and
-initial on what they wrote, rather than becoming "a guest".
+initial on what they wrote, rather than becoming "a guest". And since a new name shows on
+every post at once, a guest may change their name once an hour, counted in memory as
+posts are.
 
 Guests sign as the guest list shows them ("A guest" when it doesn't), and see hosts only
 as "The hosts"; hosts see everyone in full. A guest may delete their own posts, and a
