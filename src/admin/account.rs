@@ -40,7 +40,10 @@ struct AccountPage {
     error: Option<String>,
 }
 
-/// The host whose page it is: their name, and the account they're logged in to.
+/// The host whose page it is: their name, and the account they're logged in to. A change
+/// is written only to that account with that password still, so one that finds it gone,
+/// or its password changed since the request began, changes nothing: the login is over
+/// by then, and the browser goes to log in again, as its next request would have.
 struct Account {
     user: Arc<str>,
     credential: AccountCredential,
@@ -114,7 +117,7 @@ pub(super) async fn edit(
     let set = admin_user::set_email_for_account(&state.db, account.credential, email.as_deref());
     match set.await? {
         Ok(true) => Ok(redirect(&format!("{}?saved", paths::ACCOUNT))),
-        Ok(false) => Err(PageError::Missing),
+        Ok(false) => Ok(state.auth.to_login().await),
         Err(Taken::Email | Taken::Name) => {
             let error = Some(text.error_email_taken.clone());
             account_page(&state, &account, Some(typed.to_owned()), None, error).await
@@ -153,9 +156,10 @@ pub(super) async fn password(
         Ok(hash) => hash,
         Err(err) => return Ok(server_error(err)),
     };
-    let credential = admin_user::change_password(&state.db, account.credential, &hash)
-        .await?
-        .ok_or(PageError::Missing)?;
+    let changed = admin_user::change_password(&state.db, account.credential, &hash);
+    let Some(credential) = changed.await? else {
+        return Ok(state.auth.to_login().await);
+    };
     let cookies = state
         .auth
         .start_session(&account.user, PasswordIdentity::Stored(credential))

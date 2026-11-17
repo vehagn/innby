@@ -191,6 +191,11 @@ impl Auth {
         }
     }
 
+    /// Sends a browser whose login is over, or that never had one, to where it logs in.
+    pub(in crate::admin) async fn to_login(&self) -> Response {
+        Redirect::to(&paths::admin(self.login_path().await)).into_response()
+    }
+
     /// Hashes a password for a database user, one at a time, as logins are checked.
     pub(in crate::admin) async fn hash(&self, password: String) -> Result<String, Cause> {
         let permit = Arc::clone(&self.checking)
@@ -479,9 +484,7 @@ pub async fn require_login(
             response.headers_mut().append(header::SET_COOKIE, token);
             response
         }
-        Ok(Session::LoggedOut) => {
-            Redirect::to(&paths::admin(auth.login_path().await)).into_response()
-        }
+        Ok(Session::LoggedOut) => auth.to_login().await,
         Err(err) => server_error(err),
     }
 }

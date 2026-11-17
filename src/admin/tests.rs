@@ -849,6 +849,69 @@ async fn password_login_account_change_and_reset_logs_omit_identity(db: PgPool) 
 }
 
 #[sqlx::test]
+async fn a_change_to_an_account_that_changed_meanwhile_ends_at_the_login(db: PgPool) {
+    const PASSWORD: &str = "a long first password";
+    let hash = auth::tests::cheap_hash(PASSWORD);
+    crate::db::admin_user::create(&db, "kari", Some("editor"), Some(&hash), None)
+        .await
+        .unwrap()
+        .unwrap();
+    let app = router(
+        crate::config::tests::config(),
+        &auth::tests::admin_config(),
+        db.clone(),
+    );
+    let log_in = crate::testing::form_post(
+        "/login",
+        &format!("user=kari&password={PASSWORD}"),
+        "same-origin",
+    );
+    let response = app.clone().oneshot(log_in).await.unwrap();
+    let cookie = http_set_cookies(&response)
+        .iter()
+        .map(|cookie| cookie.split(';').next().unwrap())
+        .collect::<Vec<_>>()
+        .join("; ");
+    let post = async |path: &str, form: String| {
+        let mut request = crate::testing::form_post(path, &form, "same-origin");
+        let cookie = cookie.parse().unwrap();
+        request.headers_mut().insert(header::COOKIE, cookie);
+        app.clone().oneshot(request).await.unwrap()
+    };
+    // She's logged in: a change that the write goes through with is saved.
+    let response = post("/account", "email=".to_owned()).await;
+    assert_eq!(location(&response), "/account?saved");
+
+    // As if her password were changed elsewhere, or she were deleted, after the request
+    // was let in and before it wrote: the write finds nothing of what it was to change.
+    sqlx::raw_sql(
+        "create function meanwhile() returns trigger language plpgsql
+             as 'begin return null; end';
+         create trigger meanwhile before update on admin_user
+             for each row execute function meanwhile();",
+    )
+    .execute(&db)
+    .await
+    .unwrap();
+    let new_password = format!("current={PASSWORD}&password=a long second password");
+    for (path, form) in [
+        ("/account", "email=kari@example.com".to_owned()),
+        ("/account/password", new_password),
+    ] {
+        // Her login is over by then, so she logs in again, and gets no new session.
+        let response = post(path, form).await;
+        assert_eq!(location(&response), "/login", "{path}");
+        assert!(http_set_cookies(&response).is_empty(), "{path}");
+    }
+    let kari = crate::db::admin_user::find(&db, "kari")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!((kari.email, kari.version), (None, 0));
+    assert_eq!(kari.password_hash, Some(hash));
+}
+
+#[sqlx::test]
 async fn speaks_the_browsers_language_or_the_one_picked(db: PgPool) {
     let admin = Admin::new(db);
     let e = admin.event().await;
