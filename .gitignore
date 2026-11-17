@@ -7,3 +7,5 @@
 /deploy/secrets.env
 
 .idea
+# Junie's working plans: what's decided is in docs/
+/.junie/plans/
