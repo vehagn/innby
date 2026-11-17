@@ -9,7 +9,7 @@ use axum::{
     http::{HeaderMap, StatusCode, request::Parts},
     response::{IntoResponse, Redirect, Response},
 };
-use chrono::Utc;
+use jiff::Timestamp;
 use serde::Deserialize;
 
 use super::{
@@ -198,7 +198,7 @@ impl<'a> RsvpPage<'a> {
                 (guest.event.changed_at, rsvp.responded_at),
                 (Some(changed), Some(answered)) if changed > answered
             ),
-            accepts_answers: guest.event.details.accepts_answers(Utc::now()),
+            accepts_answers: guest.event.details.accepts_answers(Timestamp::now()),
             flash: None,
             celebrate: false,
             new_link: None,
@@ -361,7 +361,7 @@ pub async fn answer(
     let refuse = |status, pick: fn(&'static Messages) -> &'static str| -> Page {
         Ok(RsvpPage::new(&state, &guest, &headers).render_error(status, pick))
     };
-    if !guest.event.details.accepts_answers(Utc::now()) {
+    if !guest.event.details.accepts_answers(Timestamp::now()) {
         return refuse(StatusCode::FORBIDDEN, |t| &t.answers_closed);
     }
     if !(1..=guest.rsvp.max_party_size).contains(&form.party_size) {

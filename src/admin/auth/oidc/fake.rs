@@ -238,7 +238,7 @@ async fn token(State((origin, state)): FakeState, headers: HeaderMap, body: Stri
     }
     let access_token = crate::random::token();
     let hash = digest::digest(&digest::SHA256, access_token.as_bytes());
-    let now = chrono::Utc::now().timestamp();
+    let now = jiff::Timestamp::now().as_second();
     let mut claims = json!({
         "iss": origin,
         "sub": format!("sub-{}", grant.user),

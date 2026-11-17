@@ -3,7 +3,7 @@
 //! the best is kept, and it goes with the guest, or when the event stops offering the
 //! game.
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::Serialize;
 use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
@@ -28,7 +28,7 @@ pub struct Entry {
 pub struct Best {
     pub game: String,
     pub score: i64,
-    pub scored_at: DateTime<Utc>,
+    pub scored_at: Timestamp,
 }
 
 /// The games the event offers, by id.

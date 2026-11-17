@@ -8,7 +8,7 @@ use axum::{
     http::{HeaderMap, StatusCode, header},
     response::{AppendHeaders, IntoResponse, Redirect, Response},
 };
-use chrono::{TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp};
 
 use super::{Callback, FLOW_COOKIE, FLOW_LIFETIME, Flow, LoginError, Provider};
 use crate::{
@@ -28,7 +28,7 @@ pub async fn start(State(auth): State<Arc<Auth>>) -> Response {
     let Some(provider) = auth.oidc() else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    match provider.start(Utc::now()).await {
+    match provider.start(Timestamp::now()).await {
         Ok((url, flow)) => {
             let sealed = auth.seal(
                 FLOW_COOKIE,
@@ -64,12 +64,12 @@ pub async fn callback(
         iss: field("iss"),
         error: field("error"),
     };
-    let clear = auth.cookie(FLOW_COOKIE, "", TimeDelta::zero());
+    let clear = auth.cookie(FLOW_COOKIE, "", SignedDuration::ZERO);
     let flow = cookie::get(&headers, FLOW_COOKIE)
         .and_then(|sealed| auth.open(FLOW_COOKIE, sealed))
         .and_then(|json| serde_json::from_slice::<Flow>(&json).ok());
     let result = match &flow {
-        Some(flow) => provider.finish(flow, &callback, Utc::now()).await,
+        Some(flow) => provider.finish(flow, &callback, Timestamp::now()).await,
         None => Err(LoginError::Expired),
     };
     // The provider may know many people Innby doesn't: one with no role there gets in

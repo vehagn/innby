@@ -8,7 +8,7 @@ use crate::{
     web::PRIVACY_VERSION,
 };
 
-fn event_start() -> DateTime<Utc> {
+fn event_start() -> Timestamp {
     "2054-12-12T18:00:00Z".parse().unwrap()
 }
 
@@ -71,7 +71,7 @@ async fn clears_addresses_left_unconfirmed(db: PgPool) {
     .await
     .unwrap();
 
-    let report = run(&db, Utc::now()).await.unwrap();
+    let report = run(&db, Timestamp::now()).await.unwrap();
     assert_eq!(report.emails_cleared, 1);
 
     let stale = rsvp::find(&db, stale.id).await.unwrap().unwrap();
@@ -120,7 +120,7 @@ async fn deletes_old_sent_and_abandoned_mail(db: PgPool) {
     .await
     .unwrap();
 
-    let report = run(&db, Utc::now()).await.unwrap();
+    let report = run(&db, Timestamp::now()).await.unwrap();
     assert_eq!(report.mails_deleted, 2);
     let left: Vec<Kind> = sqlx::query_scalar!(r#"select kind as "kind: Kind" from outbox"#)
         .fetch_all(&db)
@@ -136,7 +136,7 @@ async fn deletes_everything_30_days_after_the_event(db: PgPool) {
         .await
         .unwrap();
 
-    let almost = event_start() + KEEP_AFTER_EVENT - Duration::seconds(1);
+    let almost = event_start() + KEEP_AFTER_EVENT - SignedDuration::from_secs(1);
     assert_eq!(run(&db, almost).await.unwrap().rsvps_deleted, 0);
 
     let due = event_start() + KEEP_AFTER_EVENT;
@@ -153,8 +153,11 @@ async fn deletes_everything_30_days_after_the_event(db: PgPool) {
 #[sqlx::test]
 async fn sweeps_expired_logins_and_form_tokens(db: PgPool) {
     use crate::db::{admin_form, admin_login};
-    let now = Utc::now();
-    let (hour, day) = (Duration::hours(1), Duration::days(1));
+    let now = Timestamp::now();
+    let (hour, day) = (
+        SignedDuration::from_hours(1),
+        SignedDuration::from_hours(24),
+    );
     // Saving one sweeps those expired before it, so the expired one goes in last.
     admin_login::save_refresh_token(&db, b"current", now + hour)
         .await
@@ -176,7 +179,9 @@ async fn sweeps_expired_logins_and_form_tokens(db: PgPool) {
     // Nothing has expired yet, but for the one refresh token.
     assert_eq!(run(&db, now).await.unwrap().tokens_deleted, 1);
     // A day and a bit on: the other refresh token, the first JWT and the form's token.
-    let report = run(&db, now + day + Duration::minutes(90)).await.unwrap();
+    let report = run(&db, now + day + SignedDuration::from_mins(90))
+        .await
+        .unwrap();
     assert_eq!(report.tokens_deleted, 3);
     assert!(admin_login::is_revoked(&db, kept).await.unwrap());
     assert!(!admin_login::is_revoked(&db, gone).await.unwrap());

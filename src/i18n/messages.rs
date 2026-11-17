@@ -39,7 +39,8 @@ pub struct Messages {
     pub privacy_authority_any: String,
 
     // Event
-    /// `chrono` format for dates and times.
+    /// `strftime` format for dates and times, as jiff reads it, with `%A`, `%a`, `%B` and
+    /// `%b` in the language's own names (`language.days` and the like).
     pub date_format: String,
     /// The same for a time alone, when an event ends on the day it starts.
     pub time_format: String,

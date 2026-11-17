@@ -239,8 +239,8 @@ async fn the_front_page_lists_events_to_come_before_those_that_are_over(db: PgPo
     let (_, link) = site.invite("Kari", 1).await;
     // A party two days ago, over by now, and one that started an hour ago, still on.
     let past = |title: &str, hours: i64| {
-        let starts_at = chrono::Utc::now().with_timezone(&chrono_tz::Europe::Oslo)
-            - chrono::Duration::hours(hours);
+        let starts_at = jiff::Timestamp::now().in_tz("Europe/Oslo").unwrap()
+            - jiff::SignedDuration::from_hours(hours);
         event::Details {
             title: Texts::from([(Lang::NB, title)]),
             starts_at,

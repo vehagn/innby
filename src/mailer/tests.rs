@@ -156,7 +156,7 @@ async fn sends_confirmation_with_a_working_link(db: PgPool) {
         .unwrap();
     let link: crate::link::EmailLink = token.parse().unwrap();
     assert!(config.link_key.verify_email(&link, "kari@example.com"));
-    assert!(link.expires > chrono::Utc::now() + chrono::Duration::hours(47));
+    assert!(link.expires > jiff::Timestamp::now() + jiff::SignedDuration::from_hours(47));
 }
 
 #[sqlx::test]

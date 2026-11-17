@@ -35,14 +35,14 @@ pub use routes::{callback, start};
 use std::{fmt, time::Duration};
 
 use anyhow::{Context, Result, ensure};
-use chrono::TimeDelta;
+use jiff::SignedDuration;
 use url::Url;
 
 /// How long a login through the provider lasts before the provider is asked again.
-pub const OIDC_SESSION: TimeDelta = TimeDelta::hours(12);
+pub const OIDC_SESSION: SignedDuration = SignedDuration::from_hours(12);
 
 /// How long the host has at the provider before the login must start over.
-const FLOW_LIFETIME: TimeDelta = TimeDelta::minutes(10);
+const FLOW_LIFETIME: SignedDuration = SignedDuration::from_mins(10);
 
 /// The cookie that holds a login in progress.
 pub const FLOW_COOKIE: &str = "oidc_flow";

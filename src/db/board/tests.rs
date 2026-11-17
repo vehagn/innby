@@ -117,7 +117,7 @@ fn at(id: u128, parent: Option<u128>, minute: i64, score: i64, body: bool) -> Po
         author: Author::Gone,
         deleted: !body,
         body: body.then(|| format!("post {id}")),
-        created_at: DateTime::from_timestamp(minute * 60, 0).unwrap(),
+        created_at: Timestamp::from_second(minute * 60).unwrap(),
         score,
         vote: 0,
     }

@@ -1,0 +1,4 @@
+# What the query macros read: sqlx knows chrono's and time's types, not jiff's, so every
+# `timestamptz` comes and goes as jiff-sqlx's wrapper, which converts to `jiff::Timestamp`.
+[macros.type-overrides]
+'TIMESTAMPTZ' = "jiff_sqlx::Timestamp"

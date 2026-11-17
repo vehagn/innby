@@ -9,8 +9,7 @@ use axum::{
     http::{StatusCode, request::Parts},
     response::{IntoResponse, Redirect, Response},
 };
-use chrono::{DateTime, Utc};
-use chrono_tz::Tz;
+use jiff::{Timestamp, tz::TimeZone};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -322,8 +321,10 @@ pub fn user_trail(name: &str) -> Vec<Crumb> {
 }
 
 /// A moment as the admin's tables show it, in the event's time zone: `2026-12-12 19:00`.
-pub(super) fn timestamp(at: DateTime<Utc>, tz: Tz) -> String {
-    at.with_timezone(&tz).format("%Y-%m-%d %H:%M").to_string()
+pub(super) fn timestamp(at: Timestamp, tz: &TimeZone) -> String {
+    at.to_zoned_datetime(tz.clone())
+        .strftime("%Y-%m-%d %H:%M")
+        .to_string()
 }
 
 /// The event behind an admin path's `{event}`.

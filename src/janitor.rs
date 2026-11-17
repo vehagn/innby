@@ -1,7 +1,7 @@
 //! `innby janitor`: enforces the retention promised in the privacy notice. Runs once and
 //! exits; a Kubernetes CronJob runs it every hour.
 
-use chrono::{DateTime, Duration, Utc};
+use jiff::{SignedDuration, Timestamp};
 use sqlx::PgPool;
 
 use crate::{
@@ -10,9 +10,9 @@ use crate::{
 };
 
 /// How long a sent mail's record is kept, for troubleshooting delivery.
-pub const KEEP_SENT_MAIL: Duration = Duration::days(7);
+pub const KEEP_SENT_MAIL: SignedDuration = SignedDuration::from_hours(7 * 24);
 /// Each event, and every guest's data with it, is deleted this long after it starts.
-pub const KEEP_AFTER_EVENT: Duration = Duration::days(30);
+pub const KEEP_AFTER_EVENT: SignedDuration = SignedDuration::from_hours(30 * 24);
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Report {
@@ -23,7 +23,7 @@ pub struct Report {
     pub tokens_deleted: u64,
 }
 
-pub async fn run(db: &PgPool, now: DateTime<Utc>) -> anyhow::Result<Report> {
+pub async fn run(db: &PgPool, now: Timestamp) -> anyhow::Result<Report> {
     let report = Report {
         emails_cleared: retention::clear_unconfirmed_emails(db, now - CONFIRM_WITHIN).await?,
         mails_deleted: retention::delete_old_mail(db, now - KEEP_SENT_MAIL).await?,

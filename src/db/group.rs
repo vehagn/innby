@@ -1,6 +1,6 @@
 //! Groups: the sign-up links the host makes, one per group of people.
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
@@ -15,7 +15,7 @@ pub struct Group {
     /// How many people each sign-up may cover.
     pub max_party_size: i32,
     pub link_nonce: i32,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
 }
 
 impl Group {

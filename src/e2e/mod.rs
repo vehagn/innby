@@ -181,9 +181,7 @@ impl World {
             (crate::i18n::Lang::NB, "Sommerfest"),
             (crate::i18n::Lang::EN, "Summer party"),
         ]);
-        details.starts_at =
-            chrono::TimeZone::with_ymd_and_hms(&chrono_tz::Europe::Oslo, 2055, 6, 20, 15, 0, 0)
-                .unwrap();
+        details.starts_at = crate::testing::oslo(2055, 6, 20, 15, 0);
         crate::db::event::create(&self.db, &details).await.unwrap()
     }
 

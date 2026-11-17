@@ -12,7 +12,7 @@ mod names;
 pub use guest_list::{Headcount, guest_list, headcount, headcounts};
 pub use names::{NameDisplay, NameKind, normalize_email, normalize_name};
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::Serialize;
 use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
@@ -75,16 +75,62 @@ pub struct Rsvp {
     pub lang: Lang,
     pub email: Option<String>,
     pub email_status: EmailStatus,
-    pub email_consent_at: Option<DateTime<Utc>>,
+    pub email_consent_at: Option<Timestamp>,
     pub privacy_version: Option<String>,
-    pub responded_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
+    pub responded_at: Option<Timestamp>,
+    pub created_at: Timestamp,
     /// The group whose link the guest signed up through.
     pub group_id: Option<Uuid>,
     /// The guest's choice for the guest list, if they've made one.
     pub name_display: Option<NameDisplay>,
     /// Their pick among the event's choices, by its place in the list.
     pub choice: Option<i16>,
+}
+
+/// A row as the query macros read it: the times that may be missing come as jiff-sqlx's
+/// wrapper, which they can't turn into an `Option` of jiff's, so `Rsvp` is made from it.
+pub(super) struct Row {
+    id: Uuid,
+    event_id: Uuid,
+    name: String,
+    response: Response,
+    party_size: i32,
+    max_party_size: i32,
+    link_nonce: i32,
+    lang: Lang,
+    email: Option<String>,
+    email_status: EmailStatus,
+    email_consent_at: Option<jiff_sqlx::Timestamp>,
+    privacy_version: Option<String>,
+    responded_at: Option<jiff_sqlx::Timestamp>,
+    created_at: Timestamp,
+    group_id: Option<Uuid>,
+    name_display: Option<NameDisplay>,
+    choice: Option<i16>,
+}
+
+impl From<Row> for Rsvp {
+    fn from(row: Row) -> Self {
+        Self {
+            id: row.id,
+            event_id: row.event_id,
+            name: row.name,
+            response: row.response,
+            party_size: row.party_size,
+            max_party_size: row.max_party_size,
+            link_nonce: row.link_nonce,
+            lang: row.lang,
+            email: row.email,
+            email_status: row.email_status,
+            email_consent_at: row.email_consent_at.map(jiff_sqlx::Timestamp::to_jiff),
+            privacy_version: row.privacy_version,
+            responded_at: row.responded_at.map(jiff_sqlx::Timestamp::to_jiff),
+            created_at: row.created_at,
+            group_id: row.group_id,
+            name_display: row.name_display,
+            choice: row.choice,
+        }
+    }
 }
 
 impl Rsvp {
@@ -110,9 +156,9 @@ impl Rsvp {
     }
 }
 
-/// `query_as!` for whole `Rsvp` rows. The query macros only take string literals (or
-/// literals joined by `+`), so this splices in the column list, with type overrides for
-/// the enum columns:
+/// `query_as!` for whole `Rsvp` rows, read as a `Row`. The query macros only take string
+/// literals (or literals joined by `+`), so this splices in the column list, with type
+/// overrides for the enum columns:
 ///
 /// - `query_rsvp!(select "from rsvp where …", args…)`
 /// - `query_rsvp!("update rsvp set … where …" returning, args…)`
@@ -125,7 +171,7 @@ macro_rules! query_rsvp {
     };
     (@ [$($head:tt)*] [$($tail:tt)*] $(, $arg:expr)*) => {
         sqlx::query_as!(
-            Rsvp,
+            Row,
             $($head +)*
             r#" id, event_id, name, response as "response: Response",
                 party_size, max_party_size, link_nonce, lang as "lang: Lang", email,
@@ -135,6 +181,7 @@ macro_rules! query_rsvp {
             $(+ $tail)*
             $(, $arg)*
         )
+        .map(Rsvp::from)
     };
 }
 
@@ -279,7 +326,7 @@ pub async fn find_with_events(
                 title: row.title,
                 description: row.description,
                 location: row.location,
-                starts_at: row.starts_at,
+                starts_at: row.starts_at.into(),
                 time_zone: row.time_zone,
                 rsvp_deadline: row.rsvp_deadline,
                 ends_at: row.ends_at,
@@ -288,7 +335,7 @@ pub async fn find_with_events(
                 choices: row.choices,
                 langs: row.langs,
             });
-            let rsvp = Rsvp {
+            let rsvp = Rsvp::from(Row {
                 id: row.id,
                 event_id: row.event_id,
                 name: row.name,
@@ -302,11 +349,11 @@ pub async fn find_with_events(
                 email_consent_at: row.email_consent_at,
                 privacy_version: row.privacy_version,
                 responded_at: row.responded_at,
-                created_at: row.created_at,
+                created_at: row.created_at.into(),
                 group_id: row.group_id,
                 name_display: row.name_display,
                 choice: row.choice,
-            };
+            });
             WithEvent {
                 rsvp,
                 event,

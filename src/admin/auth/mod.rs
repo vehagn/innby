@@ -47,7 +47,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use chrono::{DateTime, TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp};
 use sqlx::PgPool;
 use tokio::sync::Semaphore;
 use uuid::Uuid;
@@ -82,9 +82,9 @@ const ALL_RESETS: u32 = 50;
 const RESET_WINDOW: Duration = Duration::from_secs(60 * 60);
 
 /// How long a JWT lasts, and a refresh token: LLDAP's defaults.
-const TOKEN_LIFETIME: TimeDelta = TimeDelta::days(1);
+const TOKEN_LIFETIME: SignedDuration = SignedDuration::from_hours(24);
 
-const REFRESH_LIFETIME: TimeDelta = TimeDelta::days(30);
+const REFRESH_LIFETIME: SignedDuration = SignedDuration::from_hours(30 * 24);
 
 /// The cookies, named as LLDAP names them.
 const TOKEN: &str = "token";
@@ -287,10 +287,10 @@ impl Auth {
     }
 
     /// A new JWT for the host.
-    fn token(&self, now: DateTime<Utc>, user: &str, login: Login, lifetime: TimeDelta) -> String {
+    fn token(&self, now: Timestamp, user: &str, login: Login, lifetime: SignedDuration) -> String {
         self.key.sign(&jwt::Claims {
-            iat: now.timestamp(),
-            exp: (now + lifetime).timestamp(),
+            iat: now.as_second(),
+            exp: (now + lifetime).as_second(),
             user: user.to_owned(),
             login,
             jti: uuid::Builder::from_random_bytes(random::bytes()).into_uuid(),
@@ -300,7 +300,7 @@ impl Auth {
     /// The `token` cookie of a password user.
     fn password_token(
         &self,
-        now: DateTime<Utc>,
+        now: Timestamp,
         user: &str,
         identity: PasswordIdentity,
     ) -> HeaderValue {
@@ -316,7 +316,7 @@ impl Auth {
         user: &str,
         identity: PasswordIdentity,
     ) -> sqlx::Result<[HeaderValue; 2]> {
-        let now = Utc::now();
+        let now = Timestamp::now();
         let refresh_token = refresh_token(user, identity);
         let digest = self.key.digest(&refresh_token);
         admin_login::save_refresh_token(&self.db, &digest, now + REFRESH_LIFETIME).await?;
@@ -356,12 +356,12 @@ impl Auth {
     /// The cookie of a login the provider vouched for.
     pub(super) fn start_oidc_session(&self, login: &oidc::Login) -> HeaderValue {
         let signed = Login::Provider { role: login.role };
-        let token = self.token(Utc::now(), &login.user, signed, OIDC_SESSION);
+        let token = self.token(Timestamp::now(), &login.user, signed, OIDC_SESSION);
         self.cookie(TOKEN, &token, OIDC_SESSION)
     }
 
     async fn session(&self, headers: &HeaderMap) -> sqlx::Result<Session> {
-        let now = Utc::now();
+        let now = Timestamp::now();
         if let Some(claims) = self.claims(headers, now)
             && !admin_login::is_revoked(&self.db, claims.jti).await?
         {
@@ -403,8 +403,8 @@ impl Auth {
     /// Revokes the request's JWT and refresh token, so copies of the cookies don't work
     /// either.
     async fn end_session(&self, headers: &HeaderMap) -> sqlx::Result<()> {
-        if let Some(claims) = self.claims(headers, Utc::now()) {
-            let expires_at = DateTime::from_timestamp(claims.exp, 0).unwrap_or_default();
+        if let Some(claims) = self.claims(headers, Timestamp::now()) {
+            let expires_at = Timestamp::from_second(claims.exp).unwrap_or_default();
             admin_login::revoke_jwt(&self.db, claims.jti, expires_at).await?;
         }
         if let Some(refresh_token) = cookie::get(headers, REFRESH_TOKEN) {
@@ -413,19 +413,19 @@ impl Auth {
         Ok(())
     }
 
-    fn claims(&self, headers: &HeaderMap, now: DateTime<Utc>) -> Option<jwt::Claims> {
+    fn claims(&self, headers: &HeaderMap, now: Timestamp) -> Option<jwt::Claims> {
         self.key.verify(cookie::get(headers, TOKEN)?, now)
     }
 
     /// A `Set-Cookie` value for the admin UI's paths. `SameSite=Lax` rather than LLDAP's
     /// `Strict`, so a link to the admin pages from elsewhere opens them logged in;
     /// `http::csrf` turns away forms posted from other sites.
-    pub(super) fn cookie(&self, name: &str, value: &str, lifetime: TimeDelta) -> HeaderValue {
+    pub(super) fn cookie(&self, name: &str, value: &str, lifetime: SignedDuration) -> HeaderValue {
         cookie::set(
             name,
             value,
             &self.cookie_path,
-            lifetime.num_seconds(),
+            lifetime.as_secs(),
             self.https,
         )
     }

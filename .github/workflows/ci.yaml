@@ -61,7 +61,7 @@ jobs:
       - name: Install sqlx-cli
         run: |
           cargo install sqlx-cli@"$SQLX_CLI_VERSION" --locked \
-            --no-default-features --features rustls,postgres
+            --no-default-features --features rustls,postgres,sqlx-toml
       # `test` applies the migrations that `lint` checks the offline query data against,
       # and runs the example games' tests with Node.js.
       - run: just test

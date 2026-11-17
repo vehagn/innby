@@ -13,12 +13,15 @@ argon2 = "0.6.0"
 askama = "0.16.1"
 axum = { version = "0.8.9", features = ["multipart"] }
 base64 = "0.22.1"
-chrono = { version = "0.4.45", features = ["serde", "unstable-locales"] }
-chrono-tz = "0.10.4"
 clap = { version = "4.6.7", features = ["derive"] }
 getrandom = "0.4.3"
 hmac = "0.12.1"
 hyper = { version = "1.12.0", features = ["client", "http1", "server"] }
+# Times and time zones. The images have no tzdata, so the time zone database is
+# compiled in, as it was with chrono-tz. Postgres's `timestamptz` comes and goes through
+# jiff-sqlx, which `sqlx.toml` names for the query macros.
+jiff = { version = "1.0.0", default-features = false, features = ["perf-inline", "serde", "std", "tzdb-bundle-always"] }
+jiff-sqlx = { version = "1.0.0", features = ["postgres"] }
 hyper-util = { version = "0.1.21", features = ["http1", "server", "server-graceful", "service", "tokio"] }
 lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "webpki-roots"] }
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
@@ -26,13 +29,13 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.10.9"
 sqlx = { version = "0.9.0", default-features = false, features = [
-  "chrono",
   "derive",
   "json",
   "macros",
   "migrate",
   "postgres",
   "runtime-tokio",
+  "sqlx-toml",
   "tls-rustls-ring-webpki",
   "uuid",
 ] }

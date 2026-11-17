@@ -5,13 +5,17 @@
 # `{name}` and the like are filled in; keep them as they are.
 
 # What the language is: its own name on the language switch, its tag for <html lang>,
-# its mark in the language menu, its locale for day and month names, the
+# its mark in the language menu, the names of its days and months, the
 # Accept-Language tags it answers (a tag loses a part at a time until one matches), and
 # the languages that fill in what this file leaves out.
 language.name = "English"
 language.tag = "en"
 language.badge = "EN"
-language.locale = "en_GB"
+language.days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+language.short_days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+language.months = ["January", "February", "March", "April", "May", "June", "July", "August",
+  "September", "October", "November", "December"]
+language.short_months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 language.serves = ["en"]
 
 # What the language switch is, for screen readers.

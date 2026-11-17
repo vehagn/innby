@@ -11,8 +11,8 @@ fn event(details: crate::db::event::Details) -> Event {
     }
 }
 
-fn now() -> DateTime<Utc> {
-    Utc.with_ymd_and_hms(2054, 11, 1, 12, 0, 0).unwrap()
+fn now() -> Timestamp {
+    "2054-11-01T12:00:00Z".parse().unwrap()
 }
 
 #[test]
@@ -47,11 +47,7 @@ fn holds_the_event_alone_in_utc() {
     );
     // In Bokmål, the event's own title, and its end when it has one.
     let mut details = details();
-    details.ends_at = Some(
-        chrono_tz::Europe::Oslo
-            .with_ymd_and_hms(2054, 12, 13, 1, 0, 0)
-            .unwrap(),
-    );
+    details.ends_at = Some(crate::testing::oslo(2054, 12, 13, 1, 0));
     let file = ics(&event(details), Lang::NB, "fest.example.com", now());
     assert!(file.contains("\r\nSUMMARY:Julebord\r\n"), "{file}");
     assert!(file.contains("\r\nDTEND:20541213T000000Z\r\n"), "{file}");

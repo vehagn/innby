@@ -5,11 +5,10 @@
 //! A text a file leaves out comes from its `fallback` languages, in order, and from theirs
 //! in turn. One language, the base, falls back to nothing, so it has every text. A file
 //! can't have a text the base lacks, and a language can't fall back to itself, however
-//! roundabout.
+//! roundabout. The names of days and months, which dates show, fall back the same way.
 
 use std::sync::LazyLock;
 
-use chrono::Locale;
 use serde::Deserialize;
 use toml::{Table, Value};
 
@@ -25,8 +24,12 @@ struct About {
     tag: String,
     /// A short mark for the language menu.
     badge: String,
-    /// The `chrono` locale for day and month names, e.g. `nn_NO`.
-    locale: String,
+    /// The days' names, Monday first, and the months', each in full and short: what dates
+    /// show for `%A`, `%a`, `%B` and `%b`. A file without them has its fallback's.
+    days: Option<[String; 7]>,
+    short_days: Option<[String; 7]>,
+    months: Option<[String; 12]>,
+    short_months: Option<[String; 12]>,
     /// The `Accept-Language` tags it answers, lower-case, matched as RFC 4647's lookup
     /// does: `zh-Hant-TW` tries `zh-hant-tw`, then `zh-hant`, then `zh`.
     serves: Vec<String>,
@@ -40,13 +43,22 @@ pub(super) struct Language {
     pub name: String,
     pub tag: String,
     pub badge: String,
-    pub locale: Locale,
+    pub names: Names,
     pub serves: Vec<String>,
     /// Every language its texts come from, nearest first, without itself.
     pub fallbacks: Vec<Lang>,
     /// How many texts its own file has, before any are filled in.
     pub own_texts: usize,
     pub messages: Messages,
+}
+
+/// The names of days and months in a language, for its dates: jiff's own are English.
+pub(super) struct Names {
+    /// Monday first, as ISO 8601 counts.
+    pub days: [String; 7],
+    pub short_days: [String; 7],
+    pub months: [String; 12],
+    pub short_months: [String; 12],
 }
 
 /// Every language, loaded.
@@ -124,9 +136,7 @@ impl Language {
             .try_into()
             .unwrap_or_else(|err| panic!("locales/{}.toml: {err}", lang.code()));
         Self {
-            locale: Locale::try_from(about.locale.as_str()).unwrap_or_else(|_| {
-                panic!("locales/{}.toml: no locale {}", lang.code(), about.locale)
-            }),
+            names: names(lang, file),
             fallbacks: fallbacks(lang, file),
             own_texts: count(&own),
             name: about.name,
@@ -151,6 +161,39 @@ fn about(lang: Lang, file: &dyn Fn(Lang) -> String) -> About {
     table
         .try_into()
         .unwrap_or_else(|err| panic!("locales/{}.toml: language: {err}", lang.code()))
+}
+
+/// The names of `lang`'s days and months: each list from its own file, or its nearest
+/// fallback's.
+fn names(lang: Lang, file: &dyn Fn(Lang) -> String) -> Names {
+    let files: Vec<About> = std::iter::once(lang)
+        .chain(fallbacks(lang, file))
+        .map(|lang| about(lang, file))
+        .collect();
+    let missing = |list| -> ! {
+        panic!(
+            "locales/{}.toml: no language.{list}, here or in a fallback",
+            lang.code()
+        )
+    };
+    let find_7 = |list, get: fn(&About) -> &Option<[String; 7]>| {
+        files
+            .iter()
+            .find_map(|about| get(about).clone())
+            .unwrap_or_else(|| missing(list))
+    };
+    let find_12 = |list, get: fn(&About) -> &Option<[String; 12]>| {
+        files
+            .iter()
+            .find_map(|about| get(about).clone())
+            .unwrap_or_else(|| missing(list))
+    };
+    Names {
+        days: find_7("days", |about| &about.days),
+        short_days: find_7("short_days", |about| &about.short_days),
+        months: find_12("months", |about| &about.months),
+        short_months: find_12("short_months", |about| &about.short_months),
+    }
 }
 
 /// Every language `lang`'s texts come from, nearest first: its fallbacks in order, each
@@ -241,7 +284,7 @@ mod tests {
         language.name = "Nynorsk"
         language.tag = "nn"
         language.badge = "NN"
-        language.locale = "nn_NO"
+        language.days = ["måndag", "tysdag", "onsdag", "torsdag", "fredag", "laurdag", "søndag"]
         language.serves = ["nn"]
         language.fallback = ["nb"]
         greeting = "Hei, {name}!"

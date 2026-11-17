@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use serde::Serialize;
 use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
@@ -121,7 +121,7 @@ pub struct Post {
     pub deleted: bool,
     /// Its text, once `page` has loaded it; None for a deleted post.
     pub body: Option<String>,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
     /// Its votes added up.
     pub score: i64,
     /// The vote of the guest looking, if any: 1, -1 or 0.
@@ -132,7 +132,7 @@ pub struct Post {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Written {
     pub body: String,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
 }
 
 /// A guest's vote, for their export: up (1) or down (-1), and the post's text while it
@@ -213,7 +213,7 @@ pub async fn posts(
                 _ => Author::Gone,
             },
             body: None,
-            created_at: row.created_at,
+            created_at: row.created_at.into(),
             score: row.score,
             vote: row.vote,
         })

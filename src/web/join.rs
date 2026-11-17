@@ -11,7 +11,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Redirect},
 };
-use chrono::Utc;
+use jiff::Timestamp;
 use serde::Deserialize;
 
 use super::{
@@ -71,7 +71,7 @@ impl<'a> JoinPage<'a> {
             display_choices: DisplayChoice::choices(t, None, NameDisplay::Full),
             question: Question::new(&joining.event.details, lang, None),
             guests_link: paths::localized(&paths::path(paths::JOIN_GUESTS, link), lang),
-            accepts_answers: joining.event.details.accepts_answers(Utc::now()),
+            accepts_answers: joining.event.details.accepts_answers(Timestamp::now()),
             remember: false,
             error: None,
         }

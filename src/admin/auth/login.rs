@@ -9,7 +9,7 @@ use axum::{
     http::{HeaderMap, StatusCode, header},
     response::{AppendHeaders, IntoResponse, Redirect, Response},
 };
-use chrono::TimeDelta;
+use jiff::SignedDuration;
 use serde::Deserialize;
 
 use super::{Auth, Outcome, REFRESH_TOKEN, TOKEN};
@@ -118,8 +118,12 @@ pub async fn log_out(State(auth): State<Arc<Auth>>, headers: HeaderMap) -> Respo
         return server_error(err);
     }
     tracing::info!("host logged out");
-    let cleared = [TOKEN, REFRESH_TOKEN]
-        .map(|name| (header::SET_COOKIE, auth.cookie(name, "", TimeDelta::zero())));
+    let cleared = [TOKEN, REFRESH_TOKEN].map(|name| {
+        (
+            header::SET_COOKIE,
+            auth.cookie(name, "", SignedDuration::ZERO),
+        )
+    });
     let page = paths::admin(&format!("{}?logged_out", paths::LOGIN));
     (AppendHeaders(cleared), Redirect::to(&page)).into_response()
 }

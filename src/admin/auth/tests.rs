@@ -37,7 +37,7 @@ pub fn admin_config() -> AdminConfig {
 /// them, for tests that don't log in through a form.
 pub fn token(config: &AdminConfig, db: PgPool, user: &str, role: Option<Role>) -> String {
     let login = Login::Provider { role };
-    Auth::new(config, link_key(), true, db).token(Utc::now(), user, login, TOKEN_LIFETIME)
+    Auth::new(config, link_key(), true, db).token(Timestamp::now(), user, login, TOKEN_LIFETIME)
 }
 
 /// The tests' link key, as `config::tests::config` has it.
@@ -70,10 +70,10 @@ fn refresh_tokens_are_versioned_and_keep_dotted_usernames_intact() {
 
 #[test]
 fn configured_password_claims_have_a_distinct_identity() {
-    let now = Utc::now();
+    let now = Timestamp::now();
     let claims = jwt::Claims {
-        iat: now.timestamp(),
-        exp: (now + TOKEN_LIFETIME).timestamp(),
+        iat: now.as_second(),
+        exp: (now + TOKEN_LIFETIME).as_second(),
         user: "admin".into(),
         login: Login::Password {
             identity: PasswordIdentity::Configured,
@@ -128,7 +128,7 @@ async fn old_password_credentials_do_not_authenticate_a_recreated_account(db: Pg
         predecessor.id,
         predecessor.email.as_deref().unwrap(),
         predecessor.version,
-        Utc::now() + TimeDelta::hours(1),
+        Timestamp::now() + SignedDuration::from_hours(1),
     );
     let link: crate::link::PasswordLink = link.parse().unwrap();
 

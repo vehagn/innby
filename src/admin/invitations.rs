@@ -103,7 +103,7 @@ async fn invitations_page(
     error: Option<String>,
 ) -> Result<Response, PageError> {
     let rsvps = rsvp::list(&state.db, event.id).await?;
-    let tz = event.details.starts_at.timezone();
+    let tz = event.details.starts_at.time_zone();
     let invitations = rsvps
         .iter()
         .filter(|rsvp| rsvp.is_invitation())

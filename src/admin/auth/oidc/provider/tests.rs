@@ -43,9 +43,9 @@ async fn authorize(fake: &Fake, url: &Url) -> Callback {
 }
 
 async fn log_in(fake: &Fake, provider: &Provider) -> Result<Login, LoginError> {
-    let (url, flow) = provider.start(Utc::now()).await.unwrap();
+    let (url, flow) = provider.start(Timestamp::now()).await.unwrap();
     let callback = authorize(fake, &url).await;
-    provider.finish(&flow, &callback, Utc::now()).await
+    provider.finish(&flow, &callback, Timestamp::now()).await
 }
 
 fn failed(result: Result<Login, LoginError>) -> String {
@@ -79,7 +79,7 @@ async fn logs_in_with_the_role_from_userinfo() {
 #[tokio::test]
 async fn sends_pkce_state_and_nonce() {
     let (_fake, provider) = provider().await;
-    let (url, flow) = provider.start(Utc::now()).await.unwrap();
+    let (url, flow) = provider.start(Timestamp::now()).await.unwrap();
     let query: HashMap<String, String> = url.query_pairs().into_owned().collect();
     assert_eq!(query["state"], flow.state);
     assert_eq!(query["nonce"], flow.nonce);
@@ -90,7 +90,7 @@ async fn sends_pkce_state_and_nonce() {
         query["redirect_uri"],
         format!("{ADMIN}/login/oidc/callback")
     );
-    let (_, again) = provider.start(Utc::now()).await.unwrap();
+    let (_, again) = provider.start(Timestamp::now()).await.unwrap();
     assert_ne!(flow.state, again.state);
 }
 
@@ -111,15 +111,15 @@ async fn vouches_for_hosts_without_a_role_and_hears_a_no() {
 #[tokio::test]
 async fn the_callback_must_belong_to_this_login() {
     let (fake, provider) = provider().await;
-    let (url, flow) = provider.start(Utc::now()).await.unwrap();
+    let (url, flow) = provider.start(Timestamp::now()).await.unwrap();
     let callback = authorize(&fake, &url).await;
 
     // Another browser's login, or none.
-    let (_, other) = provider.start(Utc::now()).await.unwrap();
-    let result = provider.finish(&other, &callback, Utc::now()).await;
+    let (_, other) = provider.start(Timestamp::now()).await.unwrap();
+    let result = provider.finish(&other, &callback, Timestamp::now()).await;
     assert!(matches!(result, Err(LoginError::Expired)));
     // Too late.
-    let late = Utc::now() + FLOW_LIFETIME;
+    let late = Timestamp::now() + FLOW_LIFETIME;
     let result = provider.finish(&flow, &callback, late).await;
     assert!(matches!(result, Err(LoginError::Expired)));
     // From another provider (RFC 9207), or without saying.
@@ -127,38 +127,41 @@ async fn the_callback_must_belong_to_this_login() {
         iss: Some("https://evil.example.com".into()),
         ..authorize(&fake, &url).await
     };
-    let result = provider.finish(&flow, &elsewhere, Utc::now()).await;
+    let result = provider.finish(&flow, &elsewhere, Timestamp::now()).await;
     let said = failed(result);
     assert!(said.contains("issuer") && !said.contains("evil"), "{said}");
     let unnamed = Callback {
         iss: None,
         ..authorize(&fake, &url).await
     };
-    let result = provider.finish(&flow, &unnamed, Utc::now()).await;
+    let result = provider.finish(&flow, &unnamed, Timestamp::now()).await;
     assert!(failed(result).contains("iss"));
 
     // The right one works, once.
-    provider.finish(&flow, &callback, Utc::now()).await.unwrap();
-    let result = provider.finish(&flow, &callback, Utc::now()).await;
+    provider
+        .finish(&flow, &callback, Timestamp::now())
+        .await
+        .unwrap();
+    let result = provider.finish(&flow, &callback, Timestamp::now()).await;
     assert!(failed(result).contains("invalid_grant"));
 }
 
 #[tokio::test]
 async fn the_providers_error_is_said_by_its_code_alone() {
     let (fake, provider) = provider().await;
-    let (url, flow) = provider.start(Utc::now()).await.unwrap();
+    let (url, flow) = provider.start(Timestamp::now()).await.unwrap();
     let scope = Callback {
         error: Some("invalid_scope".into()),
         ..authorize(&fake, &url).await
     };
-    let said = failed(provider.finish(&flow, &scope, Utc::now()).await);
+    let said = failed(provider.finish(&flow, &scope, Timestamp::now()).await);
     assert!(said.contains("invalid_scope"), "{said}");
     // The browser brings the code, so it may be anything, about anyone.
     let made_up = Callback {
         error: Some("kari@example.com is locked out".into()),
         ..authorize(&fake, &url).await
     };
-    let said = failed(provider.finish(&flow, &made_up, Utc::now()).await);
+    let said = failed(provider.finish(&flow, &made_up, Timestamp::now()).await);
     assert!(said.contains("the provider answered"), "{said}");
     assert!(!said.contains("kari"), "{said}");
 }
@@ -208,7 +211,7 @@ async fn fetches_new_keys_when_the_provider_rotates_them() {
 async fn the_provider_must_be_the_configured_issuer() {
     let (fake, provider) = provider().await;
     fake.with(|fake| fake.issuer = Some("https://evil.example.com".into()));
-    let err = provider.start(Utc::now()).await.unwrap_err();
+    let err = provider.start(Timestamp::now()).await.unwrap_err();
     assert!(format!("{err:#}").contains("INNBY_OIDC_ISSUER"), "{err:#}");
 
     let wrong_secret = Provider::new(OidcConfig {

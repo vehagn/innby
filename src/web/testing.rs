@@ -58,9 +58,10 @@ impl Site {
         let event = self.event().await;
         let mut details = event.details;
         // A minute ago, whenever the event is.
-        let zone = details.starts_at.timezone();
-        details.rsvp_deadline =
-            Some(chrono::Utc::now().with_timezone(&zone) - chrono::Duration::minutes(1));
+        let zone = details.starts_at.time_zone().clone();
+        details.rsvp_deadline = Some(
+            jiff::Timestamp::now().to_zoned_datetime(zone) - jiff::SignedDuration::from_mins(1),
+        );
         crate::db::event::update(&self.db, event.id, &details)
             .await
             .unwrap();

@@ -115,7 +115,7 @@ async fn page(
         None => {}
     }
     if board_state.for_hosts() {
-        let tz = event.details.starts_at.timezone();
+        let tz = event.details.starts_at.time_zone();
         let shown = board::page(&state.db, event.id, None, number).await?;
         pager = Pager::new(t, &shown, |n| paths::admin(&url(event.id, n, None)));
         steps = board::threads(shown.posts, |post| {

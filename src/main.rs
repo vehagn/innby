@@ -140,7 +140,7 @@ async fn run() -> anyhow::Result<()> {
             let mailer = mailer::run(config, MailConfig::from_env()?, db.clone());
             metrics::alongside(metrics, db, true, mailer).await
         }
-        Command::Janitor => janitor::run(&db::connect().await?, chrono::Utc::now())
+        Command::Janitor => janitor::run(&db::connect().await?, jiff::Timestamp::now())
             .await
             .map(drop),
         Command::Migrate => db::migrate(&db::connect().await?).await,

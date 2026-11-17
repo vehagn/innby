@@ -1,20 +1,21 @@
 //! The host's logins: refresh tokens, and JWTs logged out before they expired. Each write
 //! also forgets the rows that have expired, so the tables stay small.
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
+use jiff_sqlx::ToSqlx;
 use sqlx::PgExecutor;
 use uuid::Uuid;
 
 pub async fn save_refresh_token(
     db: impl PgExecutor<'_>,
     digest: &[u8],
-    expires_at: DateTime<Utc>,
+    expires_at: Timestamp,
 ) -> sqlx::Result<()> {
     sqlx::query!(
         "with expired as (delete from admin_refresh_token where expires_at <= now()) \
          insert into admin_refresh_token (digest, expires_at) values ($1, $2)",
         digest,
-        expires_at,
+        expires_at.to_sqlx(),
     )
     .execute(db)
     .await
@@ -42,14 +43,14 @@ pub async fn delete_refresh_token(db: impl PgExecutor<'_>, digest: &[u8]) -> sql
 pub async fn revoke_jwt(
     db: impl PgExecutor<'_>,
     jti: Uuid,
-    expires_at: DateTime<Utc>,
+    expires_at: Timestamp,
 ) -> sqlx::Result<()> {
     sqlx::query!(
         "with expired as (delete from admin_revoked_jwt where expires_at <= now()) \
          insert into admin_revoked_jwt (jti, expires_at) values ($1, $2) \
          on conflict do nothing",
         jti,
-        expires_at,
+        expires_at.to_sqlx(),
     )
     .execute(db)
     .await

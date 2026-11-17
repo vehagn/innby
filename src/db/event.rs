@@ -1,8 +1,8 @@
 //! Events, which the host creates in the admin UI. Every invitation and group link
 //! belongs to one, and is deleted with it.
 
-use chrono::{DateTime, Utc};
-use chrono_tz::Tz;
+use jiff::{Timestamp, ZonedDateTime, tz::TimeZone};
+use jiff_sqlx::ToSqlx;
 use sqlx::{PgExecutor, types::Json};
 use uuid::Uuid;
 
@@ -16,7 +16,7 @@ pub struct Event {
     pub id: Uuid,
     pub details: Details,
     /// When its start, end or place last changed, once it was made.
-    pub changed_at: Option<DateTime<Utc>>,
+    pub changed_at: Option<Timestamp>,
 }
 
 /// What the host says about an event.
@@ -28,11 +28,11 @@ pub struct Details {
     pub description: Texts,
     pub location: String,
     /// In the event's time zone, in which every date about it shows.
-    pub starts_at: DateTime<Tz>,
+    pub starts_at: ZonedDateTime,
     /// Guests can answer until then; `None` means until the event starts.
-    pub rsvp_deadline: Option<DateTime<Tz>>,
+    pub rsvp_deadline: Option<ZonedDateTime>,
     /// After `starts_at`; `None` for an event with no set end.
-    pub ends_at: Option<DateTime<Tz>>,
+    pub ends_at: Option<ZonedDateTime>,
     /// The host's own question to guests; none when it's empty in the event's language.
     pub question: Texts,
     /// Its choices, a line each, as many in each language that has its own.
@@ -50,8 +50,17 @@ impl Details {
     }
 
     /// Whether guests can still answer or change their answer.
-    pub fn accepts_answers(&self, now: DateTime<Utc>) -> bool {
-        now < self.rsvp_deadline.unwrap_or(self.starts_at)
+    pub fn accepts_answers(&self, now: Timestamp) -> bool {
+        now < self
+            .rsvp_deadline
+            .as_ref()
+            .unwrap_or(&self.starts_at)
+            .timestamp()
+    }
+
+    /// The event's time zone, by its IANA name, as it's stored.
+    pub fn time_zone(&self) -> &str {
+        self.starts_at.time_zone().iana_name().unwrap_or("UTC")
     }
 
     pub fn title(&self, lang: Lang) -> &str {
@@ -77,24 +86,25 @@ impl Details {
 
 impl Event {
     /// When the event and everything in it is deleted.
-    pub fn deleted_at(&self) -> DateTime<Utc> {
-        self.details.starts_at.to_utc() + KEEP_AFTER_EVENT
+    pub fn deleted_at(&self) -> Timestamp {
+        self.details.starts_at.timestamp() + KEEP_AFTER_EVENT
     }
 }
 
 /// A row as stored, with the texts as maps by language code. The QR code style is in the
-/// same row, but `db::qr` reads and writes it.
+/// same row, but `db::qr` reads and writes it. A time that may be missing comes as
+/// jiff-sqlx's wrapper, which the query macros can't turn into an `Option` of jiff's.
 pub(super) struct Row {
     pub(super) id: Uuid,
     pub(super) lang: Lang,
     pub(super) title: Json<Texts>,
     pub(super) description: Json<Texts>,
     pub(super) location: String,
-    pub(super) starts_at: DateTime<Utc>,
+    pub(super) starts_at: Timestamp,
     pub(super) time_zone: String,
-    pub(super) rsvp_deadline: Option<DateTime<Utc>>,
-    pub(super) ends_at: Option<DateTime<Utc>>,
-    pub(super) changed_at: Option<DateTime<Utc>>,
+    pub(super) rsvp_deadline: Option<jiff_sqlx::Timestamp>,
+    pub(super) ends_at: Option<jiff_sqlx::Timestamp>,
+    pub(super) changed_at: Option<jiff_sqlx::Timestamp>,
     pub(super) question: Json<Texts>,
     pub(super) choices: Json<Texts>,
     pub(super) langs: Vec<String>,
@@ -103,7 +113,8 @@ pub(super) struct Row {
 impl From<Row> for Event {
     fn from(row: Row) -> Self {
         // Only valid zones are stored; an unknown one shows as UTC rather than failing.
-        let tz: Tz = row.time_zone.parse().unwrap_or(Tz::UTC);
+        let tz = TimeZone::get(&row.time_zone).unwrap_or(TimeZone::UTC);
+        let at = |at: jiff_sqlx::Timestamp| at.to_jiff().to_zoned_datetime(tz.clone());
         Self {
             id: row.id,
             details: Details {
@@ -111,14 +122,14 @@ impl From<Row> for Event {
                 title: row.title.0,
                 description: row.description.0,
                 location: row.location,
-                starts_at: row.starts_at.with_timezone(&tz),
-                rsvp_deadline: row.rsvp_deadline.map(|at| at.with_timezone(&tz)),
-                ends_at: row.ends_at.map(|at| at.with_timezone(&tz)),
+                starts_at: row.starts_at.to_zoned_datetime(tz.clone()),
+                rsvp_deadline: row.rsvp_deadline.map(at),
+                ends_at: row.ends_at.map(at),
                 question: row.question.0,
                 choices: row.choices.0,
                 offered: LangSet::from_codes(&row.langs),
             },
-            changed_at: row.changed_at,
+            changed_at: row.changed_at.map(jiff_sqlx::Timestamp::to_jiff),
         }
     }
 }
@@ -135,10 +146,10 @@ pub async fn create(db: impl PgExecutor<'_>, details: &Details) -> sqlx::Result<
         Json(&details.title) as _,
         Json(&details.description) as _,
         details.location,
-        details.starts_at.to_utc(),
-        details.starts_at.timezone().name(),
-        details.rsvp_deadline.map(|at| at.to_utc()),
-        details.ends_at.map(|at| at.to_utc()),
+        details.starts_at.timestamp().to_sqlx(),
+        details.time_zone(),
+        details.rsvp_deadline.as_ref().map(|at| at.timestamp().to_sqlx()),
+        details.ends_at.as_ref().map(|at| at.timestamp().to_sqlx()),
         Json(&details.question) as _,
         Json(&details.choices) as _,
         details.lang as Lang,
@@ -173,10 +184,10 @@ pub async fn update(
         Json(&details.title) as _,
         Json(&details.description) as _,
         details.location,
-        details.starts_at.to_utc(),
-        details.starts_at.timezone().name(),
-        details.rsvp_deadline.map(|at| at.to_utc()),
-        details.ends_at.map(|at| at.to_utc()),
+        details.starts_at.timestamp().to_sqlx(),
+        details.time_zone(),
+        details.rsvp_deadline.as_ref().map(|at| at.timestamp().to_sqlx()),
+        details.ends_at.as_ref().map(|at| at.timestamp().to_sqlx()),
         Json(&details.question) as _,
         Json(&details.choices) as _,
         details.lang as Lang,
@@ -240,16 +251,13 @@ pub async fn delete(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<bool> {
 
 /// Deletes every event that started by `cutoff`, with all that belongs to it. Returns
 /// how many guests' data went with them.
-pub async fn delete_started_by(
-    db: impl PgExecutor<'_>,
-    cutoff: DateTime<Utc>,
-) -> sqlx::Result<u64> {
+pub async fn delete_started_by(db: impl PgExecutor<'_>, cutoff: Timestamp) -> sqlx::Result<u64> {
     sqlx::query_scalar!(
         r#"
         with gone as (delete from event where starts_at <= $1 returning id)
         select count(*) as "guests!" from rsvp where event_id in (select id from gone)
         "#,
-        cutoff,
+        cutoff.to_sqlx(),
     )
     .fetch_one(db)
     .await
@@ -258,10 +266,11 @@ pub async fn delete_started_by(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use chrono::TimeZone;
+    use jiff::SignedDuration;
     use sqlx::PgPool;
 
     use super::*;
+    use crate::testing::oslo;
 
     /// The tests' event: the Christmas party at Storgata 1 on 12 December 2054. Years
     /// ahead, so its answers stay open whenever the tests run, and in a year with 2026's
@@ -272,9 +281,7 @@ pub(crate) mod tests {
             title: Texts::from([(Lang::NB, "Julebord"), (Lang::EN, "Christmas party")]),
             description: Texts::from([(Lang::NB, "Velkommen!")]),
             location: "Storgata 1, Oslo".into(),
-            starts_at: chrono_tz::Europe::Oslo
-                .with_ymd_and_hms(2054, 12, 12, 19, 0, 0)
-                .unwrap(),
+            starts_at: oslo(2054, 12, 12, 19, 0),
             rsvp_deadline: None,
             ends_at: None,
             question: Texts::default(),
@@ -286,11 +293,7 @@ pub(crate) mod tests {
     /// `details()`, answering until noon on 1 December.
     pub fn details_with_deadline() -> Details {
         Details {
-            rsvp_deadline: Some(
-                chrono_tz::Europe::Oslo
-                    .with_ymd_and_hms(2054, 12, 1, 12, 0, 0)
-                    .unwrap(),
-            ),
+            rsvp_deadline: Some(oslo(2054, 12, 1, 12, 0)),
             ..details()
         }
     }
@@ -352,17 +355,17 @@ pub(crate) mod tests {
         assert_eq!(found.details.title(Lang::EN_US), "Christmas party");
         assert_eq!(found.details.title(Lang::ZH_HANT), "圣诞晚会");
         assert_eq!(
-            found.details.starts_at.to_rfc3339(),
-            "2054-12-12T19:00:00+01:00"
+            found.details.starts_at.to_string(),
+            "2054-12-12T19:00:00+01:00[Europe/Oslo]"
         );
 
         details.location = "Storgata 2".into();
-        details.ends_at = Some(details.starts_at + chrono::Duration::hours(5));
+        details.ends_at = Some(&details.starts_at + SignedDuration::from_hours(5));
         let updated = update(&db, event.id, &details).await.unwrap().unwrap();
         assert_eq!(updated.details.location, "Storgata 2");
         assert_eq!(updated.details.ends_at, details.ends_at);
         // Never before it starts.
-        details.ends_at = Some(details.starts_at - chrono::Duration::hours(1));
+        details.ends_at = Some(&details.starts_at - SignedDuration::from_hours(1));
         assert!(update(&db, event.id, &details).await.is_err());
     }
 
@@ -396,8 +399,8 @@ pub(crate) mod tests {
         assert_eq!(same.changed_at, None);
         for change in [
             |d: &mut Details| d.location = "Bygdøy".into(),
-            |d: &mut Details| d.starts_at += chrono::Duration::hours(1),
-            |d: &mut Details| d.ends_at = Some(d.starts_at + chrono::Duration::hours(4)),
+            |d: &mut Details| d.starts_at += SignedDuration::from_hours(1),
+            |d: &mut Details| d.ends_at = Some(&d.starts_at + SignedDuration::from_hours(4)),
         ] {
             let before = find(&db, event.id).await.unwrap().unwrap().changed_at;
             change(&mut details);
@@ -409,7 +412,7 @@ pub(crate) mod tests {
 
     #[test]
     fn answers_close_at_the_deadline_or_the_start() {
-        let at = |time: &str| time.parse::<DateTime<Utc>>().unwrap();
+        let at = |time: &str| time.parse::<Timestamp>().unwrap();
         let details = details();
         assert!(details.accepts_answers(at("2054-12-12T17:59:00Z")));
         assert!(!details.accepts_answers(at("2054-12-12T18:00:00Z")));
@@ -421,9 +424,7 @@ pub(crate) mod tests {
     #[sqlx::test]
     async fn events_go_with_everything_in_them(db: PgPool) {
         let mut past = details();
-        past.starts_at = chrono_tz::Europe::Oslo
-            .with_ymd_and_hms(2054, 1, 1, 19, 0, 0)
-            .unwrap();
+        past.starts_at = oslo(2054, 1, 1, 19, 0);
         let past = create(&db, &past).await.unwrap();
         let future = create(&db, &details()).await.unwrap();
         crate::db::rsvp::create_invite(&db, past.id, "Kari", 1)
@@ -446,7 +447,7 @@ pub(crate) mod tests {
         assert!(delete(&db, future.id).await.unwrap());
     }
 
-    fn at_utc(time: &str) -> DateTime<Utc> {
+    fn at_utc(time: &str) -> Timestamp {
         time.parse().unwrap()
     }
 }

@@ -2,7 +2,7 @@
 //! `innby event list`, `export` and `import`. Each checks what it's given as the admin
 //! UI's forms do, says what's wrong in English, and returns what to print.
 
-use chrono::Utc;
+use jiff::Timestamp;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -69,7 +69,7 @@ pub async fn import_event(db: &PgPool, file: &str) -> anyhow::Result<String> {
         let (form, groups, style) = EventFile::parse(file)
             .and_then(EventFile::into_form)
             .map_err(|err| anyhow::Error::msg(err.message()))?;
-        let details = form.details(Utc::now()).map_err(anyhow::Error::msg)?;
+        let details = form.details(Timestamp::now()).map_err(anyhow::Error::msg)?;
         let groups = group_lines(&groups).map_err(anyhow::Error::msg)?;
         let style = style
             .map(admin_qr::check)
@@ -83,7 +83,7 @@ pub async fn import_event(db: &PgPool, file: &str) -> anyhow::Result<String> {
             "Made {} ({}) on {}, with {} group link(s).",
             details.title(lang()),
             event.id,
-            lang().format_date(details.starts_at),
+            lang().format_date(&details.starts_at),
             groups.len()
         ))
     })
@@ -115,7 +115,7 @@ fn lines(events: &[Event]) -> String {
             format!(
                 "{}  {}  {}\n",
                 event.id,
-                details.starts_at.format("%Y-%m-%d %H:%M %Z"),
+                details.starts_at.strftime("%Y-%m-%d %H:%M %Z"),
                 details.title(lang())
             )
         })

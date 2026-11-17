@@ -5,13 +5,18 @@
 # `{name}` and the like are filled in; keep them as they are.
 
 # What the language is: its own name on the language switch, its tag for <html lang>,
-# its mark in the language menu, its locale for day and month names, the
+# its mark in the language menu, the names of its days and months, the
 # Accept-Language tags it answers (a tag loses a part at a time until one matches), and
 # the languages that fill in what this file leaves out.
 language.name = "Bokmål"
 language.tag = "nb"
 language.badge = "NB"
-language.locale = "nb_NO"
+language.days = ["mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag"]
+language.short_days = ["man.", "tir.", "ons.", "tor.", "fre.", "lør.", "søn."]
+language.months = ["januar", "februar", "mars", "april", "mai", "juni", "juli", "august",
+  "september", "oktober", "november", "desember"]
+language.short_months = ["jan.", "feb.", "mar.", "apr.", "mai", "jun.", "jul.", "aug.", "sep.", "okt.", "nov.",
+  "des."]
 language.serves = ["nb", "no"]
 language.fallback = ["en"]
 

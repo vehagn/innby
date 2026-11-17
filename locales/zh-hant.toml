@@ -5,13 +5,14 @@
 # `{name}` and the like are filled in; keep them as they are.
 
 # What the language is: its own name on the language switch, its tag for <html lang>,
-# its mark in the language menu, its locale for day and month names, the
+# its mark in the language menu, the names of its days and months, the
 # Accept-Language tags it answers (a tag loses a part at a time until one matches), and
 # the languages that fill in what this file leaves out.
 language.name = "繁體中文"
 language.tag = "zh-Hant"
 language.badge = "繁"
-language.locale = "zh_TW"
+language.days = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
+language.short_days = ["週一", "週二", "週三", "週四", "週五", "週六", "週日"]
 language.serves = ["zh-hant", "zh-tw", "zh-hk", "zh-mo"]
 language.fallback = ["zh-hans"]
 

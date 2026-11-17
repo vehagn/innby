@@ -6,19 +6,19 @@
 //! A file, rather than a link to a calendar service, sends nothing to anyone else, and
 //! needs no JavaScript: phones, computers and mail apps open it in their calendar.
 
-use chrono::{DateTime, Duration, TimeZone, Utc};
+use jiff::{SignedDuration, Timestamp, ZonedDateTime};
 
 use crate::{db::event::Event, i18n::Lang};
 
 /// How long an event with no set end lasts in a calendar.
-pub const UNSET_LENGTH: Duration = Duration::hours(3);
+pub const UNSET_LENGTH: SignedDuration = SignedDuration::from_hours(3);
 
 /// Its media type.
 pub const CONTENT_TYPE: &str = "text/calendar; charset=utf-8";
 
 /// The file for the site at `base_url`, in `lang`.
 pub fn file(event: &Event, lang: Lang, base_url: &str) -> String {
-    ics(event, lang, host(base_url), Utc::now())
+    ics(event, lang, host(base_url), Timestamp::now())
 }
 
 /// The site's host, which makes the event's id unique among everyone's calendars.
@@ -31,12 +31,13 @@ fn host(base_url: &str) -> &str {
 
 /// The calendar file: one event, its times in UTC, which every calendar shows in its own
 /// zone.
-fn ics(event: &Event, lang: Lang, host: &str, now: DateTime<Utc>) -> String {
+fn ics(event: &Event, lang: Lang, host: &str, now: Timestamp) -> String {
     let details = &event.details;
-    let starts = details.starts_at.to_utc();
+    let starts = details.starts_at.timestamp();
     let ends = details
         .ends_at
-        .map_or(starts + UNSET_LENGTH, |ends| ends.to_utc());
+        .as_ref()
+        .map_or(starts + UNSET_LENGTH, ZonedDateTime::timestamp);
     let mut lines = vec![
         "BEGIN:VCALENDAR".to_owned(),
         "VERSION:2.0".to_owned(),
@@ -64,8 +65,8 @@ fn ics(event: &Event, lang: Lang, host: &str, now: DateTime<Utc>) -> String {
 }
 
 /// A moment in UTC, as `20261212T180000Z`.
-fn utc<Z: TimeZone>(at: DateTime<Z>) -> String {
-    at.to_utc().format("%Y%m%dT%H%M%SZ").to_string()
+fn utc(at: Timestamp) -> String {
+    at.strftime("%Y%m%dT%H%M%SZ").to_string()
 }
 
 /// A text value, with the characters that mean something in the format escaped, and

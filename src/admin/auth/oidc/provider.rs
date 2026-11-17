@@ -9,7 +9,7 @@ use std::{
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use axum::http::StatusCode;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use ring::digest;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -238,13 +238,13 @@ impl Provider {
     }
 
     /// Where to send the browser, and the login to keep until it's back.
-    pub async fn start(&self, now: DateTime<Utc>) -> Result<(Url, Flow)> {
+    pub async fn start(&self, now: Timestamp) -> Result<(Url, Flow)> {
         let metadata = self.metadata().await?;
         let flow = Flow {
             state: random::token(),
             nonce: random::token(),
             verifier: random::token(),
-            exp: (now + FLOW_LIFETIME).timestamp(),
+            exp: (now + FLOW_LIFETIME).as_second(),
         };
         let challenge = digest::digest(&digest::SHA256, flow.verifier.as_bytes());
         let mut url = metadata.authorization_endpoint.clone();
@@ -265,13 +265,13 @@ impl Provider {
         &self,
         flow: &Flow,
         callback: &Callback,
-        now: DateTime<Utc>,
+        now: Timestamp,
     ) -> Result<Login, LoginError> {
         let state_ok = callback
             .state
             .as_deref()
             .is_some_and(|state| state.as_bytes().ct_eq(flow.state.as_bytes()).into());
-        if !state_ok || flow.exp <= now.timestamp() {
+        if !state_ok || flow.exp <= now.as_second() {
             return Err(LoginError::Expired);
         }
         let metadata = self.metadata().await?;
@@ -350,7 +350,7 @@ impl Provider {
         id_token: &str,
         flow: &Flow,
         access_token: &str,
-        now: DateTime<Utc>,
+        now: Timestamp,
     ) -> Result<Map<String, Value>> {
         let keys = self.keys(metadata, false).await?;
         let verified = match jws::Token::parse(id_token)?.verify(&keys) {
@@ -365,7 +365,7 @@ impl Provider {
             client_id: &self.config.client_id,
             nonce: &flow.nonce,
             access_token,
-            now: now.timestamp(),
+            now: now.as_second(),
         };
         Ok(verified.check(&expected)?)
     }

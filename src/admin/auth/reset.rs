@@ -17,7 +17,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Redirect, Response},
 };
-use chrono::Utc;
+use jiff::Timestamp;
 use serde::Deserialize;
 use sqlx::PgPool;
 
@@ -124,7 +124,7 @@ pub struct LinkPath {
 struct VerifiedLink {
     credential: AccountCredential,
     email: String,
-    expires_at: chrono::DateTime<Utc>,
+    expires_at: Timestamp,
 }
 
 /// A link's current account, address and expiry, to be checked again by the password write.
@@ -132,7 +132,7 @@ async fn valid(db: &PgPool, auth: &Auth, path: &LinkPath) -> sqlx::Result<Option
     let Ok(link) = path.token.parse::<PasswordLink>() else {
         return Ok(None);
     };
-    if link.expires < Utc::now() {
+    if link.expires < Timestamp::now() {
         return Ok(None);
     }
     let Some(user) = admin_user::find(db, &path.user).await? else {

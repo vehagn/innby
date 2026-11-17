@@ -354,7 +354,7 @@ async fn the_host_carries_an_event_into_next_year(db: PgPool) {
     let past = filled(
         &a.error_event_past,
         "days",
-        crate::janitor::KEEP_AFTER_EVENT.num_days(),
+        crate::janitor::KEEP_AFTER_EVENT.as_hours() / 24,
     );
     host.fill(
         &a.event_file,

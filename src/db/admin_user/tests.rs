@@ -1,3 +1,5 @@
+use jiff::SignedDuration;
+
 use super::*;
 use crate::db::{access, event};
 
@@ -85,7 +87,7 @@ async fn a_recreated_name_gets_a_new_account_identity(db: PgPool) {
             &db,
             predecessor.credential(),
             "kari@example.com",
-            Utc::now() + chrono::TimeDelta::hours(1),
+            Timestamp::now() + SignedDuration::from_hours(1),
             HASH,
         )
         .await
@@ -110,7 +112,7 @@ async fn only_one_password_write_from_a_verified_snapshot_wins(db: PgPool) {
             &db,
             expected,
             "kari@example.com",
-            Utc::now() + chrono::TimeDelta::hours(1),
+            Timestamp::now() + SignedDuration::from_hours(1),
             reset_hash,
         ),
     );
@@ -177,7 +179,7 @@ async fn a_reset_write_rechecks_email_and_expiry(db: PgPool) {
             &db,
             expected,
             "kari@example.com",
-            Utc::now() + chrono::TimeDelta::hours(1),
+            Timestamp::now() + SignedDuration::from_hours(1),
             HASH,
         )
         .await
@@ -190,7 +192,7 @@ async fn a_reset_write_rechecks_email_and_expiry(db: PgPool) {
             &db,
             current,
             "new@example.com",
-            Utc::now() - chrono::TimeDelta::seconds(1),
+            Timestamp::now() - SignedDuration::from_secs(1),
             HASH,
         )
         .await

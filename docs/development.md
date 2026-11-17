@@ -129,6 +129,11 @@ agents, but it's the quickest tour for people too. In short:
   `just db reset`; once it's live, add a migration beside it instead. Run
   `just db prepare`, and commit `.sqlx/`. Update `seed/sample.sql` to match;
   `src/e2e/sample.rs` loads it, so the tests say when it's out of date.
+- **Read or write a time:** times are jiff's, a `Timestamp` or, for an event's, a
+  `ZonedDateTime` in its zone. The query macros read and write `timestamptz` as
+  `jiff_sqlx::Timestamp` (`sqlx.toml` says so): a column that can't be null turns into a
+  `Timestamp` by itself, one that can is read into a row struct and converted, as
+  `db::event::Row` does, and a parameter is `at.to_sqlx()`.
 - **Add a setting:** read it in `src/config/`, describe it in `.env.example`, and, if the
   cluster needs it, add it to the chart (`values.yaml`, `values.schema.json` and
   `templates/configmap.yaml`).

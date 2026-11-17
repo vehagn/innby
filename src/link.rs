@@ -8,8 +8,8 @@ use base64::{
     Engine,
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 };
-use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
+use jiff::Timestamp;
 use sha2::Sha256;
 use uuid::Uuid;
 
@@ -126,8 +126,8 @@ impl LinkKey {
 
     /// The path segment of an e-mail confirmation link: `{id}.{expires}.{tag}`. It signs
     /// the address too, so it stops working as soon as the guest changes it.
-    pub fn email_link(&self, id: Uuid, email: &str, expires: DateTime<Utc>) -> String {
-        let expires = expires.timestamp();
+    pub fn email_link(&self, id: Uuid, email: &str, expires: Timestamp) -> String {
+        let expires = expires.as_second();
         format!(
             "{}.{expires}.{}",
             encode_id(id),
@@ -144,9 +144,9 @@ impl LinkKey {
         account_id: Uuid,
         email: &str,
         version: i32,
-        expires: DateTime<Utc>,
+        expires: Timestamp,
     ) -> String {
-        let expires = expires.timestamp();
+        let expires = expires.as_second();
         let mac = self.password_mac(user, account_id, email, version, expires);
         format!("{expires}.{}", encode_tag(mac))
     }
@@ -161,7 +161,7 @@ impl LinkKey {
         email: &str,
         version: i32,
     ) -> bool {
-        self.password_mac(user, account_id, email, version, link.expires.timestamp())
+        self.password_mac(user, account_id, email, version, link.expires.as_second())
             .verify_truncated_left(&link.tag)
             .is_ok()
     }
@@ -188,7 +188,7 @@ impl LinkKey {
 
     /// Checks the tag against the guest's current address. Expiry is the caller's check.
     pub fn verify_email(&self, link: &EmailLink, email: &str) -> bool {
-        self.email_mac(link.id, email, link.expires.timestamp())
+        self.email_mac(link.id, email, link.expires.as_second())
             .verify_truncated_left(&link.tag)
             .is_ok()
     }
@@ -246,7 +246,7 @@ impl FromStr for IdLink {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmailLink {
     pub id: Uuid,
-    pub expires: DateTime<Utc>,
+    pub expires: Timestamp,
     tag: [u8; TAG_LEN],
 }
 
@@ -262,7 +262,7 @@ impl FromStr for EmailLink {
         };
         Ok(Self {
             id: decode_id(id)?,
-            expires: DateTime::from_timestamp(expires.parse().map_err(drop)?, 0).ok_or(())?,
+            expires: Timestamp::from_second(expires.parse().map_err(drop)?).map_err(drop)?,
             tag: decode_tag(tag)?,
         })
     }
@@ -271,7 +271,7 @@ impl FromStr for EmailLink {
 /// What a link to set a host's password says: when it stops working, and its tag.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PasswordLink {
-    pub expires: DateTime<Utc>,
+    pub expires: Timestamp,
     tag: [u8; TAG_LEN],
 }
 
@@ -281,7 +281,7 @@ impl FromStr for PasswordLink {
     fn from_str(link: &str) -> Result<Self, ()> {
         let (expires, tag) = link.split_once('.').ok_or(())?;
         Ok(Self {
-            expires: DateTime::from_timestamp(expires.parse().map_err(drop)?, 0).ok_or(())?,
+            expires: Timestamp::from_second(expires.parse().map_err(drop)?).map_err(drop)?,
             tag: decode_tag(tag)?,
         })
     }
@@ -386,7 +386,7 @@ pub mod tests {
 
     #[test]
     fn email_link_is_bound_to_address_and_expiry() {
-        let expires = DateTime::from_timestamp(1_800_000_000, 0).unwrap();
+        let expires = Timestamp::from_second(1_800_000_000).unwrap();
         let link = key().email_link(id(), "kari@example.com", expires);
         let parsed: EmailLink = link.parse().unwrap();
         assert_eq!((parsed.id, parsed.expires), (id(), expires));
@@ -405,7 +405,7 @@ pub mod tests {
 
     #[test]
     fn malformed_email_links_do_not_parse() {
-        let expires = DateTime::from_timestamp(1_800_000_000, 0).unwrap();
+        let expires = Timestamp::from_second(1_800_000_000).unwrap();
         let link = key().email_link(id(), "kari@example.com", expires);
         for bad in [
             "",
@@ -426,12 +426,12 @@ pub mod tests {
 
     #[test]
     fn a_password_link_works_once_and_for_one_address() {
-        let expires = Utc::now();
+        let expires = Timestamp::now();
         let account_id = id();
         let replacement_id = Uuid::from_u128(1);
         let link = key().password_link("kari", account_id, "kari@example.com", 3, expires);
         let parsed: PasswordLink = link.parse().unwrap();
-        assert_eq!(parsed.expires.timestamp(), expires.timestamp());
+        assert_eq!(parsed.expires.as_second(), expires.as_second());
         assert!(key().verify_password(&parsed, "kari", account_id, "kari@example.com", 3));
         // Not once the password changes, nor for another address or user.
         assert!(!key().verify_password(&parsed, "kari", account_id, "kari@example.com", 4));
@@ -443,7 +443,7 @@ pub mod tests {
 
     #[test]
     fn legacy_password_links_without_an_account_id_are_rejected() {
-        let expires = Utc::now().timestamp();
+        let expires = Timestamp::now().as_second();
         let version = 3i32;
         let old_mac = key().mac(
             "password",

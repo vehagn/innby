@@ -14,7 +14,7 @@ use axum::{
 };
 use std::collections::HashMap;
 
-use chrono::Utc;
+use jiff::Timestamp;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -69,7 +69,7 @@ pub(super) fn remember_cookie(
     invitation: Uuid,
     link: &str,
 ) -> HeaderValue {
-    let max_age = (event.deleted_at() - Utc::now()).num_seconds().max(0);
+    let max_age = (event.deleted_at() - Timestamp::now()).as_secs().max(0);
     cookie::set(&name(https, invitation), link, "/", max_age, https)
 }
 

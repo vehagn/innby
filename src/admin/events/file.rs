@@ -227,12 +227,16 @@ impl EventFile {
         Self {
             api_version: API_VERSION.into(),
             kind: KIND.into(),
-            starts: details.starts_at.format(LOCAL_TIME).to_string(),
-            ends: details.ends_at.map(|at| at.format(LOCAL_TIME).to_string()),
-            time_zone: details.starts_at.timezone().name().to_owned(),
+            starts: details.starts_at.strftime(LOCAL_TIME).to_string(),
+            ends: details
+                .ends_at
+                .as_ref()
+                .map(|at| at.strftime(LOCAL_TIME).to_string()),
+            time_zone: details.time_zone().to_owned(),
             answer_by: details
                 .rsvp_deadline
-                .map(|at| at.format(LOCAL_TIME).to_string()),
+                .as_ref()
+                .map(|at| at.strftime(LOCAL_TIME).to_string()),
             location: details.location.clone(),
             language: Some(details.lang.code().to_owned()),
             offered_in: details.offered.codes(),
@@ -372,13 +376,12 @@ pub fn file_name(details: &Details) -> String {
     }
     let name = name.trim_end_matches('-');
     let name = if name.is_empty() { "event" } else { name };
-    format!("{name}-{}.toml", details.starts_at.format("%Y"))
+    format!("{name}-{}.toml", details.starts_at.year())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
 
     use crate::db::event::tests::details_with_deadline;
 
@@ -389,18 +392,14 @@ mod tests {
             name: name.into(),
             max_party_size,
             link_nonce: 0,
-            created_at: chrono::Utc::now(),
+            created_at: jiff::Timestamp::now(),
         }
     }
 
     #[test]
     fn an_event_goes_into_a_file_and_back() {
         let mut details = details_with_deadline();
-        details.ends_at = Some(
-            chrono_tz::Europe::Oslo
-                .with_ymd_and_hms(2054, 12, 13, 1, 0, 0)
-                .unwrap(),
-        );
+        details.ends_at = Some(crate::testing::oslo(2054, 12, 13, 1, 0));
         details
             .description
             .set(Lang::EN_US, "Come one,\ncome all \"friends\"!");
@@ -453,7 +452,7 @@ mod tests {
         let (form, lines, qr) = EventFile::parse(&toml).unwrap().into_form().unwrap();
         assert_eq!(lines, "Climbing club, 2\nNaboer, 4");
         assert_eq!(qr, Some(style));
-        assert_eq!(form.details(chrono::Utc::now()).unwrap(), details);
+        assert_eq!(form.details(jiff::Timestamp::now()).unwrap(), details);
     }
 
     #[test]
@@ -468,7 +467,7 @@ mod tests {
         let (form, lines, qr) = file.into_form().unwrap();
         assert_eq!(qr, None);
         assert_eq!(
-            form.details(chrono::Utc::now())
+            form.details(jiff::Timestamp::now())
                 .unwrap()
                 .title
                 .own(Lang::NB),

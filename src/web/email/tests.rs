@@ -1,4 +1,4 @@
-use chrono::Duration;
+use jiff::{SignedDuration, Timestamp};
 use sqlx::PgPool;
 
 use super::*;
@@ -29,9 +29,11 @@ async fn queued_soon(site: &Site) -> Vec<(uuid::Uuid, Kind)> {
 }
 
 fn confirm_token(site: &Site, guest: &Rsvp, email: &str) -> String {
-    site.config
-        .link_key
-        .email_link(guest.id, email, Utc::now() + Duration::hours(48))
+    site.config.link_key.email_link(
+        guest.id,
+        email,
+        Timestamp::now() + SignedDuration::from_hours(48),
+    )
 }
 
 #[sqlx::test]
@@ -217,7 +219,7 @@ async fn expired_or_forged_confirmations_fail(db: PgPool) {
     let expired = site.config.link_key.email_link(
         guest.id,
         "kari@example.com",
-        Utc::now() - Duration::seconds(1),
+        Timestamp::now() - SignedDuration::from_secs(1),
     );
     let forged = confirm_token(&site, &guest, "someone@example.com");
     for token in [expired.as_str(), &forged, "garbage"] {

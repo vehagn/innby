@@ -52,10 +52,12 @@ impl<'a> EventView<'a> {
             title: event.title(lang),
             description: event.description(lang),
             location: &event.location,
-            when: lang.format_when(event.starts_at, event.ends_at),
-            starts_at_iso: event.starts_at.to_rfc3339(),
+            when: lang.format_when(&event.starts_at, event.ends_at.as_ref()),
+            // As RFC 3339 has it, for `<time datetime>`.
+            starts_at_iso: event.starts_at.strftime("%Y-%m-%dT%H:%M:%S%:z").to_string(),
             rsvp_deadline: event
                 .rsvp_deadline
+                .as_ref()
                 .map(|deadline| lang.format_date(deadline)),
         }
     }

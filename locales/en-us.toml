@@ -6,13 +6,12 @@
 # `{name}` and the like are filled in; keep them as they are.
 
 # What the language is: its own name on the language switch, its tag for <html lang>,
-# its mark in the language menu, its locale for day and month names, the
+# its mark in the language menu, the names of its days and months, the
 # Accept-Language tags it answers (a tag loses a part at a time until one matches), and
 # the languages that fill in what this file leaves out.
 language.name = "English (Simplified)"
 language.tag = "en-US"
 language.badge = "US"
-language.locale = "en_US"
 language.serves = ["en-us"]
 language.fallback = ["en"]
 

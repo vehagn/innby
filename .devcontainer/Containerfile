@@ -146,7 +146,7 @@ RUN curl -fsSL "https://github.com/cargo-bins/cargo-binstall/releases/download/v
       "cargo-zigbuild@${CARGO_ZIGBUILD_VERSION}" \
       "cargo-deny@${CARGO_DENY_VERSION}" \
       "oha@${OHA_VERSION}"; \
-    cargo install --locked --no-default-features --features rustls,postgres "sqlx-cli@${SQLX_CLI_VERSION}"; \
+    cargo install --locked --no-default-features --features rustls,postgres,sqlx-toml "sqlx-cli@${SQLX_CLI_VERSION}"; \
     rm -rf "${CARGO_HOME}/registry/"* "${CARGO_HOME}/git"
 
 # zsh with oh-my-zsh and the devcontainers prompt, completion for just, kubectl, rustup

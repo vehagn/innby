@@ -3,7 +3,7 @@
 //! draws, and the links between the board's pages (`_board_pager.html`). The posts
 //! themselves are in `db::board`.
 
-use chrono_tz::Tz;
+use jiff::tz::TimeZone;
 use uuid::Uuid;
 
 use crate::{
@@ -81,7 +81,7 @@ impl PostView {
     /// for a host (`full_names`); a host as a host, or by name for hosts. Only a guest on
     /// the guest list may post, so a post always has a name: one who leaves the list later
     /// keeps their first name and initial on what they wrote.
-    pub fn new(post: &Post, t: &Messages, lang: Lang, tz: Tz, full_names: bool) -> Self {
+    pub fn new(post: &Post, t: &Messages, lang: Lang, tz: &TimeZone, full_names: bool) -> Self {
         let (author, host) = match &post.author {
             Author::Guest {
                 name,
@@ -106,7 +106,7 @@ impl PostView {
             author,
             host,
             you: false,
-            when: lang.format_date(post.created_at.with_timezone(&tz)),
+            when: lang.format_date(&post.created_at.to_zoned_datetime(tz.clone())),
             body: post.body.as_deref().map(crate::markdown::to_html),
             score: post.score,
             vote: post.vote,

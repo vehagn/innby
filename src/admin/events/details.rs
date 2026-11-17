@@ -11,7 +11,7 @@ use axum::{
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
-use chrono::Utc;
+use jiff::Timestamp;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -56,7 +56,7 @@ impl DetailsPage {
             links: EventLinks::new(event.id),
             event,
             form,
-            keep_after_event_days: KEEP_AFTER_EVENT.num_days(),
+            keep_after_event_days: KEEP_AFTER_EVENT.as_hours() / 24,
             notice: None,
             error: None,
         }
@@ -106,7 +106,7 @@ pub(in crate::admin) async fn edit(
 ) -> Result<Response, PageError> {
     let event = load_event(&state, id).await?;
     let form = EventForm::from_fields(&fields);
-    let details = match form.details(Utc::now()) {
+    let details = match form.details(Timestamp::now()) {
         Ok(details) => details,
         Err(error) => {
             let site = site_languages(&state).await?;

@@ -5,7 +5,7 @@
 
 use std::fmt::Display;
 
-use chrono::{DateTime, Duration, Utc};
+use jiff::{SignedDuration, Timestamp};
 
 use crate::{
     calendar,
@@ -21,12 +21,12 @@ use crate::{
 };
 
 /// How long a confirmation link works; unconfirmed addresses are cleared after as long.
-pub const CONFIRM_WITHIN: Duration = Duration::hours(48);
+pub const CONFIRM_WITHIN: SignedDuration = SignedDuration::from_hours(48);
 
 /// How long a link to set a password works, from when it was asked for: an hour for
 /// someone who forgot theirs, a week for a new user, who may not read their mail at once.
-pub const RESET_WITHIN: Duration = Duration::hours(1);
-pub const FIRST_WITHIN: Duration = Duration::days(7);
+pub const RESET_WITHIN: SignedDuration = SignedDuration::from_hours(1);
+pub const FIRST_WITHIN: SignedDuration = SignedDuration::from_hours(7 * 24);
 
 #[derive(Debug, Clone)]
 pub struct Mail {
@@ -67,7 +67,7 @@ pub fn compose(
         Kind::ConfirmEmail => {
             let link = config
                 .link_key
-                .email_link(rsvp.id, &to, Utc::now() + CONFIRM_WITHIN);
+                .email_link(rsvp.id, &to, Timestamp::now() + CONFIRM_WITHIN);
             (
                 &t.mail.confirm_email,
                 url(&paths::path(paths::CONFIRM_EMAIL, link)),
@@ -89,7 +89,7 @@ pub fn compose(
         values.push(("name", &rsvp.name));
     }
     let (when, answer) = (
-        lang.format_when(event.starts_at, event.ends_at),
+        lang.format_when(&event.starts_at, event.ends_at.as_ref()),
         t.answer(rsvp.response, rsvp.party_size),
     );
     // What the event is now, read as the mail goes out.
@@ -125,7 +125,7 @@ pub fn compose_for_host(
     kind: Kind,
     user: &AdminUser,
     lang: Lang,
-    asked_at: DateTime<Utc>,
+    asked_at: Timestamp,
 ) -> Result<Mail, &'static str> {
     let to = user.email.clone().ok_or("address removed")?;
     let admin_url = admin_url.ok_or("INNBY_ADMIN_URL isn't set")?;
@@ -140,12 +140,12 @@ pub fn compose_for_host(
             .password_link(&user.name, user.id, &to, user.version, asked_at + within);
     let path = paths::path(paths::PASSWORD, &user.name).replace("{token}", &token);
     let url = format!("{admin_url}{}", paths::localized(&path, lang));
-    let hours = within.num_hours();
+    let (hours, days) = (within.as_hours(), within.as_hours() / 24);
     let values: [(&str, &dyn Display); 4] = [
         ("name", &user.name),
         ("url", &url),
         ("hours", &hours),
-        ("days", &within.num_days()),
+        ("days", &days),
     ];
     Ok(Mail {
         to,
@@ -157,7 +157,6 @@ pub fn compose_for_host(
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
     use uuid::Uuid;
 
     use super::*;
@@ -175,10 +174,10 @@ mod tests {
             lang,
             email: Some("kari@example.com".into()),
             email_status,
-            email_consent_at: Some(Utc::now()),
+            email_consent_at: Some(Timestamp::now()),
             privacy_version: None,
             responded_at: None,
-            created_at: Utc::now(),
+            created_at: Timestamp::now(),
             group_id: None,
             name_display: None,
             choice: None,
@@ -246,10 +245,10 @@ mod tests {
             role: None,
             password_hash: None,
             version: 2,
-            created_at: Utc::now(),
+            created_at: Timestamp::now(),
             email: Some("kari@example.com".into()),
         };
-        let asked = Utc::now();
+        let asked = Timestamp::now();
         for &lang in Lang::all() {
             for kind in [Kind::PasswordReset, Kind::PasswordSet] {
                 let mail = compose_for_host(
@@ -287,7 +286,7 @@ mod tests {
                 .link_key
                 .verify_password(&link, "kari", kari.id, "kari@example.com", 2)
         );
-        assert_eq!(link.expires.timestamp(), (asked + RESET_WITHIN).timestamp());
+        assert_eq!(link.expires.as_second(), (asked + RESET_WITHIN).as_second());
         // No address, no mail; no admin URL, no link.
         let gone = AdminUser {
             email: None,

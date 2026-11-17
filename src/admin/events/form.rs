@@ -4,8 +4,7 @@
 
 use std::collections::HashMap;
 
-use chrono::{DateTime, NaiveDateTime, NaiveTime, Utc};
-use chrono_tz::Tz;
+use jiff::{Timestamp, ZonedDateTime, civil, tz::TimeZone};
 
 use crate::{
     admin::lang,
@@ -167,15 +166,17 @@ impl EventForm {
             title: details.title.clone(),
             description: details.description.clone(),
             location: details.location.clone(),
-            starts_at: details.starts_at.format(LOCAL_TIME).to_string(),
+            starts_at: details.starts_at.strftime(LOCAL_TIME).to_string(),
             ends_at: details
                 .ends_at
-                .map(|at| at.format(LOCAL_TIME).to_string())
+                .as_ref()
+                .map(|at| at.strftime(LOCAL_TIME).to_string())
                 .unwrap_or_default(),
-            time_zone: details.starts_at.timezone().name().to_owned(),
+            time_zone: details.time_zone().to_owned(),
             rsvp_deadline: details
                 .rsvp_deadline
-                .map(|at| at.format(LOCAL_TIME).to_string())
+                .as_ref()
+                .map(|at| at.strftime(LOCAL_TIME).to_string())
                 .unwrap_or_default(),
             question: details.question.clone(),
             choices: details.choices.clone(),
@@ -197,7 +198,7 @@ impl EventForm {
                 return String::new();
             }
             match time_of_day(time) {
-                Some(time) => format!("{date}T{}", time.format("%H:%M")),
+                Some(time) => format!("{date}T{}", time.strftime("%H:%M")),
                 None => format!("{date}T{time}"),
             }
         };
@@ -330,7 +331,7 @@ impl EventForm {
 
     /// The details the form describes, or what's wrong with them, in the page's
     /// language, `now` being when the host asks.
-    pub(in crate::admin) fn details(&self, now: DateTime<Utc>) -> Result<Details, String> {
+    pub(in crate::admin) fn details(&self, now: Timestamp) -> Result<Details, String> {
         let text = lang::text();
         let fits = |value: &str, max: usize| value.chars().count() <= max;
         let title_ok = Lang::all()
@@ -366,31 +367,28 @@ impl EventForm {
         }
         self.check_question(&plain)
             .map_err(|()| text.error_event_question.clone())?;
-        let tz: Tz = self
-            .time_zone
-            .parse()
-            .map_err(|_| text.error_time_zone.clone())?;
+        let tz = TimeZone::get(&self.time_zone).map_err(|_| text.error_time_zone.clone())?;
         let starts_at =
-            local_time(&self.starts_at, tz).ok_or_else(|| text.error_event_time.clone())?;
+            local_time(&self.starts_at, &tz).ok_or_else(|| text.error_event_time.clone())?;
         // The janitor deletes an event this long after it starts, so one that started
         // longer ago would go at its next run, with everything made in it meanwhile: an
         // old event file imported without a new date, say.
-        if starts_at.with_timezone(&Utc) <= now - KEEP_AFTER_EVENT {
-            let days = KEEP_AFTER_EVENT.num_days();
+        if starts_at.timestamp() <= now - KEEP_AFTER_EVENT {
+            let days = KEEP_AFTER_EVENT.as_hours() / 24;
             return Err(filled(&text.error_event_past, "days", days));
         }
         let ends_at = match self.ends_at.as_str() {
             "" => None,
             ends => Some(
-                local_time(ends, tz)
-                    .filter(|ends| *ends > starts_at)
+                local_time(ends, &tz)
+                    .filter(|ends| ends.timestamp() > starts_at.timestamp())
                     .ok_or_else(|| text.error_event_ends.clone())?,
             ),
         };
         let rsvp_deadline = match self.rsvp_deadline.as_str() {
             "" => None,
             deadline => {
-                Some(local_time(deadline, tz).ok_or_else(|| text.error_event_deadline.clone())?)
+                Some(local_time(deadline, &tz).ok_or_else(|| text.error_event_deadline.clone())?)
             }
         };
         Ok(Details {
@@ -448,7 +446,7 @@ fn date_and_time(when: &str) -> (&str, &str) {
 /// whichever clock it shows; a browser without one shows a text field instead, so a
 /// typed time is read too: `19.00`, `1900` and `19`, and with am or pm, `7 pm` or
 /// `7:30 p.m.`.
-fn time_of_day(typed: &str) -> Option<NaiveTime> {
+fn time_of_day(typed: &str) -> Option<civil::Time> {
     let typed: String = typed
         .chars()
         .filter(|c| !c.is_whitespace())
@@ -474,23 +472,21 @@ fn time_of_day(typed: &str) -> Option<NaiveTime> {
         None if clock.len() > 2 => clock.split_at(clock.len() - 2),
         None => (clock, "00"),
     };
-    let (hour, minute): (u32, u32) = (hour.parse().ok()?, minute.parse().ok()?);
+    let (hour, minute): (i8, i8) = (hour.parse().ok()?, minute.parse().ok()?);
     let hour = match afternoon {
         None => hour,
         Some(_) if !(1..=12).contains(&hour) => return None,
         Some(afternoon) => hour % 12 + if afternoon { 12 } else { 0 },
     };
-    NaiveTime::from_hms_opt(hour, minute, 0)
+    civil::Time::new(hour, minute, 0, 0).ok()
 }
 
 /// A time in `LOCAL_TIME`, in the event's time zone. A time that the clocks skip, or
 /// pass twice, gets the earlier reading.
-fn local_time(value: &str, tz: Tz) -> Option<DateTime<Tz>> {
+fn local_time(value: &str, tz: &TimeZone) -> Option<ZonedDateTime> {
     let value = value.get(..16)?;
-    NaiveDateTime::parse_from_str(value, LOCAL_TIME)
-        .ok()?
-        .and_local_timezone(tz)
-        .earliest()
+    let local = civil::DateTime::strptime(LOCAL_TIME, value).ok()?;
+    tz.to_ambiguous_zoned_datetime(local).earlier().ok()
 }
 
 #[cfg(test)]
@@ -515,7 +511,7 @@ mod tests {
 
     #[test]
     fn reads_a_time_on_either_clock() {
-        let time = |typed| time_of_day(typed).map(|time| time.format("%H:%M").to_string());
+        let time = |typed| time_of_day(typed).map(|time| time.strftime("%H:%M").to_string());
         for (typed, read) in [
             ("19:00", "19:00"),
             ("7:05", "07:05"),
@@ -548,12 +544,12 @@ mod tests {
         ]);
         let form = EventForm::from_fields(&sent);
         assert_eq!(form.starts_at(), ("2054-12-12", "19:00"));
-        assert!(form.details(Utc::now()).is_ok());
+        assert!(form.details(Timestamp::now()).is_ok());
         // One that can't be read stays as typed, to fix.
         sent.insert("starts_at_time".into(), "after dinner".into());
         let form = EventForm::from_fields(&sent);
         assert_eq!(form.starts_at(), ("2054-12-12", "after dinner"));
-        assert!(form.details(Utc::now()).is_err());
+        assert!(form.details(Timestamp::now()).is_err());
     }
 
     #[test]
@@ -570,11 +566,11 @@ mod tests {
             ("rsvp_deadline", ""),
         ]));
         assert_eq!(
-            form.details(Utc::now()).unwrap(),
+            form.details(Timestamp::now()).unwrap(),
             crate::db::event::tests::details()
         );
         // And back into the form it came from.
-        let again = EventForm::from_details(&form.details(Utc::now()).unwrap());
+        let again = EventForm::from_details(&form.details(Timestamp::now()).unwrap());
         assert_eq!(again.starts_at(), ("2054-12-12", "19:00"));
         let english = again.translations();
         let english = english.iter().find(|other| other.language == "English");
@@ -603,7 +599,9 @@ mod tests {
                 (field, value),
             ]);
             assert!(
-                EventForm::from_fields(&bad).details(Utc::now()).is_err(),
+                EventForm::from_fields(&bad)
+                    .details(Timestamp::now())
+                    .is_err(),
                 "{field}"
             );
         }
@@ -614,7 +612,7 @@ mod tests {
             ("starts_at", "2054-12-12T19:00"),
             ("time_zone", "Europe/Oslo"),
         ]));
-        assert!(lines.details(Utc::now()).is_ok());
+        assert!(lines.details(Timestamp::now()).is_ok());
 
         // An end, after midnight, goes into the event and back into the form.
         let ending = EventForm::from_fields(&fields(&[
@@ -623,10 +621,10 @@ mod tests {
             ("ends_at", "2054-12-13T01:00"),
             ("time_zone", "Europe/Oslo"),
         ]));
-        let details = ending.details(Utc::now()).unwrap();
+        let details = ending.details(Timestamp::now()).unwrap();
         assert_eq!(
-            details.ends_at.unwrap().to_rfc3339(),
-            "2054-12-13T01:00:00+01:00"
+            details.ends_at.as_ref().unwrap().to_string(),
+            "2054-12-13T01:00:00+01:00[Europe/Oslo]"
         );
         assert_eq!(
             EventForm::from_details(&details).ends_at(),
@@ -644,7 +642,7 @@ mod tests {
             ("starts_at", "2054-06-20T15:00"),
             ("time_zone", "Europe/Oslo"),
         ]));
-        let details = form.details(Utc::now()).unwrap();
+        let details = form.details(Timestamp::now()).unwrap();
         assert_eq!(details.lang, Lang::EN);
         assert_eq!(details.title(Lang::EN), "Summer party");
         assert_eq!(details.title(Lang::NB), "Sommerfest");
@@ -672,7 +670,7 @@ mod tests {
             ("starts_at", "2054-06-20T15:00"),
             ("time_zone", "Europe/Oslo"),
         ]));
-        assert!(missing.details(Utc::now()).is_err());
+        assert!(missing.details(Timestamp::now()).is_err());
     }
 
     #[test]
@@ -690,7 +688,7 @@ mod tests {
             ("offer-en", "yes"),
         ]))
         .on_site(site);
-        let details = form.details(Utc::now()).unwrap();
+        let details = form.details(Timestamp::now()).unwrap();
         assert_eq!(details.offered, site);
 
         let again = EventForm::from_details(&details).on_site(site);
@@ -720,7 +718,7 @@ mod tests {
             ("starts_at", "2054-06-20T15:00"),
             ("time_zone", "Europe/Oslo"),
         ]));
-        assert!(open.details(Utc::now()).unwrap().offered.is_empty());
+        assert!(open.details(Timestamp::now()).unwrap().offered.is_empty());
         assert!(!open.narrowed());
     }
 
@@ -734,7 +732,7 @@ mod tests {
                 ("time_zone", "Europe/Oslo"),
             ]);
             all.extend(fields(extra));
-            EventForm::from_fields(&all).details(Utc::now())
+            EventForm::from_fields(&all).details(Timestamp::now())
         };
         // None at all is fine, and so is a question with choices, trimmed a line each.
         assert!(form(&[]).unwrap().question(Lang::NB).is_none());
@@ -782,7 +780,7 @@ mod tests {
             ("starts_at", "2054-12-12T19:00"),
             ("time_zone", "Europe/Oslo"),
         ]));
-        let at = |at: &str| at.parse::<DateTime<Utc>>().unwrap();
+        let at = |at: &str| at.parse::<Timestamp>().unwrap();
         // 19:00 in Oslo is 18:00 UTC; the janitor deletes it 30 days on.
         assert!(event.details(at("2054-12-01T12:00:00Z")).is_ok());
         assert!(event.details(at("2055-01-11T17:59:00Z")).is_ok());

@@ -10,7 +10,7 @@ use axum::{
     extract::{Multipart, Query, State},
     response::Response,
 };
-use chrono::Utc;
+use jiff::Timestamp;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -149,7 +149,7 @@ pub(in crate::admin) async fn create(
             fields.get("groups").cloned().unwrap_or_default(),
         )
     };
-    let checked = draft.form.details(Utc::now()).and_then(|details| {
+    let checked = draft.form.details(Timestamp::now()).and_then(|details| {
         let style = draft.qr.clone().map(admin_qr::check).transpose()?;
         Ok((details, group_lines(&draft.groups)?, style))
     });
@@ -238,7 +238,7 @@ pub(in crate::admin) async fn import(
     };
     // Filled in even when something needs fixing, which the form then says.
     let error = form
-        .details(Utc::now())
+        .details(Timestamp::now())
         .and_then(|_| group_lines(&groups).map(drop))
         .and_then(|()| style.clone().map(admin_qr::check).transpose().map(drop))
         .err();

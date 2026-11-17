@@ -4,7 +4,8 @@
 //! credential. The UUID is deleted with the account. One may have an e-mail address, for
 //! a link to set a password, and have none until they set one from the first such link.
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
+use jiff_sqlx::ToSqlx;
 use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
 
@@ -24,7 +25,7 @@ pub struct AdminUser {
     /// None until they set one from a link.
     pub password_hash: Option<String>,
     pub version: i32,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
     pub email: Option<String>,
 }
 
@@ -221,7 +222,7 @@ pub async fn consume_password_reset(
     db: impl PgExecutor<'_>,
     expected: AccountCredential,
     email: &str,
-    expires_at: DateTime<Utc>,
+    expires_at: Timestamp,
     password_hash: &str,
 ) -> sqlx::Result<Option<AccountCredential>> {
     sqlx::query_as!(
@@ -232,7 +233,7 @@ pub async fn consume_password_reset(
         expected.id,
         expected.version,
         email,
-        expires_at,
+        expires_at.to_sqlx(),
         password_hash,
     )
     .fetch_optional(db)

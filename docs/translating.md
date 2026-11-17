@@ -29,7 +29,8 @@ Each file starts with what the language is:
 language.name = "Nynorsk"           # its own name, on the language menu
 language.tag = "nn"                 # for <html lang>
 language.badge = "NN"               # its mark in the language menu
-language.locale = "nn_NO"           # for day and month names
+language.days = ["måndag", "tysdag", "onsdag", "torsdag", "fredag", "laurdag", "søndag"]
+language.short_days = ["mån.", "tys.", "ons.", "tor.", "fre.", "lau.", "søn."]
 language.serves = ["nn"]            # the browser languages it answers
 language.fallback = ["nb"]          # where texts this file leaves out come from
 ```
@@ -40,8 +41,11 @@ Then come the texts, with the admin UI's under `[admin]` and the mails under `[m
   are; the tests check every language has the same ones as English.
 - **Punctuation** that differs between scripts, like "：" for ": ", is part of the text.
 - **Dates** use `date_format`, and a time alone (an event's end on the day it starts)
-  `time_format`, both in [chrono's notation](https://docs.rs/chrono/latest/chrono/format/strftime/).
-  `when_until` puts a start and an end together.
+  `time_format`, both in [jiff's `strftime` notation](https://docs.rs/jiff/latest/jiff/fmt/strtime/).
+  `%A` and `%a` show the day by the language's `language.days` and
+  `language.short_days`, Monday first, and `%B` and `%b` the month by `language.months`
+  and `language.short_months`. Leave out the lists a language says as its fallback
+  does: Nynorsk's months are Bokmål's. `when_until` puts a start and an end together.
 
 ## Fallbacks
 

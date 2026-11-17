@@ -8,7 +8,7 @@ use axum::{
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
-use chrono_tz::Tz;
+use jiff::tz::TimeZone;
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -57,7 +57,7 @@ pub(super) struct GuestRow {
 }
 
 impl GuestRow {
-    pub(super) fn new(rsvp: &Rsvp, tz: Tz, groups: &[Group]) -> Self {
+    pub(super) fn new(rsvp: &Rsvp, tz: &TimeZone, groups: &[Group]) -> Self {
         let group = groups.iter().find(|group| Some(group.id) == rsvp.group_id);
         let text = lang::text();
         Self {
@@ -167,7 +167,7 @@ pub(super) async fn list(
     let show = rsvp::Response::ALL
         .into_iter()
         .find(|response| query.show.as_deref() == Some(response.code()));
-    let tz = event.details.starts_at.timezone();
+    let tz = event.details.starts_at.time_zone();
     let text = lang::text();
     let question = event.details.question(lang::current());
     let choices = question
@@ -237,7 +237,7 @@ impl GuestPage {
     ) -> Self {
         let url = guest_url(config, &rsvp);
         Self {
-            row: GuestRow::new(&rsvp, event.details.starts_at.timezone(), groups),
+            row: GuestRow::new(&rsvp, event.details.starts_at.time_zone(), groups),
             event,
             links: AdminLinks::guest(rsvp.id),
             qr: super::qr::svg(&url, style, None),
@@ -359,7 +359,7 @@ pub(super) async fn csv(
 ) -> Result<Response, PageError> {
     let event = load_event(&state, id).await?;
     let (rsvps, groups) = tokio::try_join!(rsvp::list(&state.db, id), group::list(&state.db, id))?;
-    let tz = event.details.starts_at.timezone();
+    let tz = event.details.starts_at.time_zone();
     let text = lang::text();
     let question = event.details.question(lang::current());
     // The byte order mark makes spreadsheet apps read the file as UTF-8 (æ, ø, å).

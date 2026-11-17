@@ -1,7 +1,7 @@
 //! Mail jobs, to guests and to hosts made in the admin UI. Whatever causes a mail writes
 //! its job in the same transaction, and `innby mailer` sends them.
 
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use sqlx::{PgConnection, PgExecutor};
 use uuid::Uuid;
 
@@ -38,7 +38,7 @@ pub struct Job {
     pub lang: Option<Lang>,
     pub kind: Kind,
     pub attempts: i32,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
 }
 
 pub async fn enqueue(db: impl PgExecutor<'_>, rsvp_id: Uuid, kind: Kind) -> sqlx::Result<()> {

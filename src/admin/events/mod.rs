@@ -93,7 +93,7 @@ async fn events_page(state: &AdminState, notice: Option<String>) -> Result<Respo
         .map(|event| EventRow {
             path: paths::admin(&paths::path(paths::EVENT, event.id)),
             title: event.details.title(lang).to_owned(),
-            when: lang.format_date(event.details.starts_at),
+            when: lang.format_date(&event.details.starts_at),
             headcount: headcounts.get(&event.id).copied().unwrap_or_default(),
         })
         .collect();

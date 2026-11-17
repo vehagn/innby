@@ -15,8 +15,8 @@ use base64::{
     Engine,
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 };
-use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
+use jiff::Timestamp;
 use serde::{Deserialize, Serialize};
 use sha2::Sha512;
 use uuid::Uuid;
@@ -218,7 +218,7 @@ impl Key {
     }
 
     /// The claims of a token this key signed, if it hasn't expired by `now`.
-    pub fn verify(&self, token: &str, now: DateTime<Utc>) -> Option<Claims> {
+    pub fn verify(&self, token: &str, now: Timestamp) -> Option<Claims> {
         let (message, signature) = token.rsplit_once('.')?;
         let (header, claims) = message.split_once('.')?;
         if header != HEADER {
@@ -227,7 +227,7 @@ impl Key {
         let signature = URL_SAFE_NO_PAD.decode(signature).ok()?;
         self.mac(message.as_bytes()).verify_slice(&signature).ok()?;
         let claims: Claims = serde_json::from_slice(&URL_SAFE_NO_PAD.decode(claims).ok()?).ok()?;
-        (now.timestamp() < claims.exp).then_some(claims)
+        (now.as_second() < claims.exp).then_some(claims)
     }
 
     /// What the database keeps of a refresh token. Keyed, so a new password or secret
@@ -275,7 +275,7 @@ fn mac(key: &[u8]) -> Hmac<Sha512> {
 
 #[cfg(test)]
 pub mod tests {
-    use chrono::TimeDelta;
+    use jiff::SignedDuration;
 
     use super::*;
 
@@ -289,10 +289,10 @@ pub mod tests {
         )
     }
 
-    fn claims(now: DateTime<Utc>) -> Claims {
+    fn claims(now: Timestamp) -> Claims {
         Claims {
-            iat: now.timestamp(),
-            exp: (now + TimeDelta::hours(1)).timestamp(),
+            iat: now.as_second(),
+            exp: (now + SignedDuration::from_hours(1)).as_second(),
             user: "admin".into(),
             login: Login::Provider {
                 role: Some(Role::Editor),
@@ -309,7 +309,7 @@ pub mod tests {
 
     #[test]
     fn names_its_claims_as_the_standards_do() {
-        let now = Utc::now();
+        let now = Timestamp::now();
         let key = key_for("hash");
         let password = Claims {
             login: Login::Password {
@@ -357,16 +357,19 @@ pub mod tests {
 
     #[test]
     fn verifies_its_own_tokens_until_they_expire() {
-        let now = Utc::now();
+        let now = Timestamp::now();
         let key = key_for("hash");
         let token = key.sign(&claims(now));
         assert_eq!(key.verify(&token, now), Some(claims(now)));
-        assert_eq!(key.verify(&token, now + TimeDelta::hours(1)), None);
+        assert_eq!(
+            key.verify(&token, now + SignedDuration::from_hours(1)),
+            None
+        );
     }
 
     #[test]
     fn rejects_tampered_and_foreign_tokens() {
-        let now = Utc::now();
+        let now = Timestamp::now();
         let key = key_for("hash");
         let token = key.sign(&claims(now));
         let (message, _) = token.rsplit_once('.').unwrap();
@@ -392,12 +395,12 @@ pub mod tests {
 
     #[test]
     fn rejects_legacy_password_claims_without_an_account_identity() {
-        let now = Utc::now();
+        let now = Timestamp::now();
         let key = key_for("hash");
         let payload = URL_SAFE_NO_PAD.encode(
             serde_json::to_vec(&serde_json::json!({
-                "iat": now.timestamp(),
-                "exp": (now + TimeDelta::hours(1)).timestamp(),
+                "iat": now.as_second(),
+                "exp": (now + SignedDuration::from_hours(1)).as_second(),
                 "sub": "admin",
                 "amr": [PASSWORD],
                 "version": 3,

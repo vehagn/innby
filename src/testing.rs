@@ -7,6 +7,14 @@ use axum::{
 };
 use http_body_util::BodyExt;
 
+/// A time on the clocks in Oslo, where the tests' events are.
+pub fn oslo(year: i16, month: i8, day: i8, hour: i8, minute: i8) -> jiff::ZonedDateTime {
+    jiff::civil::date(year, month, day)
+        .at(hour, minute, 0, 0)
+        .in_tz("Europe/Oslo")
+        .expect("Oslo's clocks show every test time")
+}
+
 /// A form post from this `Sec-Fetch-Site`, as a browser sends it.
 pub fn form_post(uri: &str, form: &str, fetch_site: &str) -> Request<Body> {
     Request::post(uri)

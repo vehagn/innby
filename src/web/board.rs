@@ -94,7 +94,7 @@ async fn page(
     let links = GuestLinks::new(&guest.link, lang);
     let open = guest.board.guests_post() && listed(guest);
     let you = guest.rsvp.id;
-    let tz = guest.event.details.starts_at.timezone();
+    let tz = guest.event.details.starts_at.time_zone();
     let shown = board::page(&state.db, guest.event.id, Some(you), number).await?;
     let pager = Pager::new(t, &shown, |n| url(guest, n, None, None));
     let at = |pattern: &str, post: Uuid| {

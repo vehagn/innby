@@ -7,7 +7,7 @@ use axum::{
     http::StatusCode,
     response::Response,
 };
-use chrono::Utc;
+use jiff::Timestamp;
 use uuid::Uuid;
 
 use super::{
@@ -88,7 +88,7 @@ async fn groups_page(
     let needs_fixing = error.is_some();
     let page = GroupsPage {
         links: EventLinks::new(event.id),
-        accepts_answers: event.details.accepts_answers(Utc::now()),
+        accepts_answers: event.details.accepts_answers(Timestamp::now()),
         event,
         groups: groups
             .iter()
@@ -177,7 +177,7 @@ impl GroupPage {
             rsvp::list(&state.db, group.event_id),
             qr::style(&state.db, group.event_id)
         )?;
-        let tz = event.details.starts_at.timezone();
+        let tz = event.details.starts_at.time_zone();
         let url = group_url(&state.config, &group);
         Ok(Self {
             members: rsvps
@@ -191,7 +191,7 @@ impl GroupPage {
             created: timestamp(group.created_at, tz),
             group,
             max_party_size: MAX_PARTY_SIZE,
-            accepts_answers: event.details.accepts_answers(Utc::now()),
+            accepts_answers: event.details.accepts_answers(Timestamp::now()),
             event,
             saved: false,
             error: None,

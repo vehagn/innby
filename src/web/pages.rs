@@ -8,7 +8,7 @@ use axum::{
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
-use chrono::Utc;
+use jiff::{Timestamp, ZonedDateTime};
 use uuid::Uuid;
 
 use super::{AppState, PRIVACY_VERSION, remember::Remembered, rsvp::Guest};
@@ -82,13 +82,15 @@ pub async fn index(State(state): State<AppState>, lang: Lang, headers: HeaderMap
     let t = lang.messages();
     let remembered = Remembered::load(&state, &headers).await?;
     let mut guests = remembered.guests;
-    guests.sort_by_key(|guest| guest.event.details.starts_at);
+    guests.sort_by_key(|guest| guest.event.details.starts_at.timestamp());
     // An event without a set end is over when a calendar would show it ending.
-    let now = Utc::now();
+    let now = Timestamp::now();
     let over = |details: &Details| {
+        let unset = || details.starts_at.timestamp() + crate::calendar::UNSET_LENGTH;
         details
             .ends_at
-            .unwrap_or(details.starts_at + crate::calendar::UNSET_LENGTH)
+            .as_ref()
+            .map_or_else(unset, ZonedDateTime::timestamp)
             < now
     };
     let (past, coming): (Vec<_>, Vec<_>) =
@@ -97,7 +99,7 @@ pub async fn index(State(state): State<AppState>, lang: Lang, headers: HeaderMap
         let event = &guest.event.details;
         Welcome {
             title: event.title(lang).to_owned(),
-            when: lang.format_date(event.starts_at),
+            when: lang.format_date(&event.starts_at),
             name: guest.rsvp.name.clone(),
             status: t.answer(guest.rsvp.response, guest.rsvp.party_size),
             page: paths::localized(&paths::path(paths::RSVP, &guest.link), lang),
@@ -144,7 +146,10 @@ pub async fn privacy(State(state): State<AppState>, lang: Lang, headers: HeaderM
 /// authority guests may complain to, the notice's version and how long things are kept.
 /// Those values come from the config, so each is escaped as it goes into the markup.
 fn notice(lang: Lang, controller: &Controller) -> String {
-    let (after_event, sent_mail) = (KEEP_AFTER_EVENT.num_days(), KEEP_SENT_MAIL.num_days());
+    let (after_event, sent_mail) = (
+        KEEP_AFTER_EVENT.as_hours() / 24,
+        KEEP_SENT_MAIL.as_hours() / 24,
+    );
     let t = lang.messages();
     // A sentence of the language's, with a setting in it, or without one when it's unset.
     let either = |setting: &Option<String>, with: &str, key: &str, without: &str| match setting {

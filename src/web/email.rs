@@ -8,7 +8,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::Response,
 };
-use chrono::Utc;
+use jiff::Timestamp;
 use serde::Deserialize;
 use sqlx::PgPool;
 
@@ -123,7 +123,7 @@ async fn verify(state: &AppState, token: &str) -> sqlx::Result<Option<Rsvp>> {
     let Ok(link) = token.parse::<EmailLink>() else {
         return Ok(None);
     };
-    if link.expires <= Utc::now() {
+    if link.expires <= Timestamp::now() {
         return Ok(None);
     }
     let guest = rsvp::find(&state.db, link.id).await?;
