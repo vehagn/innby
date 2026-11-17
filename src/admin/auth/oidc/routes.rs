@@ -17,6 +17,7 @@ use crate::{
         lang,
         role::Role,
     },
+    cause::Cause,
     http::cookie,
     i18n::fill,
     paths,
@@ -40,8 +41,8 @@ pub async fn start(State(auth): State<Arc<Auth>>) -> Response {
             )
                 .into_response()
         }
-        Err(_) => {
-            tracing::error!("OIDC login couldn't start");
+        Err(err) => {
+            tracing::error!("OIDC login couldn't start: {err:#}");
             failed(&auth, provider).await
         }
     }
@@ -62,7 +63,6 @@ pub async fn callback(
         state: field("state"),
         iss: field("iss"),
         error: field("error"),
-        error_description: field("error_description"),
     };
     let clear = auth.cookie(FLOW_COOKIE, "", TimeDelta::zero());
     let flow = cookie::get(&headers, FLOW_COOKIE)
@@ -78,7 +78,8 @@ pub async fn callback(
         Ok(login) => match auth.admits(&login.user, login.role).await {
             Ok(true) => Ok(login),
             Ok(false) => Err(LoginError::NoRole { user: login.user }),
-            Err(err) => Err(LoginError::Failed(err.into())),
+            // The database's failure, said as any is: by its kind.
+            Err(err) => Err(LoginError::Failed(anyhow::Error::msg(Cause::from(&err)))),
         },
         Err(err) => Err(err),
     };
@@ -113,8 +114,8 @@ pub async fn callback(
             );
             auth::login_error(&auth, StatusCode::FORBIDDEN, message).await
         }
-        Err(LoginError::Failed(_)) => {
-            tracing::error!("OIDC login failed");
+        Err(LoginError::Failed(err)) => {
+            tracing::error!("OIDC login failed: {err:#}");
             failed(&auth, provider).await
         }
     };

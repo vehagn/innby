@@ -119,7 +119,6 @@ pub struct Callback {
     pub(super) state: Option<String>,
     pub(super) iss: Option<String>,
     pub(super) error: Option<String>,
-    pub(super) error_description: Option<String>,
 }
 
 /// A login the provider vouched for.
@@ -140,7 +139,9 @@ pub enum LoginError {
     /// The provider knows the host, but lists no Innby role for them, and no event gives
     /// them one.
     NoRole { user: String },
-    /// Something's wrong between Innby and the provider: for the log.
+    /// Something's wrong between Innby and the provider: for the log, so it's written
+    /// from the provider's settings and its answers' codes, never from what the browser
+    /// brought back or what the provider says of the person logging in.
     Failed(anyhow::Error),
 }
 
@@ -203,7 +204,7 @@ impl Provider {
             // A provider that's briefly away doesn't stop logins it already described.
             Err(err) => match &*cached {
                 Some(fetched) => {
-                    tracing::warn!("OIDC discovery failed, using what it said before");
+                    tracing::warn!("OIDC discovery failed, using what it said before: {err:#}");
                     Ok(Arc::clone(&fetched.value))
                 }
                 None => Err(err.context("OIDC discovery")),
@@ -275,8 +276,9 @@ impl Provider {
         }
         let metadata = self.metadata().await?;
         match &callback.iss {
+            // Which one isn't said: the browser brings it, so it could be anything.
             Some(iss) if *iss != self.config.issuer => {
-                return Err(anyhow!("the callback came from issuer {iss:?}").into());
+                return Err(anyhow!("the callback came from another issuer").into());
             }
             None if metadata.iss_parameter => {
                 return Err(anyhow!("the callback lacks the iss parameter").into());
@@ -287,8 +289,8 @@ impl Provider {
             if error == "access_denied" {
                 return Err(LoginError::Cancelled);
             }
-            let description = callback.error_description.as_deref().unwrap_or("");
-            return Err(anyhow!("the provider said {error}: {description}").into());
+            let error = http::error_code(error);
+            return Err(anyhow!("the provider answered {error}; its own log says why").into());
         }
         let code = callback
             .code
@@ -381,9 +383,14 @@ async fn userinfo_claims(
         "userinfo said {}",
         response.error()
     );
-    let claims: Map<String, Value> = response.json().context(
-        "userinfo; if it's signed, set the client's userinfo_signed_response_alg to none",
-    )?;
+    // What userinfo says is about a person, so the parser's words about it, which may
+    // quote it, are left out.
+    let claims: Map<String, Value> = response.json().map_err(|_| {
+        anyhow!(
+            "userinfo isn't a JSON object; if it's signed, set the client's \
+             userinfo_signed_response_alg to none"
+        )
+    })?;
     if claims.get("sub") != id_claims.get("sub") {
         bail!("userinfo is about another sub than the ID token");
     }

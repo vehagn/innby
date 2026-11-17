@@ -266,7 +266,10 @@ or signed links; SMTP errors stay in the outbox rather than the logs.
 An error's own words can quote what it was about, so a log line says what failed as a
 `Cause` (`src/cause.rs`) instead, which can't be made from them: a database error is its
 SQLSTATE code and the constraint or table it names, as `database error 23505 on
-admin_user_email_key`, and anything else is words from the code.
+admin_user_email_key`, and anything else is words from the code. A failed login through
+the provider is logged in words about the provider's settings and how it answered: its
+status and, if it's one the specifications name, its error code, never the error's
+description, what the browser brought back, or what userinfo said.
 
 ## E-mail, optional
 

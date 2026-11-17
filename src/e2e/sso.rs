@@ -149,6 +149,36 @@ async fn someone_without_an_innby_role_is_turned_away(db: PgPool) {
 }
 
 #[sqlx::test]
+async fn a_login_that_fails_is_logged_by_what_failed(db: PgPool) {
+    const USER: &str = "oidc-failed-private@example.com";
+
+    let world = World::with_sso(db, false).await;
+    world.provider().log_in(USER, json!(["admin"]));
+    // The provider vouches for another login than the one this browser started.
+    world
+        .provider()
+        .with(|fake| fake.id_claims.insert("nonce".into(), json!("another")));
+    let logs = crate::testing::logs::Capture::new();
+
+    logs.run(async {
+        let mut kari = world.browser();
+        let page = kari.open(ADMIN).await;
+        assert_eq!(page.status, StatusCode::BAD_GATEWAY);
+        page.expect_not(&admin().events);
+    })
+    .await;
+    // Whoever keeps the site running can tell why, without learning who it was.
+    let logs = logs.text();
+    assert!(
+        logs.lines().any(|line| {
+            line.contains("ERROR") && line.contains("OIDC login failed") && line.contains("nonce")
+        }),
+        "{logs}"
+    );
+    assert!(!logs.contains("oidc-failed-private"), "{logs}");
+}
+
+#[sqlx::test]
 async fn a_host_given_one_event_sees_it_alone(db: PgPool) {
     let world = World::with_sso(db, true).await;
     world.summer_party().await;

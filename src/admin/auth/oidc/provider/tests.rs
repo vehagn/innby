@@ -39,7 +39,6 @@ async fn authorize(fake: &Fake, url: &Url) -> Callback {
         state: field("state"),
         iss: field("iss"),
         error: field("error"),
-        error_description: field("error_description"),
     }
 }
 
@@ -129,7 +128,8 @@ async fn the_callback_must_belong_to_this_login() {
         ..authorize(&fake, &url).await
     };
     let result = provider.finish(&flow, &elsewhere, Utc::now()).await;
-    assert!(failed(result).contains("issuer"));
+    let said = failed(result);
+    assert!(said.contains("issuer") && !said.contains("evil"), "{said}");
     let unnamed = Callback {
         iss: None,
         ..authorize(&fake, &url).await
@@ -141,6 +141,26 @@ async fn the_callback_must_belong_to_this_login() {
     provider.finish(&flow, &callback, Utc::now()).await.unwrap();
     let result = provider.finish(&flow, &callback, Utc::now()).await;
     assert!(failed(result).contains("invalid_grant"));
+}
+
+#[tokio::test]
+async fn the_providers_error_is_said_by_its_code_alone() {
+    let (fake, provider) = provider().await;
+    let (url, flow) = provider.start(Utc::now()).await.unwrap();
+    let scope = Callback {
+        error: Some("invalid_scope".into()),
+        ..authorize(&fake, &url).await
+    };
+    let said = failed(provider.finish(&flow, &scope, Utc::now()).await);
+    assert!(said.contains("invalid_scope"), "{said}");
+    // The browser brings the code, so it may be anything, about anyone.
+    let made_up = Callback {
+        error: Some("kari@example.com is locked out".into()),
+        ..authorize(&fake, &url).await
+    };
+    let said = failed(provider.finish(&flow, &made_up, Utc::now()).await);
+    assert!(said.contains("the provider answered"), "{said}");
+    assert!(!said.contains("kari"), "{said}");
 }
 
 #[tokio::test]

@@ -57,23 +57,54 @@ impl Response {
         serde_json::from_slice(&self.body).context("reading the JSON")
     }
 
-    /// The `error` and `error_description` of an OAuth error response, for the log.
+    /// The status and the `error` of an OAuth error response, for the log. Not its
+    /// `error_description`: the provider's own words may be about the person logging in.
     pub fn error(&self) -> String {
         #[derive(serde::Deserialize)]
         struct OAuthError {
             error: String,
-            error_description: Option<String>,
         }
         match serde_json::from_slice::<OAuthError>(&self.body) {
-            Ok(err) => format!(
-                "{} {}: {}",
-                self.status,
-                err.error,
-                err.error_description.unwrap_or_default()
-            ),
+            Ok(err) => format!("{} {}", self.status, error_code(&err.error)),
             Err(_) => format!("{}", self.status),
         }
     }
+}
+
+/// An OAuth error code as the log may say it: one the specifications name, or that it's
+/// none of them. Whoever answers, the provider or the browser it sent back, can put any
+/// words where the code goes.
+pub fn error_code(code: &str) -> &'static str {
+    const NAMED: [&str; 21] = [
+        // RFC 6749, from the authorization and the token endpoint.
+        "invalid_request",
+        "unauthorized_client",
+        "access_denied",
+        "unsupported_response_type",
+        "invalid_scope",
+        "server_error",
+        "temporarily_unavailable",
+        "invalid_client",
+        "invalid_grant",
+        "unsupported_grant_type",
+        // OpenID Connect Core, section 3.1.2.6.
+        "interaction_required",
+        "login_required",
+        "account_selection_required",
+        "consent_required",
+        "invalid_request_uri",
+        "invalid_request_object",
+        "request_not_supported",
+        "request_uri_not_supported",
+        "registration_not_supported",
+        // RFC 6750, from userinfo.
+        "invalid_token",
+        "insufficient_scope",
+    ];
+    NAMED
+        .into_iter()
+        .find(|named| *named == code)
+        .unwrap_or("an error code of its own")
 }
 
 /// Rejects a URL Innby won't send anything to: not HTTPS, or with a user name.
@@ -218,6 +249,24 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_error_response_is_logged_by_its_status_and_code_alone() {
+        let response = |body: &str| Response {
+            status: StatusCode::BAD_REQUEST,
+            content_type: "application/json".into(),
+            body: Bytes::from(body.to_owned()),
+        };
+        let denied =
+            r#"{"error": "invalid_grant", "error_description": "kari@example.com may not"}"#;
+        assert_eq!(response(denied).error(), "400 Bad Request invalid_grant");
+        let made_up = r#"{"error": "kari@example.com may not"}"#;
+        assert_eq!(
+            response(made_up).error(),
+            "400 Bad Request an error code of its own"
+        );
+        assert_eq!(response("<html>").error(), "400 Bad Request");
+    }
 
     #[test]
     fn only_https_or_this_machine() {
