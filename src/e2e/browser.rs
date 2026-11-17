@@ -304,6 +304,14 @@ impl<'w> Browser<'w> {
         }
     }
 
+    /// Cookie values for checking that credentials never reach the logs.
+    pub fn cookie_values(&self) -> Vec<String> {
+        self.cookies
+            .iter()
+            .map(|cookie| cookie.value.clone())
+            .collect()
+    }
+
     /// The names of the cookies this browser keeps for the public site.
     pub fn cookie_names(&self) -> Vec<&str> {
         let site = self.world.site_origin();

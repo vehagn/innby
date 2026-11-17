@@ -91,7 +91,7 @@ pub async fn log_in(
             return match auth.start_session(&user, identity).await {
                 Ok(cookies) => {
                     let role = role.map_or("none", Role::name);
-                    tracing::info!(user, role, "host logged in");
+                    tracing::info!(role, "host logged in");
                     let cookies = cookies
                         .into_iter()
                         .map(|cookie| (header::SET_COOKIE, cookie));

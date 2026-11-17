@@ -86,8 +86,8 @@ pub async fn run(config: Config, mail: MailConfig, db: PgPool) -> Result<()> {
             match process_batch(&config, &mail.from, mail.admin_url.as_deref(), &db, &smtp).await {
                 Ok(sent) if sent == BATCH_SIZE as usize => continue,
                 Ok(_) => break,
-                Err(err) => {
-                    tracing::warn!(error = format!("{err:#}"), "mailer batch failed");
+                Err(_) => {
+                    tracing::warn!("mailer batch failed");
                     break;
                 }
             }
@@ -184,12 +184,12 @@ async fn send_to_host(
     };
     match sender.send(from, mail).await {
         Ok(()) => {
-            tracing::info!(job = job.id, user, kind = ?job.kind, "mail sent");
+            tracing::info!(job = job.id, kind = ?job.kind, "mail sent");
             MAILS.inc(&[("outcome", "sent".into())]);
             outbox::mark_done(tx, job.id, None).await?;
         }
         Err(err) => {
-            tracing::warn!(job = job.id, user, kind = ?job.kind, attempt = job.attempts + 1, "mail failed, see outbox.last_error");
+            tracing::warn!(job = job.id, kind = ?job.kind, attempt = job.attempts + 1, "mail failed, see outbox.last_error");
             MAILS.inc(&[("outcome", "failed".into())]);
             outbox::mark_failed(tx, job.id, &format!("{err:#}")).await?;
         }

@@ -44,3 +44,62 @@ pub fn escape(text: &str) -> String {
         .replace('"', "&#34;")
         .replace('\'', "&#39;")
 }
+
+#[cfg(test)]
+pub(crate) mod logs {
+    use std::{
+        io,
+        io::Write,
+        sync::{Arc, Mutex},
+    };
+
+    #[derive(Clone, Default)]
+    struct Writer(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for Writer {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Writer {
+        type Writer = Self;
+
+        fn make_writer(&'a self) -> Self::Writer {
+            self.clone()
+        }
+    }
+
+    pub struct Capture {
+        writer: Writer,
+        dispatch: tracing::Dispatch,
+    }
+
+    impl Capture {
+        pub fn new() -> Self {
+            let writer = Writer::default();
+            let subscriber = tracing_subscriber::fmt::Subscriber::builder()
+                .without_time()
+                .with_ansi(false)
+                .with_writer(writer.clone())
+                .finish();
+            let dispatch = tracing::Dispatch::new(subscriber);
+            Self { writer, dispatch }
+        }
+
+        pub async fn run<T>(&self, future: impl Future<Output = T>) -> T {
+            use tracing::instrument::WithSubscriber;
+
+            future.with_subscriber(self.dispatch.clone()).await
+        }
+
+        pub fn text(&self) -> String {
+            String::from_utf8(self.writer.0.lock().unwrap().clone()).unwrap()
+        }
+    }
+}

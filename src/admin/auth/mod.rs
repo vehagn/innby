@@ -173,8 +173,8 @@ impl Auth {
     /// Whether anyone may log in with a password: from the config, or the database.
     pub(in crate::admin) async fn has_passwords(&self) -> bool {
         !self.credentials.0.is_empty()
-            || admin_user::any(&self.db).await.unwrap_or_else(|err| {
-                tracing::error!("admin users: {err}");
+            || admin_user::any(&self.db).await.unwrap_or_else(|_| {
+                tracing::error!("couldn't read whether admin users exist");
                 true
             })
     }
@@ -252,8 +252,8 @@ impl Auth {
                     }
                 }
                 Ok(None) => (NOBODY.to_owned(), None),
-                Err(err) => {
-                    tracing::error!("admin users: {err}");
+                Err(_) => {
+                    tracing::error!("couldn't look up admin user for login");
                     return Outcome::Rejected;
                 }
             },

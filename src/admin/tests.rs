@@ -14,7 +14,7 @@ use crate::{
         testing::{Admin, set_cookies},
     },
     db::{group, rsvp},
-    testing::{body, escape, location},
+    testing::{body, escape, location, set_cookies as http_set_cookies},
 };
 
 #[sqlx::test]
@@ -225,120 +225,169 @@ async fn the_host_picks_an_events_games_and_sees_their_scores(db: PgPool) {
 async fn an_admin_makes_password_users_and_their_changes_count_at_once(db: PgPool) {
     let admin = Admin::new(db.clone());
     let app = router(admin.config.clone(), &admin.admin, db.clone());
-    let send = |method: &str, uri: &str, cookie: &str, form: &str| {
-        let request = Request::builder()
-            .method(method)
-            .uri(uri)
-            .header(header::COOKIE, cookie)
-            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .header(header::ACCEPT_LANGUAGE, "en-GB")
-            .header("sec-fetch-site", "same-origin")
-            .body(Body::from(form.to_owned()))
-            .unwrap();
-        let app = app.clone();
-        async move { app.oneshot(request).await.unwrap() }
-    };
-    let log_in = |user: &str, password: &str| {
-        let form = format!("user={user}&password={password}");
-        async move {
-            let response = send("POST", "/login", "", &form).await;
-            let cookies: Vec<_> = set_cookies(&response).into_iter().map(|(c, _)| c).collect();
-            let to = response.headers().get(header::LOCATION).map_or_else(
-                || response.status().to_string(),
-                |to| to.to_str().unwrap().to_owned(),
+    let logs = crate::testing::logs::Capture::new();
+    logs.run(async {
+        let mut private_cookies = vec![admin.token.clone()];
+        let send = |method: &str, uri: &str, cookie: &str, form: &str| {
+            let request = Request::builder()
+                .method(method)
+                .uri(uri)
+                .header(header::COOKIE, cookie)
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .header(header::ACCEPT_LANGUAGE, "en-GB")
+                .header("sec-fetch-site", "same-origin")
+                .body(Body::from(form.to_owned()))
+                .unwrap();
+            let app = app.clone();
+            async move { app.oneshot(request).await.unwrap() }
+        };
+        let log_in = |user: &str, password: &str| {
+            let form = format!("user={user}&password={password}");
+            async move {
+                let response = send("POST", "/login", "", &form).await;
+                let cookies: Vec<_> = set_cookies(&response).into_iter().map(|(c, _)| c).collect();
+                let to = response.headers().get(header::LOCATION).map_or_else(
+                    || response.status().to_string(),
+                    |to| to.to_str().unwrap().to_owned(),
+                );
+                (to, cookies.join("; "))
+            }
+        };
+        let event = crate::db::event::tests::event(&db).await;
+        let invitations = paths::path(paths::EVENT_INVITATIONS, event.id);
+
+        // Only admins see users, and the config's are there, to read.
+        let editor = Admin::as_role(db.clone(), Role::Editor);
+        private_cookies.push(editor.token.clone());
+        assert_eq!(
+            editor.get(paths::USERS).await.status(),
+            StatusCode::FORBIDDEN
+        );
+        let html = body(admin.get(paths::USERS).await).await;
+        assert!(html.contains("<td>ola.n</td>") && html.contains("No users made here yet."));
+        let editor_page = body(editor.get(paths::HOME).await).await;
+        assert!(!editor_page.contains(r#"href="/users""#));
+
+        // A short password, a config user's name, or a name that can't be typed, refused.
+        for form in [
+            "name=kari&role=editor&password=tiny-007",
+            "name=ola.n&role=editor&password=long-enough-1",
+            "name=k%C3%A5re&role=editor&password=long-enough-1",
+            "name=kari&role=owner&password=long-enough-1",
+        ] {
+            let response = admin.post(paths::USERS, form).await;
+            assert_eq!(
+                response.status(),
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "{form}"
             );
-            (to, cookies.join("; "))
         }
-    };
-    let event = crate::db::event::tests::event(&db).await;
-    let invitations = paths::path(paths::EVENT_INVITATIONS, event.id);
-
-    // Only admins see users, and the config's are there, to read.
-    let editor = Admin::as_role(db.clone(), Role::Editor);
-    assert_eq!(
-        editor.get(paths::USERS).await.status(),
-        StatusCode::FORBIDDEN
-    );
-    let html = body(admin.get(paths::USERS).await).await;
-    assert!(html.contains("<td>ola.n</td>") && html.contains("No users made here yet."));
-    let editor_page = body(editor.get(paths::HOME).await).await;
-    assert!(!editor_page.contains(r#"href="/users""#));
-
-    // A short password, a config user's name, or a name that can't be typed, refused.
-    for form in [
-        "name=kari&role=editor&password=short",
-        "name=ola.n&role=editor&password=long-enough-1",
-        "name=k%C3%A5re&role=editor&password=long-enough-1",
-        "name=kari&role=owner&password=long-enough-1",
-    ] {
-        let response = admin.post(paths::USERS, form).await;
+        let response = admin
+            .post(paths::USERS, "name=kari&role=editor&password=long-enough-1")
+            .await;
         assert_eq!(
             response.status(),
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "{form}"
+            StatusCode::SEE_OTHER,
+            "{}",
+            body(response).await
         );
-    }
-    let response = admin
-        .post(paths::USERS, "name=kari&role=editor&password=long-enough-1")
-        .await;
-    assert_eq!(
-        response.status(),
-        StatusCode::SEE_OTHER,
-        "{}",
-        body(response).await
-    );
-    let response = admin.get("/users/kari?saved").await;
-    assert!(body(response).await.contains("Saved."));
+        let response = admin.get("/users/kari?saved").await;
+        assert!(body(response).await.contains("Saved."));
 
-    // Kari logs in, and runs the event.
-    let (home, kari) = log_in("kari", "long-enough-1").await;
-    assert_eq!(home, "/");
-    assert_eq!(
-        send("GET", &invitations, &kari, "").await.status(),
-        StatusCode::OK
-    );
+        let response = admin
+            .post("/users/kari", "email=kari.private@example.com")
+            .await;
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let response = admin.post("/users/kari", "send_link=yes").await;
+        assert_eq!(response.status(), StatusCode::OK);
 
-    // A new role counts on her next request, without logging in again.
-    admin.post("/users/kari", "role=viewer").await;
-    assert_eq!(
-        send("GET", &invitations, &kari, "").await.status(),
-        StatusCode::FORBIDDEN
-    );
-    let guests = paths::path(paths::EVENT, event.id);
-    assert_eq!(
-        send("GET", &guests, &kari, "").await.status(),
-        StatusCode::OK
-    );
+        // Kari logs in, and runs the event.
+        let (home, kari) = log_in("kari", "long-enough-1").await;
+        private_cookies.push(kari.clone());
+        assert_eq!(home, "/");
+        assert_eq!(
+            send("GET", &invitations, &kari, "").await.status(),
+            StatusCode::OK
+        );
 
-    // A new password logs her out everywhere, refresh token and all.
-    admin.post("/users/kari", "password=another-one-2").await;
-    assert_eq!(location(&send("GET", &guests, &kari, "").await), "/login");
-    let (refused, _) = log_in("kari", "long-enough-1").await;
-    assert_ne!(refused, "/");
-    let (home, kari) = log_in("kari", "another-one-2").await;
-    assert_eq!(home, "/");
+        // A new role counts on her next request, without logging in again.
+        admin.post("/users/kari", "role=viewer").await;
+        assert_eq!(
+            send("GET", &invitations, &kari, "").await.status(),
+            StatusCode::FORBIDDEN
+        );
+        let guests = paths::path(paths::EVENT, event.id);
+        assert_eq!(
+            send("GET", &guests, &kari, "").await.status(),
+            StatusCode::OK
+        );
 
-    // Deleting her ends that too, and takes the roles events gave her.
-    crate::db::access::give(&db, event.id, "kari", crate::db::access::EventRole::Editor)
-        .await
-        .unwrap();
-    let response = admin.post("/users/kari/delete", "").await;
-    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-    admin.post("/users/kari/delete", "confirm=yes").await;
-    assert_eq!(location(&send("GET", &guests, &kari, "").await), "/login");
-    assert!(!crate::db::access::has_any(&db, "kari").await.unwrap());
+        // A new password logs her out everywhere, refresh token and all.
+        admin.post("/users/kari", "password=another-one-2").await;
+        assert_eq!(location(&send("GET", &guests, &kari, "").await), "/login");
+        let (refused, _) = log_in("kari", "long-enough-1").await;
+        assert_ne!(refused, "/");
+        let (home, kari) = log_in("kari", "another-one-2").await;
+        private_cookies.push(kari.clone());
+        assert_eq!(home, "/");
 
-    // An admin can't change or delete themselves here.
-    admin
-        .post(paths::USERS, "name=boss&role=admin&password=long-enough-1")
-        .await;
-    let (_, boss) = log_in("boss", "long-enough-1").await;
-    let response = send("POST", "/users/boss", &boss, "role=none").await;
-    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-    let response = send("POST", "/users/boss/delete", &boss, "confirm=yes").await;
-    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-    let html = body(send("GET", paths::USERS, &boss, "").await).await;
-    assert!(html.contains(r#"<a href="/users/boss">boss</a>"#), "{html}");
+        // Deleting her ends that too, and takes the roles events gave her.
+        crate::db::access::give(&db, event.id, "kari", crate::db::access::EventRole::Editor)
+            .await
+            .unwrap();
+        let response = admin.post("/users/kari/delete", "").await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        admin.post("/users/kari/delete", "confirm=yes").await;
+        assert_eq!(location(&send("GET", &guests, &kari, "").await), "/login");
+        assert!(!crate::db::access::has_any(&db, "kari").await.unwrap());
+
+        // An admin can't change or delete themselves here.
+        admin
+            .post(paths::USERS, "name=boss&role=admin&password=long-enough-1")
+            .await;
+        let (_, boss) = log_in("boss", "long-enough-1").await;
+        private_cookies.push(boss.clone());
+        let response = send("POST", "/users/boss", &boss, "role=none").await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let response = send("POST", "/users/boss/delete", &boss, "confirm=yes").await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let html = body(send("GET", paths::USERS, &boss, "").await).await;
+        assert!(html.contains(r#"<a href="/users/boss">boss</a>"#), "{html}");
+
+        let logs = logs.text();
+        for (event, count) in [
+            ("admin user created", 2),
+            ("admin user changed", 2),
+            ("admin user's address changed", 1),
+            ("password link sent for an admin user", 1),
+            ("admin user deleted", 1),
+        ] {
+            assert_eq!(logs.matches(event).count(), count, "{logs}");
+        }
+        for private in [
+            "kari",
+            "boss",
+            "ola.n",
+            "kåre",
+            "k%C3%A5re",
+            "long-enough-1",
+            "another-one-2",
+            "tiny-007",
+        ] {
+            assert!(!logs.contains(private), "{private} appears in logs: {logs}");
+        }
+        for cookies in private_cookies {
+            for cookie in cookies.split("; ") {
+                let (_, value) = cookie.split_once('=').unwrap();
+                assert!(!value.is_empty());
+                assert!(
+                    !logs.contains(value),
+                    "session cookie appears in logs: {logs}"
+                );
+            }
+        }
+    })
+    .await;
 }
 
 async fn status(host: &Admin, path: String) -> StatusCode {
@@ -626,6 +675,177 @@ async fn logs_in_refreshes_and_logs_out(db: PgPool) {
     }
     let as_admin = refresh.replace("b2xhLm4", "YWRtaW4");
     assert_eq!(location(&send("GET", "/", &as_admin, "").await), "/login");
+}
+
+#[sqlx::test]
+async fn password_login_account_change_and_reset_logs_omit_identity(db: PgPool) {
+    const USER: &str = "host-private@example.com";
+    const EMAIL: &str = "host-address-private@example.com";
+    const NEW_EMAIL: &str = "host-new-address-private@example.com";
+    const PASSWORD: &str = "password-secret-001";
+    const NEW_PASSWORD: &str = "new-password-secret-002";
+    const WRONG_PASSWORD: &str = "rejected-password-secret-003";
+    const UNKNOWN_USER: &str = "unknown-host-private@example.com";
+    const BEARER: &str = "bearer-secret-private-004";
+
+    crate::db::admin_user::create(
+        &db,
+        USER,
+        Some("editor"),
+        Some(&auth::tests::cheap_hash(PASSWORD)),
+        Some(EMAIL),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let config = crate::config::tests::config();
+    let admin_config = auth::tests::admin_config();
+    let app = router(config, &admin_config, db.clone());
+    let logs = crate::testing::logs::Capture::new();
+
+    logs.run(async {
+        for user in [USER, UNKNOWN_USER] {
+            let response = app
+                .clone()
+                .oneshot(crate::testing::form_post(
+                    "/login",
+                    &format!("user={user}&password={WRONG_PASSWORD}"),
+                    "same-origin",
+                ))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+            assert!(http_set_cookies(&response).is_empty());
+        }
+
+        let response = app
+            .clone()
+            .oneshot(crate::testing::form_post(
+                "/login",
+                &format!("user={USER}&password={PASSWORD}"),
+                "same-origin",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let cookies: Vec<_> = http_set_cookies(&response)
+            .into_iter()
+            .map(|cookie| cookie.split(';').next().unwrap().to_owned())
+            .collect();
+        assert_eq!(cookies.len(), 2);
+        let mut private_cookies = cookies.clone();
+        let cookie = cookies.join("; ");
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/account")
+                    .header(header::COOKIE, &cookie)
+                    .header(header::AUTHORIZATION, format!("Bearer {BEARER}"))
+                    .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                    .header("sec-fetch-site", "same-origin")
+                    .body(Body::from(format!("email={NEW_EMAIL}")))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            crate::db::admin_user::find(&db, USER)
+                .await
+                .unwrap()
+                .unwrap()
+                .email
+                .as_deref(),
+            Some(NEW_EMAIL)
+        );
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/account/password")
+                    .header(header::COOKIE, &cookie)
+                    .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                    .header("sec-fetch-site", "same-origin")
+                    .body(Body::from(format!(
+                        "current={WRONG_PASSWORD}&password={NEW_PASSWORD}"
+                    )))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(http_set_cookies(&response).is_empty());
+
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/account/password")
+                    .header(header::COOKIE, cookie)
+                    .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                    .header("sec-fetch-site", "same-origin")
+                    .body(Body::from(format!(
+                        "current={PASSWORD}&password={NEW_PASSWORD}"
+                    )))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        let renewed = http_set_cookies(&response);
+        assert_eq!(renewed.len(), 2);
+        private_cookies.extend(
+            renewed
+                .into_iter()
+                .map(|cookie| cookie.split(';').next().unwrap().to_owned()),
+        );
+
+        for user in [UNKNOWN_USER, USER, NEW_EMAIL] {
+            let response = app
+                .clone()
+                .oneshot(crate::testing::form_post(
+                    "/login/forgot",
+                    &format!("user={user}"),
+                    "same-origin",
+                ))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+        }
+
+        let logs = logs.text();
+        for (event, count) in [
+            ("host logged in", 1),
+            ("own password changed", 1),
+            ("password link asked for", 2),
+        ] {
+            assert_eq!(logs.matches(event).count(), count, "{logs}");
+        }
+        for private in [
+            USER,
+            EMAIL,
+            NEW_EMAIL,
+            "host-private",
+            "host-address-private",
+            "host-new-address-private",
+            PASSWORD,
+            NEW_PASSWORD,
+            WRONG_PASSWORD,
+            UNKNOWN_USER,
+            BEARER,
+        ] {
+            assert!(!logs.contains(private), "{private} appears in logs: {logs}");
+        }
+        for cookie in private_cookies {
+            let (_, value) = cookie.split_once('=').unwrap();
+            assert!(!value.is_empty());
+            assert!(
+                !logs.contains(value),
+                "session cookie appears in logs: {logs}"
+            );
+        }
+    })
+    .await;
 }
 
 #[sqlx::test]

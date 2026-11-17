@@ -145,73 +145,140 @@ async fn a_stranger_guessing_cannot_lock_the_host_out(db: PgPool) {
 
 #[sqlx::test]
 async fn a_new_user_sets_their_password_from_a_mail_and_resets_it(db: PgPool) {
+    const FIRST_PASSWORD: &str = "first-password-private-001";
+    const SECOND_PASSWORD: &str = "second-password-private-002";
+    const THIRD_PASSWORD: &str = "third-password-private-003";
+    const WRONG_PASSWORD: &str = "wrong-password-private-004";
+    const SHORT_PASSWORD: &str = "tiny-005";
+
     let world = World::new(db);
     let a = admin();
     let mut host = world.admin().await;
+    let logs = crate::testing::logs::Capture::new();
+    logs.run(async {
+        let mut private_cookies = host.cookie_values();
 
-    // An admin makes Kari with an address and no password: she gets a link.
-    host.click(&a.users).await;
-    host.fill(&a.user_name, "kari")
-        .fill(&a.email, "Kari@Example.com")
-        .check(&a.role_organiser);
-    host.press(&a.create_user).await.expect(&a.no_password_yet);
-    let mail = world.receive("kari@example.com").await;
-    assert!(mail.body.contains("kari"), "{}", mail.body);
-    let first = link_in(&mail).to_owned();
+        // An admin makes Kari with an address and no password: she gets a link.
+        host.click(&a.users).await;
+        host.fill(&a.user_name, "kari")
+            .fill(&a.email, "Kari@Example.com")
+            .check(&a.role_organiser);
+        host.press(&a.create_user).await.expect(&a.no_password_yet);
+        let mail = world.receive("kari@example.com").await;
+        assert!(mail.body.contains("kari"), "{}", mail.body);
+        let first = link_in(&mail).to_owned();
 
-    let mut kari = world.browser_at("192.0.2.20".parse().unwrap());
-    kari.open(&first).await.expect(&a.set_password_title);
-    kari.fill(&a.new_password, "short");
-    kari.press(&a.set_password).await.expect("at least 10");
-    kari.fill(&a.new_password, "a long first password");
-    kari.press(&a.set_password)
-        .await
-        .expect(&a.password_set_notice);
-    // Used once, the link is done.
-    kari.open(&first).await.expect(&a.link_dead);
-    kari.open("https://admin.fest.example.com/login").await;
+        let mut kari = world.browser_at("192.0.2.20".parse().unwrap());
+        kari.open(&first).await.expect(&a.set_password_title);
+        kari.fill(&a.new_password, SHORT_PASSWORD);
+        kari.press(&a.set_password).await.expect("at least 10");
+        kari.fill(&a.new_password, FIRST_PASSWORD);
+        kari.press(&a.set_password)
+            .await
+            .expect(&a.password_set_notice);
+        // Used once, the link is done.
+        kari.open(&first).await.expect(&a.link_dead);
+        kari.open("https://admin.fest.example.com/login").await;
 
-    kari.fill(&a.user_name, "kari")
-        .fill(&a.password, "a long first password");
-    kari.press(&a.log_in).await.expect(&a.events);
-    // Her account page: a new address, and a new password that needs the current one.
-    kari.click(&a.account)
-        .await
-        .expect(&filled(&a.account_hint, "name", "kari"));
-    kari.fill(&a.email, "kari.n@example.com");
-    kari.press(&a.save_email).await.expect(&a.saved);
-    kari.fill(&a.current_password, "wrong")
-        .fill(&a.new_password, "a long second password");
-    kari.press(&a.change_password)
-        .await
-        .expect(&a.error_current_password);
-    kari.fill(&a.current_password, "a long first password")
-        .fill(&a.new_password, "a long second password");
-    kari.press(&a.change_password).await.expect(&a.saved);
-    kari.press(&a.log_out).await.expect(&a.logged_out);
+        kari.fill(&a.user_name, "kari")
+            .fill(&a.password, FIRST_PASSWORD);
+        kari.press(&a.log_in).await.expect(&a.events);
+        private_cookies.extend(kari.cookie_values());
+        // Her account page: a new address, and a new password that needs the current one.
+        kari.click(&a.account)
+            .await
+            .expect(&filled(&a.account_hint, "name", "kari"));
+        kari.fill(&a.email, "kari.n@example.com");
+        kari.press(&a.save_email).await.expect(&a.saved);
+        kari.fill(&a.current_password, WRONG_PASSWORD)
+            .fill(&a.new_password, SECOND_PASSWORD);
+        kari.press(&a.change_password)
+            .await
+            .expect(&a.error_current_password);
+        kari.fill(&a.current_password, FIRST_PASSWORD)
+            .fill(&a.new_password, SECOND_PASSWORD);
+        kari.press(&a.change_password).await.expect(&a.saved);
+        private_cookies.extend(kari.cookie_values());
+        kari.press(&a.log_out).await.expect(&a.logged_out);
 
-    // She forgets it. Asking by an address nobody has says the same, and sends nothing.
-    kari.click(&a.forgot_password).await.expect(&a.forgot_hint);
-    kari.fill(&a.forgot_field, "nobody@example.com");
-    kari.press(&a.forgot_send).await.expect(&a.forgot_sent);
-    kari.click(&a.log_in).await;
-    kari.click(&a.forgot_password).await;
-    kari.fill(&a.forgot_field, "kari.n@example.com");
-    kari.press(&a.forgot_send).await.expect(&a.forgot_sent);
-    let reset = link_in(&world.receive("kari.n@example.com").await).to_owned();
-    assert!(world.inbox("nobody@example.com").is_empty());
-    assert!(
-        world.inbox("kari@example.com").len() == 1,
-        "the old address gets nothing more"
-    );
-    kari.open(&reset).await;
-    kari.fill(&a.new_password, "a long third password");
-    kari.press(&a.set_password)
-        .await
-        .expect(&a.password_set_notice);
-    kari.fill(&a.user_name, "kari")
-        .fill(&a.password, "a long third password");
-    kari.press(&a.log_in).await.expect(&a.events);
+        // She forgets it. Asking by an address nobody has says the same, and sends nothing.
+        kari.click(&a.forgot_password).await.expect(&a.forgot_hint);
+        kari.fill(&a.forgot_field, "nobody@example.com");
+        kari.press(&a.forgot_send).await.expect(&a.forgot_sent);
+        kari.click(&a.log_in).await;
+        kari.click(&a.forgot_password).await;
+        kari.fill(&a.forgot_field, "kari.n@example.com");
+        kari.press(&a.forgot_send).await.expect(&a.forgot_sent);
+        let stale = link_in(&world.receive("kari.n@example.com").await).to_owned();
+        assert!(world.inbox("nobody@example.com").is_empty());
+        assert!(
+            world.inbox("kari@example.com").len() == 1,
+            "the old address gets nothing more"
+        );
+        crate::db::admin_user::set_email(&world.db, "kari", Some("kari.updated@example.com"))
+            .await
+            .unwrap()
+            .unwrap();
+        kari.open(&stale).await.expect(&a.link_dead);
+        kari.open("https://admin.fest.example.com/login").await;
+        kari.click(&a.forgot_password).await;
+        kari.fill(&a.forgot_field, "kari.updated@example.com");
+        kari.press(&a.forgot_send).await.expect(&a.forgot_sent);
+        let reset = link_in(&world.receive("kari.updated@example.com").await).to_owned();
+        kari.open(&reset).await;
+        kari.fill(&a.new_password, THIRD_PASSWORD);
+        kari.press(&a.set_password)
+            .await
+            .expect(&a.password_set_notice);
+        kari.fill(&a.user_name, "kari")
+            .fill(&a.password, THIRD_PASSWORD);
+        kari.press(&a.log_in).await.expect(&a.events);
+        private_cookies.extend(kari.cookie_values());
+
+        let logs = logs.text();
+        for (event, count) in [
+            ("admin user created", 1),
+            ("host logged in", 2),
+            ("own password changed", 1),
+            ("password link asked for", 2),
+            ("password set from a link", 2),
+        ] {
+            assert_eq!(logs.matches(event).count(), count, "{logs}");
+        }
+        for private in [
+            "kari",
+            "Kari@Example.com",
+            "nobody@example.com",
+            SHORT_PASSWORD,
+            WRONG_PASSWORD,
+            FIRST_PASSWORD,
+            SECOND_PASSWORD,
+            THIRD_PASSWORD,
+        ] {
+            assert!(!logs.contains(private), "{private} appears in logs: {logs}");
+        }
+        for link in [&first, &stale, &reset] {
+            let token = link.rsplit('/').next().unwrap();
+            assert!(!token.is_empty());
+            assert!(
+                !logs.contains(link),
+                "password link appears in logs: {logs}"
+            );
+            assert!(
+                !logs.contains(token),
+                "signed token appears in logs: {logs}"
+            );
+        }
+        assert!(!private_cookies.is_empty());
+        for value in private_cookies {
+            assert!(!value.is_empty());
+            assert!(
+                !logs.contains(&value),
+                "session cookie appears in logs: {logs}"
+            );
+        }
+    })
+    .await;
 }
 
 #[sqlx::test]

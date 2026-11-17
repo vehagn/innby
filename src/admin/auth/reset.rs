@@ -75,7 +75,7 @@ pub async fn forgot(
         {
             return server_error(err);
         }
-        tracing::info!(user = user.name, "password link asked for");
+        tracing::info!("password link asked for");
     }
     render(ForgotPage {
         sent: true,
@@ -203,7 +203,7 @@ pub async fn set_password(
         Ok(None) => return dead_link(&path),
         Err(err) => return server_error(err),
     }
-    tracing::info!(user = path.user, "password set from a link");
+    tracing::info!("password set from a link");
     let login = paths::admin(&format!("{}?password_set", paths::LOGIN));
     Redirect::to(&login).into_response()
 }

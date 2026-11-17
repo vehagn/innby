@@ -104,10 +104,7 @@ pub(super) async fn edit(
         },
     };
     match admin_user::set_email_for_account(&state.db, credential, email.as_deref()).await? {
-        Ok(true) => {
-            tracing::info!(user = &*host.user, "own address changed");
-            Ok(redirect(&format!("{}?saved", paths::ACCOUNT)))
-        }
+        Ok(true) => Ok(redirect(&format!("{}?saved", paths::ACCOUNT))),
         Ok(false) => Err(PageError::Missing),
         Err(Taken::Email | Taken::Name) => {
             let error = Some(text.error_email_taken.clone());
@@ -156,7 +153,7 @@ pub(super) async fn password(
         .auth
         .start_session(&host.user, PasswordIdentity::Stored(credential))
         .await?;
-    tracing::info!(user = &*host.user, "own password changed");
+    tracing::info!("own password changed");
     let cookies = cookies
         .into_iter()
         .map(|cookie| (header::SET_COOKIE, cookie));

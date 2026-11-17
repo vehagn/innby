@@ -203,7 +203,7 @@ impl Provider {
             // A provider that's briefly away doesn't stop logins it already described.
             Err(err) => match &*cached {
                 Some(fetched) => {
-                    tracing::warn!("OIDC discovery failed, using what it said before: {err:#}");
+                    tracing::warn!("OIDC discovery failed, using what it said before");
                     Ok(Arc::clone(&fetched.value))
                 }
                 None => Err(err.context("OIDC discovery")),

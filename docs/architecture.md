@@ -259,7 +259,9 @@ guess, and nothing secret about them is stored.
 Because links sit in URLs, the site takes care with them: link pages are `no-store`, no
 page sends a `Referer`, nothing is loaded from other sites, logs record the route pattern
 (`/r/{link}`) and never the path, and the guest list is a page of its own, so a chat
-app's link preview never shows another guest's name.
+app's link preview never shows another guest's name. Host-flow logs likewise use actions,
+bounded roles and record or job ids, never host names, addresses, passwords, bearer tokens
+or signed links; SMTP errors stay in the outbox rather than the logs.
 
 ## E-mail, optional
 

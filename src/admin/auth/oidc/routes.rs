@@ -40,8 +40,8 @@ pub async fn start(State(auth): State<Arc<Auth>>) -> Response {
             )
                 .into_response()
         }
-        Err(err) => {
-            tracing::error!("OIDC login couldn't start: {err:#}");
+        Err(_) => {
+            tracing::error!("OIDC login couldn't start");
             failed(&auth, provider).await
         }
     }
@@ -87,7 +87,6 @@ pub async fn callback(
         Ok(login) => {
             let cookie = auth.start_oidc_session(&login);
             tracing::info!(
-                user = login.user,
                 role = login.role.map_or("none", Role::name),
                 "host logged in through OIDC"
             );
@@ -107,15 +106,15 @@ pub async fn callback(
             .await
         }
         Err(LoginError::NoRole { user }) => {
-            tracing::warn!(user, "OIDC login without an Innby role");
+            tracing::warn!("OIDC login without an Innby role");
             let message = fill(
                 &text.no_role,
                 &[("name", &provider.name()), ("user", &user)],
             );
             auth::login_error(&auth, StatusCode::FORBIDDEN, message).await
         }
-        Err(LoginError::Failed(err)) => {
-            tracing::error!("OIDC login failed: {err:#}");
+        Err(LoginError::Failed(_)) => {
+            tracing::error!("OIDC login failed");
             failed(&auth, provider).await
         }
     };

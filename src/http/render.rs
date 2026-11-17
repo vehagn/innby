@@ -74,9 +74,9 @@ pub fn render_form(template: impl Template, needs_fixing: bool) -> Response {
     render_with(status, template)
 }
 
-/// Logs the cause and answers 500 without details.
-pub fn server_error(err: impl Display) -> Response {
-    tracing::error!(error = %err, "request failed");
+/// Errors may contain submitted values or provider responses, so log only the outcome.
+pub fn server_error(_err: impl Display) -> Response {
+    tracing::error!("request failed");
     StatusCode::INTERNAL_SERVER_ERROR.into_response()
 }
 
@@ -89,6 +89,25 @@ mod tests {
     use std::{collections::BTreeSet, fs, path::Path};
 
     use super::STYLE;
+
+    #[tokio::test]
+    async fn request_errors_do_not_log_private_details() {
+        let logs = crate::testing::logs::Capture::new();
+        let response = logs
+            .run(async {
+                super::server_error("host-private@example.com bearer-secret signed-link")
+            })
+            .await;
+        assert_eq!(
+            response.status(),
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        );
+        let logs = logs.text();
+        assert!(logs.contains("request failed"), "{logs}");
+        for private in ["host-private@example.com", "bearer-secret", "signed-link"] {
+            assert!(!logs.contains(private), "{logs}");
+        }
+    }
 
     /// The templates and the code, which both write markup, as (path, text). Tests are
     /// left out, since their markup is made up.
