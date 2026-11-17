@@ -38,8 +38,9 @@ e-mail, this device, their data). There they:
 - play the minigames the host offers, if any, each with a high score table
   ([games.md](games.md));
 - read the event's message board, if the host has one on, and vote posts up or down;
-  where it's open to guests, post and reply too, signed with their name as on the guest
-  list, and delete their own posts ([below](#the-message-board));
+  where it's open to guests, post and reply too while their name is on the guest list,
+  signed with it as the list shows it, and delete their own posts
+  ([below](#the-message-board));
 - change any of it until the event, rename themselves, download everything kept about
   them as JSON, or delete it all.
 
@@ -440,6 +441,12 @@ link's address could show back to front, are refused. A guest may post or reply 
 an hour, counted
 in memory by their RSVP rather than their address, so a household on one network doesn't
 share it; hosts aren't counted.
+
+Nobody posts anonymously. A post shows its guest's name as the guest list does at the
+time it's read, so only a guest on the list may post or reply: one who hid their name is
+pointed to the guest list to show it, and one who isn't coming, and so isn't on it, reads
+and votes only. A guest who leaves the list after posting keeps their first name and
+initial on what they wrote, rather than becoming "a guest".
 
 Guests sign as the guest list shows them ("A guest" when it doesn't), and see hosts only
 as "The hosts"; hosts see everyone in full. A guest may delete their own posts, and a

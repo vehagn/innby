@@ -1,8 +1,10 @@
 //! The Board tab of a guest's pages, `/r/{link}/board`: the event's message board, when
 //! its hosts have it on for guests (`db::board::BoardState`). Guests read and vote on
 //! what hosts post, and when it's open post and reply too, signed as the guest list
-//! shows them, in a little Markdown (`crate::markdown`), so many an hour. A guest may
-//! delete their own posts; hosts any, in the admin UI.
+//! shows them, in a little Markdown (`crate::markdown`), so many an hour. Nobody posts
+//! anonymously: a guest who isn't on the guest list, having hidden their name or said
+//! they aren't coming, reads and votes but doesn't post. A guest may delete their own
+//! posts; hosts any, in the admin UI.
 
 use askama::Template;
 use axum::{
@@ -22,7 +24,10 @@ use super::{
 };
 use crate::{
     board::{Pager, PostView, page_number, refusal},
-    db::board::{self, Author, Refused, Step, Writer},
+    db::{
+        board::{self, Author, Refused, Step, Writer},
+        rsvp::{NameDisplay, Response as Answer},
+    },
     http::{render, render_with},
     i18n::{Lang, Messages, filled},
     icons::TabLink,
@@ -36,7 +41,11 @@ struct BoardPage {
     t: &'static Messages,
     title: String,
     tabs: Vec<TabLink>,
-    /// Where a new thread posts, when guests may post.
+    /// What the guest may do here.
+    hint: &'static str,
+    /// The guest list, where a guest who hid their name may show it to post.
+    show_name: Option<String>,
+    /// Where a new thread posts, when the guest may post.
     post_action: Option<String>,
     steps: Vec<Step<PostView>>,
     pager: Option<Pager>,
@@ -50,6 +59,12 @@ struct BoardPage {
 struct Draft {
     parent: Option<Uuid>,
     body: String,
+}
+
+/// Whether the guest is on the guest list, as a guest must be to post: their posts show
+/// their name.
+fn listed(guest: &Guest) -> bool {
+    guest.rsvp.listed() != NameDisplay::Hidden
 }
 
 /// The board's page `number`, from 0, as `paths::RSVP_BOARD` with `?page=`, and maybe a
@@ -77,7 +92,7 @@ async fn page(
 ) -> sqlx::Result<BoardPage> {
     let (lang, t) = (guest.lang, guest.lang.messages());
     let links = GuestLinks::new(&guest.link, lang);
-    let open = guest.board.guests_post();
+    let open = guest.board.guests_post() && listed(guest);
     let you = guest.rsvp.id;
     let tz = guest.event.details.starts_at.timezone();
     let shown = board::page(&state.db, guest.event.id, Some(you), number).await?;
@@ -117,11 +132,20 @@ async fn page(
         }
         view
     });
+    // Open to guests, but not to this one: say why, and where to change it if they can.
+    let (hint, show_name) = match (open, guest.board.guests_post(), guest.rsvp.response) {
+        (true, ..) => (t.board_hint_open.as_str(), None),
+        (false, false, _) => (t.board_hint_hosts.as_str(), None),
+        (false, true, Answer::Declined) => (t.board_hint_declined.as_str(), None),
+        (false, true, _) => (t.board_hint_unlisted.as_str(), Some(links.guests.clone())),
+    };
     Ok(BoardPage {
         lang,
         t,
         title: guest.event.details.title(lang).to_owned(),
         tabs: guest.tabs(state, &links, GuestTab::Board),
+        hint,
+        show_name,
         post_action: open.then(|| links.board.clone()),
         steps,
         pager,
@@ -164,7 +188,8 @@ pub struct PostForm {
     parent: String,
 }
 
-/// Posts a thread or a reply, when the board is open to guests.
+/// Posts a thread or a reply, when the board is open to guests and the guest is on the
+/// guest list.
 pub async fn create(
     State(state): State<AppState>,
     guest: Guest,
@@ -181,6 +206,14 @@ pub async fn create(
         },
     };
     let t = guest.lang.messages();
+    if !listed(&guest) {
+        let draft = Draft {
+            parent,
+            body: form.body,
+        };
+        let error = t.board_error_unlisted.clone();
+        return Ok(refuse(&state, &guest, draft, StatusCode::FORBIDDEN, error).await?);
+    }
     let Some(body) = board::body(&form.body) else {
         let draft = Draft {
             parent,

@@ -78,7 +78,9 @@ pub struct PostView {
 
 impl PostView {
     /// The post, with no actions yet: its guest as the guest list shows them, or in full
-    /// for a host (`full_names`); a host as a host, or by name for hosts.
+    /// for a host (`full_names`); a host as a host, or by name for hosts. Only a guest on
+    /// the guest list may post, so a post always has a name: one who leaves the list later
+    /// keeps their first name and initial on what they wrote.
     pub fn new(post: &Post, t: &Messages, lang: Lang, tz: Tz, full_names: bool) -> Self {
         let (author, host) = match &post.author {
             Author::Guest {
@@ -91,7 +93,8 @@ impl PostView {
                     true => Some(name.clone()),
                     false => NameDisplay::listed(*response, *name_display).apply(name),
                 };
-                (shown.unwrap_or_else(|| t.a_guest.clone()), false)
+                let unlisted = || NameDisplay::Partial.apply(name).unwrap_or_default();
+                (shown.unwrap_or_else(unlisted), false)
             }
             Author::Host(name) if full_names => (name.clone(), true),
             // "The hosts" says it already.

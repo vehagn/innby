@@ -174,12 +174,21 @@ seconds = "{n} s"
 
 board_heading = "Tavle"
 board_hint_open = """
-Skriv til alle som er inviterte, og stem på det andre skriv. Innlegga dine viser namnet \
-ditt slik gjestelista gjer, og du kan sletta dei. Innlegg som er stemde under null, \
-vert lagde saman."""
+Skriv til alle som er inviterte, og stem på det andre skriv. Innlegga dine viser \
+namnet ditt slik gjestelista gjer, eller førenamn og initial viss du ikkje lenger står \
+der, og du kan sletta dei. Innlegg som er stemde under null, vert lagde saman."""
 board_hint_hosts = """
 Nytt frå vertane. Stem på det dei skriv; innlegg som er stemde under null, vert lagde \
 saman."""
+board_hint_unlisted = """
+Les og stem på det dei inviterte skriv; innlegg som er stemde under null, vert lagde \
+saman. Innlegg viser kven som skreiv dei, så for å skriva må namnet ditt stå på \
+gjestelista."""
+board_hint_declined = """
+Les og stem på det dei inviterte skriv; innlegg som er stemde under null, vert lagde \
+saman. Innlegg viser kven som skreiv dei, så berre gjester på gjestelista skriv, og \
+dei som ikkje kjem, står ikkje der."""
+board_show_name = "Vis namnet ditt der"
 board_new = "Nytt innlegg"
 board_send = "Publiser"
 board_reply = "Svar"
@@ -197,6 +206,7 @@ board_deleted_notice = "Innlegget ditt er sletta."
 board_format = "**feit**, *kursiv*, `kode`, [lenkjer](https://…), linjer som byrjar med - for ei liste eller > for eit sitat. Høgst {n} teikn."
 board_error_body = "Skriv noko, på høgst {n} teikn."
 board_error_busy = "Det er mange innlegg på ein time. Prøv igjen om ei stund; teksten din står under."
+board_error_unlisted = "Innlegg viser kven som skreiv dei, så for å skriva må namnet ditt stå på gjestelista."
 board_error_thread = "Denne tråden er full, med {n} innlegg. Vil du starta ein ny? Teksten din står under."
 board_error_full = "Tavla er full, med {n} innlegg. Vertane kan sletta nokre for å gje plass."
 board_pages = "Sider av tavla"
@@ -432,8 +442,9 @@ save_games = "Lagre spela"
 
 board = "Tavle"
 board_hint = """
-Ei oppslagstavle på sidene til gjestene. Gjestene signerer innlegga sine slik gjestelista \
-viser dei, ser vertar berre som vertar, og kan sletta sine eigne; du kan sletta alle. \
+Ei oppslagstavle på sidene til gjestene. Gjestene på gjestelista skriv, signert slik \
+ho viser dei, eller med førenamn og initial viss dei seinare ikkje står der; dei ser \
+vertar berre som vertar, og kan sletta sine eigne innlegg; du kan sletta alle. \
 Stemmene vert aldri viste, berre summen, og innlegg under null vert lagde saman. \
 Ingenting vert moderert for deg."""
 board_state = "Tavla"

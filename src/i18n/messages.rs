@@ -173,6 +173,11 @@ pub struct Messages {
     /// What a guest may do: post too, or read and vote on what hosts post.
     pub board_hint_open: String,
     pub board_hint_hosts: String,
+    /// An open board, for a guest whose name isn't on the guest list: hidden, with a link
+    /// to show it (`board_show_name`), or as they aren't coming.
+    pub board_hint_unlisted: String,
+    pub board_hint_declined: String,
+    pub board_show_name: String,
     pub board_new: String,
     pub board_send: String,
     pub board_reply: String,
@@ -195,6 +200,8 @@ pub struct Messages {
     pub board_error_body: String,
     /// Too many posts in an hour.
     pub board_error_busy: String,
+    /// A post from a guest who isn't on the guest list.
+    pub board_error_unlisted: String,
     /// A thread, or the board, holds "{n}" posts at most.
     pub board_error_thread: String,
     pub board_error_full: String,

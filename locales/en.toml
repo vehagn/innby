@@ -181,9 +181,18 @@ seconds = "{n} s"
 board_heading = "Board"
 board_hint_open = """
 Write to everyone invited, and vote on what others write. Your posts show your name as \
-the guest list does, and you can delete them. Posts voted below zero are folded away."""
+the guest list does, or your first name and initial if you leave it, and you can \
+delete them. Posts voted below zero are folded away."""
 board_hint_hosts = """
 News from the hosts. Vote on what they write; posts voted below zero are folded away."""
+board_hint_unlisted = """
+Read and vote on what everyone invited writes; posts voted below zero are folded away. \
+Posts show who wrote them, so to post, your name must be on the guest list."""
+board_hint_declined = """
+Read and vote on what everyone invited writes; posts voted below zero are folded away. \
+Posts show who wrote them, so only guests on the guest list post, and those who aren't \
+coming aren't on it."""
+board_show_name = "Show your name there"
 board_new = "New post"
 board_send = "Post"
 board_reply = "Reply"
@@ -201,6 +210,7 @@ board_deleted_notice = "Your post is deleted."
 board_format = "**bold**, *italic*, `code`, [links](https://…), lines starting - for a list or > for a quote. At most {n} characters."
 board_error_body = "Write something, of at most {n} characters."
 board_error_busy = "That's a lot of posts in an hour. Try again in a while; your text is kept below."
+board_error_unlisted = "Posts show who wrote them, so to post, your name must be on the guest list."
 board_error_thread = "This thread is full, with {n} posts. Start a new one? Your text is kept below."
 board_error_full = "The board is full, with {n} posts. The hosts can delete some to make room."
 board_pages = "Pages of the board"
@@ -441,10 +451,10 @@ save_games = "Save the games"
 # Message board
 board = "Board"
 board_hint = """
-A message board on the guests' pages. Guests sign their posts as the guest list shows \
-them, see hosts only as hosts, and may delete their own; you may delete any. Votes are \
-never shown, only their sum, and posts below zero are folded away. Nothing is moderated \
-for you."""
+A message board on the guests' pages. Guests on the guest list post, signed as it \
+shows them, or by first name and initial if they leave it later; they see hosts only \
+as hosts, and may delete their own posts; you may delete any. Votes are never shown, \
+only their sum, and posts below zero are folded away. Nothing is moderated for you."""
 board_state = "The board"
 board_off = "Off"
 board_off_hint = "No board, here or for guests. Its posts are kept."

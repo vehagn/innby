@@ -97,6 +97,102 @@ async fn guests_post_reply_and_vote_on_an_open_board(db: PgPool) {
 }
 
 #[sqlx::test]
+async fn a_guest_off_the_guest_list_reads_and_votes_but_does_not_post(db: PgPool) {
+    let site = Site::new(db);
+    set(&site, BoardState::Open).await;
+    let (kari, _) = site.invite("Kari Nordmann", 1).await;
+    let (_, ola) = site.invite("Ola Hansen", 1).await;
+    let (_, per) = site.invite("Per Berg", 1).await;
+    let event = site.event().await.id;
+    let post = board::create(&site.db, event, None, Writer::Guest(kari.id), "Cake?")
+        .await
+        .unwrap()
+        .unwrap();
+    // Ola hides his name from the guest list; Per isn't coming, so isn't on it.
+    site.post(&format!("/r/{ola}/listing?lang=en"), "name_display=hidden")
+        .await;
+    site.post(
+        &format!("/r/{per}?lang=en"),
+        "party_size=1&response=declined",
+    )
+    .await;
+
+    for (link, hint) in [
+        (&ola, &en().board_hint_unlisted),
+        (&per, &en().board_hint_declined),
+    ] {
+        let board = format!("/r/{link}/board?lang=en");
+        let html = body(site.get(&board).await).await;
+        assert!(html.contains("Cake?"), "{html}");
+        assert!(html.contains(&escape(hint)), "{html}");
+        assert!(!html.contains(r#"name="body""#), "{html}");
+        // Ola is pointed to where he can show his name; Per would have to come.
+        let show = format!(
+            r#"{} <a href="/r/{link}/guests?lang=en">{}</a>"#,
+            escape(hint),
+            en().board_show_name
+        );
+        assert_eq!(html.contains(&show), *link == ola, "{html}");
+
+        // Neither a thread nor a reply is posted.
+        for form in ["body=Hello".to_owned(), format!("body=Hello&parent={post}")] {
+            let response = site.post(&board, &form).await;
+            assert_eq!(response.status(), StatusCode::FORBIDDEN, "{form}");
+            let html = body(response).await;
+            assert!(html.contains(&escape(&en().board_error_unlisted)), "{html}");
+        }
+        assert_eq!(board::count(&site.db, event).await.unwrap(), 1);
+
+        // Votes are only ever a sum, so anyone invited may vote.
+        let vote = format!("/r/{link}/board/{post}/vote?lang=en");
+        let response = site.post(&vote, "vote=up").await;
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    }
+
+    // Once Ola shows his name, he posts.
+    site.post(&format!("/r/{ola}/listing?lang=en"), "name_display=full")
+        .await;
+    let response = site
+        .post(&format!("/r/{ola}/board?lang=en"), "body=Yes")
+        .await;
+    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    assert_eq!(board::count(&site.db, event).await.unwrap(), 2);
+}
+
+#[sqlx::test]
+async fn a_post_keeps_a_name_when_its_guest_leaves_the_guest_list(db: PgPool) {
+    let site = Site::new(db);
+    set(&site, BoardState::Open).await;
+    let (_, kari) = site.invite("Kari Nordmann", 1).await;
+    let (_, ola) = site.invite("Ola Hansen", 1).await;
+    site.post(
+        &format!("/r/{kari}?lang=en"),
+        "party_size=1&response=attending",
+    )
+    .await;
+    site.post(&format!("/r/{kari}/board?lang=en"), "body=Bringing+cake")
+        .await;
+    let board = format!("/r/{ola}/board?lang=en");
+    let html = body(site.get(&board).await).await;
+    assert!(html.contains("Kari Nordmann"), "{html}");
+
+    // Hidden from the list, or not coming after all: her first name and initial stay.
+    for leave in [
+        "/listing?lang=en&name_display=hidden",
+        "?lang=en&response=declined",
+    ] {
+        let (path, form) = leave.split_once('&').unwrap();
+        let form = format!("party_size=1&{form}");
+        site.post(&format!("/r/{kari}{path}"), &form).await;
+        let html = body(site.get(&board).await).await;
+        assert!(html.contains("Bringing cake"), "{html}");
+        assert!(html.contains("Kari N."), "{leave}: {html}");
+        assert!(!html.contains("Nordmann"), "{leave}: {html}");
+        assert!(!html.contains(&en().a_guest), "{leave}: {html}");
+    }
+}
+
+#[sqlx::test]
 async fn a_guest_deletes_only_their_own_posts(db: PgPool) {
     let site = Site::new(db);
     set(&site, BoardState::Open).await;
