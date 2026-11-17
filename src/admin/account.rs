@@ -116,7 +116,10 @@ pub(super) async fn edit(
     };
     let set = admin_user::set_email_for_account(&state.db, account.credential, email.as_deref());
     match set.await? {
-        Ok(true) => Ok(redirect(&format!("{}?saved", paths::ACCOUNT))),
+        Ok(true) => {
+            tracing::info!("own address changed");
+            Ok(redirect(&format!("{}?saved", paths::ACCOUNT)))
+        }
         Ok(false) => Ok(state.auth.to_login().await),
         Err(Taken::Email | Taken::Name) => {
             let error = Some(text.error_email_taken.clone());
