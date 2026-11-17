@@ -240,7 +240,7 @@ impl Auth {
                         hash,
                         Some((
                             stored.name,
-                            stored_role(stored.role.as_deref()),
+                            Role::from_stored(stored.role.as_deref()),
                             stored.version,
                         )),
                     ),
@@ -315,7 +315,7 @@ impl Auth {
             .filter(|stored| stored.version == version)
             .map(|stored| Host {
                 in_app: true,
-                ..Host::new(&stored.name, stored_role(stored.role.as_deref()))
+                ..Host::new(&stored.name, Role::from_stored(stored.role.as_deref()))
             }))
     }
 
@@ -402,11 +402,6 @@ impl Auth {
             self.https,
         )
     }
-}
-
-/// A database user's role, as stored.
-fn stored_role(role: Option<&str>) -> Option<Role> {
-    role.and_then(Role::from_name)
 }
 
 /// Lets a request through if it's logged in, and sends it to the login page otherwise.

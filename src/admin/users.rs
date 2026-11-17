@@ -35,13 +35,10 @@ use crate::{
 /// The shortest and longest password the admin UI sets.
 const PASSWORD_LEN: std::ops::RangeInclusive<usize> = 10..=200;
 
-/// The roles a user can have, as the forms name them: `none` for none of their own.
-const ROLES: [&str; 6] = ["admin", "creator", "editor", "organiser", "viewer", "none"];
-
 /// A user as the pages show them.
 pub(super) struct UserRow {
     pub(super) name: String,
-    pub(super) role: &'static str,
+    pub(super) role: Option<Role>,
     pub(super) path: String,
     pub(super) email: Option<String>,
     /// Whether they have a password yet.
@@ -52,7 +49,7 @@ impl UserRow {
     fn new(name: &str, role: Option<Role>) -> Self {
         Self {
             name: name.to_owned(),
-            role: role.map_or("none", Role::name),
+            role,
             path: paths::admin(&paths::path(paths::USER, name)),
             email: None,
             password: true,
@@ -63,7 +60,7 @@ impl UserRow {
         Self {
             email: user.email.clone(),
             password: user.password_hash.is_some(),
-            ..Self::new(&user.name, stored_role(user))
+            ..Self::new(&user.name, Role::from_stored(user.role.as_deref()))
         }
     }
 }
@@ -76,26 +73,33 @@ pub(super) struct RoleChoice {
 }
 
 fn role_choices(current: &str) -> Vec<RoleChoice> {
-    ROLES
-        .iter()
-        .map(|&code| RoleChoice {
-            code,
-            name: role_name(code),
-            checked: code == current,
+    let mut choices: Vec<_> = Role::ALL
+        .into_iter()
+        .rev()
+        .map(|role| RoleChoice {
+            code: role.name(),
+            name: role_name(&Some(role)),
+            checked: role.name() == current,
         })
-        .collect()
+        .collect();
+    choices.push(RoleChoice {
+        code: "none",
+        name: role_name(&None),
+        checked: current == "none",
+    });
+    choices
 }
 
 /// A role's name in the page's language.
-pub fn role_name(role: &str) -> &'static str {
+pub fn role_name(role: &Option<Role>) -> &'static str {
     let text = lang::text();
-    match role {
-        "admin" => &text.role_admin,
-        "creator" => &text.role_creator,
-        "editor" => &text.role_editor,
-        "organiser" => &text.role_organiser,
-        "viewer" => &text.role_viewer,
-        _ => &text.role_none,
+    match *role {
+        Some(Role::Admin) => &text.role_admin,
+        Some(Role::Creator) => &text.role_creator,
+        Some(Role::Editor) => &text.role_editor,
+        Some(Role::Organiser) => &text.role_organiser,
+        Some(Role::Viewer) => &text.role_viewer,
+        None => &text.role_none,
     }
 }
 
@@ -135,10 +139,6 @@ async fn users_page(
         error,
     };
     Ok(render_form(page, needs_fixing))
-}
-
-fn stored_role(user: &AdminUser) -> Option<Role> {
-    user.role.as_deref().and_then(Role::from_name)
 }
 
 #[derive(Deserialize)]
@@ -284,7 +284,7 @@ async fn user_page(
     let needs_fixing = error.is_some();
     let row = UserRow::stored(&user);
     let page = UserPage {
-        roles: role_choices(row.role),
+        roles: role_choices(row.role.map_or("none", Role::name)),
         user: row,
         yourself: *Host::current().user == user.name,
         links: UserLinks {

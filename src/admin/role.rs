@@ -126,6 +126,10 @@ impl Role {
         Role::ALL.into_iter().find(|role| role.name() == name)
     }
 
+    pub fn from_stored(name: Option<&str>) -> Option<Role> {
+        name.and_then(Role::from_name)
+    }
+
     /// The role of the request being handled, if it has one.
     pub fn current() -> Option<Role> {
         HOST.try_with(|host| host.role).ok().flatten()
