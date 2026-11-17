@@ -50,8 +50,16 @@ pub(crate) mod logs {
     use std::{
         io,
         io::Write,
-        sync::{Arc, Mutex},
+        sync::{Arc, LazyLock, Mutex},
     };
+
+    /// A subscriber that hears nothing, kept for as long as the tests run. While there's
+    /// one subscriber in all, tracing asks only the thread that first reaches a log line
+    /// whether anyone's listening, and keeps a no for every thread: another test's
+    /// thread, which captures nothing, would so turn the line off for the test that
+    /// does. With two, it asks them both.
+    static QUIET: LazyLock<tracing::Dispatch> =
+        LazyLock::new(|| tracing::Dispatch::new(tracing::subscriber::NoSubscriber::default()));
 
     #[derive(Clone, Default)]
     struct Writer(Arc<Mutex<Vec<u8>>>);
@@ -82,6 +90,7 @@ pub(crate) mod logs {
 
     impl Capture {
         pub fn new() -> Self {
+            LazyLock::force(&QUIET);
             let writer = Writer::default();
             let subscriber = tracing_subscriber::fmt::Subscriber::builder()
                 .without_time()
