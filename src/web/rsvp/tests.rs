@@ -89,6 +89,63 @@ async fn bad_links_all_look_the_same(db: PgPool) {
 }
 
 #[sqlx::test]
+async fn refused_answers_keep_navigation_and_device_state(db: PgPool) {
+    let site = Site::new(db);
+    let (invite, link) = site.invite("Kari", 2).await;
+    let page = format!("/r/{link}?lang=en");
+    let cookie = format!("__Host-innby-{}={link}", invite.id.simple());
+
+    for (form, status, message) in [
+        (
+            "party_size=3&response=attending",
+            StatusCode::UNPROCESSABLE_ENTITY,
+            &en().invalid_party_size,
+        ),
+        (
+            "party_size=1&response=attending&choice=99",
+            StatusCode::UNPROCESSABLE_ENTITY,
+            &en().invalid_choice,
+        ),
+        (
+            "party_size=1&response=attending",
+            StatusCode::FORBIDDEN,
+            &en().answers_closed,
+        ),
+    ] {
+        if status == StatusCode::FORBIDDEN {
+            site.close_answers().await;
+        }
+        for remembered in [false, true] {
+            let mut request = form_post(&page, form, "same-origin");
+            if remembered {
+                request
+                    .headers_mut()
+                    .insert(header::COOKIE, cookie.parse().unwrap());
+            }
+            let response = site.send(request).await;
+            assert_eq!(response.status(), status);
+            assert!(!response.headers().contains_key(header::SET_COOKIE));
+            let html = body(response).await;
+            assert!(html.contains(&escape(message)), "{html}");
+            for path in ["guests", "you"] {
+                assert!(
+                    html.contains(&format!(r#"href="/r/{link}/{path}?lang=en""#)),
+                    "{html}"
+                );
+            }
+            assert!(html.contains(r#"aria-current="page""#), "{html}");
+            if status != StatusCode::FORBIDDEN {
+                assert_eq!(
+                    html.contains(r#"name="remember" value="yes" checked>"#),
+                    remembered,
+                    "{html}"
+                );
+            }
+        }
+    }
+}
+
+#[sqlx::test]
 async fn party_size_is_limited_to_the_invitation(db: PgPool) {
     let site = Site::new(db);
     let (invite, link) = site.invite("Kari", 2).await;

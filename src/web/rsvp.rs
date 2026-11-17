@@ -167,21 +167,23 @@ pub(super) struct RsvpPage<'a> {
     new_link: Option<String>,
     /// Whether this device remembers the guest, for the front page.
     remembered: bool,
-    /// The guest's tabs, set by the handler, which knows whether the event offers games.
     tabs: Vec<TabLink>,
     error: Option<&'static str>,
 }
 
 impl<'a> RsvpPage<'a> {
-    pub(super) fn new(lang: Lang, guest: &'a Guest) -> Self {
+    pub(super) fn new(state: &AppState, guest: &'a Guest, headers: &HeaderMap) -> Self {
+        let lang = guest.lang;
         let t = lang.messages();
         let rsvp = &guest.rsvp;
         let chosen = rsvp.name_display.unwrap_or(NameDisplay::Full);
+        let links = GuestLinks::new(&guest.link, lang);
+        let tabs = guest.tabs(state, &links, GuestTab::Reply);
         Self {
             lang,
             t,
             event: EventView::new(&guest.event.details, lang),
-            links: GuestLinks::new(&guest.link, lang),
+            links,
             rsvp,
             status: t.answer(rsvp.response, rsvp.party_size),
             attending: rsvp.response == rsvp::Response::Attending,
@@ -198,8 +200,8 @@ impl<'a> RsvpPage<'a> {
             flash: None,
             celebrate: false,
             new_link: None,
-            remembered: false,
-            tabs: Vec::new(),
+            remembered: remember::remembers(headers, state.config.is_https(), guest),
+            tabs,
             error: None,
         }
     }
@@ -294,10 +296,7 @@ pub async fn show(
     headers: HeaderMap,
     Query(query): Query<ShowQuery>,
 ) -> Response {
-    let lang = guest.lang;
-    let mut page = RsvpPage::new(lang, &guest);
-    page.remembered = remember::remembers(&headers, state.config.is_https(), &guest);
-    page.tabs = guest.tabs(&state, &page.links, GuestTab::Reply);
+    let mut page = RsvpPage::new(&state, &guest, &headers);
     let notice = query.notice.as_deref().and_then(Notice::from_code);
     page.flash = notice.map(|notice| notice.text(page.t));
     page.celebrate = guest.rsvp.response == rsvp::Response::Attending
@@ -358,9 +357,7 @@ pub async fn answer(
     let https = state.config.is_https();
     // Shown again to fix, with the box as this device has it.
     let refuse = |status, pick: fn(&'static Messages) -> &'static str| -> Page {
-        let mut page = RsvpPage::new(lang, &guest);
-        page.remembered = remember::remembers(&headers, https, &guest);
-        Ok(page.render_error(status, pick))
+        Ok(RsvpPage::new(&state, &guest, &headers).render_error(status, pick))
     };
     if !guest.event.details.accepts_answers(Utc::now()) {
         return refuse(StatusCode::FORBIDDEN, |t| &t.answers_closed);
