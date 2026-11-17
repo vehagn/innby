@@ -86,6 +86,9 @@ test: migrate games
 [doc("Check formatting, lints, the offline query data and dependencies")]
 [group("dev")]
 lint:
+    bash -n scripts/image.sh
+    bash -n scripts/games-image.sh
+    bash -n scripts/lib/oci.sh
     cargo fmt --check
     cargo clippy --locked --all-targets -- -D warnings
     for manifest in games/*/Cargo.toml; do \
@@ -267,80 +270,7 @@ release version:
 [doc("Build the images into target/oci")]
 [group("release")]
 image tag="dev": build
-    #!/usr/bin/env bash
-    set -euo pipefail
-    out="{{ oci_dir }}"
-    rm -rf "$out" && mkdir -p "$out/blobs/sha256"
-    work=$(mktemp -d) && trap 'rm -rf "$work"' EXIT
-    # Moves a file into the blobs by its digest and prints a descriptor for it.
-    blob() {
-      local digest size
-      digest=$(sha256sum "$2" | cut -d' ' -f1)
-      size=$(stat -c %s "$2")
-      mv "$2" "$out/blobs/sha256/$digest"
-      jq -nc --arg type "$1" --arg digest "sha256:$digest" --argjson size "$size" \
-        '{mediaType: $type, digest: $digest, size: $size}'
-    }
-    created=$(git log -1 --format=%cI 2>/dev/null || date -u +%FT%TZ)
-    case "$(uname -m)" in x86_64) native=amd64 ;; *) native=arm64 ;; esac
-    manifests=()
-    for arch in amd64 arm64; do
-      case "$arch" in
-        amd64) target=x86_64-unknown-linux-musl ;;
-        arm64) target=aarch64-unknown-linux-musl ;;
-      esac
-      # One layer: /innby, owned by root, with fixed times so the same binary gives the same digest.
-      mkdir -p "$work/$arch"
-      install -m 0555 "{{ target_dir }}/$target/release/innby" "$work/$arch/innby"
-      tar --create --format=posix --sort=name --owner=0 --group=0 --numeric-owner \
-        --mtime=@0 --pax-option=delete=atime,delete=ctime \
-        --file="$work/layer.tar" --directory="$work/$arch" innby
-      diff_id=sha256:$(sha256sum "$work/layer.tar" | cut -d' ' -f1)
-      gzip -n -9 "$work/layer.tar"
-      layer=$(blob application/vnd.oci.image.layer.v1.tar+gzip "$work/layer.tar.gz")
-      jq -nc --arg arch "$arch" --arg diff_id "$diff_id" --arg created "$created" \
-        --arg version "{{ tag }}" --arg revision "{{ revision }}" '{
-          created: $created, architecture: $arch, os: "linux",
-          config: {
-            Entrypoint: ["/innby"], Cmd: ["serve"], User: "65532:65532",
-            ExposedPorts: {"8080/tcp": {}},
-            Labels: {
-              "org.opencontainers.image.source": "https://github.com/vehagn/innby",
-              "org.opencontainers.image.version": $version,
-              "org.opencontainers.image.revision": $revision,
-              "org.opencontainers.image.created": $created
-            }
-          },
-          rootfs: {type: "layers", diff_ids: [$diff_id]}
-        }' > "$work/config.json"
-      config=$(blob application/vnd.oci.image.config.v1+json "$work/config.json")
-      # Docker before 25 loads only `docker save`'s manifest.json, so it gets this machine's image.
-      if [[ "$arch" == "$native" ]]; then
-        jq -nc --argjson config "$config" --argjson layer "$layer" --arg name "{{ image }}:{{ tag }}" \
-          '[{Config: ("blobs/" + ($config.digest | sub(":"; "/"))), RepoTags: [$name],
-             Layers: ["blobs/" + ($layer.digest | sub(":"; "/"))]}]' > "$out/manifest.json"
-      fi
-      jq -nc --argjson config "$config" --argjson layer "$layer" '{
-          schemaVersion: 2, mediaType: "application/vnd.oci.image.manifest.v1+json",
-          config: $config, layers: [$layer]
-        }' > "$work/manifest.json"
-      manifests+=("$(blob application/vnd.oci.image.manifest.v1+json "$work/manifest.json" \
-        | jq -c --arg arch "$arch" '. + {platform: {architecture: $arch, os: "linux"}}')")
-    done
-    printf '%s\n' "${manifests[@]}" | jq -sc '{
-        schemaVersion: 2, mediaType: "application/vnd.oci.image.index.v1+json", manifests: .
-      }' > "$work/index.json"
-    index=$(blob application/vnd.oci.image.index.v1+json "$work/index.json")
-    jq -nc --argjson index "$index" --arg tag "{{ tag }}" --arg name "{{ image }}:{{ tag }}" '{
-        schemaVersion: 2, mediaType: "application/vnd.oci.image.index.v1+json",
-        manifests: [$index + {annotations: {
-          "org.opencontainers.image.ref.name": $tag, "io.containerd.image.name": $name
-        }}]
-      }' > "$out/index.json"
-    echo '{"imageLayoutVersion":"1.0.0"}' > "$out/oci-layout"
-    tar --create --file="{{ oci_dir }}.tar" --directory="$out" .
-    echo "{{ image }}:{{ tag }} $(jq -r .digest <<< "$index")"
-    echo "{{ oci_dir }}.tar: \`just up {{ tag }}\` on the host loads and runs it"
+    @bash scripts/image.sh "{{ tag }}" "{{ image }}" "{{ revision }}" "{{ oci_dir }}" "{{ target_dir }}"
 
 [doc("Seal deploy/secrets.env with the cluster's key into deploy/sealed-secrets.yaml")]
 [group("release")]
@@ -420,76 +350,7 @@ games_oci_dir := justfile_directory() / "target/oci-games"
 [doc("Build the example games' image into target/oci-games")]
 [group("release")]
 games-image tag="dev": games
-    #!/usr/bin/env bash
-    set -euo pipefail
-    out="{{ games_oci_dir }}"
-    rm -rf "$out"
-    work=$(mktemp -d) && trap 'rm -rf "$work"' EXIT
-    blob() {
-      local digest size
-      digest=$(sha256sum "$2" | cut -d' ' -f1)
-      size=$(stat -c %s "$2")
-      mv "$2" "$out/blobs/sha256/$digest"
-      jq -nc --arg type "$1" --arg digest "sha256:$digest" --argjson size "$size" \
-        '{mediaType: $type, digest: $digest, size: $size}'
-    }
-    read_blob() { cat "$out/blobs/sha256/${1#sha256:}"; }
-    # The base, one manifest per architecture, in the layout this writes to.
-    for arch in amd64 arm64; do
-      skopeo copy --quiet --override-os linux --override-arch "$arch" \
-        "docker://{{ games_base }}" "oci:$out:$arch"
-    done
-    # One layer: /games, what serve.js serves and runs, without the tests or the Rust
-    # sources, owned by root and with fixed times, so the same games give the same digest.
-    mkdir -p "$work/root"
-    tar --create --directory=. --exclude=games/test --exclude='games/*/src' \
-      --exclude='games/*/Cargo.*' games | tar --extract --directory="$work/root"
-    tar --create --format=posix --sort=name --owner=0 --group=0 --numeric-owner \
-      --mode=a+rX,go-w --mtime=@0 --pax-option=delete=atime,delete=ctime \
-      --file="$work/layer.tar" --directory="$work/root" games
-    diff_id=sha256:$(sha256sum "$work/layer.tar" | cut -d' ' -f1)
-    gzip -n -9 "$work/layer.tar"
-    layer=$(blob application/vnd.oci.image.layer.v1.tar+gzip "$work/layer.tar.gz")
-    created=$(git log -1 --format=%cI 2>/dev/null || date -u +%FT%TZ)
-    manifests=()
-    for arch in amd64 arm64; do
-      base=$(jq -c --arg arch "$arch" \
-        '.manifests[] | select(.annotations["org.opencontainers.image.ref.name"] == $arch)' \
-        "$out/index.json")
-      manifest=$(read_blob "$(jq -r .digest <<< "$base")")
-      read_blob "$(jq -r .config.digest <<< "$manifest")" | jq -c \
-        --arg diff_id "$diff_id" --arg created "$created" --arg version "{{ tag }}" \
-        --arg revision "{{ revision }}" '
-          .created = $created
-          | .rootfs.diff_ids += [$diff_id]
-          | .history += [{created: $created, created_by: "just games-image"}]
-          | .config.WorkingDir = "/games"
-          | .config.Cmd = ["/games/serve.js"]
-          | .config.Env = ((.config.Env // []) + ["PORT=8082"])
-          | .config.ExposedPorts = {"8082/tcp": {}}
-          | .config.Labels = ((.config.Labels // {}) + {
-              "org.opencontainers.image.source": "https://github.com/vehagn/innby",
-              "org.opencontainers.image.version": $version,
-              "org.opencontainers.image.revision": $revision,
-              "org.opencontainers.image.created": $created
-            })' > "$work/config.json"
-      config=$(blob application/vnd.oci.image.config.v1+json "$work/config.json")
-      jq -c --argjson config "$config" --argjson layer "$layer" \
-        '.config = $config | .layers += [$layer]' <<< "$manifest" > "$work/manifest.json"
-      manifests+=("$(blob application/vnd.oci.image.manifest.v1+json "$work/manifest.json" \
-        | jq -c --arg arch "$arch" '. + {platform: {architecture: $arch, os: "linux"}}')")
-    done
-    printf '%s\n' "${manifests[@]}" | jq -sc '{
-        schemaVersion: 2, mediaType: "application/vnd.oci.image.index.v1+json", manifests: .
-      }' > "$work/index.json"
-    index=$(blob application/vnd.oci.image.index.v1+json "$work/index.json")
-    jq -nc --argjson index "$index" --arg tag "{{ tag }}" --arg name "{{ games_image }}:{{ tag }}" '{
-        schemaVersion: 2, mediaType: "application/vnd.oci.image.index.v1+json",
-        manifests: [$index + {annotations: {
-          "org.opencontainers.image.ref.name": $tag, "io.containerd.image.name": $name
-        }}]
-      }' > "$out/index.json"
-    echo "{{ games_image }}:{{ tag }} $(jq -r .digest <<< "$index")"
+    @bash scripts/games-image.sh "{{ tag }}" "{{ games_image }}" "{{ revision }}" "{{ games_oci_dir }}" "{{ games_base }}"
 
 # Push the image index from `just image` under each tag given (`skopeo login ghcr.io` first); CI does this
 [private]

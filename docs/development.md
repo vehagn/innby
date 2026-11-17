@@ -172,10 +172,12 @@ responses.
   (`cargo zigbuild`) and `just image` packs each into an image holding nothing else: no
   shell, no CA bundle, no tzdata, all of which are compiled in. They're pushed to
   `ghcr.io/vehagn/innby` as one multi-arch image, tagged `sha-<commit>`, `latest` from
-  `main`, and the version for a release.
+  `main`, and the version for a release. The packing lives in `scripts/image.sh`;
+  `just image` keeps the build and its arguments together.
 - **The example games' image:** CI also builds `ghcr.io/vehagn/innby-games` with the
   same tags (`just games-image`): `games/` on Google's distroless Node.js, for the
-  chart's `games`.
+  chart's `games`. `scripts/games-image.sh` adds that layer; the two builders share
+  only OCI blob and index operations in `scripts/lib/oci.sh`.
 - **Releasing:** `just release 0.3.0` bumps the version in `Cargo.toml` and the chart,
   and makes a signed tag whose message is the release's notes: the changes since the
   last release, a line a commit, opened in your editor to tidy before it's signed. It
