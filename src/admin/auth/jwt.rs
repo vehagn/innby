@@ -68,8 +68,7 @@ pub struct Claims {
 
 /// Which password store authenticated this session, and the database account incarnation
 /// and password version when it came from the Users tab.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type", content = "account", rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PasswordIdentity {
     Configured,
     Stored(AccountCredential),
@@ -100,8 +99,38 @@ struct Wire {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     roles: Vec<Role>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    password_identity: Option<PasswordIdentity>,
+    password_identity: Option<WireIdentity>,
     jti: Uuid,
+}
+
+/// A password login's identity as the token holds it, as `{"type": "stored", "account":
+/// {"id": …, "version": 3}}`. It's spelt out here, apart from the database's row, so
+/// that renaming a field there can't change the tokens and log everyone out.
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(tag = "type", content = "account", rename_all = "snake_case")]
+enum WireIdentity {
+    Configured,
+    Stored { id: Uuid, version: i32 },
+}
+
+impl From<PasswordIdentity> for WireIdentity {
+    fn from(identity: PasswordIdentity) -> Self {
+        match identity {
+            PasswordIdentity::Configured => Self::Configured,
+            PasswordIdentity::Stored(AccountCredential { id, version }) => {
+                Self::Stored { id, version }
+            }
+        }
+    }
+}
+
+impl From<WireIdentity> for PasswordIdentity {
+    fn from(identity: WireIdentity) -> Self {
+        match identity {
+            WireIdentity::Configured => Self::Configured,
+            WireIdentity::Stored { id, version } => Self::Stored(AccountCredential { id, version }),
+        }
+    }
 }
 
 /// The `amr` of a password login.
@@ -111,6 +140,7 @@ impl From<Claims> for Wire {
     fn from(claims: Claims) -> Self {
         let (amr, provider, roles, password_identity) = match claims.login {
             Login::Password { identity } => {
+                let identity = WireIdentity::from(identity);
                 (vec![PASSWORD.to_owned()], false, vec![], Some(identity))
             }
             Login::Provider { role } => (vec![], true, role.into_iter().collect(), None),
@@ -140,7 +170,9 @@ impl TryFrom<Wire> for Claims {
                 ref roles,
                 password_identity: Some(identity),
                 ..
-            } if amr == &[PASSWORD] && roles.is_empty() => Login::Password { identity },
+            } if amr == &[PASSWORD] && roles.is_empty() => Login::Password {
+                identity: identity.into(),
+            },
             Wire {
                 provider: true,
                 ref amr,

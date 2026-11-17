@@ -5,11 +5,11 @@
 //! a link to set a password, and have none until they set one from the first such link.
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Which account, and which of its passwords: what a session or a link is good for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AccountCredential {
     pub id: Uuid,
     pub version: i32,
