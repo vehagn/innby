@@ -1,6 +1,6 @@
 //! Pages from templates, and the stylesheet, which every page links with its hash.
 
-use std::{fmt::Display, sync::LazyLock};
+use std::sync::LazyLock;
 
 use askama::Template;
 use axum::{
@@ -12,7 +12,7 @@ use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use sha2::{Digest, Sha256};
 
 use super::compress;
-use crate::paths;
+use crate::{cause::Cause, paths};
 
 const STYLE: &str = include_str!("../../static/style.css");
 
@@ -74,9 +74,10 @@ pub fn render_form(template: impl Template, needs_fixing: bool) -> Response {
     render_with(status, template)
 }
 
-/// Errors may contain submitted values or provider responses, so log only the outcome.
-pub fn server_error(_err: impl Display) -> Response {
-    tracing::error!("request failed");
+/// Logs what failed and answers 500 without details. The log gets a `Cause`, not the
+/// error's own words, which may quote what was sent.
+pub fn server_error(cause: impl Into<Cause>) -> Response {
+    tracing::error!(error = %cause.into(), "request failed");
     StatusCode::INTERNAL_SERVER_ERROR.into_response()
 }
 
@@ -91,12 +92,11 @@ mod tests {
     use super::STYLE;
 
     #[tokio::test]
-    async fn request_errors_do_not_log_private_details() {
+    async fn request_errors_log_what_failed_without_private_details() {
         let logs = crate::testing::logs::Capture::new();
+        let private = "host-private@example.com bearer-secret signed-link";
         let response = logs
-            .run(async {
-                super::server_error("host-private@example.com bearer-secret signed-link")
-            })
+            .run(async { super::server_error(sqlx::Error::Protocol(private.into())) })
             .await;
         assert_eq!(
             response.status(),
@@ -104,6 +104,10 @@ mod tests {
         );
         let logs = logs.text();
         assert!(logs.contains("request failed"), "{logs}");
+        assert!(
+            logs.contains("database connection: unexpected data"),
+            "{logs}"
+        );
         for private in ["host-private@example.com", "bearer-secret", "signed-link"] {
             assert!(!logs.contains(private), "{logs}");
         }

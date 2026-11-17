@@ -54,6 +54,7 @@ use uuid::Uuid;
 
 use super::role::{Host, Role};
 use crate::{
+    cause::Cause,
     config::{AdminConfig, PasswordLogin},
     db::{
         access, admin_login,
@@ -173,8 +174,9 @@ impl Auth {
     /// Whether anyone may log in with a password: from the config, or the database.
     pub(in crate::admin) async fn has_passwords(&self) -> bool {
         !self.credentials.0.is_empty()
-            || admin_user::any(&self.db).await.unwrap_or_else(|_| {
-                tracing::error!("couldn't read whether admin users exist");
+            || admin_user::any(&self.db).await.unwrap_or_else(|err| {
+                let error = Cause::from(&err);
+                tracing::error!(%error, "couldn't read whether admin users exist");
                 true
             })
     }
@@ -190,16 +192,21 @@ impl Auth {
     }
 
     /// Hashes a password for a database user, one at a time, as logins are checked.
-    pub(in crate::admin) async fn hash(&self, password: String) -> anyhow::Result<String> {
+    pub(in crate::admin) async fn hash(&self, password: String) -> Result<String, Cause> {
         let permit = Arc::clone(&self.checking)
             .acquire_owned()
             .await
             .expect("the semaphore is never closed");
-        tokio::task::spawn_blocking(move || {
+        let hashed = tokio::task::spawn_blocking(move || {
             let _permit = permit;
             password::hash_password(&password)
         })
-        .await?
+        .await;
+        match hashed {
+            Ok(Ok(hash)) => Ok(hash),
+            Ok(Err(_)) => Err("hashing a password failed".into()),
+            Err(_) => Err("the task hashing a password stopped".into()),
+        }
     }
 
     /// The identity whose password was verified, counted as a login attempt is.
@@ -252,8 +259,9 @@ impl Auth {
                     }
                 }
                 Ok(None) => (NOBODY.to_owned(), None),
-                Err(_) => {
-                    tracing::error!("couldn't look up admin user for login");
+                Err(err) => {
+                    let error = Cause::from(&err);
+                    tracing::error!(%error, "couldn't look up admin user for login");
                     return Outcome::Rejected;
                 }
             },

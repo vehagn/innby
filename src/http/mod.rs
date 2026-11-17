@@ -46,6 +46,7 @@ use tower::ServiceExt;
 use tower_http::{set_header::SetResponseHeaderLayer, timeout::TimeoutLayer, trace::TraceLayer};
 
 use crate::{
+    cause::Cause,
     db,
     i18n::{Asked, Lang, Offer},
     metrics::{self, Label},
@@ -232,7 +233,7 @@ pub async fn ready(State(db): State<PgPool>) -> StatusCode {
     match db::ping(&db).await {
         Ok(()) => StatusCode::OK,
         Err(err) => {
-            tracing::warn!(error = %err, "database unavailable");
+            tracing::warn!(error = %Cause::from(&err), "database unavailable");
             StatusCode::SERVICE_UNAVAILABLE
         }
     }

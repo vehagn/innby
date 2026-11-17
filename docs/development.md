@@ -136,6 +136,10 @@ agents, but it's the quickest tour for people too. In short:
   Once it's live, keep reading that version as it is. Even a new optional field needs
   a new version, since unknown fields are refused; add `innby/v2` beside `v1` in
   `src/admin/events/file.rs`, write the new one, and keep reading both.
+- **Log an error:** as a `Cause` (`src/cause.rs`), which says what kind of failure it
+  was and not what it was about: `tracing::error!(error = %Cause::from(&err), "…")`, or
+  `server_error(err)` to answer 500 with it. An error's own words may quote what someone
+  typed, so they don't go in a log; a new kind of error gets a `From` there.
 - **Keep personal data:** keep it out of the logs, give it a retention rule in
   `src/db/retention.rs`, and update [ropa.md](ropa.md) and the privacy notices in
   `templates/privacy/`, bumping `PRIVACY_VERSION` in `src/web/mod.rs`.

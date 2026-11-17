@@ -14,6 +14,7 @@ mod admin;
 mod alloc;
 mod board;
 mod calendar;
+mod cause;
 mod config;
 mod db;
 #[cfg(test)]

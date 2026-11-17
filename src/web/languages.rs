@@ -16,7 +16,7 @@ use axum::{
 };
 use sqlx::PgPool;
 
-use crate::{db, i18n::Offer};
+use crate::{cause::Cause, db, i18n::Offer};
 
 /// How long a read is kept. The admin UI is another process, so a change there shows
 /// here within this; tests read every time, so they see their own changes at once.
@@ -52,7 +52,7 @@ impl SiteLanguages {
             // The page will say what it must about the database; until it's back, what
             // was offered still is.
             Err(err) => {
-                tracing::warn!(error = %err, "reading the site's languages failed");
+                tracing::warn!(error = %Cause::from(&err), "reading the site's languages failed");
                 kept.map_or_else(Offer::everything, |(_, offer)| offer)
             }
         };

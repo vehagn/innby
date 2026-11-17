@@ -100,6 +100,8 @@ src/
                      texts.rs, fill.rs, offer.rs (which languages a page is offered in, and
                      picking among them for a request)
   calendar.rs        an event as an iCalendar file, for guests' pages and reminders
+  cause.rs           what went wrong, as the logs may say it: an error's kind, never its
+                     own words, which can quote what someone typed
   board.rs           a message board post as both sites show it (_board_thread.html)
   markdown.rs        the little Markdown posts are written in, everything else escaped
   link.rs            HMAC-signed links: possession is the authorisation
@@ -148,9 +150,10 @@ parts too, so the top of a file is the way into it.
   templates hide what `Role::can_edit()` / `Role::is_admin()` rule out. Handlers are
   named for what they do (`list`, `show`, `create`, `edit`, `revoke`, `delete`), in a
   module named after their tab or page.
-- Keep personal data out of logs (route patterns and ids only). New personal data needs
-  a retention rule in `db/retention.rs`, and updates to `docs/ropa.md`, the privacy
-  notices in `templates/privacy/` and `web::PRIVACY_VERSION`.
+- Keep personal data out of logs (route patterns and ids only; an error as a
+  `cause::Cause`, not in its own words). New personal data needs a retention rule in
+  `db/retention.rs`, and updates to `docs/ropa.md`, the privacy notices in
+  `templates/privacy/` and `web::PRIVACY_VERSION`.
 - Every module starts with a `//!` comment saying what it holds.
 - Tests go in a `tests` module beside the code: inline when short, in a sibling
   `tests.rs` past about 150 lines (`foo.rs` → `foo/tests.rs`). Journeys go in

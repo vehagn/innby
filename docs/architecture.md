@@ -263,6 +263,11 @@ app's link preview never shows another guest's name. Host-flow logs likewise use
 bounded roles and record or job ids, never host names, addresses, passwords, bearer tokens
 or signed links; SMTP errors stay in the outbox rather than the logs.
 
+An error's own words can quote what it was about, so a log line says what failed as a
+`Cause` (`src/cause.rs`) instead, which can't be made from them: a database error is its
+SQLSTATE code and the constraint or table it names, as `database error 23505 on
+admin_user_email_key`, and anything else is words from the code.
+
 ## E-mail, optional
 
 A guest can add an address on their page, ticking an unticked consent box. The address is

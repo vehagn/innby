@@ -27,7 +27,7 @@ use axum::{
 };
 use sqlx::PgPool;
 
-use crate::{db, paths};
+use crate::{cause::Cause, db, paths};
 
 /// A label's value: from the code, a route's pattern or a status code, never from what a
 /// request carries.
@@ -312,7 +312,9 @@ async fn metrics(State(scrape): State<Scrape>) -> impl IntoResponse {
                 OUTBOX.set(&[("state", "waiting".into())], waiting as f64);
                 OUTBOX.set(&[("state", "given_up".into())], given_up as f64);
             }
-            Err(err) => tracing::warn!(error = %err, "counting the outbox failed"),
+            Err(err) => {
+                tracing::warn!(error = %Cause::from(&err), "counting the outbox failed");
+            }
         }
     }
     (

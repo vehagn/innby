@@ -17,6 +17,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
+    cause::Cause,
     config::{Config, MailConfig},
     db::{admin_user, event, outbox, rsvp},
     metrics::MAILS,
@@ -87,8 +88,8 @@ pub async fn run(config: Config, mail: MailConfig, db: PgPool) -> Result<()> {
             match process_batch(&config, &mail.from, mail.admin_url.as_deref(), &db, &smtp).await {
                 Ok(sent) if sent == BATCH_SIZE as usize => continue,
                 Ok(_) => break,
-                Err(_) => {
-                    tracing::warn!("mailer batch failed");
+                Err(err) => {
+                    tracing::warn!(error = %Cause::from(&err), "mailer batch failed");
                     break;
                 }
             }
@@ -96,7 +97,8 @@ pub async fn run(config: Config, mail: MailConfig, db: PgPool) -> Result<()> {
     }
 }
 
-/// Sends one batch of due mail and returns how many jobs it handled.
+/// Sends one batch of due mail and returns how many jobs it handled. A mail that can't
+/// be sent is its job's to record, so a batch fails only as the database does.
 /// `admin_url` is where hosts' links to set their password lead (`MailConfig`).
 pub async fn process_batch(
     config: &Config,
@@ -104,7 +106,7 @@ pub async fn process_batch(
     admin_url: Option<&str>,
     db: &PgPool,
     sender: &impl Sender,
-) -> Result<usize> {
+) -> sqlx::Result<usize> {
     let mut tx = db.begin().await?;
     let jobs = outbox::claim_due(&mut tx, BATCH_SIZE).await?;
     for job in &jobs {
@@ -154,7 +156,7 @@ async fn send_to_host(
     tx: &mut sqlx::PgConnection,
     sender: &impl Sender,
     HostJob { job, user, lang }: HostJob<'_>,
-) -> Result<()> {
+) -> sqlx::Result<()> {
     // The foreign key cascades, so the host is still there.
     let Some(host) = admin_user::find(&mut *tx, user).await? else {
         return Ok(());
@@ -166,6 +168,7 @@ async fn send_to_host(
 
 /// Sends a composed message and records its outcome in the batch transaction. Identity
 /// fields and provider errors stay out of logs; delivery details remain in the outbox.
+/// `rsvp` is the guest's id, which a host's mail has none of.
 async fn deliver(
     tx: &mut sqlx::PgConnection,
     from: &Mailbox,
@@ -173,11 +176,13 @@ async fn deliver(
     job: &outbox::Job,
     composed: std::result::Result<Mail, &'static str>,
     rsvp: Option<Uuid>,
-) -> Result<()> {
+) -> sqlx::Result<()> {
+    let rsvp = rsvp.map(tracing::field::display);
     let mail = match composed {
         Ok(mail) => mail,
         Err(reason) => {
-            tracing::info!(job = job.id, ?rsvp, kind = ?job.kind, "mail dropped");
+            // Why it's dropped is in the composer's own words, as "address removed".
+            tracing::info!(job = job.id, rsvp, kind = ?job.kind, reason, "mail dropped");
             MAILS.inc(&[("outcome", "dropped".into())]);
             outbox::mark_done(tx, job.id, Some(reason)).await?;
             return Ok(());
@@ -185,12 +190,12 @@ async fn deliver(
     };
     match sender.send(from, mail).await {
         Ok(()) => {
-            tracing::info!(job = job.id, ?rsvp, kind = ?job.kind, "mail sent");
+            tracing::info!(job = job.id, rsvp, kind = ?job.kind, "mail sent");
             MAILS.inc(&[("outcome", "sent".into())]);
             outbox::mark_done(tx, job.id, None).await?;
         }
         Err(err) => {
-            tracing::warn!(job = job.id, ?rsvp, kind = ?job.kind, attempt = job.attempts + 1, "mail failed, see outbox.last_error");
+            tracing::warn!(job = job.id, rsvp, kind = ?job.kind, attempt = job.attempts + 1, "mail failed, see outbox.last_error");
             MAILS.inc(&[("outcome", "failed".into())]);
             outbox::mark_failed(tx, job.id, &format!("{err:#}")).await?;
         }

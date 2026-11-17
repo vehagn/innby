@@ -20,6 +20,7 @@ use super::{
     you::YouPage,
 };
 use crate::{
+    cause::Cause,
     db::{
         outbox::{self, Kind},
         rsvp::{self, EmailStatus, Rsvp},
@@ -225,7 +226,7 @@ pub async fn lost(
     let db = state.db.clone();
     tokio::spawn(async move {
         if let Err(err) = mail_link(&db, &email).await {
-            tracing::error!(error = %err, "queueing a lost link failed");
+            tracing::error!(error = %Cause::from(&err), "queueing a lost link failed");
         }
     });
     render(MessagePage::new(lang, |t| {
