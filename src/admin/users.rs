@@ -374,7 +374,8 @@ pub(super) async fn edit(
                 Ok(hash) => hash,
                 Err(err) => return Ok(server_error(err)),
             };
-            admin_user::change_password(&state.db, user.credential(), &hash)
+            // To the account found, which the name may no longer be once it's hashed.
+            admin_user::set_password(&state.db, user.id, &hash)
                 .await?
                 .is_some()
         }

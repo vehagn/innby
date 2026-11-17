@@ -130,6 +130,36 @@ async fn only_one_password_write_from_a_verified_snapshot_wins(db: PgPool) {
 }
 
 #[sqlx::test]
+async fn an_admins_new_password_stands_whatever_the_old_one_was(db: PgPool) {
+    create(&db, "kari", None, Some(HASH), None)
+        .await
+        .unwrap()
+        .unwrap();
+    let kari = find(&db, "kari").await.unwrap().unwrap();
+    let hers = "$argon2id$v=19$m=8,t=1,p=1$c2FsdHNhbHQ$Y2hhbmdlZA";
+    let admins = "$argon2id$v=19$m=8,t=1,p=1$c2FsdHNhbHQ$cmVzZXQ";
+
+    // Kari changes hers just before the admin's lands: the admin's replaces it, and
+    // logs her out of the session she got with hers.
+    let changed = change_password(&db, kari.credential(), hers).await.unwrap();
+    assert_eq!(changed.map(|credential| credential.version), Some(1));
+    let set = set_password(&db, kari.id, admins).await.unwrap();
+    assert_eq!(set.map(|credential| credential.version), Some(2));
+    let now = find(&db, "kari").await.unwrap().unwrap();
+    assert_eq!(now.password_hash.as_deref(), Some(admins));
+
+    // Not for another account that has taken the name since.
+    assert!(delete(&db, "kari").await.unwrap());
+    create(&db, "kari", None, Some(HASH), None)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(set_password(&db, kari.id, admins).await.unwrap(), None);
+    let replacement = find(&db, "kari").await.unwrap().unwrap();
+    assert_eq!(replacement.password_hash.as_deref(), Some(HASH));
+}
+
+#[sqlx::test]
 async fn a_reset_write_rechecks_email_and_expiry(db: PgPool) {
     create(&db, "kari", None, Some(HASH), Some("kari@example.com"))
         .await

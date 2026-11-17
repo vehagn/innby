@@ -370,7 +370,11 @@ allowed.
   Passwords are hashed before the write, without holding database locks. The write
   checks the expected UUID and version, and a mailed link's address and expiry too,
   then returns the new version. Only that result authorises a replacement session;
-  stale operations cannot overwrite a newer password or consume a link twice.
+  stale operations cannot overwrite a newer password or consume a link twice. A host
+  whose own change finds the password changed since their request began is sent to log
+  in again, as their login is over by then. An admin's new password for a user rests on
+  nobody's knowing the old one, so it's written to the account by its UUID alone, and
+  stands whatever the password was.
   Ten attempts in 15 minutes from one address lock that address out for the rest of the
   window, and 100 from all addresses together lock everyone out, which bounds guessing
   from many addresses.

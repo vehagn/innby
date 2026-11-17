@@ -176,6 +176,26 @@ pub async fn set_role(
     Ok(result.rows_affected() == 1)
 }
 
+/// An admin's new password for an account, whatever its password is by now: it rests on
+/// nobody's knowing the old one, so it can't be out of date. None if the account is
+/// gone, even if another has its name.
+pub async fn set_password(
+    db: impl PgExecutor<'_>,
+    account: Uuid,
+    password_hash: &str,
+) -> sqlx::Result<Option<AccountCredential>> {
+    sqlx::query_as!(
+        AccountCredential,
+        "update admin_user set password_hash = $2, version = version + 1
+         where id = $1
+         returning id, version",
+        account,
+        password_hash,
+    )
+    .fetch_optional(db)
+    .await
+}
+
 /// Changes a password if the account and version are still those verified by the caller.
 pub async fn change_password(
     db: impl PgExecutor<'_>,
