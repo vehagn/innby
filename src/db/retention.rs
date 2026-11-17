@@ -1,4 +1,6 @@
 //! Deleting what we no longer need. `innby janitor` runs these every hour.
+//! A stored host account's UUID is kept only with its account row and has no separate
+//! retention period.
 
 use chrono::{DateTime, Utc};
 use sqlx::{PgExecutor, PgPool};

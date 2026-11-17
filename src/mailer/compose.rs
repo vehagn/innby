@@ -134,9 +134,10 @@ pub fn compose_for_host(
         Kind::PasswordSet => (&lang.messages().mail.password_set, FIRST_WITHIN),
         _ => return Err("a guest's mail, not a host's"),
     };
-    let token = config
-        .link_key
-        .password_link(&user.name, &to, user.version, asked_at + within);
+    let token =
+        config
+            .link_key
+            .password_link(&user.name, user.id, &to, user.version, asked_at + within);
     let path = paths::path(paths::PASSWORD, &user.name).replace("{token}", &token);
     let url = format!("{admin_url}{}", paths::localized(&path, lang));
     let hours = within.num_hours();
@@ -240,6 +241,7 @@ mod tests {
     fn a_hosts_mail_has_a_link_that_works_for_a_while() {
         let config = config();
         let kari = AdminUser {
+            id: Uuid::nil(),
             name: "kari".into(),
             role: None,
             password_hash: None,
@@ -283,7 +285,7 @@ mod tests {
         assert!(
             config
                 .link_key
-                .verify_password(&link, "kari", "kari@example.com", 2)
+                .verify_password(&link, "kari", kari.id, "kari@example.com", 2)
         );
         assert_eq!(link.expires.timestamp(), (asked + RESET_WITHIN).timestamp());
         // No address, no mail; no admin URL, no link.

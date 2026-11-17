@@ -22,6 +22,7 @@ use sha2::Sha512;
 use uuid::Uuid;
 
 use crate::admin::role::Role;
+use crate::db::admin_user::AccountCredential;
 
 /// `{"alg":"HS512","typ":"JWT"}`, base64url-encoded.
 const HEADER: &str = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9";
@@ -65,13 +66,21 @@ pub struct Claims {
     pub jti: Uuid,
 }
 
+/// Which password store authenticated this session, and the database account incarnation
+/// and password version when it came from the Users tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "account", rename_all = "snake_case")]
+pub enum PasswordIdentity {
+    Configured,
+    Stored(AccountCredential),
+}
+
 /// How the host logged in, which decides where their role comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Login {
     /// With a password: their role is read from the config or the database on each
-    /// request, so a change applies at once. `version` is a database user's password
-    /// version, 0 for the config's: a new password ends the session.
-    Password { version: i32 },
+    /// request. A stored credential also binds the session to this account incarnation.
+    Password { identity: PasswordIdentity },
     /// The identity provider vouched for them, and for their role for every event;
     /// without one, they see the events that give them one. Taken at its word, as
     /// Innby can't ask the provider on each request.
@@ -91,7 +100,7 @@ struct Wire {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     roles: Vec<Role>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    version: Option<i32>,
+    password_identity: Option<PasswordIdentity>,
     jti: Uuid,
 }
 
@@ -100,9 +109,9 @@ const PASSWORD: &str = "pwd";
 
 impl From<Claims> for Wire {
     fn from(claims: Claims) -> Self {
-        let (amr, provider, roles, version) = match claims.login {
-            Login::Password { version } => {
-                (vec![PASSWORD.to_owned()], false, vec![], Some(version))
+        let (amr, provider, roles, password_identity) = match claims.login {
+            Login::Password { identity } => {
+                (vec![PASSWORD.to_owned()], false, vec![], Some(identity))
             }
             Login::Provider { role } => (vec![], true, role.into_iter().collect(), None),
         };
@@ -113,7 +122,7 @@ impl From<Claims> for Wire {
             amr,
             provider,
             roles,
-            version,
+            password_identity,
             jti: claims.jti,
         }
     }
@@ -129,14 +138,14 @@ impl TryFrom<Wire> for Claims {
                 provider: false,
                 ref amr,
                 ref roles,
-                version: Some(version),
+                password_identity: Some(identity),
                 ..
-            } if amr == &[PASSWORD] && roles.is_empty() => Login::Password { version },
+            } if amr == &[PASSWORD] && roles.is_empty() => Login::Password { identity },
             Wire {
                 provider: true,
                 ref amr,
                 ref roles,
-                version: None,
+                password_identity: None,
                 ..
             } if amr.is_empty() && roles.len() <= 1 => Login::Provider {
                 role: roles.first().copied(),
@@ -271,14 +280,20 @@ pub mod tests {
         let now = Utc::now();
         let key = key_for("hash");
         let password = Claims {
-            login: Login::Password { version: 3 },
+            login: Login::Password {
+                identity: PasswordIdentity::Stored(AccountCredential {
+                    id: Uuid::nil(),
+                    version: 3,
+                }),
+            },
             ..claims(now)
         };
         let token = key.sign(&password);
         let json = payload(&token);
         assert_eq!(json["sub"], "admin");
         assert_eq!(json["amr"], serde_json::json!(["pwd"]));
-        assert_eq!(json["version"], 3);
+        assert_eq!(json["password_identity"]["type"], "stored");
+        assert_eq!(json["password_identity"]["account"]["version"], 3);
         // A password user's role isn't the token's to say.
         for absent in ["roles", "role", "provider", "user"] {
             assert!(json.get(absent).is_none(), "{absent} in {json}");
@@ -289,7 +304,7 @@ pub mod tests {
         let json = payload(&token);
         assert_eq!(json["provider"], true);
         assert_eq!(json["roles"], serde_json::json!(["editor"]));
-        assert!(json.get("amr").is_none() && json.get("version").is_none());
+        assert!(json.get("amr").is_none() && json.get("password_identity").is_none());
         // A provider's login with no role of its own has none in the token either.
         let none = Claims {
             login: Login::Provider { role: None },
@@ -341,6 +356,26 @@ pub mod tests {
         assert_eq!(key.verify(&format!("{none}.{claims}."), now), None);
         assert_eq!(key.verify(message, now), None);
         assert_eq!(key.verify(&format!("{token}.x"), now), None);
+    }
+
+    #[test]
+    fn rejects_legacy_password_claims_without_an_account_identity() {
+        let now = Utc::now();
+        let key = key_for("hash");
+        let payload = URL_SAFE_NO_PAD.encode(
+            serde_json::to_vec(&serde_json::json!({
+                "iat": now.timestamp(),
+                "exp": (now + TimeDelta::hours(1)).timestamp(),
+                "sub": "admin",
+                "amr": [PASSWORD],
+                "version": 3,
+                "jti": Uuid::nil(),
+            }))
+            .unwrap(),
+        );
+        let message = format!("{HEADER}.{payload}");
+        let signature = URL_SAFE_NO_PAD.encode(key.mac(message.as_bytes()).finalize().into_bytes());
+        assert_eq!(key.verify(&format!("{message}.{signature}"), now), None);
     }
 
     #[test]

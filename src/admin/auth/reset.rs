@@ -2,9 +2,9 @@
 //! e-mail address: asking for a link on the login page (`/login/forgot`), and setting a
 //! password from it (`/password/{user}/{token}`), which an admin's new user gets too.
 //!
-//! The link is signed with the link key, as guests' are, over the user, their address,
-//! their password's version and when it stops working (`link::PasswordLink`), so it
-//! works once, until the address changes, and not past the hour (a week for a new user).
+//! The link is signed with the link key, as guests' are, over the user, account identity,
+//! address, password version and when it stops working (`link::PasswordLink`), so it works
+//! once, until the account or address changes, and not past the hour (a week for a new user).
 //! Nothing secret is stored: the mailer signs it as the mail goes out. Asking never says
 //! whether there's such a user, and is limited per client address and for everyone.
 
@@ -137,7 +137,7 @@ async fn valid(db: &PgPool, auth: &Auth, path: &LinkPath) -> sqlx::Result<bool> 
     };
     Ok(auth
         .link_key
-        .verify_password(&link, &user.name, email, user.version))
+        .verify_password(&link, &user.name, user.id, email, user.version))
 }
 
 pub async fn password_page(State(auth): State<Arc<Auth>>, Path(path): Path<LinkPath>) -> Response {

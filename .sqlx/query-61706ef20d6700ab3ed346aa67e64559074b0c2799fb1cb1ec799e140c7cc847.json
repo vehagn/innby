@@ -1,10 +1,21 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select name, role, password_hash, version, created_at, email from admin_user order by name",
+  "query": "select id, name, role, password_hash, version, created_at, email from admin_user order by name",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "admin_user",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
         "name": "name",
         "type_info": "Text",
         "origin": {
@@ -15,7 +26,7 @@
         }
       },
       {
-        "ordinal": 1,
+        "ordinal": 2,
         "name": "role",
         "type_info": "Text",
         "origin": {
@@ -26,7 +37,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "password_hash",
         "type_info": "Text",
         "origin": {
@@ -37,7 +48,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "version",
         "type_info": "Int4",
         "origin": {
@@ -48,7 +59,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -59,7 +70,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "email",
         "type_info": "Text",
         "origin": {
@@ -75,6 +86,7 @@
     },
     "nullable": [
       false,
+      false,
       true,
       true,
       false,
@@ -82,5 +94,5 @@
       true
     ]
   },
-  "hash": "dcf7233c32318af4ebd99d1567df6df9d444e7ac11b92192a5d5f7a31d057954"
+  "hash": "61706ef20d6700ab3ed346aa67e64559074b0c2799fb1cb1ec799e140c7cc847"
 }

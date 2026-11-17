@@ -251,6 +251,8 @@ create table admin_revoked_jwt (
 -- Unlike the other login tables, this holds personal data, a host's user name and, if
 -- they have one, their e-mail address, kept until an admin deletes them.
 create table admin_user (
+    -- Distinguishes this account from any later one with the same login name.
+    id            uuid not null unique default uuidv7(),
     -- With a letter or digit, so its page's address is never `/users/..`.
     name          text primary key
         check (name ~ '^[A-Za-z0-9._@-]{1,100}$' and name ~ '[A-Za-z0-9]'),

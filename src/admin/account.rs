@@ -13,6 +13,7 @@ use axum::{
 use serde::Deserialize;
 
 use super::{
+    auth::jwt::PasswordIdentity,
     forms::SavedQuery,
     lang,
     page::{AdminState, PageError, redirect},
@@ -40,7 +41,7 @@ struct AccountPage {
 /// The host, if they have an account page.
 fn in_app() -> Result<Host, PageError> {
     let host = Host::current();
-    if host.in_app {
+    if host.has_account() {
         Ok(host)
     } else {
         Err(PageError::Missing)
@@ -54,8 +55,10 @@ async fn account_page(
     notice: Option<String>,
     error: Option<String>,
 ) -> Result<Response, PageError> {
+    let credential = host.credential.ok_or(PageError::Missing)?;
     let user = admin_user::find(&state.db, &host.user)
         .await?
+        .filter(|user| user.id == credential.id)
         .ok_or(PageError::Missing)?;
     let needs_fixing = error.is_some();
     let page = AccountPage {
@@ -140,7 +143,8 @@ pub(super) async fn password(
     let user = admin_user::find(&state.db, &host.user)
         .await?
         .ok_or(PageError::Missing)?;
-    let cookies = state.auth.start_session(&user.name, user.version).await?;
+    let identity = PasswordIdentity::Stored(user.credential());
+    let cookies = state.auth.start_session(&user.name, identity).await?;
     tracing::info!(user = &*host.user, "own password changed");
     let cookies = cookies
         .into_iter()

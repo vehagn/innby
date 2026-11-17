@@ -87,8 +87,8 @@ pub async fn log_in(
 ) -> Response {
     let text = lang::text();
     let (status, error) = match auth.check(client, form.user.clone(), form.password).await {
-        Outcome::Accepted(user, role, version) => {
-            return match auth.start_session(&user, version).await {
+        Outcome::Accepted(user, role, identity) => {
+            return match auth.start_session(&user, identity).await {
                 Ok(cookies) => {
                     let role = role.map_or("none", Role::name);
                     tracing::info!(user, role, "host logged in");

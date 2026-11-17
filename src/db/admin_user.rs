@@ -1,14 +1,23 @@
 //! Hosts who log in with a password, made by an admin in the admin UI (`admin::users`),
 //! beside those in the config. Their role is read on each request, so a new one counts
-//! at once; a new password bumps their version, which their sessions carry, so it logs
-//! them out everywhere. One may have an e-mail address, for a link to set a password,
-//! and have none until they set one from the first such link.
+//! at once; their UUID and password version bind sessions and links to this account and
+//! credential. The UUID is deleted with the account. One may have an e-mail address, for
+//! a link to set a password, and have none until they set one from the first such link.
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::{PgExecutor, PgPool};
+use uuid::Uuid;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AccountCredential {
+    pub id: Uuid,
+    pub version: i32,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdminUser {
+    pub id: Uuid,
     pub name: String,
     /// `admin`, `creator`, `editor`, `organiser` or `viewer`, or none of their own.
     pub role: Option<String>,
@@ -17,6 +26,15 @@ pub struct AdminUser {
     pub version: i32,
     pub created_at: DateTime<Utc>,
     pub email: Option<String>,
+}
+
+impl AdminUser {
+    pub fn credential(&self) -> AccountCredential {
+        AccountCredential {
+            id: self.id,
+            version: self.version,
+        }
+    }
 }
 
 /// Why a user couldn't be made or changed.
@@ -39,7 +57,7 @@ fn taken(err: &sqlx::Error) -> Option<Taken> {
 pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<AdminUser>> {
     sqlx::query_as!(
         AdminUser,
-        "select name, role, password_hash, version, created_at, email from admin_user order by name"
+        "select id, name, role, password_hash, version, created_at, email from admin_user order by name"
     )
     .fetch_all(db)
     .await
@@ -48,7 +66,7 @@ pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<AdminUser>> {
 pub async fn find(db: impl PgExecutor<'_>, name: &str) -> sqlx::Result<Option<AdminUser>> {
     sqlx::query_as!(
         AdminUser,
-        "select name, role, password_hash, version, created_at, email from admin_user where name = $1",
+        "select id, name, role, password_hash, version, created_at, email from admin_user where name = $1",
         name
     )
     .fetch_optional(db)
@@ -63,7 +81,7 @@ pub async fn find_by_name_or_email(
 ) -> sqlx::Result<Option<AdminUser>> {
     sqlx::query_as!(
         AdminUser,
-        "select name, role, password_hash, version, created_at, email from admin_user
+        "select id, name, role, password_hash, version, created_at, email from admin_user
          where name = $1 or email = lower($1)
          order by name = $1 desc limit 1",
         typed

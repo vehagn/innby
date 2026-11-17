@@ -46,19 +46,24 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Redirect, Response},
 };
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, TimeDelta, Utc};
 use sqlx::PgPool;
 use tokio::sync::Semaphore;
+use uuid::Uuid;
 
 use super::role::{Host, Role};
 use crate::{
     config::{AdminConfig, PasswordLogin},
-    db::{access, admin_login, admin_user},
+    db::{
+        access, admin_login,
+        admin_user::{self, AccountCredential},
+    },
     http::{ClientIp, RateLimiter, cookie, server_error},
     link::LinkKey,
     paths, random,
 };
-use jwt::Login;
+use jwt::{Login, PasswordIdentity};
 use oidc::OIDC_SESSION;
 use password::{Credentials, NOBODY, Outcome};
 
@@ -231,21 +236,21 @@ impl Auth {
         let (hash, login) = match self.credentials.find(&user) {
             Some(login) => (
                 login.password_hash.clone(),
-                Some((login.user.clone(), login.role, 0)),
+                Some((login.user.clone(), login.role, PasswordIdentity::Configured)),
             ),
             None => match admin_user::find(&self.db, &user).await {
                 // Without a password yet, they're nobody here.
-                Ok(Some(stored)) => match stored.password_hash {
-                    Some(hash) => (
-                        hash,
-                        Some((
-                            stored.name,
-                            Role::from_stored(stored.role.as_deref()),
-                            stored.version,
-                        )),
-                    ),
-                    None => (NOBODY.to_owned(), None),
-                },
+                Ok(Some(stored)) => {
+                    let credential = stored.credential();
+                    let role = Role::from_stored(stored.role.as_deref());
+                    match stored.password_hash {
+                        Some(hash) => (
+                            hash,
+                            Some((stored.name, role, PasswordIdentity::Stored(credential))),
+                        ),
+                        None => (NOBODY.to_owned(), None),
+                    }
+                }
                 Ok(None) => (NOBODY.to_owned(), None),
                 Err(err) => {
                     tracing::error!("admin users: {err}");
@@ -260,7 +265,7 @@ impl Auth {
         .await
         .unwrap_or(false);
         match login.filter(|_| matches) {
-            Some((user, role, version)) => Outcome::Accepted(user, role, version),
+            Some((user, role, identity)) => Outcome::Accepted(user, role, identity),
             None => {
                 tracing::warn!("admin login failed");
                 Outcome::Rejected
@@ -280,43 +285,53 @@ impl Auth {
     }
 
     /// The `token` cookie of a password user.
-    fn password_token(&self, now: DateTime<Utc>, user: &str, version: i32) -> HeaderValue {
-        let token = self.token(now, user, Login::Password { version }, TOKEN_LIFETIME);
+    fn password_token(
+        &self,
+        now: DateTime<Utc>,
+        user: &str,
+        identity: PasswordIdentity,
+    ) -> HeaderValue {
+        let token = self.token(now, user, Login::Password { identity }, TOKEN_LIFETIME);
         self.cookie(TOKEN, &token, TOKEN_LIFETIME)
     }
 
     /// The cookies of a password user's new login, once its refresh token is saved. The
-    /// refresh token starts with the user's name and password version,
-    /// `ola.3.{random}`, so it can renew their JWT while the password stands; the
-    /// database keeps only its keyed digest, which covers both.
+    /// versioned token covers the user and password identity; the database keeps only its
+    /// keyed digest.
     pub(in crate::admin) async fn start_session(
         &self,
         user: &str,
-        version: i32,
+        identity: PasswordIdentity,
     ) -> sqlx::Result<[HeaderValue; 2]> {
         let now = Utc::now();
-        let refresh_token = format!("{user}.{version}.{}", random::token());
+        let refresh_token = refresh_token(user, identity);
         let digest = self.key.digest(&refresh_token);
         admin_login::save_refresh_token(&self.db, &digest, now + REFRESH_LIFETIME).await?;
         Ok([
-            self.password_token(now, user, version),
+            self.password_token(now, user, identity),
             self.cookie(REFRESH_TOKEN, &refresh_token, REFRESH_LIFETIME),
         ])
     }
 
-    /// A password user as they are now, if their password is still the one of `version`:
-    /// the config's, at version 0, or the database's.
-    async fn password_host(&self, user: &str, version: i32) -> sqlx::Result<Option<Host>> {
-        if let Some(login) = self.credentials.find(user) {
-            return Ok((version == 0).then(|| Host::new(&login.user, login.role)));
+    /// A password user as they are now, if the configured or stored identity is unchanged.
+    async fn password_host(
+        &self,
+        user: &str,
+        identity: PasswordIdentity,
+    ) -> sqlx::Result<Option<Host>> {
+        match identity {
+            PasswordIdentity::Configured => Ok(self
+                .credentials
+                .find(user)
+                .map(|login| Host::new(&login.user, login.role))),
+            PasswordIdentity::Stored(credential) => Ok(admin_user::find(&self.db, user)
+                .await?
+                .filter(|stored| stored.credential() == credential)
+                .map(|stored| Host {
+                    credential: Some(credential),
+                    ..Host::new(&stored.name, Role::from_stored(stored.role.as_deref()))
+                })),
         }
-        Ok(admin_user::find(&self.db, user)
-            .await?
-            .filter(|stored| stored.version == version)
-            .map(|stored| Host {
-                in_app: true,
-                ..Host::new(&stored.name, Role::from_stored(stored.role.as_deref()))
-            }))
     }
 
     /// Whether a host the provider vouched for may log in: with a role of their own, or
@@ -342,22 +357,21 @@ impl Auth {
                 Login::Provider { role } => {
                     return Ok(Session::LoggedIn(Host::new(&claims.user, role)));
                 }
-                Login::Password { version } => {
-                    if let Some(host) = self.password_host(&claims.user, version).await? {
+                Login::Password { identity } => {
+                    if let Some(host) = self.password_host(&claims.user, identity).await? {
                         return Ok(Session::LoggedIn(host));
                     }
                 }
             }
         }
-        // `{user}.{version}.{random}`: the random part never has a dot; a name may.
+        // Versioned refresh tokens encode names before separating fields; old formats
+        // are rejected rather than interpreted as a configured or stored credential.
         if let Some(refresh_token) = cookie::get(headers, REFRESH_TOKEN)
-            && let Some((rest, _)) = refresh_token.rsplit_once('.')
-            && let Some((user, version)) = rest.rsplit_once('.')
-            && let Ok(version) = version.parse()
-            && let Some(host) = self.password_host(user, version).await?
+            && let Some((user, identity)) = parse_refresh_token(refresh_token)
+            && let Some(host) = self.password_host(&user, identity).await?
             && admin_login::has_refresh_token(&self.db, &self.key.digest(refresh_token)).await?
         {
-            let token = self.password_token(now, user, version);
+            let token = self.password_token(now, &user, identity);
             return Ok(Session::Refreshed(token, host));
         }
         Ok(Session::LoggedOut)
@@ -402,6 +416,46 @@ impl Auth {
             self.https,
         )
     }
+}
+
+fn refresh_token(user: &str, identity: PasswordIdentity) -> String {
+    let user = URL_SAFE_NO_PAD.encode(user.as_bytes());
+    let identity = match identity {
+        PasswordIdentity::Configured => "configured".to_owned(),
+        PasswordIdentity::Stored(credential) => {
+            format!("stored:{}:{}", credential.id, credential.version)
+        }
+    };
+    format!("v1.{user}.{identity}.{}", random::token())
+}
+
+fn parse_refresh_token(token: &str) -> Option<(String, PasswordIdentity)> {
+    let mut parts = token.split('.');
+    let (Some("v1"), Some(user), Some(identity), Some(secret), None) = (
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+    ) else {
+        return None;
+    };
+    if secret.is_empty() {
+        return None;
+    }
+    let user = String::from_utf8(URL_SAFE_NO_PAD.decode(user).ok()?).ok()?;
+    let identity = match identity {
+        "configured" => PasswordIdentity::Configured,
+        identity => {
+            let stored = identity.strip_prefix("stored:")?;
+            let (id, version) = stored.split_once(':')?;
+            PasswordIdentity::Stored(AccountCredential {
+                id: Uuid::parse_str(id).ok()?,
+                version: version.parse().ok()?,
+            })
+        }
+    };
+    Some((user, identity))
 }
 
 /// Lets a request through if it's logged in, and sends it to the login page otherwise.
@@ -481,13 +535,128 @@ pub mod tests {
         Auth::new(&admin_config(), link_key(), true, db)
     }
 
+    #[test]
+    fn refresh_tokens_are_versioned_and_keep_dotted_usernames_intact() {
+        let identity = PasswordIdentity::Stored(AccountCredential {
+            id: Uuid::nil(),
+            version: 3,
+        });
+        let token = refresh_token("ola.n", identity);
+        assert!(token.starts_with("v1."));
+        assert_eq!(
+            parse_refresh_token(&token),
+            Some(("ola.n".into(), identity))
+        );
+        assert_eq!(parse_refresh_token("ola.n.3.old-secret"), None);
+    }
+
+    #[test]
+    fn configured_password_claims_have_a_distinct_identity() {
+        let now = Utc::now();
+        let claims = jwt::Claims {
+            iat: now.timestamp(),
+            exp: (now + TOKEN_LIFETIME).timestamp(),
+            user: "admin".into(),
+            login: Login::Password {
+                identity: PasswordIdentity::Configured,
+            },
+            jti: Uuid::nil(),
+        };
+        let key = jwt::Key::new(
+            &jwt::Secret::from_base64(jwt::tests::SECRET).unwrap(),
+            &[b"admin", b"hash"],
+        );
+        let token = key.sign(&claims);
+        assert_eq!(key.verify(&token, now), Some(claims));
+    }
+
+    #[sqlx::test]
+    async fn old_password_credentials_do_not_authenticate_a_recreated_account(db: PgPool) {
+        let config = admin_config();
+        let auth = Auth::new(&config, link_key(), true, db.clone());
+        admin_user::create(
+            &db,
+            "same.name",
+            Some("editor"),
+            Some(&cheap_hash("secret")),
+            Some("same@example.com"),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let predecessor = admin_user::find(&db, "same.name").await.unwrap().unwrap();
+        let identity = PasswordIdentity::Stored(predecessor.credential());
+        let cookies = auth.start_session("same.name", identity).await.unwrap();
+        let token = cookies[0]
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .strip_prefix("token=")
+            .unwrap()
+            .to_owned();
+        let refresh = cookies[1]
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .strip_prefix("refresh_token=")
+            .unwrap()
+            .to_owned();
+        let link = auth.link_key.password_link(
+            &predecessor.name,
+            predecessor.id,
+            predecessor.email.as_deref().unwrap(),
+            predecessor.version,
+            Utc::now() + TimeDelta::hours(1),
+        );
+        let link: crate::link::PasswordLink = link.parse().unwrap();
+
+        assert!(admin_user::delete(&db, "same.name").await.unwrap());
+        admin_user::create(
+            &db,
+            "same.name",
+            Some("editor"),
+            Some(&cheap_hash("secret")),
+            Some("same@example.com"),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let replacement = admin_user::find(&db, "same.name").await.unwrap().unwrap();
+        assert_eq!(replacement.version, predecessor.version);
+        assert_ne!(replacement.id, predecessor.id);
+        assert!(!auth.link_key.verify_password(
+            &link,
+            &replacement.name,
+            replacement.id,
+            replacement.email.as_deref().unwrap(),
+            replacement.version,
+        ));
+
+        for value in [format!("token={token}"), format!("refresh_token={refresh}")] {
+            let mut headers = HeaderMap::new();
+            headers.insert(header::COOKIE, value.parse().unwrap());
+            assert!(matches!(
+                auth.session(&headers).await.unwrap(),
+                Session::LoggedOut
+            ));
+        }
+    }
+
     #[tokio::test]
     async fn limits_guessing_per_client() {
         let auth = auth();
         let client = |last: u8| ClientIp([192, 0, 2, last].into());
         let check =
             |last: u8, password: &str| auth.check(client(last), "admin".into(), password.into());
-        let admin = Outcome::Accepted("admin".into(), Some(Role::Admin), 0);
+        let admin = Outcome::Accepted(
+            "admin".into(),
+            Some(Role::Admin),
+            PasswordIdentity::Configured,
+        );
         assert_eq!(check(1, "secret").await, admin);
         // The login above was the first of the attempts.
         for i in 1..ATTEMPTS {

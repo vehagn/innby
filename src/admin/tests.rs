@@ -610,7 +610,10 @@ async fn logs_in_refreshes_and_logs_out(db: PgPool) {
     let [(token, _), (refresh, _)] = &cookies[..] else {
         panic!("{cookies:?}");
     };
-    assert!(refresh.starts_with("refresh_token=ola.n."), "{refresh}");
+    assert!(
+        refresh.starts_with("refresh_token=v1.b2xhLm4.configured."),
+        "{refresh}"
+    );
     let delete = paths::path(paths::EVENT_DELETE, Uuid::nil());
     for cookie in [token, refresh] {
         let details = paths::path(paths::EVENT_DETAILS, Uuid::nil());
@@ -621,7 +624,7 @@ async fn logs_in_refreshes_and_logs_out(db: PgPool) {
         let response = send("POST", &delete, cookie, "").await;
         assert_eq!(response.status(), StatusCode::FORBIDDEN, "{cookie}");
     }
-    let as_admin = refresh.replace("ola.n.", "admin.");
+    let as_admin = refresh.replace("b2xhLm4", "YWRtaW4");
     assert_eq!(location(&send("GET", "/", &as_admin, "").await), "/login");
 }
 

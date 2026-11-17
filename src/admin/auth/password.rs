@@ -8,6 +8,7 @@ use argon2::{
     password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},
 };
 
+use super::jwt::PasswordIdentity;
 use crate::{admin::role::Role, config::PasswordLogin};
 
 /// The users who log in with a password; never none.
@@ -39,8 +40,8 @@ pub fn verify(hash: &str, password: &str) -> bool {
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum Outcome {
-    /// The user's name, their role, and their password's version: 0 for the config's.
-    Accepted(String, Option<Role>, i32),
+    /// The user's name, role and password identity.
+    Accepted(String, Option<Role>, PasswordIdentity),
     Rejected,
     TooManyAttempts,
 }

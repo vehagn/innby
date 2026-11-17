@@ -136,17 +136,18 @@ impl LinkKey {
     }
 
     /// The last path segment of a link to set a host's password: `{expires}.{tag}`, under
-    /// their user name. It signs their address and their password's version too, so it
-    /// works once, and stops if the address changes.
+    /// their user name. It signs their account identity, address and password version,
+    /// so it stops if the account is replaced, the address changes or the password does.
     pub fn password_link(
         &self,
         user: &str,
+        account_id: Uuid,
         email: &str,
         version: i32,
         expires: DateTime<Utc>,
     ) -> String {
         let expires = expires.timestamp();
-        let mac = self.password_mac(user, email, version, expires);
+        let mac = self.password_mac(user, account_id, email, version, expires);
         format!("{expires}.{}", encode_tag(mac))
     }
 
@@ -156,19 +157,28 @@ impl LinkKey {
         &self,
         link: &PasswordLink,
         user: &str,
+        account_id: Uuid,
         email: &str,
         version: i32,
     ) -> bool {
-        self.password_mac(user, email, version, link.expires.timestamp())
+        self.password_mac(user, account_id, email, version, link.expires.timestamp())
             .verify_truncated_left(&link.tag)
             .is_ok()
     }
 
-    fn password_mac(&self, user: &str, email: &str, version: i32, expires: i64) -> Hmac<Sha256> {
+    fn password_mac(
+        &self,
+        user: &str,
+        account_id: Uuid,
+        email: &str,
+        version: i32,
+        expires: i64,
+    ) -> Hmac<Sha256> {
         self.mac(
             "password",
             &[
                 user.as_bytes(),
+                account_id.as_bytes(),
                 email.as_bytes(),
                 &version.to_be_bytes(),
                 &expires.to_be_bytes(),
@@ -417,14 +427,35 @@ pub mod tests {
     #[test]
     fn a_password_link_works_once_and_for_one_address() {
         let expires = Utc::now();
-        let link = key().password_link("kari", "kari@example.com", 3, expires);
+        let account_id = id();
+        let replacement_id = Uuid::from_u128(1);
+        let link = key().password_link("kari", account_id, "kari@example.com", 3, expires);
         let parsed: PasswordLink = link.parse().unwrap();
         assert_eq!(parsed.expires.timestamp(), expires.timestamp());
-        assert!(key().verify_password(&parsed, "kari", "kari@example.com", 3));
+        assert!(key().verify_password(&parsed, "kari", account_id, "kari@example.com", 3));
         // Not once the password changes, nor for another address or user.
-        assert!(!key().verify_password(&parsed, "kari", "kari@example.com", 4));
-        assert!(!key().verify_password(&parsed, "kari", "ola@example.com", 3));
-        assert!(!key().verify_password(&parsed, "ola", "kari@example.com", 3));
+        assert!(!key().verify_password(&parsed, "kari", account_id, "kari@example.com", 4));
+        assert!(!key().verify_password(&parsed, "kari", replacement_id, "kari@example.com", 3));
+        assert!(!key().verify_password(&parsed, "kari", account_id, "ola@example.com", 3));
+        assert!(!key().verify_password(&parsed, "ola", account_id, "kari@example.com", 3));
         assert!("123".parse::<PasswordLink>().is_err());
+    }
+
+    #[test]
+    fn legacy_password_links_without_an_account_id_are_rejected() {
+        let expires = Utc::now().timestamp();
+        let version = 3i32;
+        let old_mac = key().mac(
+            "password",
+            &[
+                b"kari",
+                b"kari@example.com",
+                &version.to_be_bytes(),
+                &expires.to_be_bytes(),
+            ],
+        );
+        let old_link = format!("{expires}.{}", encode_tag(old_mac));
+        let parsed: PasswordLink = old_link.parse().unwrap();
+        assert!(!key().verify_password(&parsed, "kari", id(), "kari@example.com", version,));
     }
 }
