@@ -357,6 +357,10 @@ allowed.
   it leads to `INNBY_ADMIN_URL`. Asking says the same whether or not there's such a
   user, and is limited to 5 an hour per address and 50 from all. The config's users
   and a provider's have no account page and no such link: their logins live elsewhere.
+  Passwords are hashed before the write, without holding database locks. The write
+  checks the expected UUID and version, and a mailed link's address and expiry too,
+  then returns the new version. Only that result authorises a replacement session;
+  stale operations cannot overwrite a newer password or consume a link twice.
   Ten attempts in 15 minutes from one address lock that address out for the rest of the
   window, and 100 from all addresses together lock everyone out, which bounds guessing
   from many addresses.

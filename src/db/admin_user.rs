@@ -141,6 +141,26 @@ pub async fn set_email(
     }
 }
 
+/// Sets the address only for the account credential that authenticated the request.
+pub async fn set_email_for_account(
+    db: impl PgExecutor<'_>,
+    expected: AccountCredential,
+    email: Option<&str>,
+) -> sqlx::Result<Result<bool, Taken>> {
+    let result = sqlx::query!(
+        "update admin_user set email = $3 where id = $1 and version = $2",
+        expected.id,
+        expected.version,
+        email
+    )
+    .execute(db)
+    .await;
+    match result {
+        Ok(done) => Ok(Ok(done.rows_affected() == 1)),
+        Err(err) => taken(&err).map(Err).ok_or(err),
+    }
+}
+
 pub async fn set_role(
     db: impl PgExecutor<'_>,
     name: &str,
@@ -156,20 +176,47 @@ pub async fn set_role(
     Ok(result.rows_affected() == 1)
 }
 
-/// A new password, which logs the user out everywhere.
-pub async fn set_password(
+/// Changes a password if the account and version are still those verified by the caller.
+pub async fn change_password(
     db: impl PgExecutor<'_>,
-    name: &str,
+    expected: AccountCredential,
     password_hash: &str,
-) -> sqlx::Result<bool> {
-    let result = sqlx::query!(
-        "update admin_user set password_hash = $2, version = version + 1 where name = $1",
-        name,
+) -> sqlx::Result<Option<AccountCredential>> {
+    sqlx::query_as!(
+        AccountCredential,
+        "update admin_user set password_hash = $3, version = version + 1
+         where id = $1 and version = $2
+         returning id, version",
+        expected.id,
+        expected.version,
         password_hash,
     )
-    .execute(db)
-    .await?;
-    Ok(result.rows_affected() == 1)
+    .fetch_optional(db)
+    .await
+}
+
+/// Consumes a verified, unexpired reset link if the account still has its signed address
+/// and credential. The update both establishes and returns the new credential.
+pub async fn consume_password_reset(
+    db: impl PgExecutor<'_>,
+    expected: AccountCredential,
+    email: &str,
+    expires_at: DateTime<Utc>,
+    password_hash: &str,
+) -> sqlx::Result<Option<AccountCredential>> {
+    sqlx::query_as!(
+        AccountCredential,
+        "update admin_user set password_hash = $5, version = version + 1
+         where id = $1 and version = $2 and email = $3 and $4 > clock_timestamp()
+         returning id, version",
+        expected.id,
+        expected.version,
+        email,
+        expires_at,
+        password_hash,
+    )
+    .fetch_optional(db)
+    .await
 }
 
 /// Deletes the user, the roles events gave them by name, and their name on the events
@@ -193,95 +240,4 @@ pub async fn delete(db: &PgPool, name: &str) -> sqlx::Result<bool> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::db::{access, event};
-
-    const HASH: &str = "$argon2id$v=19$m=8,t=1,p=1$c2FsdHNhbHQ$aGFzaA";
-
-    #[sqlx::test]
-    async fn users_come_and_go_with_their_roles(db: PgPool) {
-        assert!(!any(&db).await.unwrap());
-        assert_eq!(
-            create(&db, "kari", Some("editor"), Some(HASH), None)
-                .await
-                .unwrap(),
-            Ok(())
-        );
-        assert_eq!(
-            create(&db, "kari", None, Some(HASH), None).await.unwrap(),
-            Err(Taken::Name)
-        );
-        assert!(any(&db).await.unwrap());
-        assert!(set_role(&db, "kari", None).await.unwrap());
-        assert!(set_password(&db, "kari", HASH).await.unwrap());
-        let kari = find(&db, "kari").await.unwrap().unwrap();
-        assert_eq!((kari.role, kari.version), (None, 1));
-
-        // Deleting them takes the roles events gave them too.
-        let party = event::tests::event(&db).await;
-        access::give(&db, party.id, "kari", access::EventRole::Viewer)
-            .await
-            .unwrap();
-        assert!(delete(&db, "kari").await.unwrap());
-        assert!(!access::has_any(&db, "kari").await.unwrap());
-        assert!(find(&db, "kari").await.unwrap().is_none());
-        assert!(!delete(&db, "kari").await.unwrap());
-    }
-
-    #[sqlx::test]
-    async fn the_database_refuses_what_the_form_would(db: PgPool) {
-        for (name, role, hash) in [
-            ("kåre", None, HASH),
-            ("", None, HASH),
-            ("ola", Some("owner"), HASH),
-            ("ola", None, "hunter2"),
-        ] {
-            assert!(
-                create(&db, name, role, Some(hash), None).await.is_err(),
-                "{name} {role:?} {hash}"
-            );
-        }
-    }
-
-    #[sqlx::test]
-    async fn an_address_is_one_users_and_finds_them(db: PgPool) {
-        create(&db, "kari", None, None, Some("kari@example.com"))
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            create(&db, "ola", None, Some(HASH), Some("kari@example.com"))
-                .await
-                .unwrap(),
-            Err(Taken::Email)
-        );
-        create(&db, "ola", None, Some(HASH), None)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            set_email(&db, "ola", Some("kari@example.com"))
-                .await
-                .unwrap(),
-            Err(Taken::Email)
-        );
-        for typed in ["kari", "Kari@Example.com"] {
-            let found = find_by_name_or_email(&db, typed).await.unwrap().unwrap();
-            assert_eq!(found.name, "kari", "{typed}");
-            assert_eq!(found.password_hash, None);
-        }
-        assert!(
-            find_by_name_or_email(&db, "nobody")
-                .await
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            create(&db, "per", None, None, Some("Per@Example.com"))
-                .await
-                .is_err(),
-            "addresses are lower case"
-        );
-    }
-}
+mod tests;

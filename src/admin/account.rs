@@ -90,6 +90,7 @@ pub(super) async fn edit(
     Form(form): Form<EmailForm>,
 ) -> Result<Response, PageError> {
     let host = in_app()?;
+    let credential = host.credential.ok_or(PageError::Missing)?;
     let text = lang::text();
     let typed = form.email.trim();
     let email = match typed {
@@ -102,15 +103,17 @@ pub(super) async fn edit(
             }
         },
     };
-    match admin_user::set_email(&state.db, &host.user, email.as_deref()).await? {
-        Ok(_) => {}
+    match admin_user::set_email_for_account(&state.db, credential, email.as_deref()).await? {
+        Ok(true) => {
+            tracing::info!(user = &*host.user, "own address changed");
+            Ok(redirect(&format!("{}?saved", paths::ACCOUNT)))
+        }
+        Ok(false) => Err(PageError::Missing),
         Err(Taken::Email | Taken::Name) => {
             let error = Some(text.error_email_taken.clone());
-            return account_page(&state, &host, Some(typed.to_owned()), None, error).await;
+            account_page(&state, &host, Some(typed.to_owned()), None, error).await
         }
     }
-    tracing::info!(user = &*host.user, "own address changed");
-    Ok(redirect(&format!("{}?saved", paths::ACCOUNT)))
 }
 
 #[derive(Deserialize)]
@@ -128,23 +131,31 @@ pub(super) async fn password(
 ) -> Result<Response, PageError> {
     let host = in_app()?;
     let text = lang::text();
+    let expected = host.credential.ok_or(PageError::Missing)?;
     if let Err(error) = check_password(&form.password) {
         return account_page(&state, &host, None, None, Some(error)).await;
     }
-    if !state.auth.knows(client, &host.user, form.current).await {
+    let verified = state
+        .auth
+        .verify_password(client, &host.user, form.current)
+        .await;
+    let Some(PasswordIdentity::Stored(credential)) =
+        verified.filter(|identity| *identity == PasswordIdentity::Stored(expected))
+    else {
         let error = Some(text.error_current_password.clone());
         return account_page(&state, &host, None, None, error).await;
-    }
+    };
     let hash = match state.auth.hash(form.password).await {
         Ok(hash) => hash,
         Err(err) => return Ok(server_error(err)),
     };
-    admin_user::set_password(&state.db, &host.user, &hash).await?;
-    let user = admin_user::find(&state.db, &host.user)
+    let credential = admin_user::change_password(&state.db, credential, &hash)
         .await?
         .ok_or(PageError::Missing)?;
-    let identity = PasswordIdentity::Stored(user.credential());
-    let cookies = state.auth.start_session(&user.name, identity).await?;
+    let cookies = state
+        .auth
+        .start_session(&host.user, PasswordIdentity::Stored(credential))
+        .await?;
     tracing::info!(user = &*host.user, "own password changed");
     let cookies = cookies
         .into_iter()

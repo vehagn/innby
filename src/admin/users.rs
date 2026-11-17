@@ -367,11 +367,16 @@ pub(super) async fn edit(
             if let Err(error) = check_password(&password) {
                 return user_page(&state, &name, None, Some(error)).await;
             }
+            let user = admin_user::find(&state.db, &name)
+                .await?
+                .ok_or(PageError::Missing)?;
             let hash = match state.auth.hash(password).await {
                 Ok(hash) => hash,
                 Err(err) => return Ok(server_error(err)),
             };
-            admin_user::set_password(&state.db, &name, &hash).await?
+            admin_user::change_password(&state.db, user.credential(), &hash)
+                .await?
+                .is_some()
         }
         (None, None) => return user_page(&state, &name, None, None).await,
     };

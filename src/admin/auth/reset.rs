@@ -24,7 +24,7 @@ use sqlx::PgPool;
 use super::Auth;
 use crate::{
     admin::{lang, users::check_password},
-    db::{admin_user, outbox},
+    db::{admin_user, admin_user::AccountCredential, outbox},
     http::{ClientIp, render, render_with, server_error},
     link::PasswordLink,
     paths,
@@ -121,29 +121,43 @@ pub struct LinkPath {
     token: String,
 }
 
-/// Whether the link is the user's as they are now, and not too old.
-async fn valid(db: &PgPool, auth: &Auth, path: &LinkPath) -> sqlx::Result<bool> {
+struct VerifiedLink {
+    credential: AccountCredential,
+    email: String,
+    expires_at: chrono::DateTime<Utc>,
+}
+
+/// A link's current account, address and expiry, to be checked again by the password write.
+async fn valid(db: &PgPool, auth: &Auth, path: &LinkPath) -> sqlx::Result<Option<VerifiedLink>> {
     let Ok(link) = path.token.parse::<PasswordLink>() else {
-        return Ok(false);
+        return Ok(None);
     };
     if link.expires < Utc::now() {
-        return Ok(false);
+        return Ok(None);
     }
     let Some(user) = admin_user::find(db, &path.user).await? else {
-        return Ok(false);
+        return Ok(None);
     };
     let Some(email) = &user.email else {
-        return Ok(false);
+        return Ok(None);
     };
-    Ok(auth
+    if !auth
         .link_key
-        .verify_password(&link, &user.name, user.id, email, user.version))
+        .verify_password(&link, &user.name, user.id, email, user.version)
+    {
+        return Ok(None);
+    }
+    Ok(Some(VerifiedLink {
+        credential: user.credential(),
+        email: email.clone(),
+        expires_at: link.expires,
+    }))
 }
 
 pub async fn password_page(State(auth): State<Arc<Auth>>, Path(path): Path<LinkPath>) -> Response {
     match valid(&auth.db, &auth, &path).await {
-        Ok(true) => render(PasswordPage::new(&path)),
-        Ok(false) => dead_link(&path),
+        Ok(Some(_)) => render(PasswordPage::new(&path)),
+        Ok(None) => dead_link(&path),
         Err(err) => server_error(err),
     }
 }
@@ -160,11 +174,11 @@ pub async fn set_password(
     Path(path): Path<LinkPath>,
     Form(form): Form<PasswordForm>,
 ) -> Response {
-    match valid(&auth.db, &auth, &path).await {
-        Ok(true) => {}
-        Ok(false) => return dead_link(&path),
+    let verified = match valid(&auth.db, &auth, &path).await {
+        Ok(Some(verified)) => verified,
+        Ok(None) => return dead_link(&path),
         Err(err) => return server_error(err),
-    }
+    };
     if let Err(error) = check_password(&form.password) {
         let page = PasswordPage {
             error: Some(error),
@@ -176,8 +190,17 @@ pub async fn set_password(
         Ok(hash) => hash,
         Err(err) => return server_error(err),
     };
-    match admin_user::set_password(&auth.db, &path.user, &hash).await {
-        Ok(_) => {}
+    match admin_user::consume_password_reset(
+        &auth.db,
+        verified.credential,
+        &verified.email,
+        verified.expires_at,
+        &hash,
+    )
+    .await
+    {
+        Ok(Some(_)) => {}
+        Ok(None) => return dead_link(&path),
         Err(err) => return server_error(err),
     }
     tracing::info!(user = path.user, "password set from a link");

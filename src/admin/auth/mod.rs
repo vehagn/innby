@@ -202,17 +202,17 @@ impl Auth {
         .await?
     }
 
-    /// Whether this is the user's password, counted as a login attempt is.
-    pub(in crate::admin) async fn knows(
+    /// The identity whose password was verified, counted as a login attempt is.
+    pub(in crate::admin) async fn verify_password(
         &self,
         client: ClientIp,
         user: &str,
         password: String,
-    ) -> bool {
-        matches!(
-            self.check(client, user.to_owned(), password).await,
-            Outcome::Accepted(name, ..) if name == user
-        )
+    ) -> Option<PasswordIdentity> {
+        match self.check(client, user.to_owned(), password).await {
+            Outcome::Accepted(name, _, identity) if name == user => Some(identity),
+            _ => None,
+        }
     }
 
     async fn check(&self, client: ClientIp, user: String, password: String) -> Outcome {
