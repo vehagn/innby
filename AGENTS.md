@@ -152,8 +152,9 @@ parts too, so the top of a file is the way into it.
   module named after their tab or page.
 - Keep personal data out of logs (route patterns and ids only; an error as a
   `cause::Cause`, not in its own words). New personal data needs a retention rule in
-  `db/retention.rs`, and updates to `docs/ropa.md`, the privacy notices in
-  `templates/privacy/` and `web::PRIVACY_VERSION`.
+  `db/retention.rs` and an update to `docs/ropa.md`; a guest's also needs the privacy
+  notices in `templates/privacy/` and `web::PRIVACY_VERSION` updated. The notices are
+  to guests, so a host's data is in the ROPA alone.
 - Every module starts with a `//!` comment saying what it holds.
 - Tests go in a `tests` module beside the code: inline when short, in a sibling
   `tests.rs` past about 150 lines (`foo.rs` → `foo/tests.rs`). Journeys go in

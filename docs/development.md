@@ -141,8 +141,9 @@ agents, but it's the quickest tour for people too. In short:
   `server_error(err)` to answer 500 with it. An error's own words may quote what someone
   typed, so they don't go in a log; a new kind of error gets a `From` there.
 - **Keep personal data:** keep it out of the logs, give it a retention rule in
-  `src/db/retention.rs`, and update [ropa.md](ropa.md) and the privacy notices in
-  `templates/privacy/`, bumping `PRIVACY_VERSION` in `src/web/mod.rs`.
+  `src/db/retention.rs`, and update [ropa.md](ropa.md). If it's a guest's, update the
+  privacy notices in `templates/privacy/` too, bumping `PRIVACY_VERSION` in
+  `src/web/mod.rs`. The notices are to guests, so a host's data is in the ROPA alone.
 
 ## Tests
 
