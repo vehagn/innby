@@ -211,7 +211,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
                 get(move || async move { Redirect::permanent(&home) }),
             )
     };
-    http::harden(router, https)
+    http::harden(router, https, http::CsrfPolicy::SameOrigin)
 }
 
 #[cfg(test)]

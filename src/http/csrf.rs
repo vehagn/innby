@@ -3,23 +3,43 @@
 //! state-changing requests that come from another site.
 
 use axum::{
-    extract::Request,
+    extract::{MatchedPath, Request},
     http::{HeaderMap, Method, StatusCode, header},
     middleware::Next,
     response::{IntoResponse, Response},
 };
 
+/// Whether one registered route may use the public games origin instead of same-origin
+/// browser headers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Policy {
+    SameOrigin,
+    ExemptMatchedPath(&'static str),
+}
+
 /// Rejects unsafe requests that a browser marks as cross-site. The API is for another
 /// origin, the games', and a request there needs a token a forged one can't have.
 /// `https` is whether the site is served over HTTPS, which its own origin then says.
-pub async fn protect(https: bool, request: Request, next: Next) -> Response {
-    if request.uri().path().starts_with(crate::paths::API)
-        || is_allowed(request.method(), request.headers(), https)
-    {
+pub async fn protect(policy: Policy, https: bool, request: Request, next: Next) -> Response {
+    let exempt = is_exempt(
+        policy,
+        request
+            .extensions()
+            .get::<MatchedPath>()
+            .map(MatchedPath::as_str),
+    );
+    if exempt || is_allowed(request.method(), request.headers(), https) {
         next.run(request).await
     } else {
         tracing::warn!(method = %request.method(), "cross-origin request rejected");
         (StatusCode::FORBIDDEN, "cross-origin request rejected").into_response()
+    }
+}
+
+fn is_exempt(policy: Policy, matched_path: Option<&str>) -> bool {
+    match policy {
+        Policy::SameOrigin => false,
+        Policy::ExemptMatchedPath(path) => matched_path == Some(path),
     }
 }
 
@@ -114,5 +134,18 @@ mod tests {
         .collect();
         assert!(is_allowed(&Method::POST, &headers, false));
         assert!(!is_allowed(&Method::POST, &headers, true));
+    }
+
+    #[test]
+    fn only_the_exact_matched_route_is_exempt() {
+        let policy = Policy::ExemptMatchedPath(crate::paths::GAME_SCORES);
+        assert!(is_exempt(policy, Some(crate::paths::GAME_SCORES)));
+        assert!(!is_exempt(policy, Some("/api/admin/login")));
+        assert!(!is_exempt(policy, Some("/api/unknown")));
+        assert!(!is_exempt(policy, None));
+        assert!(!is_exempt(
+            Policy::SameOrigin,
+            Some(crate::paths::GAME_SCORES)
+        ));
     }
 }

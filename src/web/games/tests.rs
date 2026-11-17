@@ -194,6 +194,19 @@ async fn only_the_games_origin_may_call(db: PgPool) {
 }
 
 #[sqlx::test]
+async fn an_unmatched_api_path_gets_no_csrf_exemption(db: PgPool) {
+    let site = Site::with(db, GAMES);
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/unknown")
+        .header(header::ORIGIN, "https://games.example.com")
+        .header("sec-fetch-site", "same-site")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(site.send(request).await.status(), StatusCode::FORBIDDEN);
+}
+
+#[sqlx::test]
 async fn the_guests_page_links_each_game_with_its_token(db: PgPool) {
     let site = Site::with(db, GAMES);
     let (kari, link) = site.invite("Kari", 1).await;

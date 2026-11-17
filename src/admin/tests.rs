@@ -18,6 +18,28 @@ use crate::{
 };
 
 #[sqlx::test]
+async fn admin_csrf_is_strict_at_the_root_and_under_api(db: PgPool) {
+    let config = crate::config::tests::config();
+    let mut admin_config = auth::tests::admin_config();
+    for (prefix, path) in [("", "/login"), ("/api/admin", "/api/admin/login")] {
+        admin_config.path = prefix.to_owned();
+        let request = Request::builder()
+            .method(Method::POST)
+            .uri(path)
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .header("sec-fetch-site", "same-site")
+            .header(header::ORIGIN, "https://sibling.example.com")
+            .body(Body::empty())
+            .unwrap();
+        let response = router(config.clone(), &admin_config, db.clone())
+            .oneshot(request)
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{path}");
+    }
+}
+
+#[sqlx::test]
 async fn each_role_reaches_only_its_pages(db: PgPool) {
     let event = crate::db::event::tests::event(&db).await;
     let invite = rsvp::create_invite(&db, event.id, "Kari", 2).await.unwrap();

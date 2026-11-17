@@ -14,8 +14,8 @@
 //!   best, and answers with the table. Not for a game whose server sends its scores.
 //!
 //! Both take the token as `Authorization: Bearer {token}`, and only the games' origin
-//! may call them (CORS). The token is what authorises a call, so the site's CSRF check,
-//! which turns away other origins, leaves these paths to it.
+//! may call them (CORS). The token is what authorises a call, so only this registered
+//! route is exempt from the site's same-origin CSRF check; every other route keeps it.
 //!
 //! A score from the guest's browser is whatever the browser says. A game with a server
 //! of its own (`server:` in `INNBY_GAMES`) can work the score out there instead, say by

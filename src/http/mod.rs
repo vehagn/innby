@@ -10,6 +10,7 @@ pub mod icon;
 mod rate_limit;
 mod render;
 
+pub use csrf::Policy as CsrfPolicy;
 pub use rate_limit::{ClientIp, RateLimiter};
 pub use render::{
     render, render_compressed, render_form, render_with, server_error, stylesheet, stylesheet_link,
@@ -155,10 +156,10 @@ pub fn no_store<S: Clone + Send + Sync + 'static>(router: Router<S>) -> Router<S
 
 /// What every listener gets: CSRF protection, security headers, a request timeout and
 /// request logging (see `log_response`). `https` adds HSTS.
-pub fn harden(router: Router, https: bool) -> Router {
+pub fn harden(router: Router, https: bool, csrf_policy: CsrfPolicy) -> Router {
     let router = router
         .layer(middleware::from_fn(move |request, next| {
-            csrf::protect(https, request, next)
+            csrf::protect(csrf_policy, https, request, next)
         }))
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,

@@ -46,7 +46,6 @@ pub const JOIN_GUESTS: &str = "/join/{link}/guests";
 pub const CONFIRM_EMAIL: &str = "/e/{link}";
 /// What the minigames call from their own origin, authorised by a score token rather
 /// than the page they're on; see `web::games`.
-pub const API: &str = "/api/";
 pub const GAME_SCORES: &str = "/api/games/{game}/scores";
 /// The same for a game's own server, on the internal port (`INNBY_INTERNAL_LISTEN`).
 pub const INTERNAL_GAME_SCORES: &str = "/internal/games/{game}/scores";

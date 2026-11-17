@@ -125,8 +125,13 @@ pub(crate) fn routers(config: Config, db: PgPool) -> (Router, Option<Router>) {
     };
     let api = games::router(&state);
     // Not on any route: only the games' servers reach it, inside the cluster.
-    let internal = games::internal_router(&state)
-        .map(|internal| http::harden(internal.with_state(state.clone()), false));
+    let internal = games::internal_router(&state).map(|internal| {
+        http::harden(
+            internal.with_state(state.clone()),
+            false,
+            http::CsrfPolicy::SameOrigin,
+        )
+    });
     let links = Router::new()
         .route(paths::JOIN, get(join::show).post(join::join))
         .route(paths::JOIN_GUESTS, get(join::guests))
@@ -174,7 +179,14 @@ pub(crate) fn routers(config: Config, db: PgPool) -> (Router, Option<Router>) {
         .route(paths::READY, get(http::ready))
         .layer(middleware::from_fn(crate::theme::scope))
         .with_state(state);
-    (http::harden(router, https), internal)
+    (
+        http::harden(
+            router,
+            https,
+            http::CsrfPolicy::ExemptMatchedPath(paths::GAME_SCORES),
+        ),
+        internal,
+    )
 }
 
 #[cfg(test)]
