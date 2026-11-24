@@ -75,6 +75,8 @@ The time or place has changed since you answered. Check it above, and change you
 if you need to."""
 # The empty pick for the host's question.
 choice_none = "No answer"
+# Under the open questions on a guest's answer and sign-up forms.
+open_answers_hint = "Only the hosts see these answers, not other guests. Please don't write about anyone's health or beliefs."
 # The event for the guest's own calendar, once they're coming: a button and a hint.
 calendar_hint = """
 A file with the time and place, for the calendar on your phone or computer. If the plans \
@@ -250,6 +252,7 @@ join_button = "I'm coming!"
 # Errors and outcomes
 invalid_party_size = "Choose a valid number."
 invalid_choice = "Choose one of the choices."
+invalid_answer = "Keep each answer to 500 characters."
 invalid_name = """
 Write the name in letters and spaces, with - ' . , & if needed, up to 100 characters."""
 confirm_delete = "Tick the box to confirm the deletion."
@@ -314,6 +317,8 @@ event_change_hint = "A new start, end or place is sent by e-mail to every guest 
 event_question = "Your question"
 event_choices = "Choices, one per line"
 event_question_hint = "Optional: a question for guests, answered by picking one of the choices. It isn't shown to other guests. Don't ask about health, diet, faith or the like. Changing the choices here clears the answers given; translating them under In other languages doesn't."
+event_open_questions = "Open questions"
+event_open_questions_hint = "Optional: up to five questions, one per line, that guests answer in their own words. Only hosts see the answers. Guests can write anything there, so don't ask about health, diet, faith or the like. Rewording a question clears its answers; adding, removing or moving questions doesn't, and nor does translating them under In other languages."
 event_time_zone = "Time zone"
 event_deadline = "Answers close"
 event_deadline_hint = "Leave it empty to take answers until the event starts."
@@ -331,6 +336,7 @@ error_event_time = "Enter when the event starts, as a date and a time."
 error_event_deadline = "Enter when answers close as a date and a time, or leave it empty."
 error_event_ends = "Enter when the event ends, as a date and a time after it starts, or leave it empty."
 error_event_question = "Give the question at least two choices and at most twenty, one per line of up to 100 characters, and the same number in every language that has its own."
+error_event_open_questions = "Ask at most five open questions, one per line of up to 200 characters and none twice, and the same number in every language that has its own."
 error_event_past = """
 An event is deleted {days} days after it starts, so this one would be deleted at once. \
 Check the date."""
@@ -597,6 +603,11 @@ change_notices_one = "Saved. {n} guest with a confirmed address will be told of 
 change_notices_other = "Saved. {n} guests with a confirmed address will be told of the change."
 # After the tally of picks for the host's question, on the Guests tab.
 tally_hint = "among those coming"
+# How many guests answered an open question, on the Guests tab.
+open_answers_one = "{n} answer"
+open_answers_other = "{n} answers"
+# Over a guest's answers to the open questions, on their page.
+answers_heading = "Answers in their own words"
 
 # Table columns and facts, also the CSV's header
 col_name = "Name"

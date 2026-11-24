@@ -70,6 +70,8 @@ pub struct Messages {
     pub changed_notice: String,
     /// The empty pick for the host's question.
     pub choice_none: String,
+    /// Under the open questions on the answer and sign-up forms.
+    pub open_answers_hint: String,
     pub calendar_hint: String,
     pub add_to_calendar: String,
     pub saved: String,
@@ -240,6 +242,7 @@ pub struct Messages {
     // Errors and outcomes
     pub invalid_party_size: String,
     pub invalid_choice: String,
+    pub invalid_answer: String,
     pub invalid_name: String,
     pub confirm_delete: String,
     pub gone_title: String,
@@ -304,6 +307,8 @@ pub struct AdminMessages {
     pub event_question: String,
     pub event_choices: String,
     pub event_question_hint: String,
+    pub event_open_questions: String,
+    pub event_open_questions_hint: String,
     pub event_time_zone: String,
     pub event_deadline: String,
     pub event_deadline_hint: String,
@@ -321,6 +326,7 @@ pub struct AdminMessages {
     pub error_event_deadline: String,
     pub error_event_ends: String,
     pub error_event_question: String,
+    pub error_event_open_questions: String,
     pub error_event_past: String,
     pub error_time_zone: String,
     pub col_event: String,
@@ -573,6 +579,11 @@ pub struct AdminMessages {
     pub change_notices_other: String,
     /// After the tally of picks for the host's question.
     pub tally_hint: String,
+    /// How many guests answered an open question.
+    pub open_answers_one: String,
+    pub open_answers_other: String,
+    /// Over a guest's answers to the open questions, on their page.
+    pub answers_heading: String,
 
     // Table columns and facts, also the CSV's header
     pub col_name: String,

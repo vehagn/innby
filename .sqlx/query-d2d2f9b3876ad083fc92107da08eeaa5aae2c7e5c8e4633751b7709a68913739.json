@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        update rsvp set answers = case\n            when moved.answers = array_fill(''::text, array[cardinality(moved.answers)])\n                then '{}'\n            else moved.answers\n        end\n        from (\n            select r.id, array(\n                select coalesce(r.answers[place], '')\n                from unnest($2::int[]) with ordinality as question(place, n)\n                order by n\n            ) as answers\n            from rsvp r\n            where r.event_id = $1 and r.answers <> '{}'\n        ) moved\n        where rsvp.id = moved.id\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d2d2f9b3876ad083fc92107da08eeaa5aae2c7e5c8e4633751b7709a68913739"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "update rsvp set response = $2, party_size = $3, name_display = coalesce($4, name_display), lang = $5, privacy_version = $6, responded_at = now(), choice = $7 where id = $1 returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice ",
+  "query": "update rsvp set response = $2, party_size = $3, name_display = coalesce($4, name_display), lang = $5, privacy_version = $6, responded_at = now(), choice = $7, answers = $8 where id = $1 returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice, answers ",
   "describe": {
     "columns": [
       {
@@ -222,6 +222,17 @@
             "name": "choice"
           }
         }
+      },
+      {
+        "ordinal": 17,
+        "name": "answers",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "answers"
+          }
+        }
       }
     ],
     "parameters": {
@@ -254,7 +265,8 @@
         },
         "Text",
         "Text",
-        "Int2"
+        "Int2",
+        "TextArray"
       ]
     },
     "nullable": [
@@ -274,8 +286,9 @@
       false,
       true,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "3102fefa489e76bc0d08b3a88a1af37b82f869f704b22bbf9d16ff2e8784f403"
+  "hash": "01a896742e0c32f497e013d0f600946a948d148203a0348978f6a53745a9d48e"
 }

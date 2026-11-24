@@ -39,6 +39,12 @@
   <label for="choices">{{ a.event_choices }}</label>
   <textarea id="choices" name="choices" rows="3">{{ form.choices() }}</textarea>
 </details>
+<details{% if !form.open_questions().is_empty() %} open{% endif %}>
+  <summary>{{ a.event_open_questions }}</summary>
+  <p class="hint">{{ a.event_open_questions_hint }}</p>
+  <label for="open_questions">{{ a.event_open_questions }}</label>
+  <textarea id="open_questions" name="open_questions" rows="3">{{ form.open_questions() }}</textarea>
+</details>
 <details{% if form.narrowed() %} open{% endif %}>
   <summary>{{ a.event_languages }}</summary>
   <fieldset>
@@ -60,6 +66,8 @@
     <input id="{{ translation.question_field }}" name="{{ translation.question_field }}" maxlength="200" value="{{ translation.question }}">
     <label for="{{ translation.choices_field }}">{{ a.event_choices }} · {{ translation.language }}</label>
     <textarea id="{{ translation.choices_field }}" name="{{ translation.choices_field }}" rows="3">{{ translation.choices }}</textarea>
+    <label for="{{ translation.open_questions_field }}">{{ a.event_open_questions }} · {{ translation.language }}</label>
+    <textarea id="{{ translation.open_questions_field }}" name="{{ translation.open_questions_field }}" rows="3">{{ translation.open_questions }}</textarea>
   </fieldset>
   {% endfor %}
 </details>

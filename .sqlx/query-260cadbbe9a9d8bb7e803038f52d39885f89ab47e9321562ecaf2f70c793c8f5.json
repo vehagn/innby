@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into rsvp (event_id, name, max_party_size, lang) values ($1, $2, $3, (select lang from event where id = $1)) returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice ",
+  "query": "insert into rsvp (event_id, group_id, name, response, party_size, max_party_size, name_display, lang, privacy_version, responded_at, choice, sign_up_token, answers) values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now(), $9, $10, $11) on conflict (group_id, sign_up_token) where sign_up_token is not null do nothing returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice, answers ",
   "describe": {
     "columns": [
       {
@@ -222,13 +222,43 @@
             "name": "choice"
           }
         }
+      },
+      {
+        "ordinal": 17,
+        "name": "answers",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "answers"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
         "Text",
-        "Int4"
+        "Int4",
+        "Int4",
+        {
+          "Custom": {
+            "name": "name_display",
+            "kind": {
+              "Enum": [
+                "full",
+                "partial",
+                "hidden"
+              ]
+            }
+          }
+        },
+        "Text",
+        "Text",
+        "Uuid",
+        "Int2",
+        "Text",
+        "TextArray"
       ]
     },
     "nullable": [
@@ -248,8 +278,9 @@
       false,
       true,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "a815cead43ef3783489cfb22cee659bdc2086e5669a69b571c2be6d9e7aabda8"
+  "hash": "260cadbbe9a9d8bb7e803038f52d39885f89ab47e9321562ecaf2f70c793c8f5"
 }

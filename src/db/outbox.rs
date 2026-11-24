@@ -343,6 +343,7 @@ mod tests {
                 party_size: 1,
                 name_display: None,
                 choice: None,
+                answers: Vec::new(),
             },
             Lang::NB,
             PRIVACY_VERSION,

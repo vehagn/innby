@@ -35,7 +35,7 @@ use crate::{
 
 /// Version of the privacy notice, recorded with each answer.
 /// Bump it whenever the notice in `templates/privacy/` changes in substance.
-pub const PRIVACY_VERSION: &str = "2026-11-17";
+pub const PRIVACY_VERSION: &str = "2026-11-24";
 
 const HOUR: Duration = Duration::from_secs(60 * 60);
 /// How many posts and replies a guest may make on a message board in an hour.

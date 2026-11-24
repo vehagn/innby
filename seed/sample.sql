@@ -69,6 +69,12 @@ update event set
     choices = '{"nb": "Salat\nDessert\nDrikke", "en": "Salad\nDessert\nDrinks"}'
 where id = '00000000-5eed-7000-8000-000000000002';
 
+-- Julebord asks two questions guests answer in their own words.
+update event set
+    open_questions = '{"nb": "Hvem kjører, og har du plass til flere?\nEn hilsen til vertskapet?",
+                       "en": "Who''s driving, and do you have room for more?\nA word for the hosts?"}'
+where id = '00000000-5eed-7000-8000-000000000001';
+
 insert into invite_group (id, event_id, name, max_party_size, created_at) values
     ('00000000-5eed-7000-8000-000000000101', '00000000-5eed-7000-8000-000000000001', 'Klatreklubben', 2, now() - interval '20 days'),
     ('00000000-5eed-7000-8000-000000000102', '00000000-5eed-7000-8000-000000000001', 'Naboer i Storgata', 3, now() - interval '20 days'),
@@ -150,6 +156,13 @@ insert into rsvp (
 
 -- Per brings dessert to the summer party.
 update rsvp set choice = 1 where id = '00000000-5eed-7000-8000-000000002002';
+-- Some of Julebord's guests answered its open questions; one left the first blank.
+update rsvp set answers = array['Vi kjører, og har plass til to til.', 'Gleder oss!']
+where id = '00000000-5eed-7000-8000-000000001001';
+update rsvp set answers = array['', 'Thanks for having me!']
+where id = '00000000-5eed-7000-8000-000000001006';
+update rsvp set answers = array['Tar bussen fra Grønland.', '']
+where id = '00000000-5eed-7000-8000-000000001101';
 
 -- Roles for one event, by the name the host logs in with.
 insert into event_access (event_id, user_name, role) values

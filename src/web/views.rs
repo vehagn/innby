@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     db::{
-        event::Details,
+        event::{Details, MAX_OPEN_QUESTIONS},
         rsvp::{self, NameDisplay, Response as Answer, Rsvp},
     },
     http::render_with,
@@ -271,6 +271,65 @@ impl Question {
     }
 }
 
+/// One of the event's open questions with the guest's answer, as the answer and
+/// sign-up forms ask it (`_open_questions.html`).
+pub struct OpenQuestion {
+    /// The form field the answer comes back in: `answer_0` for the first, and so on.
+    pub field: String,
+    pub text: String,
+    pub answer: String,
+}
+
+/// The longest answer to an open question.
+pub const MAX_ANSWER: usize = 500;
+
+/// The answers to the open questions as a form sends them, a field each. The forms
+/// list the fields themselves rather than flatten a struct of them in, since flattening
+/// has serde_urlencoded read every field as text, and a party size then won't parse.
+pub type SentAnswers<'a> = [&'a str; MAX_OPEN_QUESTIONS];
+
+impl OpenQuestion {
+    /// The event's open questions in `lang`, with these answers filled in.
+    pub fn all(event: &Details, lang: Lang, answers: &[String]) -> Vec<Self> {
+        event
+            .open_questions(lang)
+            .into_iter()
+            .enumerate()
+            .map(|(i, text)| Self {
+                field: format!("answer_{i}"),
+                text: text.to_owned(),
+                answer: answers.get(i).cloned().unwrap_or_default(),
+            })
+            .collect()
+    }
+
+    /// The answers as kept: one for each question, trimmed, with a browser's `\r\n`
+    /// as `\n`, and none at all if every one is empty. A field past the last question
+    /// is ignored. An answer too long, or with control characters other than line
+    /// breaks and tabs, which only a crafted request sends, is refused.
+    pub fn parse(event: &Details, sent: SentAnswers) -> Result<Vec<String>, ()> {
+        let asked = event.own_open_questions().len();
+        let answers: Vec<String> = sent
+            .iter()
+            .take(asked)
+            .map(|answer| answer.replace("\r\n", "\n").trim().to_owned())
+            .collect();
+        let fits = answers.iter().all(|answer| {
+            answer.chars().count() <= MAX_ANSWER
+                && !answer
+                    .chars()
+                    .any(|c| c.is_control() && !matches!(c, '\n' | '\t'))
+        });
+        if !fits {
+            return Err(());
+        }
+        if answers.iter().all(String::is_empty) {
+            return Ok(Vec::new());
+        }
+        Ok(answers)
+    }
+}
+
 /// The tabs of a guest's pages, each a page of its own under their link.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum GuestTab {
@@ -330,4 +389,53 @@ pub fn guest_tabs(
         current: tab == current,
     })
     .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_the_answers_to_the_open_questions() {
+        let mut event = crate::db::event::tests::details();
+        let none = ["  ", "", "", "", ""];
+        // An event that asks none keeps none, whatever is sent.
+        assert_eq!(
+            OpenQuestion::parse(&event, ["Hei", "", "", "", ""]),
+            Ok(vec![])
+        );
+
+        event
+            .open_questions
+            .set(Lang::NB, "Hvem kjører?\nEn hilsen?");
+        // Trimmed, with a browser's line breaks as `\n`, and a field past the last
+        // question ignored.
+        assert_eq!(
+            OpenQuestion::parse(&event, [" Vi kjører,\r\nto plasser ", "", "Hei", "", ""]),
+            Ok(vec!["Vi kjører,\nto plasser".to_owned(), String::new()])
+        );
+        // Nothing answered is no answers at all.
+        assert_eq!(OpenQuestion::parse(&event, none), Ok(vec![]));
+        let long = "x".repeat(MAX_ANSWER + 1);
+        assert!(OpenQuestion::parse(&event, [&long, "", "", "", ""]).is_err());
+        assert!(OpenQuestion::parse(&event, ["Vi\u{7}", "", "", "", ""]).is_err());
+        // An answer as long as allowed counts line breaks once, as browsers send them
+        // twice.
+        let lines = format!("{}\r\n{}", "x".repeat(249), "x".repeat(250));
+        assert!(OpenQuestion::parse(&event, [&lines, "", "", "", ""]).is_ok());
+
+        // The form asks them in the guest's language, with what they answered.
+        let asked = OpenQuestion::all(&event, Lang::EN, &["Vi kjører".to_owned()]);
+        let shown: Vec<_> = asked
+            .iter()
+            .map(|q| (q.field.as_str(), q.text.as_str(), q.answer.as_str()))
+            .collect();
+        assert_eq!(
+            shown,
+            [
+                ("answer_0", "Hvem kjører?", "Vi kjører"),
+                ("answer_1", "En hilsen?", "")
+            ]
+        );
+    }
 }

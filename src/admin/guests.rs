@@ -112,6 +112,45 @@ pub(super) struct Tally {
     pub(super) counts: Vec<(String, usize)>,
 }
 
+/// An open question and the answers given to it, for the Guests tab.
+pub(super) struct OpenAnswers {
+    pub(super) question: String,
+    /// How many answered it, as "3 answers".
+    pub(super) count: String,
+    /// Who answered, as the table's rows show them, and what they wrote.
+    pub(super) answers: Vec<(String, String)>,
+}
+
+impl OpenAnswers {
+    /// The event's open questions in the page's language, with the answers of these
+    /// guests.
+    fn all(event: &Event, rsvps: &[&Rsvp]) -> Vec<Self> {
+        let text = lang::text();
+        event
+            .details
+            .open_questions(lang::current())
+            .into_iter()
+            .enumerate()
+            .map(|(i, question)| {
+                let answers: Vec<_> = rsvps
+                    .iter()
+                    .filter(|rsvp| !rsvp.answer(i).is_empty())
+                    .map(|rsvp| (rsvp.name.clone(), rsvp.answer(i).to_owned()))
+                    .collect();
+                Self {
+                    question: question.to_owned(),
+                    count: count(
+                        answers.len(),
+                        &text.open_answers_one,
+                        &text.open_answers_other,
+                    ),
+                    answers,
+                }
+            })
+            .collect()
+    }
+}
+
 #[derive(Template)]
 #[template(path = "admin/guests.html")]
 pub(super) struct GuestsTab {
@@ -126,6 +165,8 @@ pub(super) struct GuestsTab {
     pub(super) show: Option<&'static str>,
     /// The host's question, if the event asks one, with its picks among those coming.
     pub(super) tally: Option<Tally>,
+    /// The open questions, with the answers of the guests the table shows.
+    pub(super) open_answers: Vec<OpenAnswers>,
     pub(super) notice: Option<String>,
     pub(super) error: Option<String>,
 }
@@ -184,9 +225,13 @@ pub(super) async fn list(
             })
             .collect(),
     });
-    let rows = rsvps
+    let shown: Vec<_> = rsvps
         .iter()
         .filter(|rsvp| show.is_none_or(|show| rsvp.response == show))
+        .collect();
+    let open_answers = OpenAnswers::all(&event, &shown);
+    let rows = shown
+        .iter()
         .map(|rsvp| GuestRow::new(rsvp, tz, &groups).with_choice(choices, rsvp))
         .collect();
     Ok(render(GuestsTab {
@@ -200,6 +245,7 @@ pub(super) async fn list(
         rows,
         show: show.map(rsvp::Response::code),
         tally,
+        open_answers,
         notice: match (query.reminders, query.created) {
             (Some(n), _) => Some(count(
                 n,
@@ -222,6 +268,8 @@ pub(super) struct GuestPage {
     pub(super) links: AdminLinks,
     pub(super) url: String,
     pub(super) qr: String,
+    /// The open questions the guest answered, each with their answer.
+    pub(super) answers: Vec<(String, String)>,
     pub(super) max_party_size: i32,
     pub(super) saved: bool,
     pub(super) error: Option<String>,
@@ -236,7 +284,16 @@ impl GuestPage {
         style: &db::qr::Style,
     ) -> Self {
         let url = guest_url(config, &rsvp);
+        let answers = event
+            .details
+            .open_questions(lang::current())
+            .into_iter()
+            .enumerate()
+            .filter(|(i, _)| !rsvp.answer(*i).is_empty())
+            .map(|(i, question)| (question.to_owned(), rsvp.answer(i).to_owned()))
+            .collect();
         Self {
+            answers,
             row: GuestRow::new(&rsvp, event.details.starts_at.time_zone(), groups),
             event,
             links: AdminLinks::guest(rsvp.id),
@@ -381,10 +438,13 @@ pub(super) async fn csv(
     if !edit {
         header = drop_columns(header, &private);
     }
-    // The host's question, as its own column, when the event asks one.
+    // The host's question, as its own column, when the event asks one, and a column
+    // for each open question.
     if let Some((question, _)) = &question {
         header.push(question);
     }
+    let open_questions = event.details.open_questions(lang::current());
+    header.extend(&open_questions);
     csv_line(&mut csv, &header);
     let choices = question
         .as_ref()
@@ -413,6 +473,7 @@ pub(super) async fn csv(
         if question.is_some() {
             line.push(&row.choice);
         }
+        line.extend((0..open_questions.len()).map(|i| rsvp.answer(i)));
         csv_line(&mut csv, &line);
     }
     Ok((
@@ -512,6 +573,7 @@ mod tests {
                 party_size: 3,
                 name_display: None,
                 choice: None,
+                answers: Vec::new(),
             },
             crate::i18n::Lang::EN,
             crate::web::PRIVACY_VERSION,

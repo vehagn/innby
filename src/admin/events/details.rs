@@ -130,6 +130,17 @@ pub(in crate::admin) async fn edit(
     {
         rsvp::clear_choices(&mut *tx, id).await?;
     }
+    // Answers are kept by place, so they follow their questions to where they are now,
+    // and a reworded question's go: they answered something else.
+    let before = event.details.own_open_questions();
+    let after = updated.details.own_open_questions();
+    if before != after {
+        let from: Vec<_> = after
+            .iter()
+            .map(|question| before.iter().position(|old| old == question))
+            .collect();
+        rsvp::move_answers(&mut *tx, id, &from).await?;
+    }
     let told = if updated.changed_at != event.changed_at {
         Some(outbox::queue_change_notices(&mut *tx, id).await?)
     } else {

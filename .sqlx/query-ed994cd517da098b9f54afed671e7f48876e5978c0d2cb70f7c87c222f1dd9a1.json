@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice from rsvp where id = $1",
+  "query": "select id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice, answers from rsvp where group_id = $1 and sign_up_token = $2",
   "describe": {
     "columns": [
       {
@@ -222,11 +222,23 @@
             "name": "choice"
           }
         }
+      },
+      {
+        "ordinal": 17,
+        "name": "answers",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "rsvp",
+            "name": "answers"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Text"
       ]
     },
     "nullable": [
@@ -246,8 +258,9 @@
       false,
       true,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "a5847ea39f95e72ece953ebb56ba8ac77c039523ded58920953ddb309cae1abf"
+  "hash": "ed994cd517da098b9f54afed671e7f48876e5978c0d2cb70f7c87c222f1dd9a1"
 }

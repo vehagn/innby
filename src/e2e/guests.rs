@@ -236,3 +236,93 @@ async fn the_host_asks_a_question_and_sees_what_guests_pick(db: PgPool) {
     let none = format!(r#"<option value="" selected>{}</option>"#, t.choice_none);
     assert!(page.body.contains(&none), "{}", page.body);
 }
+
+#[sqlx::test]
+async fn the_host_asks_open_questions_and_reads_the_answers(db: PgPool) {
+    let world = World::new(db);
+    let (t, a) = (en(), admin());
+    let english = "English";
+
+    // The host asks two questions to answer in words, in Bokmål and in English.
+    let mut host = world.host().await;
+    host.click(&a.section_settings)
+        .await
+        .expect(&a.event_open_questions_hint);
+    host.fill(&a.event_open_questions, "Hvem kjører?\nEn hilsen?")
+        .fill(
+            &format!("{} · {english}", a.event_open_questions),
+            "Who drives?\nA word for the hosts?",
+        );
+    host.press(&a.save).await.expect(&a.saved);
+
+    // Kari answers the first and leaves the second blank; her page keeps what she wrote.
+    let link = world.invite("Kari", 1).await;
+    let mut kari = world.browser();
+    kari.open(&link).await.expect(&t.open_answers_hint);
+    kari.fill("Who drives?", "  We do, with room for two.  ");
+    kari.press(&t.attend).await.expect(&t.saved);
+    assert_eq!(kari.value("Who drives?"), "We do, with room for two.");
+    assert_eq!(kari.value("A word for the hosts?"), "");
+
+    // Per signs up through a group link and answers the second.
+    host.click(&a.section_invitations).await;
+    host.click(&a.group_links).await;
+    host.fill(&a.names, "Climbing club, 2");
+    host.press(&a.create_groups).await;
+    let group_link = host.value(&filled(&a.link_for, "name", "Climbing club"));
+    let mut per = world.browser();
+    per.open(&group_link).await;
+    per.fill(&t.your_name, "Per Hansen")
+        .fill("A word for the hosts?", "Thanks!");
+    per.press(&t.join_button).await.expect(&t.save_link_title);
+
+    // An answer too long is refused, and what was typed is shown again to shorten.
+    let mut eve = world.browser();
+    eve.open(&group_link).await;
+    let long = "x".repeat(501);
+    eve.fill(&t.your_name, "Eve").fill("Who drives?", &long);
+    eve.press(&t.join_button).await.expect(&t.invalid_answer);
+    assert_eq!(eve.value("Who drives?"), long);
+
+    // The host reads them on the Guests tab and in the CSV.
+    let one = count(1, &a.open_answers_one, &a.open_answers_other);
+    host.click(&a.guests)
+        .await
+        .expect(&format!("Who drives? · {one}"))
+        .expect("We do, with room for two.")
+        .expect(&format!("A word for the hosts? · {one}"))
+        .expect("Thanks!");
+    let csv = host.download(&a.download_csv).await;
+    assert!(
+        csv.body
+            .contains(r#","Who drives?","A word for the hosts?""#),
+        "{}",
+        csv.body
+    );
+    assert!(
+        csv.body.contains(r#","We do, with room for two.","""#),
+        "{}",
+        csv.body
+    );
+
+    // Moving a question keeps its answers; rewording one clears them.
+    host.click(&a.section_settings).await;
+    host.fill(
+        &a.event_open_questions,
+        "En hilsen til vertskapet?\nHvem kjører?",
+    )
+    .fill(
+        &format!("{} · {english}", a.event_open_questions),
+        "A word for the hosts?\nWho drives?",
+    );
+    host.press(&a.save).await.expect(&a.saved);
+    let none = count(0, &a.open_answers_one, &a.open_answers_other);
+    host.click(&a.guests)
+        .await
+        .expect(&format!("A word for the hosts? · {none}"))
+        .expect(&format!("Who drives? · {one}"))
+        .expect("We do, with room for two.")
+        .expect_not("Thanks!");
+    kari.open(&link).await;
+    assert_eq!(kari.value("Who drives?"), "We do, with room for two.");
+}

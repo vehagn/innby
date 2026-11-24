@@ -17,8 +17,8 @@ use super::{
     pages::{Page, PageError},
     remember,
     views::{
-        DisplayChoice, EventView, FormPage, GuestList, GuestTab, GuestsPage, PartySize, Question,
-        YourListing, guest_tabs,
+        DisplayChoice, EventView, FormPage, GuestList, GuestTab, GuestsPage, OpenQuestion,
+        PartySize, Question, SentAnswers, YourListing, guest_tabs,
     },
 };
 use crate::{
@@ -154,6 +154,8 @@ pub(super) struct RsvpPage<'a> {
     party_sizes: Vec<PartySize>,
     /// The host's question, with the guest's pick, if the event asks one.
     question: Option<Question>,
+    /// The open questions, with the guest's answers.
+    open_questions: Vec<OpenQuestion>,
     /// For the answer form: the guest's choice, or their full name if they haven't made
     /// one, since that's the default once they're coming.
     display_choices: Vec<DisplayChoice>,
@@ -192,6 +194,7 @@ impl<'a> RsvpPage<'a> {
             declined: rsvp.response == rsvp::Response::Declined,
             party_sizes: PartySize::choices(t, rsvp.max_party_size, rsvp.party_size),
             question: Question::new(&guest.event.details, lang, rsvp.choice),
+            open_questions: OpenQuestion::all(&guest.event.details, lang, &rsvp.answers),
             display_choices: DisplayChoice::choices(t, Some(&rsvp.name), chosen),
             first_visit: rsvp.privacy_version.is_none(),
             changed: matches!(
@@ -347,6 +350,29 @@ pub struct AnswerForm {
     remember: Option<String>,
     /// Their pick for the host's question: empty for none.
     choice: Option<String>,
+    /// Their answers to the open questions, a field each; see `OpenQuestion::parse`.
+    #[serde(default)]
+    answer_0: String,
+    #[serde(default)]
+    answer_1: String,
+    #[serde(default)]
+    answer_2: String,
+    #[serde(default)]
+    answer_3: String,
+    #[serde(default)]
+    answer_4: String,
+}
+
+impl AnswerForm {
+    fn answers(&self) -> SentAnswers<'_> {
+        [
+            &self.answer_0,
+            &self.answer_1,
+            &self.answer_2,
+            &self.answer_3,
+            &self.answer_4,
+        ]
+    }
 }
 
 pub async fn answer(
@@ -370,6 +396,9 @@ pub async fn answer(
     let Ok(choice) = Question::parse(&guest.event.details, form.choice.as_deref()) else {
         return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_choice);
     };
+    let Ok(answers) = OpenQuestion::parse(&guest.event.details, form.answers()) else {
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_answer);
+    };
 
     let response = match form.response {
         Answer::Attending => rsvp::Response::Attending,
@@ -381,6 +410,7 @@ pub async fn answer(
         party_size: form.party_size,
         name_display: form.name_display,
         choice,
+        answers,
     };
     // None if they were deleted in the meantime.
     rsvp::respond(&state.db, id, &reply, lang, PRIVACY_VERSION)

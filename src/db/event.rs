@@ -37,6 +37,9 @@ pub struct Details {
     pub question: Texts,
     /// Its choices, a line each, as many in each language that has its own.
     pub choices: Texts,
+    /// Questions guests answer in their own words, a line each, as many in each language
+    /// that has its own; none when it's empty in the event's language.
+    pub open_questions: Texts,
     /// The languages its pages are offered in, of those the site offers: none for all
     /// of them. Its own language always is (`offer`).
     pub offered: LangSet,
@@ -82,7 +85,32 @@ impl Details {
             choices.filter(|line| !line.is_empty()).collect(),
         ))
     }
+
+    /// The questions guests answer in their own words, in `lang`, in their order.
+    pub fn open_questions(&self, lang: Lang) -> Vec<&str> {
+        if self.open_questions.own(self.lang).is_empty() {
+            return Vec::new();
+        }
+        lines(self.open_questions.get(lang, self.lang))
+    }
+
+    /// The same in the event's own language, by which answers are kept: a question
+    /// reworded there is another question.
+    pub fn own_open_questions(&self) -> Vec<&str> {
+        lines(self.open_questions.own(self.lang))
+    }
 }
+
+/// A text's lines, trimmed, without the empty ones.
+fn lines(text: &str) -> Vec<&str> {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect()
+}
+
+/// The most open questions an event may ask.
+pub const MAX_OPEN_QUESTIONS: usize = 5;
 
 impl Event {
     /// When the event and everything in it is deleted.
@@ -107,6 +135,7 @@ pub(super) struct Row {
     pub(super) changed_at: Option<jiff_sqlx::Timestamp>,
     pub(super) question: Json<Texts>,
     pub(super) choices: Json<Texts>,
+    pub(super) open_questions: Json<Texts>,
     pub(super) langs: Vec<String>,
 }
 
@@ -127,6 +156,7 @@ impl From<Row> for Event {
                 ends_at: row.ends_at.map(at),
                 question: row.question.0,
                 choices: row.choices.0,
+                open_questions: row.open_questions.0,
                 offered: LangSet::from_codes(&row.langs),
             },
             changed_at: row.changed_at.map(jiff_sqlx::Timestamp::to_jiff),
@@ -138,11 +168,12 @@ pub async fn create(db: impl PgExecutor<'_>, details: &Details) -> sqlx::Result<
     sqlx::query_as!(
         Row,
         r#"insert into event (title, description, location, starts_at, time_zone, rsvp_deadline,
-            ends_at, question, choices, lang, langs)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ends_at, question, choices, lang, langs, open_questions)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          returning id, lang as "lang: Lang", title as "title: Json<Texts>", description as "description: Json<Texts>",
             location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,
-            question as "question: Json<Texts>", choices as "choices: Json<Texts>", langs"#,
+            question as "question: Json<Texts>", choices as "choices: Json<Texts>",
+            open_questions as "open_questions: Json<Texts>", langs"#,
         Json(&details.title) as _,
         Json(&details.description) as _,
         details.location,
@@ -154,6 +185,7 @@ pub async fn create(db: impl PgExecutor<'_>, details: &Details) -> sqlx::Result<
         Json(&details.choices) as _,
         details.lang as Lang,
         &details.offered.codes(),
+        Json(&details.open_questions) as _,
     )
     .fetch_one(db)
     .await
@@ -170,7 +202,7 @@ pub async fn update(
         Row,
         r#"update event set title = $2, description = $3, location = $4, starts_at = $5,
             time_zone = $6, rsvp_deadline = $7, ends_at = $8, question = $9, choices = $10,
-            lang = $11, langs = $12,
+            lang = $11, langs = $12, open_questions = $13,
             -- The old values, on the right of each =.
             changed_at = case
                 when (starts_at, ends_at, location) is distinct from ($5, $8, $4) then now()
@@ -179,7 +211,8 @@ pub async fn update(
          where id = $1
          returning id, lang as "lang: Lang", title as "title: Json<Texts>", description as "description: Json<Texts>",
             location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,
-            question as "question: Json<Texts>", choices as "choices: Json<Texts>", langs"#,
+            question as "question: Json<Texts>", choices as "choices: Json<Texts>",
+            open_questions as "open_questions: Json<Texts>", langs"#,
         id,
         Json(&details.title) as _,
         Json(&details.description) as _,
@@ -192,6 +225,7 @@ pub async fn update(
         Json(&details.choices) as _,
         details.lang as Lang,
         &details.offered.codes(),
+        Json(&details.open_questions) as _,
     )
     .fetch_optional(db)
     .await
@@ -203,7 +237,8 @@ pub async fn find(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Even
         Row,
         r#"select id, lang as "lang: Lang", title as "title: Json<Texts>", description as "description: Json<Texts>",
             location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,
-            question as "question: Json<Texts>", choices as "choices: Json<Texts>", langs from event where id = $1"#,
+            question as "question: Json<Texts>", choices as "choices: Json<Texts>",
+            open_questions as "open_questions: Json<Texts>", langs from event where id = $1"#,
         id
     )
     .fetch_optional(db)
@@ -217,7 +252,8 @@ pub async fn list(db: impl PgExecutor<'_>) -> sqlx::Result<Vec<Event>> {
         Row,
         r#"select id, lang as "lang: Lang", title as "title: Json<Texts>", description as "description: Json<Texts>",
             location, starts_at, time_zone, rsvp_deadline, ends_at, changed_at,
-            question as "question: Json<Texts>", choices as "choices: Json<Texts>", langs from event order by starts_at, id"#
+            question as "question: Json<Texts>", choices as "choices: Json<Texts>",
+            open_questions as "open_questions: Json<Texts>", langs from event order by starts_at, id"#
     )
     .fetch_all(db)
     .await
@@ -231,7 +267,8 @@ pub async fn list_given(db: impl PgExecutor<'_>, user: &str) -> sqlx::Result<Vec
         Row,
         r#"select e.id, e.lang as "lang: Lang", e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
             e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,
-            e.question as "question: Json<Texts>", e.choices as "choices: Json<Texts>", e.langs
+            e.question as "question: Json<Texts>", e.choices as "choices: Json<Texts>",
+            e.open_questions as "open_questions: Json<Texts>", e.langs
          from event e join event_access a on a.event_id = e.id
          where a.user_name = $1 order by e.starts_at, e.id"#,
         user
@@ -286,6 +323,7 @@ pub(crate) mod tests {
             ends_at: None,
             question: Texts::default(),
             choices: Texts::default(),
+            open_questions: Texts::default(),
             offered: LangSet::default(),
         }
     }
@@ -318,6 +356,11 @@ pub(crate) mod tests {
             ("title", "{\"nb\": \"Jule\\nbord\"}"),
             ("description", "{\"nb\": \"Velkommen\\u0007\"}"),
             ("description", r#"{"nb": 5}"#),
+            ("open_questions", "{\"nb\": \"Hvem kj\\u0007rer?\"}"),
+            (
+                "open_questions",
+                &format!(r#"{{"nb": "{}"}}"#, "x".repeat(1005)),
+            ),
         ] {
             let result = sqlx::query(sqlx::AssertSqlSafe(format!(
                 // The column names are the test's own.

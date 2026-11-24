@@ -25,7 +25,8 @@ offers any, **Board** when its board is on for guests, and **Your details** (nam
 e-mail, this device, their data). There they:
 
 - answer **Attending** or **Can't come**, with how many are coming, and the host's own
-  question if the event asks one, by picking one of its choices;
+  question if the event asks one, by picking one of its choices, and any open
+  questions it asks, in their own words;
 - choose how their name shows on the guest list: in full, as first name and initial, or
   not at all;
 - see the guest list, on a page of its own (`/r/{link}/guests`);
@@ -45,7 +46,7 @@ e-mail, this device, their data). There they:
   kept about them as JSON, or delete it all.
 
 Someone with a **group link** (`/join/{link}`) types their name and party size, answers
-the host's question if there is one, may have the device remember them, and is then sent
+the host's question and open questions if there are any, may have the device remember them, and is then sent
 to a personal link of their own, with a reminder to keep it. The form carries a random
 token of its own: sent again, as when the answer to the first was lost on the way, it
 leads to that first sign-up rather than making a second.
@@ -84,7 +85,11 @@ fits on a phone. The pages are:
   deadline; the event as a file; or deleting the event. The host may ask guests one
   question of their own, with two to twenty choices; other guests never see the picks,
   and changing the choices in the event's language clears them, since a pick is a place
-  in the list. A new start, end or place is mailed to every guest with a confirmed
+  in the list. It may also ask up to five open questions, a line each, that guests
+  answer in up to 500 characters of their own; only hosts see the answers, on the
+  Guests tab, the guest's page and in the CSV. Answers are kept by place too, but follow
+  their question's words in the event's language: moving a question keeps them, and
+  rewording one clears its answers, which were to something else. A new start, end or place is mailed to every guest with a confirmed
   address, whatever their answer, and noted on the pages of those who answered before it
   until they answer again.
 - **Access**, for admins: who else may see or run this event alone, by the name they log
@@ -504,6 +509,7 @@ erDiagram
         timestamptz changed_at "time or place"
         jsonb question "by language"
         jsonb choices "by language"
+        jsonb open_questions "by language"
         text time_zone
         timestamptz rsvp_deadline
         qr_shape qr_shape
@@ -538,6 +544,7 @@ erDiagram
         timestamptz responded_at
         timestamptz created_at
         smallint choice "the host's question"
+        text_array answers "the open questions"
         text sign_up_token
     }
     outbox {
@@ -621,8 +628,8 @@ In short:
 
 | Table | Holds |
 |---|---|
-| `event` | the language it's written in and those its pages are offered in, title and description (maps by language code, with that language always there), place, start and any end, time zone, answer deadline, when its time or place last changed, the host's question and its choices, the style of its QR codes |
-| `rsvp` | each invitation or sign-up: name, answer, party size and its maximum, link nonce, language, optional e-mail and its status and consent time, privacy notice version, how the name shows, the group it came through, the pick for the host's question |
+| `event` | the language it's written in and those its pages are offered in, title and description (maps by language code, with that language always there), place, start and any end, time zone, answer deadline, when its time or place last changed, the host's question and its choices, its open questions, the style of its QR codes |
+| `rsvp` | each invitation or sign-up: name, answer, party size and its maximum, link nonce, language, optional e-mail and its status and consent time, privacy notice version, how the name shows, the group it came through, the pick for the host's question, the answers to its open questions |
 | `invite_group` | group links: name, maximum party size, link nonce |
 | `event_access` | roles for one event: the name a host logs in with, viewer, organiser or editor |
 | `event_game`, `game_score` | the minigames an event offers, and each guest's best score in each |
@@ -658,8 +665,10 @@ processing, with the legal bases; the privacy notice is at `/privacy` in every l
 (`templates/privacy/`).
 
 - **Kept:** a name or label, the answer and party size, the language, the pick for the
-  host's question if there is one, and, only if the guest adds one, an e-mail address.
-  No notes, no dietary needs (that would be health data), no IP addresses.
+  host's question if there is one, the answers to its open questions if the guest gives
+  any, and, only if the guest adds one, an e-mail address. No dietary needs (that would
+  be health data), no IP addresses. Open answers are free text, so the forms ask hosts
+  not to ask, and guests not to write, about health or beliefs.
 - **Shown to others:** the guest list, as each guest chose. Hosts see everything; how much
   of it depends on their role.
 - **No third parties:** no CDNs, fonts, analytics or CAPTCHAs; a honeypot field and rate

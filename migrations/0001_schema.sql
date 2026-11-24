@@ -36,6 +36,17 @@ language sql immutable as $$
     ), true)
     from jsonb_each(case jsonb_typeof(texts) when 'object' then texts else '{}' end)
 $$;
+-- Whether a guest's answers to an event's open questions are at most five, each at most
+-- 500 characters with no control characters but for line breaks and tabs.
+create function answers_ok(answers text[]) returns boolean
+language sql immutable as $$
+    select cardinality(answers) <= 5 and coalesce(bool_and(
+        answer is not null
+        and length(answer) <= 500
+        and answer !~ '[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]'
+    ), true)
+    from unnest(answers) answer
+$$;
 
 create type qr_shape as enum ('square', 'rounded', 'dots');
 -- An event's message board: off, none at all, its posts kept; hidden, for hosts alone;
@@ -73,6 +84,10 @@ create table event (
     -- a line each; none when it's empty in the event's language.
     question            jsonb not null default '{}' check (texts_ok(question, 200, false)),
     choices             jsonb not null default '{}' check (texts_ok(choices, 2000, true)),
+    -- Up to five questions guests answer in their own words, a line each, by language
+    -- like the title; none when it's empty in the event's language.
+    open_questions      jsonb not null default '{}'
+        check (texts_ok(open_questions, 1004, true)),
     -- Dates show in the event's time zone, wherever the guest is.
     time_zone           text not null default 'Europe/Oslo',
     -- Guests can answer until then; null means until the event starts.
@@ -141,6 +156,9 @@ create table rsvp (
     -- Their pick among the event's choices, by its place in the list; cleared when the
     -- host changes the list.
     choice           smallint check (choice between 0 and 19),
+    -- Their answers to the event's open questions, in the questions' order, empty for
+    -- one they left blank; none at all if they answered none.
+    answers          text[] not null default '{}' check (answers_ok(answers)),
     -- For a sign-up: the random token of the form it was sent from, so that the same
     -- form sent again, as when the answer to the first was lost on the way, leads to
     -- this sign-up rather than making another.

@@ -42,6 +42,7 @@
     {% endif %}
     {% include "_name_display.html" %}
     {% include "_question.html" %}
+    {% include "_open_questions.html" %}
     <label class="checkbox"><input type="checkbox" name="remember" value="yes"{% if remembered %} checked{% endif %}> {{ t.remember_device }}</label>
     <p class="hint">{{ t.remember_hint }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
     <div class="buttons answers">

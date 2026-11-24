@@ -1197,8 +1197,10 @@ button.vote[aria-pressed="true"] {
   92% { opacity: 0; transform: none; }
 }
 
-/* The host's description keeps its line breaks. */
-.description {
+/* What someone wrote keeps its line breaks: the host's description, and guests'
+   answers to the open questions. */
+.description,
+.written {
   white-space: pre-line;
 }
 

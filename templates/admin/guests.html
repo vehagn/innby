@@ -29,6 +29,18 @@
   {% if let Some(tally) = tally %}
   <p>{{ tally.question }}{% for (choice, n) in tally.counts %}{% if loop.first %}: {% else %} · {% endif %}{{ choice }} <strong>{{ n }}</strong>{% endfor %} <span class="hint">{{ a.tally_hint }}</span></p>
   {% endif %}
+  {% for open in open_answers %}
+  <details>
+    <summary>{{ open.question }} · {{ open.count }}</summary>
+    {% if !open.answers.is_empty() %}
+    <dl class="facts">
+      {% for (name, answer) in open.answers %}
+      <div><dt>{{ name }}</dt><dd class="written">{{ answer }}</dd></div>
+      {% endfor %}
+    </dl>
+    {% endif %}
+  </details>
+  {% endfor %}
   {% if show.is_some() %}<p class="small"><a href="{{ links.guests }}">{{ a.show_all }}</a></p>{% endif %}
   {% if rows.is_empty() %}
   <p class="muted">{% if show.is_some() %}{{ a.no_guests_shown }}{% else %}{{ a.no_guests }}{% endif %}</p>

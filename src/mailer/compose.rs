@@ -181,6 +181,7 @@ mod tests {
             group_id: None,
             name_display: None,
             choice: None,
+            answers: Vec::new(),
         }
     }
 

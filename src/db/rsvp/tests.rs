@@ -19,6 +19,7 @@ pub async fn sign_up(pool: &PgPool, name: &str, party_size: i32) -> sqlx::Result
         name_display: NameDisplay::Full,
         lang: Lang::EN,
         choice: None,
+        answers: &[],
         token: None,
     };
     create_open(pool, &sign_up, PRIVACY_VERSION)
@@ -96,6 +97,7 @@ async fn respond_records_the_answer(pool: PgPool) -> sqlx::Result<()> {
             party_size: 2,
             name_display: None,
             choice: None,
+            answers: Vec::new(),
         },
         Lang::EN,
         PRIVACY_VERSION,
@@ -128,6 +130,7 @@ async fn respond_rejects_party_larger_than_invited(pool: PgPool) -> sqlx::Result
             party_size: 3,
             name_display: None,
             choice: None,
+            answers: Vec::new(),
         },
         Lang::NB,
         PRIVACY_VERSION,
@@ -150,7 +153,8 @@ async fn unknown_id_is_not_found(pool: PgPool) -> sqlx::Result<()> {
                 response: Response::Declined,
                 party_size: 1,
                 name_display: None,
-                choice: None
+                choice: None,
+                answers: Vec::new()
             },
             Lang::NB,
             PRIVACY_VERSION
@@ -277,6 +281,7 @@ async fn shrinking_an_invitation_shrinks_the_party(pool: PgPool) -> sqlx::Result
             party_size: 4,
             name_display: None,
             choice: None,
+            answers: Vec::new(),
         },
         Lang::NB,
         PRIVACY_VERSION,
@@ -347,5 +352,76 @@ async fn email_requires_consent_and_status(pool: PgPool) -> sqlx::Result<()> {
     .await?;
     let rsvp = find(&pool, rsvp.id).await?.unwrap();
     assert_eq!(rsvp.email_status, EmailStatus::Unconfirmed);
+    Ok(())
+}
+
+/// The guest's answers to the open questions, as stored.
+async fn stored_answers(pool: &PgPool, id: Uuid) -> sqlx::Result<Vec<String>> {
+    find(pool, id).await.map(|rsvp| rsvp.unwrap().answers)
+}
+
+#[sqlx::test]
+async fn answers_follow_their_questions(pool: PgPool) -> sqlx::Result<()> {
+    let event = crate::db::event::tests::event(&pool).await;
+    let reply = |answers: &[&str]| Reply {
+        response: Response::Attending,
+        party_size: 1,
+        name_display: None,
+        choice: None,
+        answers: answers.iter().map(|&answer| answer.to_owned()).collect(),
+    };
+    let kari = create_invite(&pool, event.id, "Kari", 1).await?;
+    let per = create_invite(&pool, event.id, "Per", 1).await?;
+    let ola = create_invite(&pool, event.id, "Ola", 1).await?;
+    respond(
+        &pool,
+        kari.id,
+        &reply(&["Vi kjører", "Takk!"]),
+        Lang::NB,
+        PRIVACY_VERSION,
+    )
+    .await?;
+    respond(
+        &pool,
+        per.id,
+        &reply(&["", "Hei"]),
+        Lang::NB,
+        PRIVACY_VERSION,
+    )
+    .await?;
+
+    // The questions swap places, and a third comes after them.
+    move_answers(&pool, event.id, &[Some(1), Some(0), None]).await?;
+    assert_eq!(
+        stored_answers(&pool, kari.id).await?,
+        ["Takk!", "Vi kjører", ""]
+    );
+    assert_eq!(stored_answers(&pool, per.id).await?, ["Hei", "", ""]);
+    assert!(stored_answers(&pool, ola.id).await?.is_empty());
+
+    // The one Per answered is reworded: with no answer left, he keeps none at all.
+    move_answers(&pool, event.id, &[None, Some(1), Some(2)]).await?;
+    assert_eq!(stored_answers(&pool, kari.id).await?, ["", "Vi kjører", ""]);
+    assert!(stored_answers(&pool, per.id).await?.is_empty());
+
+    // With no questions left, nobody keeps an answer.
+    move_answers(&pool, event.id, &[]).await?;
+    assert!(stored_answers(&pool, kari.id).await?.is_empty());
+
+    // The database refuses answers the form would: too many, too long, or with a
+    // control character other than a line break or tab.
+    let long = "x".repeat(501);
+    for bad in [vec!["a"; 6], vec![long.as_str()], vec!["Vi\u{7} kjører"]] {
+        let result = respond(&pool, kari.id, &reply(&bad), Lang::NB, PRIVACY_VERSION).await;
+        assert!(result.as_ref().is_err_and(is_check_violation), "{bad:?}");
+    }
+    respond(
+        &pool,
+        kari.id,
+        &reply(&["Vi kjører,\r\n\tto plasser"]),
+        Lang::NB,
+        PRIVACY_VERSION,
+    )
+    .await?;
     Ok(())
 }

@@ -8,7 +8,7 @@ use jiff::{Timestamp, ZonedDateTime, civil, tz::TimeZone};
 
 use crate::{
     admin::lang,
-    db::event::Details,
+    db::event::{Details, MAX_OPEN_QUESTIONS},
     i18n::{Lang, LangSet, Texts, filled},
     janitor::KEEP_AFTER_EVENT,
 };
@@ -21,6 +21,8 @@ const MAX_LOCATION: usize = 200;
 const MAX_QUESTION: usize = 200;
 pub(super) const MAX_CHOICES: usize = 20;
 const MAX_CHOICE: usize = 100;
+/// The longest open question, as long as the host's question.
+const MAX_OPEN_QUESTION: usize = MAX_QUESTION;
 
 /// A date and time as the form keeps one, and event files too:
 /// `2026-12-12T19:00`.
@@ -44,6 +46,8 @@ pub(in crate::admin) struct EventForm {
     question: Texts,
     /// A line each.
     choices: Texts,
+    /// Questions guests answer in their own words, a line each.
+    open_questions: Texts,
     /// The languages the host ticked for the event's pages: none for all the site's.
     offered: LangSet,
     /// The languages the site offers, which are the ones the form asks about.
@@ -68,6 +72,8 @@ pub(in crate::admin) struct Translation {
     pub question: String,
     pub choices_field: String,
     pub choices: String,
+    pub open_questions_field: String,
+    pub open_questions: String,
 }
 
 /// A form field's name for a text in a language: `title` for the event's own language,
@@ -101,6 +107,7 @@ impl EventForm {
             rsvp_deadline: String::new(),
             question: Texts::default(),
             choices: Texts::default(),
+            open_questions: Texts::default(),
             offered: LangSet::default(),
             site: LangSet::all(),
         }
@@ -159,6 +166,12 @@ impl EventForm {
         self
     }
 
+    /// The form with the open questions, a line each.
+    pub(super) fn with_open_questions(mut self, open_questions: Texts) -> Self {
+        self.open_questions = open_questions;
+        self
+    }
+
     /// A form filled in from an event, to change it.
     pub(super) fn from_details(details: &Details) -> Self {
         Self {
@@ -180,6 +193,7 @@ impl EventForm {
                 .unwrap_or_default(),
             question: details.question.clone(),
             choices: details.choices.clone(),
+            open_questions: details.open_questions.clone(),
             offered: details.offered,
             ..Self::blank()
         }
@@ -217,6 +231,8 @@ impl EventForm {
             form.description.set(lang, &field("description"));
             form.question.set(lang, &field("question"));
             form.choices.set(lang, &choice_lines(&field("choices")));
+            form.open_questions
+                .set(lang, &choice_lines(&field("open_questions")));
             if !get(&format!("offer-{}", lang.code())).is_empty() {
                 form.offered.insert(lang);
             }
@@ -241,6 +257,7 @@ impl EventForm {
             &self.description,
             &self.question,
             &self.choices,
+            &self.open_questions,
         ];
         self.site.contains(lang)
             || lang == self.lang
@@ -291,6 +308,11 @@ impl EventForm {
         self.choices.own(self.lang)
     }
 
+    /// The open questions, a line each, in the event's language.
+    pub fn open_questions(&self) -> &str {
+        self.open_questions.own(self.lang)
+    }
+
     /// The languages the event's pages may be offered in, those the site offers, with
     /// the host's ticked.
     pub fn offered(&self) -> Vec<OfferedChoice> {
@@ -325,6 +347,8 @@ impl EventForm {
                 question: self.question.own(lang).to_owned(),
                 choices_field: field("choices", lang, self.lang),
                 choices: self.choices.own(lang).to_owned(),
+                open_questions_field: field("open_questions", lang, self.lang),
+                open_questions: self.open_questions.own(lang).to_owned(),
             })
             .collect()
     }
@@ -367,6 +391,8 @@ impl EventForm {
         }
         self.check_question(&plain)
             .map_err(|()| text.error_event_question.clone())?;
+        self.check_open_questions(&plain)
+            .map_err(|()| text.error_event_open_questions.clone())?;
         let tz = TimeZone::get(&self.time_zone).map_err(|_| text.error_time_zone.clone())?;
         let starts_at =
             local_time(&self.starts_at, &tz).ok_or_else(|| text.error_event_time.clone())?;
@@ -401,8 +427,35 @@ impl EventForm {
             ends_at,
             question: self.question.clone(),
             choices: self.choices.clone(),
+            open_questions: self.open_questions.clone(),
             offered: self.offered,
         })
+    }
+
+    /// The open questions: up to `MAX_OPEN_QUESTIONS` in the event's language, and in
+    /// each other language either none of its own or as many, so that each answer has
+    /// its question in every language. Each is one plain line as long as the host's
+    /// question, and none is asked twice, since answers follow their question's words.
+    fn check_open_questions(&self, plain: &dyn Fn(&str) -> bool) -> Result<(), ()> {
+        let count = |lang| self.open_questions.own(lang).lines().count();
+        let main = count(self.lang);
+        let all_fit = Lang::all().iter().copied().all(|lang| {
+            let questions = self.open_questions.own(lang);
+            questions
+                .lines()
+                .all(|line| line.chars().count() <= MAX_OPEN_QUESTION && plain(line))
+                && [0, main].contains(&count(lang))
+        });
+        let own: Vec<&str> = self.open_questions.own(self.lang).lines().collect();
+        let distinct = own
+            .iter()
+            .enumerate()
+            .all(|(i, question)| !own[..i].contains(question));
+        if all_fit && distinct && main <= MAX_OPEN_QUESTIONS {
+            Ok(())
+        } else {
+            Err(())
+        }
     }
 
     /// The host's question: none at all, or one in the event's language with two choices
@@ -768,6 +821,67 @@ mod tests {
                 ("choices", "Salat\nDessert"),
                 ("choices-en", "Salad\nDessert\nDrinks"),
             ],
+        ] {
+            assert!(form(&bad).is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn checks_the_open_questions() {
+        let form = |extra: &[(&str, &str)]| {
+            let mut all = fields(&[
+                ("lang", "nb"),
+                ("title", "Sommerfest"),
+                ("starts_at", "2054-06-20T15:00"),
+                ("time_zone", "Europe/Oslo"),
+            ]);
+            all.extend(fields(extra));
+            EventForm::from_fields(&all).details(Timestamp::now())
+        };
+        // None is fine, and so are some, trimmed a line each, with or without their
+        // translations.
+        assert!(form(&[]).unwrap().open_questions(Lang::NB).is_empty());
+        let asked = form(&[
+            ("open_questions", " Hvem kjører? \r\n\nNoe å hilse med?\n"),
+            ("open_questions-en", "Who's driving?\nAnything to say?"),
+        ])
+        .unwrap();
+        assert_eq!(
+            asked.open_questions.own(Lang::NB),
+            "Hvem kjører?\nNoe å hilse med?"
+        );
+        assert_eq!(
+            asked.open_questions(Lang::EN),
+            ["Who's driving?", "Anything to say?"]
+        );
+        // Nynorsk has none of its own, so it falls back to Bokmål.
+        assert_eq!(
+            asked.open_questions(Lang::NN),
+            ["Hvem kjører?", "Noe å hilse med?"]
+        );
+        let numbered = |n: usize| {
+            (1..=n)
+                .map(|i| format!("{i}. Hva?"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        assert!(form(&[("open_questions", &numbered(MAX_OPEN_QUESTIONS))]).is_ok());
+
+        let six = numbered(MAX_OPEN_QUESTIONS + 1);
+        let long = "x".repeat(MAX_OPEN_QUESTION + 1);
+        for bad in [
+            vec![("open_questions", six.as_str())],
+            vec![("open_questions", long.as_str())],
+            vec![("open_questions", "Hvem kjører?\u{1}")],
+            // The same question twice: its answers would follow either.
+            vec![("open_questions", "Hvem kjører?\nHvem kjører?")],
+            // Translations in another language need one for each.
+            vec![
+                ("open_questions", "Hvem kjører?\nNoe å hilse med?"),
+                ("open_questions-en", "Who's driving?"),
+            ],
+            // A translation of none.
+            vec![("open_questions-en", "Who's driving?")],
         ] {
             assert!(form(&bad).is_err(), "{bad:?}");
         }

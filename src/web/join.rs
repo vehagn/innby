@@ -18,7 +18,10 @@ use super::{
     AppState, PRIVACY_VERSION,
     pages::{Page, PageError},
     remember,
-    views::{DisplayChoice, EventView, FormPage, GuestList, GuestsPage, PartySize, Question},
+    views::{
+        DisplayChoice, EventView, FormPage, GuestList, GuestsPage, OpenQuestion, PartySize,
+        Question, SentAnswers,
+    },
 };
 use crate::{
     db::{
@@ -47,6 +50,8 @@ struct JoinPage<'a> {
     display_choices: Vec<DisplayChoice>,
     /// The host's question, if the event asks one.
     question: Option<Question>,
+    /// The open questions, with what was answered if the form comes back.
+    open_questions: Vec<OpenQuestion>,
     guests_link: String,
     accepts_answers: bool,
     /// Whether "remember me on this device" is ticked, as it was sent.
@@ -70,6 +75,7 @@ impl<'a> JoinPage<'a> {
             // Signing up means coming, and coming shows the full name unless chosen otherwise.
             display_choices: DisplayChoice::choices(t, None, NameDisplay::Full),
             question: Question::new(&joining.event.details, lang, None),
+            open_questions: OpenQuestion::all(&joining.event.details, lang, &[]),
             guests_link: paths::localized(&paths::path(paths::JOIN_GUESTS, link), lang),
             accepts_answers: joining.event.details.accepts_answers(Timestamp::now()),
             remember: false,
@@ -157,11 +163,34 @@ pub struct JoinForm {
     remember: Option<String>,
     /// Their pick for the host's question: empty for none.
     choice: Option<String>,
+    /// Their answers to the open questions, a field each; see `OpenQuestion::parse`.
+    #[serde(default)]
+    answer_0: String,
+    #[serde(default)]
+    answer_1: String,
+    #[serde(default)]
+    answer_2: String,
+    #[serde(default)]
+    answer_3: String,
+    #[serde(default)]
+    answer_4: String,
     /// The form's token; see `JoinPage::token`.
     token: Option<String>,
     /// Hidden from people; bots fill it in.
     #[serde(default)]
     website: String,
+}
+
+impl JoinForm {
+    fn answers(&self) -> SentAnswers<'_> {
+        [
+            &self.answer_0,
+            &self.answer_1,
+            &self.answer_2,
+            &self.answer_3,
+            &self.answer_4,
+        ]
+    }
 }
 
 pub async fn join(
@@ -195,6 +224,14 @@ pub async fn join(
     }
     let picked = Question::parse(&joining.event.details, form.choice.as_deref());
     page.question = Question::new(&joining.event.details, lang, picked.unwrap_or(None));
+    let answers = OpenQuestion::parse(&joining.event.details, form.answers());
+    // Shown again as sent, if they can't be kept, so nothing typed is lost.
+    let shown: Vec<String> = form.answers().iter().map(|&a| a.to_owned()).collect();
+    page.open_questions = OpenQuestion::all(
+        &joining.event.details,
+        lang,
+        answers.as_deref().unwrap_or(&shown),
+    );
     if !page.accepts_answers {
         return Ok(render_with(StatusCode::FORBIDDEN, page));
     }
@@ -210,6 +247,9 @@ pub async fn join(
     let Ok(choice) = picked else {
         return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_choice);
     };
+    let Ok(answers) = answers else {
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_answer);
+    };
     // Only valid submissions count, so a typo doesn't use up a household's allowance.
     if !state.join_limiter.check(client) {
         tracing::warn!("group sign-up rate limit hit");
@@ -223,6 +263,7 @@ pub async fn join(
         name_display,
         lang,
         choice,
+        answers: &answers,
         token,
     };
     let (rsvp, created) = rsvp::create_open(&state.db, &sign_up, PRIVACY_VERSION).await?;

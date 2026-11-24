@@ -18,6 +18,16 @@
   {% if !row.responded.is_empty() %}<div><dt>{{ a.col_answered }}</dt><dd>{{ row.responded }}</dd></div>{% endif %}
 </dl>
 
+{% if !answers.is_empty() %}
+<section class="card">
+  <h2>{{ a.answers_heading }}</h2>
+  {% for (question, answer) in answers %}
+  <h3>{{ question }}</h3>
+  <p class="written">{{ answer }}</p>
+  {% endfor %}
+</section>
+{% endif %}
+
 <section class="card">
   <h2>{{ a.link }}</h2>
   <p class="hint">{{ a.guest_link_hint }} {{ a.copy_link_hint }}</p>

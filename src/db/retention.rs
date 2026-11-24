@@ -1,4 +1,6 @@
 //! Deleting what we no longer need. `innby janitor` runs these every hour.
+//! A guest's RSVP, with its pick and answers to the host's questions, goes with its
+//! event (`event::delete_started_by`), or sooner when the guest deletes it.
 //! A stored host account's UUID is kept only with its account row and has no separate
 //! retention period.
 //! A host's name and role on a board post, and their votes on posts, go with the post

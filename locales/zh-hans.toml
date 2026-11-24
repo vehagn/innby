@@ -70,6 +70,8 @@ device_heading = "这台设备"
 changed_notice = "你回复之后，时间或地点有了变更。请查看上方信息，如有需要请修改回复。"
 # The empty pick for the host's question.
 choice_none = "暂不回答"
+# Under the open questions on a guest's answer and sign-up forms.
+open_answers_hint = "只有主人能看到这些回答，其他宾客看不到。请勿写任何人的健康或信仰。"
 # The event for the guest's own calendar, once they're coming: a button and a hint.
 calendar_hint = "一个包含时间和地点的文件，可加入手机或电脑的日历。如安排有变，请重新添加。"
 add_to_calendar = "添加到我的日历"
@@ -222,6 +224,7 @@ join_button = "我会参加！"
 # Errors and outcomes
 invalid_party_size = "请选择有效的人数。"
 invalid_choice = "请从选项中选择一个。"
+invalid_answer = "每个回答不超过 500 个字符。"
 invalid_name = "名字只能使用字母、空格以及 - ' . , &，最多 100 个字符。"
 confirm_delete = "请勾选方框以确认删除。"
 gone_title = "此链接无效"
@@ -279,6 +282,8 @@ event_change_hint = "开始时间、结束时间或地点有变时，会通过�
 event_question = "你的问题"
 event_choices = "选项，每行一个"
 event_question_hint = "可选：给宾客的一个问题，宾客从选项中选一个作答。其他宾客看不到答案。请勿询问健康、饮食、信仰等方面的问题。修改此处的选项会清除已有的回答；在“其他语言”中翻译选项则不会。"
+event_open_questions = "开放式问题"
+event_open_questions_hint = "可选：最多五个问题，每行一个，宾客用自己的话作答。只有主人能看到回答。宾客可以写任何内容，所以请勿询问健康、饮食、信仰等方面的问题。改写某个问题会清除它的回答；添加、删除或移动问题则不会，在“其他语言”中翻译也不会。"
 event_time_zone = "时区"
 event_deadline = "回复截止"
 event_deadline_hint = "留空则在活动开始前都可以回复。"
@@ -296,6 +301,7 @@ error_event_time = "请以日期和时间填写活动开始时间。"
 error_event_deadline = "请以日期和时间填写回复截止时间，或留空。"
 error_event_ends = "请以日期和时间填写活动结束时间（须晚于开始时间），或留空。"
 error_event_question = "问题需要 2 到 20 个选项，每行一个，每个不超过 100 个字符；每种有自己选项的语言，选项数量须相同。"
+error_event_open_questions = "开放式问题最多五个，每行一个，每个不超过 200 个字符，不可重复；每种有自己问题的语言，问题数量须相同。"
 error_event_past = "活动会在开始 {days} 天后删除，因此这个活动会被立即删除。请检查日期。"
 error_time_zone = "请输入时区，例如 Europe/Oslo。"
 col_event = "活动"
@@ -532,6 +538,11 @@ change_notices_one = "已保存。将通知 {n} 位已确认邮箱的宾客。"
 change_notices_other = "已保存。将通知 {n} 位已确认邮箱的宾客。"
 # After the tally of picks for the host's question, on the Guests tab.
 tally_hint = "（参加者中）"
+# How many guests answered an open question, on the Guests tab.
+open_answers_one = "{n} 个回答"
+open_answers_other = "{n} 个回答"
+# Over a guest's answers to the open questions, on their page.
+answers_heading = "宾客的回答"
 
 # Table columns and facts, also the CSV's header
 col_name = "姓名"

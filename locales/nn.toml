@@ -70,6 +70,8 @@ device_heading = "Denne eininga"
 changed_notice = "Tid eller stad er endra sidan du svarte. Sjekk det over, og endre svaret om du må."
 # The empty pick for the host's question.
 choice_none = "Ikkje svart"
+# Under the open questions on a guest's answer and sign-up forms.
+open_answers_hint = "Berre vertskapet ser desse svara, ikkje andre gjester. Ikkje skriv om helsa eller trua til nokon."
 # The event for the guest's own calendar, once they're coming: a button and a hint.
 calendar_hint = "Ei fil med tid og stad til kalenderen på telefonen eller datamaskina. Blir planane endra, legg du henne til på nytt."
 add_to_calendar = "Legg til i kalenderen"
@@ -243,6 +245,7 @@ join_button = "Eg kjem!"
 # Errors and outcomes
 invalid_party_size = "Vel eit gyldig tal."
 invalid_choice = "Vel eitt av vala."
+invalid_answer = "Kvart svar kan ha høgst 500 teikn."
 invalid_name = "Skriv namnet med bokstavar, mellomrom og eventuelt - ' . , &, opptil 100 teikn."
 confirm_delete = "Kryss av i boksen for å stadfeste slettinga."
 gone_title = "Denne lenkja verkar ikkje"
@@ -304,6 +307,8 @@ event_change_hint = "Ny start, slutt eller stad blir send på e-post til alle gj
 event_question = "Spørsmålet ditt"
 event_choices = "Val, eitt per linje"
 event_question_hint = "Valfritt: eit spørsmål gjestene svarar på ved å velje eitt av vala. Andre gjester ser ikkje svara. Ikkje spør om helse, kosthald, tru eller liknande. Endrar du vala her, blir svara som er gjevne, sletta; å omsetje dei under På andre språk gjer det ikkje."
+event_open_questions = "Opne spørsmål"
+event_open_questions_hint = "Valfritt: opptil fem spørsmål, eitt per linje, som gjestene svarar på med eigne ord. Berre vertskapet ser svara. Gjestene kan skrive kva som helst der, så ikkje spør om helse, kosthald, tru eller liknande. Omformulerer du eit spørsmål, blir svara på det sletta; å leggje til, fjerne eller flytte spørsmål gjer det ikkje, og heller ikkje å omsetje dei under På andre språk."
 event_time_zone = "Tidssone"
 event_deadline = "Svarfrist"
 event_deadline_hint = "La feltet stå tomt for å ta imot svar heilt til arrangementet startar."
@@ -321,6 +326,7 @@ error_event_time = "Skriv når arrangementet startar, som dato og klokkeslett."
 error_event_deadline = "Skriv svarfristen som dato og klokkeslett, eller la feltet stå tomt."
 error_event_ends = "Skriv når arrangementet sluttar, som dato og klokkeslett etter starten, eller la feltet stå tomt."
 error_event_question = "Gje spørsmålet minst to og høgst tjue val, eitt per linje på høgst 100 teikn, og like mange på kvart språk som har eigne."
+error_event_open_questions = "Still høgst fem opne spørsmål, eitt per linje på høgst 200 teikn og ingen to gonger, og like mange på kvart språk som har eigne."
 error_event_past = "Eit arrangement blir sletta {days} dagar etter at det startar, så dette ville blitt sletta med ein gong. Sjekk datoen."
 error_time_zone = "Skriv ei tidssone, til dømes Europe/Oslo."
 col_event = "Arrangement"
@@ -587,6 +593,11 @@ change_notices_one = "Lagra. {n} gjest med stadfesta adresse får melding om end
 change_notices_other = "Lagra. {n} gjester med stadfesta adresse får melding om endringa."
 # After the tally of picks for the host's question, on the Guests tab.
 tally_hint = "blant dei som kjem"
+# How many guests answered an open question, on the Guests tab.
+open_answers_one = "{n} svar"
+open_answers_other = "{n} svar"
+# Over a guest's answers to the open questions, on their page.
+answers_heading = "Svar med eigne ord"
 
 # Table columns and facts, also the CSV's header
 col_name = "Namn"

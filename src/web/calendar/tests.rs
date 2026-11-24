@@ -27,6 +27,7 @@ async fn a_guest_who_is_coming_can_add_the_event_to_their_calendar(db: PgPool) {
             party_size: 2,
             name_display: None,
             choice: None,
+            answers: Vec::new(),
         },
         Lang::EN,
         crate::web::PRIVACY_VERSION,

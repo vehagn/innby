@@ -1,0 +1,5 @@
+{% for question in open_questions %}
+<label for="{{ question.field }}">{{ question.text }}</label>
+<textarea id="{{ question.field }}" name="{{ question.field }}" rows="2" maxlength="500">{{ question.answer }}</textarea>
+{% endfor %}
+{% if !open_questions.is_empty() %}<p class="hint">{{ t.open_answers_hint }}</p>{% endif %}

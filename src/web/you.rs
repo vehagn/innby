@@ -121,10 +121,19 @@ struct Export<'a> {
     question: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     picked: Option<&'a str>,
+    /// The open questions they answered, each with its answer, in their words too.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    open_answers: Vec<OpenAnswer<'a>>,
     scores: Vec<crate::db::games::Best>,
     /// What they wrote on the event's board, and how they voted there.
     posts: Vec<crate::db::board::Written>,
     votes: Vec<crate::db::board::Voted>,
+}
+
+#[derive(serde::Serialize)]
+struct OpenAnswer<'a> {
+    question: &'a str,
+    answer: &'a str,
 }
 
 pub async fn export(State(state): State<AppState>, guest: Guest) -> Page {
@@ -136,10 +145,23 @@ pub async fn export(State(state): State<AppState>, guest: Guest) -> Page {
         let choices = &question.as_ref()?.1;
         choices.get(pick).copied()
     });
+    let open_answers = guest
+        .event
+        .details
+        .open_questions(guest.rsvp.lang)
+        .into_iter()
+        .enumerate()
+        .map(|(i, question)| OpenAnswer {
+            question,
+            answer: guest.rsvp.answer(i),
+        })
+        .filter(|open| !open.answer.is_empty())
+        .collect();
     let export = Export {
         rsvp: &guest.rsvp,
         question: question.as_ref().map(|(question, _)| *question),
         picked,
+        open_answers,
         scores,
         posts,
         votes,

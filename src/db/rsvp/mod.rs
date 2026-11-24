@@ -85,6 +85,9 @@ pub struct Rsvp {
     pub name_display: Option<NameDisplay>,
     /// Their pick among the event's choices, by its place in the list.
     pub choice: Option<i16>,
+    /// Their answers to the event's open questions, in its questions' order: empty for
+    /// one left blank, and none at all if they answered none.
+    pub answers: Vec<String>,
 }
 
 /// A row as the query macros read it: the times that may be missing come as jiff-sqlx's
@@ -107,6 +110,7 @@ pub(super) struct Row {
     group_id: Option<Uuid>,
     name_display: Option<NameDisplay>,
     choice: Option<i16>,
+    answers: Vec<String>,
 }
 
 impl From<Row> for Rsvp {
@@ -129,6 +133,7 @@ impl From<Row> for Rsvp {
             group_id: row.group_id,
             name_display: row.name_display,
             choice: row.choice,
+            answers: row.answers,
         }
     }
 }
@@ -154,6 +159,11 @@ impl Rsvp {
     pub fn pick(&self) -> Option<usize> {
         self.choice.and_then(|pick| usize::try_from(pick).ok())
     }
+
+    /// Their answer to the open question at `place`: empty if they gave none.
+    pub fn answer(&self, place: usize) -> &str {
+        self.answers.get(place).map_or("", String::as_str)
+    }
 }
 
 /// `query_as!` for whole `Rsvp` rows, read as a `Row`. The query macros only take string
@@ -177,7 +187,7 @@ macro_rules! query_rsvp {
                 party_size, max_party_size, link_nonce, lang as "lang: Lang", email,
                 email_status as "email_status: EmailStatus", email_consent_at,
                 privacy_version, responded_at, created_at, group_id,
-                name_display as "name_display: NameDisplay", choice "#
+                name_display as "name_display: NameDisplay", choice, answers "#
             $(+ $tail)*
             $(, $arg)*
         )
@@ -213,6 +223,8 @@ pub struct SignUp<'a> {
     pub lang: Lang,
     /// Their pick for the host's question, if the event asks one.
     pub choice: Option<i16>,
+    /// Their answers to the open questions; see `Rsvp::answers`.
+    pub answers: &'a [String],
     /// The sign-up form's token: sent again, it finds this sign-up, not another.
     pub token: Option<&'a str>,
 }
@@ -231,8 +243,8 @@ pub async fn create_open(
     let made = query_rsvp!(
         "insert into rsvp (event_id, group_id, name, response, party_size, \
             max_party_size, name_display, lang, privacy_version, responded_at, choice, \
-            sign_up_token) \
-         values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now(), $9, $10) \
+            sign_up_token, answers) \
+         values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now(), $9, $10, $11) \
          on conflict (group_id, sign_up_token) where sign_up_token is not null \
          do nothing" returning,
         sign_up.group.id,
@@ -245,6 +257,7 @@ pub async fn create_open(
         sign_up.group.event_id,
         sign_up.choice,
         sign_up.token,
+        sign_up.answers,
     )
     .fetch_optional(db)
     .await?;
@@ -306,7 +319,8 @@ pub async fn find_with_events(
             e.title as "title: Json<Texts>", e.description as "description: Json<Texts>",
             e.location, e.starts_at, e.time_zone, e.rsvp_deadline, e.ends_at, e.changed_at,
             e.question as "question: Json<Texts>", e.choices as "choices: Json<Texts>",
-            e.langs, r.choice,
+            e.open_questions as "open_questions: Json<Texts>",
+            e.langs, r.choice, r.answers,
             array(select g.game from event_game g where g.event_id = e.id order by g.game)
                 as "games!",
             e.board as "board: BoardState"
@@ -333,6 +347,7 @@ pub async fn find_with_events(
                 changed_at: row.changed_at,
                 question: row.question,
                 choices: row.choices,
+                open_questions: row.open_questions,
                 langs: row.langs,
             });
             let rsvp = Rsvp::from(Row {
@@ -353,6 +368,7 @@ pub async fn find_with_events(
                 group_id: row.group_id,
                 name_display: row.name_display,
                 choice: row.choice,
+                answers: row.answers,
             });
             WithEvent {
                 rsvp,
@@ -408,6 +424,8 @@ pub struct Reply {
     pub name_display: Option<NameDisplay>,
     /// Their pick for the host's question, if the event asks one.
     pub choice: Option<i16>,
+    /// Their answers to the open questions; see `Rsvp::answers`.
+    pub answers: Vec<String>,
 }
 
 pub async fn respond(
@@ -420,7 +438,8 @@ pub async fn respond(
     query_rsvp!(
         "update rsvp \
          set response = $2, party_size = $3, name_display = coalesce($4, name_display), \
-            lang = $5, privacy_version = $6, responded_at = now(), choice = $7 \
+            lang = $5, privacy_version = $6, responded_at = now(), choice = $7, \
+            answers = $8 \
          where id = $1" returning,
         id,
         reply.response as Response,
@@ -429,6 +448,7 @@ pub async fn respond(
         lang as Lang,
         privacy_version,
         reply.choice,
+        &reply.answers,
     )
     .fetch_optional(db)
     .await
@@ -440,6 +460,46 @@ pub async fn clear_choices(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Res
     let result = sqlx::query!(
         "update rsvp set choice = null where event_id = $1 and choice is not null",
         event_id
+    )
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected())
+}
+
+/// Moves every guest's answers to where their questions now are, when the host changes
+/// the event's open questions: `from[i]` is the place the `i`th question had, or `None`
+/// for a new or reworded one, whose answers are those to another question. A guest left
+/// with no answer keeps none at all.
+pub async fn move_answers(
+    db: impl PgExecutor<'_>,
+    event_id: Uuid,
+    from: &[Option<usize>],
+) -> sqlx::Result<u64> {
+    // Postgres's arrays count from 1, and an index of 0 reads as null.
+    let from: Vec<i32> = from
+        .iter()
+        .map(|place| place.map_or(0, |place| i32::try_from(place).map_or(0, |i| i + 1)))
+        .collect();
+    let result = sqlx::query!(
+        r#"
+        update rsvp set answers = case
+            when moved.answers = array_fill(''::text, array[cardinality(moved.answers)])
+                then '{}'
+            else moved.answers
+        end
+        from (
+            select r.id, array(
+                select coalesce(r.answers[place], '')
+                from unnest($2::int[]) with ordinality as question(place, n)
+                order by n
+            ) as answers
+            from rsvp r
+            where r.event_id = $1 and r.answers <> '{}'
+        ) moved
+        where rsvp.id = moved.id
+        "#,
+        event_id,
+        &from,
     )
     .execute(db)
     .await?;

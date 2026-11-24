@@ -108,6 +108,13 @@ pub struct EventFile {
         serialize_with = "in_language_order"
     )]
     pub choices: BTreeMap<String, Vec<String>>,
+    /// Questions guests answer in their own words, a list by language.
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        serialize_with = "in_language_order"
+    )]
+    pub open_questions: BTreeMap<String, Vec<String>>,
     /// The style of the event's QR codes, for the new event's codes to look the same.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub qr: Option<QrEntry>,
@@ -206,8 +213,9 @@ const HEADER: &str = "\
 # in, which needs a title and which the others fall back to. offered_in lists the
 # languages its pages are offered in, of those the site offers; without it, all of them. A
 # group's max_party_size is how many each sign-up may cover. question is the host's own
-# question to guests, by language, and choices its choices, a list by language. qr is the
-# style of the QR codes: shape (square, rounded, dots), color, and icon (none, heart,
+# question to guests, by language, and choices its choices, a list by language;
+# open_questions are those guests answer in their own words, a list by language. qr is
+# the style of the QR codes: shape (square, rounded, dots), color, and icon (none, heart,
 # star, emoji).
 
 ";
@@ -215,13 +223,21 @@ const HEADER: &str = "\
 impl EventFile {
     /// The file of an event, its group links and its QR codes' style.
     pub fn new(details: &Details, groups: &[Group], qr: &Style) -> Self {
-        let texts = |texts: &Texts| {
+        let texts = |texts: &Texts| -> BTreeMap<String, String> {
             Lang::all()
                 .iter()
                 .copied()
                 .map(|lang| (lang, texts.own(lang)))
                 .filter(|(_, text)| !text.is_empty())
                 .map(|(lang, text)| (lang.code().to_owned(), text.to_owned()))
+                .collect()
+        };
+        let lists = |by_lang: &Texts| {
+            texts(by_lang)
+                .into_iter()
+                .map(|(code, lines): (String, String)| {
+                    (code, lines.lines().map(str::to_owned).collect())
+                })
                 .collect()
         };
         Self {
@@ -243,12 +259,8 @@ impl EventFile {
             title: texts(&details.title),
             description: texts(&details.description),
             question: texts(&details.question),
-            choices: texts(&details.choices)
-                .into_iter()
-                .map(|(code, lines): (String, String)| {
-                    (code, lines.lines().map(str::to_owned).collect())
-                })
-                .collect(),
+            choices: lists(&details.choices),
+            open_questions: lists(&details.open_questions),
             qr: Some(QrEntry {
                 shape: qr.shape,
                 color: qr.color.clone(),
@@ -308,11 +320,14 @@ impl EventFile {
             offered.insert(Lang::by_code(&code).ok_or(FileError::Language { field, code })?);
         }
         let question = texts("question", self.question)?;
-        let choices = self
-            .choices
-            .into_iter()
-            .map(|(code, lines)| (code, lines.join("\n")))
-            .collect();
+        let lines = |by_code: BTreeMap<String, Vec<String>>| {
+            by_code
+                .into_iter()
+                .map(|(code, lines)| (code, lines.join("\n")))
+                .collect()
+        };
+        let choices = lines(self.choices);
+        let open_questions = lines(self.open_questions);
         let form = EventForm::from_parts(
             texts("title", self.title)?,
             texts("description", self.description)?,
@@ -324,7 +339,8 @@ impl EventFile {
         )
         .in_language(lang)
         .offered_in(offered)
-        .with_question(question, texts("choices", choices)?);
+        .with_question(question, texts("choices", choices)?)
+        .with_open_questions(texts("open_questions", open_questions)?);
         let groups = self
             .groups
             .iter()
@@ -407,6 +423,9 @@ mod tests {
         details.question.set(Lang::EN, "What will you bring?");
         details.choices.set(Lang::NB, "Salat\nDessert");
         details.choices.set(Lang::EN, "Salad\nDessert");
+        details
+            .open_questions
+            .set(Lang::NB, "Hvem kjører?\nNoe å hilse med?");
         details.offered = [Lang::NB, Lang::EN].into_iter().collect();
         let groups = [group("Climbing club", 2), group("Naboer", 4)];
         let style = Style {
@@ -437,6 +456,12 @@ mod tests {
         );
         assert!(
             toml.contains("[choices]\nnb = [\n    \"Salat\",\n    \"Dessert\",\n]"),
+            "{toml}"
+        );
+        assert!(
+            toml.contains(
+                "[open_questions]\nnb = [\n    \"Hvem kjører?\",\n    \"Noe å hilse med?\",\n]"
+            ),
             "{toml}"
         );
         assert!(
