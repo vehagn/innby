@@ -42,7 +42,7 @@
   --success: color-mix(in srgb, #2e7d32 var(--light), #81c784);
   --warning: color-mix(in srgb, #ffb300 var(--light), #ffca28);
   --danger: color-mix(in srgb, #c62828 var(--light), #ef9a9a);
-  /* Party colours: confetti, the title's glitch, the guest list's stars. */
+  /* Party colours: confetti and the guest list's stars. */
   --festive-1: var(--accent);
   --festive-2: var(--warning);
   --festive-3: #f06292;
@@ -1140,61 +1140,8 @@ button.vote[aria-pressed="true"] {
 }
 
 .title-emoji {
-  display: inline-block;
   flex: none;
   font-size: 0.6em;
-  animation: wiggle 4s ease-in-out infinite;
-}
-
-.title-emoji:last-child {
-  animation-delay: -2s;
-}
-
-@keyframes wiggle {
-  0%, 80%, 100% { transform: none; }
-  84% { transform: rotate(-14deg) scale(1.15); }
-  88% { transform: rotate(12deg) scale(1.15); }
-  92% { transform: rotate(-6deg); }
-}
-
-.title-text {
-  position: relative;
-  display: inline-block;
-  font-family: var(--font-mono);
-}
-
-/* Two offset copies of the title flash over it now and then. */
-.glitch {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.glitch:nth-child(1) {
-  color: var(--festive-1);
-  clip-path: polygon(0 15%, 100% 15%, 100% 40%, 0 40%);
-  animation: glitch-a 6s infinite;
-}
-
-.glitch:nth-child(2) {
-  color: var(--festive-3);
-  clip-path: polygon(0 60%, 100% 60%, 100% 85%, 0 85%);
-  animation: glitch-b 6s infinite;
-}
-
-@keyframes glitch-a {
-  0%, 88%, 100% { opacity: 0; transform: none; }
-  89% { opacity: 1; transform: translateX(-4px) skewX(-2deg); }
-  90% { opacity: 1; transform: translateX(3px); }
-  91% { opacity: 0; transform: none; }
-}
-
-@keyframes glitch-b {
-  0%, 89%, 100% { opacity: 0; transform: none; }
-  90% { opacity: 1; transform: translateX(4px) skewX(2deg); }
-  91% { opacity: 1; transform: translateX(-2px); }
-  92% { opacity: 0; transform: none; }
 }
 
 /* What someone wrote keeps its line breaks: the host's description, and guests'
@@ -1398,8 +1345,7 @@ input.emoji {
     transition: none !important;
   }
 
-  .confetti,
-  .glitch {
+  .confetti {
     display: none;
   }
 }

@@ -64,7 +64,7 @@ async fn index_is_about_innby_in_the_base_language() {
     // A browser that asks for no language gets English, the base.
     let html = body(get("/", None).await).await;
     assert!(html.contains(r#"<html lang="en" "#));
-    assert!(html.contains(r#"<span class="title-text">Innby<"#));
+    assert!(html.contains(r#"<span>Innby</span>"#));
     assert!(html.contains(&escape(&Lang::EN.messages().site_intro)));
     // No event on the front page: that's on the invitation's.
     assert!(!html.contains("Julebord") && !html.contains("Christmas"));
