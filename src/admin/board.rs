@@ -125,9 +125,9 @@ async fn page(
         let at = |pattern: &str, post: Uuid| {
             paths::admin(&paths::path(pattern, event.id).replace("{post}", &post.to_string()))
         };
-        steps = board::threads(shown.posts, |post| {
+        steps = board::threads(shown.posts, |post, answers| {
             let mine = matches!(&post.author, Author::Host { name, .. } if **name == *host.user);
-            let mut view = PostView::new(post, t, lang, tz, true);
+            let mut view = PostView::new(post, answers, t, lang, tz, true);
             view.you = mine;
             if !mine {
                 view.vote_action = Some(at(paths::EVENT_BOARD_VOTE, post.id));
@@ -450,6 +450,28 @@ mod tests {
         assert!(html.contains(&vote(hers)), "{html}");
         assert!(!html.contains(&vote(mine.id)), "{html}");
         assert!(html.contains("hagen (Editor)"), "{html}");
+    }
+
+    #[sqlx::test]
+    async fn hosts_see_whom_a_deep_reply_answers_in_full(db: PgPool) {
+        let admin = Admin::new(db.clone());
+        let event = admin.event_id().await;
+        board::set_state(&db, event, BoardState::Open)
+            .await
+            .unwrap();
+        let ola = rsvp::create_invite(&db, event, "Ola Hansen", 1)
+            .await
+            .unwrap();
+        let mut last = None;
+        for _ in 0..=board::MAX_DEPTH + 1 {
+            let reply = board::create(&db, event, last, Writer::Guest(ola.id), "More")
+                .await
+                .unwrap()
+                .unwrap();
+            last = Some(reply);
+        }
+        let html = body(admin.get(&paths::path(paths::EVENT_BOARD, event)).await).await;
+        assert!(html.contains("↪&nbsp;Ola Hansen"), "{html}");
     }
 
     #[sqlx::test]

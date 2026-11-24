@@ -188,6 +188,7 @@ board_up = "赞成"
 board_down = "反对"
 board_score = "得分"
 board_folded = "已折叠，得分 {score}。展开"
+board_answers = "回复 {name}"
 board_deleted = "[已删除]"
 board_host = "主人"
 # A host's name and role, signing their post on the board, as "Hagen (Editor)".

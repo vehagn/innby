@@ -218,6 +218,8 @@ board_up = "Vote up"
 board_down = "Vote down"
 board_score = "Score"
 board_folded = "Folded away, with a score of {score}. Show"
+# Read out for the "↪" and name beside a reply that lines up with the post it answers.
+board_answers = "in reply to {name}"
 board_deleted = "[deleted]"
 board_host = "host"
 # A host's name and role, signing their post on the board, as "Hagen (Editor)".

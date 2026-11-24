@@ -208,6 +208,7 @@ board_up = "Stem opp"
 board_down = "Stem ned"
 board_score = "Poeng"
 board_folded = "Lagt saman, med {score} poeng. Vis"
+board_answers = "svar til {name}"
 board_deleted = "[sletta]"
 board_host = "vert"
 # A host's name and role, signing their post on the board, as "Hagen (Editor)".

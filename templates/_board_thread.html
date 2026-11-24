@@ -1,14 +1,19 @@
 {#- An event's board, as `db::board::threads` orders it: each post, then the list of its
-    replies. One with a score below zero is folded away with its replies. #}
+    replies, nested `db::board::MAX_DEPTH` deep. Deeper ones line up with the reply at
+    that depth, each saying whom it answers. One with a score below zero is folded away
+    with its replies. #}
 <ul class="thread">
   {% for step in steps %}
   {% match step %}
-  {% when crate::db::board::Step::Open with { post, collapsed } %}
+  {% when crate::db::board::Step::Open with { post, collapsed, nests } %}
   <li id="post-{{ post.id }}">
     {% if collapsed %}<details class="quiet folded"><summary>{{ crate::i18n::filled(t.board_folded, "score", post.score) }}</summary>{% endif %}
     <article class="post">
+      {#- A deleted post, kept for its replies, is signed "[deleted]", and still says whom it
+          answered when it lines up with that post. #}
+      {% let deleted = post.body.is_none() %}
+      <p class="post-by{% if deleted %} muted{% endif %}">{% if deleted %}{{ post.author }}{% else %}<strong>{{ post.author }}</strong>{% endif %}{% if post.host %} <span class="badge">{{ t.board_host }}</span>{% endif %}{% if post.you %} {{ t.you }}{% endif %}{% if let Some(answers) = post.answers %} <span class="muted"><span aria-hidden="true">↪&nbsp;{{ answers }}</span><span class="visually-hidden">{{ crate::i18n::filled(t.board_answers, "name", answers) }}</span></span>{% endif %}{% if !deleted %} <span class="muted">· {{ post.when }}</span>{% endif %}</p>
       {% if let Some(body) = post.body %}
-      <p class="post-by"><strong>{{ post.author }}</strong>{% if post.host %} <span class="badge">{{ t.board_host }}</span>{% endif %}{% if post.you %} {{ t.you }}{% endif %} <span class="muted">· {{ post.when }}</span></p>
       {#- Escaped as it's made: Markdown, with no HTML of the writer's. #}
       <div class="post-body">{{ body|safe }}</div>
       <div class="post-actions">
@@ -36,11 +41,9 @@
         </form>
       </details>
       {% endif %}
-      {% else %}
-      <p class="post-by muted">{{ t.board_deleted }}</p>
       {% endif %}
     </article>
-    <ul class="thread">
+    <ul class="thread{% if !nests %} flat{% endif %}">
   {% when crate::db::board::Step::Close with { collapsed } %}
     </ul>
     {% if collapsed %}</details>{% endif %}

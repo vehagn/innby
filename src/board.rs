@@ -79,6 +79,9 @@ pub struct PostView {
     pub author: String,
     /// Whether a host wrote it, to say so beside their name.
     pub host: bool,
+    /// Who wrote the post it answers, signed the same way, for a reply past
+    /// `db::board::MAX_DEPTH`, which lines up with that post rather than nesting under it.
+    pub answers: Option<String>,
     /// Whether the one looking did.
     pub you: bool,
     pub when: String,
@@ -98,32 +101,21 @@ pub struct PostView {
 }
 
 impl PostView {
-    /// The post, with no actions yet: its guest as the guest list shows them, or in full
-    /// for a host (`full_names`); a host by `host_signature`. Only a guest on the guest
-    /// list may post, so a post always has a name: one who leaves the list later keeps
-    /// their first name and initial on what they wrote.
-    pub fn new(post: &Post, t: &Messages, lang: Lang, tz: &TimeZone, full_names: bool) -> Self {
-        let (author, host) = match &post.author {
-            Author::Guest {
-                name,
-                response,
-                name_display,
-                ..
-            } => {
-                let shown = match full_names {
-                    true => Some(name.clone()),
-                    false => NameDisplay::listed(*response, *name_display).apply(name),
-                };
-                let unlisted = || NameDisplay::Partial.apply(name).unwrap_or_default();
-                (shown.unwrap_or_else(unlisted), false)
-            }
-            Author::Host { name, role } => (host_signature(t, name, role, full_names), true),
-            Author::Gone => (String::new(), false),
-        };
+    /// The post, with no actions yet, signed by `signature`, as is the post it answers
+    /// when `db::board::threads` gives it, past the depth replies nest to.
+    pub fn new(
+        post: &Post,
+        answers: Option<&Post>,
+        t: &Messages,
+        lang: Lang,
+        tz: &TimeZone,
+        full_names: bool,
+    ) -> Self {
         Self {
             id: post.id,
-            author,
-            host,
+            author: signature(post, t, full_names),
+            host: matches!(post.author, Author::Host { .. }),
+            answers: answers.map(|answered| signature(answered, t, full_names)),
             you: false,
             when: lang.format_date(&post.created_at.to_zoned_datetime(tz.clone())),
             body: post.body.as_deref().map(crate::markdown::to_html),
@@ -134,5 +126,30 @@ impl PostView {
             delete_action: None,
             draft: None,
         }
+    }
+}
+
+/// Who wrote a post, as the one looking may see them: a guest as the guest list shows
+/// them, or in full for a host (`full_names`); a host by `host_signature`; "[deleted]"
+/// for a post that was. Only a guest on the guest list may post, so a post always has a
+/// name: one who leaves the list later keeps their first name and initial on what they
+/// wrote.
+fn signature(post: &Post, t: &Messages, full_names: bool) -> String {
+    match &post.author {
+        Author::Guest {
+            name,
+            response,
+            name_display,
+            ..
+        } => {
+            let shown = match full_names {
+                true => Some(name.clone()),
+                false => NameDisplay::listed(*response, *name_display).apply(name),
+            };
+            let unlisted = || NameDisplay::Partial.apply(name).unwrap_or_default();
+            shown.unwrap_or_else(unlisted)
+        }
+        Author::Host { name, role } => host_signature(t, name, role, full_names),
+        Author::Gone => t.board_deleted.clone(),
     }
 }

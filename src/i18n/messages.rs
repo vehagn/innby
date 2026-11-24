@@ -205,6 +205,10 @@ pub struct Messages {
     pub board_score: String,
     /// A post folded away for its score below zero: "{score}".
     pub board_folded: String,
+    /// Read out beside a reply past the depth replies nest to, which lines up with the
+    /// post it answers, for the "↪" and name the page shows: "{name}", as the board signs
+    /// that post.
+    pub board_answers: String,
     pub board_deleted: String,
     /// Beside a host's name on the board.
     pub board_host: String,
