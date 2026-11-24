@@ -93,8 +93,9 @@ impl<'w> Browser<'w> {
         }
     }
 
+    /// Where the link with this text on the page leads.
     #[track_caller]
-    fn link(&self, text: &str) -> String {
+    pub fn link(&self, text: &str) -> String {
         let page = self.page();
         let link = page
             .doc

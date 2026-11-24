@@ -15,12 +15,13 @@
 //! ([`World::with_sso`]), which the browsers visit as they would Authelia.
 //!
 //! To add a journey, add a `#[sqlx::test]` to the file for its area: events, guests,
-//! groups, e-mail, the host, names, languages or single sign-on. `sample.rs` checks the
+//! groups, e-mail, the host, names, languages, games or single sign-on. `sample.rs` checks the
 //! sample data that `just db seed` loads.
 
 mod browser;
 mod email;
 mod events;
+mod games;
 mod groups;
 mod guests;
 mod host;
@@ -120,6 +121,67 @@ impl World {
         world.admin = admin::router(world.config.clone(), &admin_config, world.db.clone());
         world.sso = Some(fake);
         world
+    }
+
+    /// A world with minigames on `https://games.example.com`: Quick quiz, scored by
+    /// time, and Pinball, by points.
+    pub fn with_games(db: PgPool) -> Self {
+        let mut world = Self::new(db);
+        world.config = crate::config::tests::parse(&[
+            ("INNBY_GAMES_URL", "https://games.example.com"),
+            (
+                "INNBY_GAMES",
+                "quiz:time:Quick quiz; pinball:points:Pinball",
+            ),
+        ])
+        .unwrap();
+        world.site = web::router(world.config.clone(), world.db.clone());
+        let admin_config = auth::tests::admin_config();
+        world.admin = admin::router(world.config.clone(), &admin_config, world.db.clone());
+        world
+    }
+
+    /// What a game does when it's opened at this link and scores this: sends the score
+    /// with the token from the link's fragment, from the games' origin, and returns the
+    /// high score table the site answers with, or the status it refuses with.
+    pub async fn play(
+        &self,
+        link: &str,
+        score: i64,
+    ) -> Result<serde_json::Value, axum::http::StatusCode> {
+        let (page, fragment) = link.split_once('#').expect("a link with a fragment");
+        let game = page.trim_end_matches('/').rsplit('/').next().unwrap();
+        let value = |name: &str| {
+            fragment
+                .split('&')
+                .find_map(|pair| pair.strip_prefix(&format!("{name}=")))
+                .unwrap_or_else(|| panic!("no {name} in {link}"))
+        };
+        assert_eq!(value("innby"), self.site_origin());
+        let request =
+            axum::http::Request::post(format!("/api/games/{game}/scores?lang={}", value("lang")))
+                .header(axum::http::header::ORIGIN, "https://games.example.com")
+                .header("sec-fetch-site", "same-site")
+                .header(
+                    axum::http::header::AUTHORIZATION,
+                    format!("Bearer {}", value("token")),
+                )
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(axum::body::Body::from(
+                    serde_json::json!({ "score": score }).to_string(),
+                ))
+                .unwrap();
+        let response = tower::ServiceExt::oneshot(self.site.clone(), request)
+            .await
+            .unwrap();
+        if response.status() != axum::http::StatusCode::OK {
+            return Err(response.status());
+        }
+        let bytes = http_body_util::BodyExt::collect(response.into_body())
+            .await
+            .unwrap()
+            .to_bytes();
+        Ok(serde_json::from_slice(&bytes).unwrap())
     }
 
     /// A world whose admin UI is under `/admin` on the site's own hostname.
