@@ -36,7 +36,9 @@
 
   {% if accepts_answers %}
   {#- Only the answer: how many, the guest list and the host's questions are on the
-      Your details tab, which the hint below leads to. #}
+      Your details tab, which the hint below leads to. Once it's given, the form folds
+      away under a line that opens it (`RsvpPage::folded`). #}
+  {% if self.answered() %}<details class="quiet"{% if !self.folded() %} open{% endif %}><summary>{{ t.change_answer }}</summary>{% endif %}
   <form method="post" action="{{ links.page }}">
     <label class="checkbox"><input type="checkbox" name="remember" value="yes"{% if remembered %} checked{% endif %}> {{ t.remember_device }}</label>
     <p class="hint">{{ t.remember_hint }} <a href="{{ lang.privacy() }}">{{ t.privacy_link }}</a></p>
@@ -45,6 +47,7 @@
       <button name="response" value="declined" class="secondary"{% if declined %} aria-pressed="true"{% endif %}>{{ t.decline }}</button>
     </div>
   </form>
+  {% if self.answered() %}</details>{% endif %}
   <p class="hint">{{ details_hint|safe }}</p>
   <p class="hint">{{ t.keep_link }}</p>
   {% else %}

@@ -95,8 +95,11 @@ async fn a_guest_hides_their_name_then_declines(db: PgPool) {
         .expect_not("Kari")
         .expect(&t.more_guests(1));
 
-    // Then Kari can't come after all, and drops off the list.
-    kari.click(&t.tab_event).await;
+    // Then Kari can't come after all, and drops off the list. By now her answer's form is
+    // folded away under a line that opens it, though the test browser presses through.
+    kari.click(&t.tab_event)
+        .await
+        .expect_folded(&t.change_answer);
     kari.press(&t.decline)
         .await
         .expect(&t.answer(Response::Declined, 1));

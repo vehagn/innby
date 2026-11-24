@@ -97,6 +97,8 @@ people_one = "{n} person"
 people_other = "{n} people"
 attend = "I'm coming"
 decline = "I can't come"
+# Once they've answered, the form folds away under this line, which opens it.
+change_answer = "Change your answer"
 reply_by = "Answer by {deadline}"
 answers_closed = "Answers have closed. Contact the host if something has changed."
 name_heading = "Name"

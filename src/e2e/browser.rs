@@ -350,6 +350,19 @@ impl Page {
         assert!(!self.shows(text), "didn't expect {text:?} on {self}");
         self
     }
+
+    /// Fails the test unless the page folds something away under a closed `<details>`
+    /// with this summary.
+    #[track_caller]
+    pub fn expect_folded(&self, summary: &str) -> &Self {
+        let folded = self
+            .doc
+            .disclosures
+            .iter()
+            .any(|disclosure| disclosure.summary == summary && !disclosure.open);
+        assert!(folded, "expected {summary:?} folded on {self}");
+        self
+    }
 }
 
 /// A page prints as its address, status and text, for messages of failed tests.

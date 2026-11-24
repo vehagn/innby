@@ -119,6 +119,12 @@ async fn guest_joins_and_gets_their_link(db: PgPool) {
     let path = target.split('?').next().unwrap();
     assert!(html.contains(&format!(r#"value="https://fest.example.com{path}""#)));
     assert!(html.contains(&t.answer(rsvp::Response::Attending, 1)));
+    // Signing up is answering, so the answer's form is folded away, as it is straight
+    // after answering.
+    assert!(
+        html.contains(r#"<details class="quiet"><summary>"#),
+        "{html}"
+    );
     // Their page leads to where they say how many are coming.
     assert!(html.contains(&format!(r#"<a href="{path}/you?lang=en">"#)));
     let form = "party_size=2&name_display=partial";

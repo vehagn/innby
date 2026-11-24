@@ -59,6 +59,84 @@ async fn guest_answers_through_their_link(db: PgPool) {
     assert_eq!(declined.response, rsvp::Response::Declined);
 }
 
+/// The answer's form as the Event tab shows it once given: folded under its line, or
+/// open below it.
+fn answer_form(open: bool) -> String {
+    let summary = format!("<summary>{}</summary>", escape(&en().change_answer));
+    match open {
+        true => format!(r#"<details class="quiet" open>{summary}"#),
+        false => format!(r#"<details class="quiet">{summary}"#),
+    }
+}
+
+#[sqlx::test]
+async fn the_answer_folds_away_once_given(db: PgPool) {
+    let site = Site::new(db);
+    let (_, link) = site.invite("Kari", 1).await;
+    let page = format!("/r/{link}?lang=en");
+    let t = en();
+
+    // Until they answer, the form is all there is.
+    let html = body(site.get(&page).await).await;
+    assert!(html.contains(r#"value="attending""#), "{html}");
+    assert!(!html.contains(r#"<details class="quiet""#), "{html}");
+
+    // Once they have, straight after as well, the page leads with their answer, and the
+    // form folds away under a line that opens it, their button still ticked inside.
+    site.post(&page, "response=declined").await;
+    for shown in [format!("{page}&notice=saved"), page.clone()] {
+        let html = body(site.get(&shown).await).await;
+        assert!(
+            html.contains(&t.answer(rsvp::Response::Declined, 1)),
+            "{html}"
+        );
+        assert!(html.contains(&answer_form(false)), "{html}");
+        assert!(
+            html.contains(r#"value="declined" class="secondary" aria-pressed="true""#),
+            "{html}"
+        );
+    }
+
+    // Once answers close, there's nothing to open: the answer, and that they've closed.
+    site.close_answers().await;
+    let html = body(site.get(&page).await).await;
+    assert!(
+        html.contains(&t.answer(rsvp::Response::Declined, 1)),
+        "{html}"
+    );
+    assert!(html.contains(&escape(&t.answers_closed)), "{html}");
+    assert!(
+        !html.contains(r#"<details class="quiet""#) && !html.contains(r#"name="response""#),
+        "{html}"
+    );
+}
+
+#[sqlx::test]
+async fn a_new_time_or_place_opens_the_answer_until_answered_again(db: PgPool) {
+    let site = Site::new(db);
+    let (_, link) = site.invite("Kari", 1).await;
+    let page = format!("/r/{link}?lang=en");
+    let changed = escape(&en().changed_notice);
+    site.post(&page, "response=attending").await;
+
+    // The host moves the party: her page asks her to check, with the form open below.
+    let event = site.event().await;
+    let mut details = event.details;
+    details.location = "Bygdøy".to_owned();
+    crate::db::event::update(&site.db, event.id, &details)
+        .await
+        .unwrap();
+    let html = body(site.get(&page).await).await;
+    assert!(html.contains(&changed), "{html}");
+    assert!(html.contains(&answer_form(true)), "{html}");
+
+    // Answering again says she has: the notice goes, and the form folds again.
+    site.post(&page, "response=attending").await;
+    let html = body(site.get(&page).await).await;
+    assert!(!html.contains(&changed), "{html}");
+    assert!(html.contains(&answer_form(false)), "{html}");
+}
+
 #[sqlx::test]
 async fn bad_links_all_look_the_same(db: PgPool) {
     let site = Site::new(db);

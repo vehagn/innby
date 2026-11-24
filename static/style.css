@@ -533,6 +533,18 @@ main details > :not(summary) {
   margin-top: var(--space-3);
 }
 
+/* A quiet disclosure: a small grey line between rules, for what can wait until it's
+   wanted, such as changing an answer already given. It closes with a rule of its own,
+   so what follows it doesn't read as folded inside. */
+.quiet {
+  border-bottom: var(--rule) solid var(--border);
+}
+
+.quiet > summary {
+  color: var(--text-muted);
+  font-size: var(--text-s);
+}
+
 /* Facts: name and value in rows between thin rules, such as when and where. */
 .facts {
   max-width: 26rem;
