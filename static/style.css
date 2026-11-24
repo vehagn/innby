@@ -692,12 +692,14 @@ td {
   }
 
   /* A guest's few tabs, and an admin's sections, share the width, each its icon over
-     a small label, as a phone's own tab bars do, so all of them show. */
+     a small label, as a phone's own tab bars do, so all of them show. The icons keep to
+     one row, so a label that needs two lines hangs below the others. */
   .spread a,
   .admin .tabs a {
     --icon-size: 1.25rem;
     flex: 1;
     flex-direction: column;
+    justify-content: flex-start;
     padding-inline: var(--space-1);
     font-size: var(--text-xs);
     text-align: center;
