@@ -42,6 +42,8 @@ keep_link = """
 This page is yours alone. Do keep the link should you wish to change your reply, and \
 kindly don't share it."""
 # The tabs of a guest's pages, and what the bar is called for screen readers.
+reply_details = "The size of your party, how your name appears on the guest list and anything the host asks may be given under {tab}."
+details_heading = "About your reply"
 tab_reply = "Your reply"
 changed_notice = "The time or place has changed since you replied. Kindly check it above, and change your reply should you need to."
 # The event for the guest's own calendar, once they're coming: a button and a hint.
@@ -112,9 +114,10 @@ join_group = "Invited via {group}"
 join_heading = "Kindly confirm your attendance"
 # What we store and why (GDPR Art. 13), shown where the data is collected.
 join_notice = """
-We keep only your name and the size of your party, to plan the occasion. Other guests \
-see your name on the guest list as you choose above. Everything is deleted 30 days after \
-the event, and you may delete it yourself at any time."""
+We keep only your name, and the size of your party once you give it on your page, to \
+plan the occasion. Other guests see your full name on the guest list, which you may change \
+there. Everything is deleted 30 days after the event, and you may delete it yourself at \
+any time."""
 join_button = "I shall attend!"
 
 # Errors and outcomes

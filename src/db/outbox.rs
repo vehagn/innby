@@ -338,13 +338,7 @@ mod tests {
         rsvp::respond(
             &pool,
             confirmed[1].id,
-            &rsvp::Reply {
-                response: Response::Declined,
-                party_size: 1,
-                name_display: None,
-                choice: None,
-                answers: Vec::new(),
-            },
+            Response::Declined,
             Lang::NB,
             PRIVACY_VERSION,
         )

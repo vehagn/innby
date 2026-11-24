@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into rsvp (event_id, group_id, name, response, party_size, max_party_size, name_display, lang, privacy_version, responded_at, choice, sign_up_token, answers) values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now(), $9, $10, $11) on conflict (group_id, sign_up_token) where sign_up_token is not null do nothing returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice, answers ",
+  "query": "insert into rsvp (event_id, group_id, name, response, max_party_size, name_display, lang, privacy_version, responded_at, sign_up_token) values ($7, $1, $2, 'attending', $3, $4, $5, $6, now(), $8) on conflict (group_id, sign_up_token) where sign_up_token is not null do nothing returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice, answers ",
   "describe": {
     "columns": [
       {
@@ -240,7 +240,6 @@
         "Uuid",
         "Text",
         "Int4",
-        "Int4",
         {
           "Custom": {
             "name": "name_display",
@@ -256,9 +255,7 @@
         "Text",
         "Text",
         "Uuid",
-        "Int2",
-        "Text",
-        "TextArray"
+        "Text"
       ]
     },
     "nullable": [
@@ -282,5 +279,5 @@
       false
     ]
   },
-  "hash": "260cadbbe9a9d8bb7e803038f52d39885f89ab47e9321562ecaf2f70c793c8f5"
+  "hash": "258eb4e808bc375aed8599f6e57db53c5e42ae4a3510b9f2c1d8aaf8ee334b87"
 }

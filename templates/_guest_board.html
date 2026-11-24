@@ -1,14 +1,8 @@
-{% extends "base.html" %}
-
-{% block title %}{{ t.board_heading }} · {{ title }}{% endblock %}
-
-{% block content %}
-{% include "_guest_tabs.html" %}
-<h1>{{ title }}</h1>
-{% if let Some(flash) = flash %}<p class="notice success" role="status">{{ flash }}</p>{% endif %}
-{% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
-
-<section class="card" aria-label="{{ t.board_heading }}">
+{#- The event's board on a guest's reply page, below their answer (`web::board::Section`). #}
+<section class="card" id="board" aria-labelledby="board-heading">
+  <h2 id="board-heading">{{ t.board_heading }}</h2>
+  {% if let Some(flash) = flash %}<p class="notice success" role="status">{{ flash }}</p>{% endif %}
+  {% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
   <p class="hint">{{ hint }}{% if let Some(guests) = show_name %} <a href="{{ guests }}">{{ t.board_show_name }}</a>{% endif %}</p>
   {% if let Some(action) = post_action %}
   <form method="post" action="{{ action }}">
@@ -25,4 +19,3 @@
   {% endif %}
   {% include "_board_pager.html" %}
 </section>
-{% endblock %}

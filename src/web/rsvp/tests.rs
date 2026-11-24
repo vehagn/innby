@@ -18,15 +18,18 @@ async fn guest_answers_through_their_link(db: PgPool) {
     assert!(html.contains("Hei, Kari &#38; Ola!"), "{html}");
     assert!(html.contains("Du er invitert!"));
     assert!(html.contains("Ikke svart ennå"));
-    assert!(html.contains(r#"<option value="2">2 personer</option>"#));
+    // The answer is all it asks: how many and the rest are on the Your details tab,
+    // which it leads to.
+    assert!(!html.contains(r#"name="party_size""#), "{html}");
+    assert!(!html.contains(r#"name="name_display""#), "{html}");
+    let tab = escape(&Lang::NB.messages().tab_you);
+    let you = format!(r#"<a href="/r/{link}/you?lang=nb">{tab}</a>"#);
+    assert!(html.contains(&you), "{html}");
     // Neither button is their answer yet.
     assert!(!html.contains("aria-pressed"), "{html}");
 
     let response = site
-        .post(
-            &format!("/r/{link}?lang=en"),
-            "party_size=2&response=attending",
-        )
+        .post(&format!("/r/{link}?lang=en"), "response=attending")
         .await;
     assert_eq!(response.status(), StatusCode::SEE_OTHER);
     assert_eq!(
@@ -36,12 +39,13 @@ async fn guest_answers_through_their_link(db: PgPool) {
 
     let answered = site.find(&invite).await.unwrap();
     assert_eq!(answered.response, rsvp::Response::Attending);
-    assert_eq!((answered.party_size, answered.lang), (2, Lang::EN));
+    // One person until they say how many.
+    assert_eq!((answered.party_size, answered.lang), (1, Lang::EN));
     assert_eq!(answered.privacy_version.as_deref(), Some(PRIVACY_VERSION));
 
     let html = body(site.get(&format!("/r/{link}?lang=en&notice=saved")).await).await;
     assert!(html.contains(&escape(&en().saved)));
-    assert!(html.contains(&en().answer(rsvp::Response::Attending, 2)));
+    assert!(html.contains(&en().answer(rsvp::Response::Attending, 1)));
     assert!(!html.contains("You're invited!"));
     // The button that's their answer says so.
     assert!(
@@ -50,8 +54,7 @@ async fn guest_answers_through_their_link(db: PgPool) {
     );
     assert_eq!(html.matches("aria-pressed").count(), 1, "{html}");
 
-    site.post(&format!("/r/{link}"), "party_size=1&response=declined")
-        .await;
+    site.post(&format!("/r/{link}"), "response=declined").await;
     let declined = site.find(&invite).await.unwrap();
     assert_eq!(declined.response, rsvp::Response::Declined);
 }
@@ -72,9 +75,7 @@ async fn bad_links_all_look_the_same(db: PgPool) {
         // A guest who added their address can have their link sent again from there.
         assert!(html.contains(r#"href="/lost?lang=nb""#), "{html}");
     }
-    let response = site
-        .post(&format!("/r/{link}"), "party_size=1&response=attending")
-        .await;
+    let response = site.post(&format!("/r/{link}"), "response=attending").await;
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert_eq!(
         site.find(&invite).await.unwrap().response,
@@ -94,75 +95,28 @@ async fn refused_answers_keep_navigation_and_device_state(db: PgPool) {
     let (invite, link) = site.invite("Kari", 2).await;
     let page = format!("/r/{link}?lang=en");
     let cookie = format!("__Host-innby-{}={link}", invite.id.simple());
+    site.close_answers().await;
 
-    for (form, status, message) in [
-        (
-            "party_size=3&response=attending",
-            StatusCode::UNPROCESSABLE_ENTITY,
-            &en().invalid_party_size,
-        ),
-        (
-            "party_size=1&response=attending&choice=99",
-            StatusCode::UNPROCESSABLE_ENTITY,
-            &en().invalid_choice,
-        ),
-        (
-            "party_size=1&response=attending",
-            StatusCode::FORBIDDEN,
-            &en().answers_closed,
-        ),
-    ] {
-        if status == StatusCode::FORBIDDEN {
-            site.close_answers().await;
+    for remembered in [false, true] {
+        let mut request = form_post(&page, "response=attending", "same-origin");
+        if remembered {
+            request
+                .headers_mut()
+                .insert(header::COOKIE, cookie.parse().unwrap());
         }
-        for remembered in [false, true] {
-            let mut request = form_post(&page, form, "same-origin");
-            if remembered {
-                request
-                    .headers_mut()
-                    .insert(header::COOKIE, cookie.parse().unwrap());
-            }
-            let response = site.send(request).await;
-            assert_eq!(response.status(), status);
-            assert!(!response.headers().contains_key(header::SET_COOKIE));
-            let html = body(response).await;
-            assert!(html.contains(&escape(message)), "{html}");
-            for path in ["guests", "you"] {
-                assert!(
-                    html.contains(&format!(r#"href="/r/{link}/{path}?lang=en""#)),
-                    "{html}"
-                );
-            }
-            assert!(html.contains(r#"aria-current="page""#), "{html}");
-            if status != StatusCode::FORBIDDEN {
-                assert_eq!(
-                    html.contains(r#"name="remember" value="yes" checked>"#),
-                    remembered,
-                    "{html}"
-                );
-            }
+        let response = site.send(request).await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        assert!(!response.headers().contains_key(header::SET_COOKIE));
+        let html = body(response).await;
+        assert!(html.contains(&escape(&en().answers_closed)), "{html}");
+        for path in ["guests", "you"] {
+            assert!(
+                html.contains(&format!(r#"href="/r/{link}/{path}?lang=en""#)),
+                "{html}"
+            );
         }
+        assert!(html.contains(r#"aria-current="page""#), "{html}");
     }
-}
-
-#[sqlx::test]
-async fn party_size_is_limited_to_the_invitation(db: PgPool) {
-    let site = Site::new(db);
-    let (invite, link) = site.invite("Kari", 2).await;
-    for size in ["3", "0"] {
-        let response = site
-            .post(
-                &format!("/r/{link}"),
-                &format!("party_size={size}&response=attending"),
-            )
-            .await;
-        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-        assert!(body(response).await.contains("Velg et gyldig antall."));
-    }
-    assert_eq!(
-        site.find(&invite).await.unwrap().response,
-        rsvp::Response::Pending
-    );
 }
 
 #[sqlx::test]
@@ -192,9 +146,7 @@ async fn answers_close_at_the_deadline(db: PgPool) {
     // Nor is there an answer left to keep the link for changing.
     assert!(!html.contains(&escape(&Lang::NB.messages().keep_link)));
 
-    let response = site
-        .post(&format!("/r/{link}"), "party_size=1&response=attending")
-        .await;
+    let response = site.post(&format!("/r/{link}"), "response=attending").await;
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
     assert_eq!(
         site.find(&invite).await.unwrap().response,
@@ -212,12 +164,13 @@ async fn guest_list_shows_names_as_each_guest_chose(db: PgPool) {
     let guests = |link: &str| format!("/r/{link}/guests?lang=en");
 
     // Coming defaults to the full name.
-    let html = body(site.get(&format!("/r/{kari}?lang=en")).await).await;
+    let html = body(site.get(&format!("/r/{kari}/you?lang=en")).await).await;
     assert!(html.contains(&format!(
         r#"<option value="full" selected>{} (Kari Nordmann)</option>"#,
         en().display_full
     )));
     // The page a link opens has no other guest's name: link previews fetch it.
+    let html = body(site.get(&format!("/r/{kari}?lang=en")).await).await;
     assert!(!html.contains("Ola") && !html.contains("Anne"), "{html}");
     assert!(html.contains(&format!(r#"<a href="/r/{kari}/guests?lang=en">"#)));
     assert!(
@@ -225,13 +178,15 @@ async fn guest_list_shows_names_as_each_guest_chose(db: PgPool) {
             .await
             .contains("<li>Ola H.</li>")
     );
-    for (link, answer) in [
-        (&kari, "attending&name_display=full"),
-        (&ola, "attending&name_display=hidden"),
-        (&per, "declined&name_display=full"),
+    for (link, answer, display) in [
+        (&kari, "attending", "full"),
+        (&ola, "attending", "hidden"),
+        (&per, "declined", "full"),
     ] {
-        let form = format!("party_size=1&response={answer}");
-        site.post(&format!("/r/{link}"), &form).await;
+        site.post(&format!("/r/{link}"), &format!("response={answer}"))
+            .await;
+        let form = format!("party_size=1&name_display={display}");
+        site.post(&format!("/r/{link}/details"), &form).await;
     }
 
     let response = site.get(&guests(&kari)).await;
@@ -268,8 +223,8 @@ async fn guest_list_shows_names_as_each_guest_chose(db: PgPool) {
     let html = body(site.get(&guests(&ola)).await).await;
     assert!(html.contains("<li>Kari N.</li>"));
     assert!(html.contains(&escape(&t.listed_hidden)));
-    // Answering again keeps the choice the form shows.
-    let html = body(site.get(&format!("/r/{ola}?lang=en")).await).await;
+    // The form shows the choice made.
+    let html = body(site.get(&format!("/r/{ola}/you?lang=en")).await).await;
     assert!(html.contains(r#"<option value="hidden" selected>"#));
     let html = body(site.get(&guests(&per)).await).await;
     assert!(html.contains(&escape(&t.listed_declined)));
@@ -286,8 +241,9 @@ async fn guest_list_shows_who_brings_others(db: PgPool) {
     let (_, ola) = site.invite("Ola Hansen", 2).await;
     let (_, per) = site.invite("Per Berg", 3).await;
     for (link, party_size) in [(&kari, 3), (&ola, 2), (&per, 1)] {
-        let form = format!("party_size={party_size}&response=attending&name_display=full");
-        site.post(&format!("/r/{link}"), &form).await;
+        site.post(&format!("/r/{link}"), "response=attending").await;
+        let form = format!("party_size={party_size}&name_display=full");
+        site.post(&format!("/r/{link}/details"), &form).await;
     }
     site.invite("Anne Lie", 3).await;
 
@@ -329,40 +285,8 @@ async fn chinese_pages_and_names(db: PgPool) {
     assert!(html.contains("王小明，你好！"));
     assert!(html.contains("你的回复：<strong>尚未回复</strong>"));
     // Before answering, other guests see only the family name.
+    let html = body(site.get(&format!("/r/{link}/you?lang=zh-hans")).await).await;
     assert!(html.contains(r#"<option value="partial">部分姓名（王**）</option>"#));
     let html = body(site.get(&format!("/r/{link}/guests?lang=zh-hant")).await).await;
     assert!(html.contains("其他賓客看到的你：<strong>王**</strong>"));
-}
-
-#[sqlx::test]
-async fn a_pick_must_be_one_of_the_choices(db: PgPool) {
-    let site = Site::new(db);
-    let (invite, link) = site.invite("Kari", 1).await;
-    let event = site.event().await;
-    let mut details = event.details;
-    details.question.set(Lang::NB, "Hva tar du med?");
-    details.choices.set(Lang::NB, "Salat\nDessert");
-    crate::db::event::update(&site.db, event.id, &details)
-        .await
-        .unwrap();
-    let page = format!("/r/{link}?lang=en");
-    for made_up in ["2", "-1", "salad"] {
-        let form = format!("party_size=1&response=attending&choice={made_up}");
-        let response = site.post(&page, &form).await;
-        assert_eq!(
-            response.status(),
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "{made_up}"
-        );
-        assert!(body(response).await.contains(&escape(&en().invalid_choice)));
-    }
-    assert_eq!(site.find(&invite).await.unwrap().choice, None);
-
-    let form = "party_size=1&response=attending&choice=1";
-    assert_eq!(site.post(&page, form).await.status(), StatusCode::SEE_OTHER);
-    assert_eq!(site.find(&invite).await.unwrap().choice, Some(1));
-    // An empty pick takes it back.
-    let form = "party_size=1&response=attending&choice=";
-    assert_eq!(site.post(&page, form).await.status(), StatusCode::SEE_OTHER);
-    assert_eq!(site.find(&invite).await.unwrap().choice, None);
 }

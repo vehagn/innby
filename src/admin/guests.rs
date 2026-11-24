@@ -568,13 +568,22 @@ mod tests {
         rsvp::respond(
             &admin.db,
             kari.id,
-            &rsvp::Reply {
-                response: rsvp::Response::Attending,
-                party_size: 3,
-                name_display: None,
-                choice: None,
-                answers: Vec::new(),
-            },
+            rsvp::Response::Attending,
+            crate::i18n::Lang::EN,
+            crate::web::PRIVACY_VERSION,
+        )
+        .await
+        .unwrap();
+        let three = rsvp::Details {
+            party_size: 3,
+            name_display: None,
+            choice: None,
+            answers: Vec::new(),
+        };
+        rsvp::set_details(
+            &admin.db,
+            kari.id,
+            &three,
             crate::i18n::Lang::EN,
             crate::web::PRIVACY_VERSION,
         )

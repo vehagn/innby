@@ -35,9 +35,7 @@ async fn only_a_groups_current_link_works(db: PgPool) {
         let response = site.get(&format!("/join/{bad}")).await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{bad}");
         assert!(body(response).await.contains("Denne lenken virker ikke"));
-        let response = site
-            .post(&format!("/join/{bad}"), "name=Per&party_size=1")
-            .await;
+        let response = site.post(&format!("/join/{bad}"), "name=Per").await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
@@ -76,10 +74,9 @@ async fn guest_joins_and_gets_their_link(db: PgPool) {
         r#"<input type="checkbox" name="remember" value="yes"> {}"#,
         escape(&t.remember_device)
     )));
-    assert!(html.contains(&format!(
-        r#"<option value="full" selected>{}</option>"#,
-        t.display_full
-    )));
+    // A name is all it asks: how many and the rest are on the new guest's own page.
+    assert!(!html.contains(r#"name="party_size""#), "{html}");
+    assert!(!html.contains(r#"name="name_display""#), "{html}");
     // No names on the page the link opens, which link previews fetch: they're on the
     // guest list, with the invited guest who hasn't answered as "Kari N.".
     assert!(!html.contains("Kari"), "{html}");
@@ -96,7 +93,7 @@ async fn guest_joins_and_gets_their_link(db: PgPool) {
     let response = site
         .post(
             &format!("/join/{link}?lang=en"),
-            "name=+Per+Hansen+&party_size=2&name_display=partial&website=",
+            "name=+Per+Hansen+&website=",
         )
         .await;
     assert_eq!(response.status(), StatusCode::SEE_OTHER);
@@ -112,16 +109,20 @@ async fn guest_joins_and_gets_their_link(db: PgPool) {
         .unwrap();
     assert_eq!(guest.name, "Per Hansen");
     assert_eq!(guest.group_id, Some(group.id));
-    assert_eq!(guest.name_display, Some(NameDisplay::Partial));
+    assert_eq!(guest.name_display, Some(NameDisplay::Full));
     assert_eq!(guest.response, rsvp::Response::Attending);
-    assert_eq!((guest.party_size, guest.max_party_size), (2, 2));
+    assert_eq!((guest.party_size, guest.max_party_size), (1, 2));
     assert_eq!(guest.lang, Lang::EN);
 
     let html = body(site.get(&target).await).await;
     assert!(html.contains(&escape(&t.save_link_title)));
     let path = target.split('?').next().unwrap();
     assert!(html.contains(&format!(r#"value="https://fest.example.com{path}""#)));
-    assert!(html.contains(&t.answer(rsvp::Response::Attending, 2)));
+    assert!(html.contains(&t.answer(rsvp::Response::Attending, 1)));
+    // Their page leads to where they say how many are coming.
+    assert!(html.contains(&format!(r#"<a href="{path}/you?lang=en">"#)));
+    let form = "party_size=2&name_display=partial";
+    site.post(&format!("{path}/details?lang=en"), form).await;
     let html = body(site.get(&format!("{path}/guests?lang=en")).await).await;
     assert!(html.contains(&format!(
         r#"Per H. <span class="plus">+1</span> <span class="muted">{}</span>"#,
@@ -135,7 +136,7 @@ async fn a_device_remembers_the_new_guest_when_asked(db: PgPool) {
     let (_, link) = climbing_club(&site).await;
     // A sign-up to fix keeps the box as it was.
     let response = site
-        .post(&format!("/join/{link}"), "name=+&party_size=1&remember=yes")
+        .post(&format!("/join/{link}"), "name=+&remember=yes")
         .await;
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
     assert!(body(response).await.contains(r#"value="yes" checked>"#));
@@ -146,7 +147,7 @@ async fn a_device_remembers_the_new_guest_when_asked(db: PgPool) {
         let response = site
             .post(
                 &format!("/join/{link}"),
-                &format!("name={name}&party_size=1&remember=yes"),
+                &format!("name={name}&remember=yes"),
             )
             .await;
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
@@ -191,21 +192,13 @@ async fn rejects_bad_input_and_bots(db: PgPool) {
     let site = Site::new(db);
     let (_, link) = climbing_club(&site).await;
     let join = format!("/join/{link}");
-    for form in [
-        "name=Per&party_size=3",
-        "name=+&party_size=1",
-        "name=Per&party_size=1&name_display=everyone",
-    ] {
+    for form in ["name=+", "name=%09"] {
         let response = site.post(&join, form).await;
         assert_eq!(
             response.status(),
             StatusCode::UNPROCESSABLE_ENTITY,
             "{form}"
         );
-        // A choice the form doesn't have isn't the form's: no page to fix it on.
-        if form.contains("everyone") {
-            continue;
-        }
         // What to fix is by the form, below its heading, where the form's own address
         // scrolls a browser back to.
         let html = body(response).await;
@@ -216,9 +209,7 @@ async fn rejects_bad_input_and_bots(db: PgPool) {
         assert!(heading < error, "{html}");
         assert!(html.contains(r##"lang=nb#join-heading">"##), "{html}");
     }
-    let response = site
-        .post(&join, "name=Bot&party_size=1&website=http%3A%2F%2Fspam")
-        .await;
+    let response = site.post(&join, "name=Bot&website=http%3A%2F%2Fspam").await;
     assert_eq!(location(&response), "/");
     assert!(all(&site).await.is_empty());
 }
@@ -230,14 +221,11 @@ async fn limits_sign_ups_per_client(db: PgPool) {
     let join = format!("/join/{link}");
     for n in 0..10 {
         let response = site
-            .post(
-                &join,
-                &format!("name=Guest+{}&party_size=1", char::from(b'A' + n)),
-            )
+            .post(&join, &format!("name=Guest+{}", char::from(b'A' + n)))
             .await;
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
     }
-    let response = site.post(&join, "name=One+more&party_size=1").await;
+    let response = site.post(&join, "name=One+more").await;
     assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
     assert!(body(response).await.contains("For mange forsøk"));
     assert_eq!(all(&site).await.len(), 10);
@@ -254,7 +242,7 @@ async fn closes_at_the_deadline(db: PgPool) {
             .await
             .contains("Svarfristen har gått ut.")
     );
-    let response = site.post(&join, "name=Per&party_size=1").await;
+    let response = site.post(&join, "name=Per").await;
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
     assert!(all(&site).await.is_empty());
 }
@@ -273,7 +261,7 @@ async fn the_same_form_sent_twice_signs_up_once(db: PgPool) {
     assert_eq!(token.len(), 43, "{html}");
 
     // The answer to the first was lost on the way, so Per presses again.
-    let form = format!("name=Per+Hansen&party_size=1&token={token}");
+    let form = format!("name=Per+Hansen&token={token}");
     let first = site.post(&format!("/join/{link}"), &form).await;
     let again = site.post(&format!("/join/{link}"), &form).await;
     assert_eq!(first.status(), StatusCode::SEE_OTHER);
@@ -282,7 +270,7 @@ async fn the_same_form_sent_twice_signs_up_once(db: PgPool) {
 
     // A new form is a new sign-up, and so is one without a token or with a made-up one.
     for other in ["token=another-form-token-1234", "", "token=%3Cscript%3E"] {
-        let form = format!("name=Kari+Nordmann&party_size=1&{other}");
+        let form = format!("name=Kari+Nordmann&{other}");
         let response = site.post(&format!("/join/{link}"), &form).await;
         assert_eq!(response.status(), StatusCode::SEE_OTHER, "{other}");
     }

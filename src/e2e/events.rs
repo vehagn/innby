@@ -135,8 +135,10 @@ async fn the_host_runs_two_events_side_by_side(db: PgPool) {
     // Kari is coming to Christmas with one more; Per hasn't answered for the summer.
     let mut kari_phone = world.browser();
     kari_phone.open(&kari).await.expect("Christmas party");
-    kari_phone.select(&t.how_many, &t.people_count(2));
     kari_phone.press(&t.attend).await;
+    kari_phone.click(&t.tab_you).await;
+    kari_phone.select(&t.how_many, &t.people_count(2));
+    kari_phone.press(&t.details_save).await.expect(&t.saved);
 
     // Each event's guest list has only its own guests.
     kari_phone

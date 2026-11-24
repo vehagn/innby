@@ -3,7 +3,8 @@ use sqlx::PgPool;
 use super::*;
 use crate::{db::group, web::PRIVACY_VERSION};
 
-/// Signs `name` up, in English, through a new group link for up to two people.
+/// Signs `name` up, in English, through a new group link for up to two people, and
+/// says `party_size` are coming.
 pub async fn sign_up(pool: &PgPool, name: &str, party_size: i32) -> sqlx::Result<Rsvp> {
     let group = group::create(
         pool,
@@ -15,16 +16,23 @@ pub async fn sign_up(pool: &PgPool, name: &str, party_size: i32) -> sqlx::Result
     let sign_up = SignUp {
         group: &group,
         name,
-        party_size,
         name_display: NameDisplay::Full,
         lang: Lang::EN,
-        choice: None,
-        answers: &[],
         token: None,
     };
-    create_open(pool, &sign_up, PRIVACY_VERSION)
-        .await
-        .map(|(made, _)| made)
+    let (made, _) = create_open(pool, &sign_up, PRIVACY_VERSION).await?;
+    if party_size == made.party_size {
+        return Ok(made);
+    }
+    set_details(
+        pool,
+        made.id,
+        &details(party_size, &[]),
+        Lang::EN,
+        PRIVACY_VERSION,
+    )
+    .await
+    .map(|found| found.expect("just signed up"))
 }
 const CHECK_VIOLATION: &str = "23514";
 
@@ -69,12 +77,13 @@ async fn a_sign_up_belongs_to_its_groups_event(pool: PgPool) -> sqlx::Result<()>
 
 #[sqlx::test]
 async fn open_rsvp_is_attending_immediately(pool: PgPool) -> sqlx::Result<()> {
-    let rsvp = sign_up(&pool, "Per", 2).await?;
+    // For one, until they say how many.
+    let rsvp = sign_up(&pool, "Per", 1).await?;
     assert!(!rsvp.is_invitation());
     assert!(rsvp.group_id.is_some());
     assert_eq!(rsvp.name_display, Some(NameDisplay::Full));
     assert_eq!(rsvp.response, Response::Attending);
-    assert_eq!((rsvp.party_size, rsvp.lang), (2, Lang::EN));
+    assert_eq!((rsvp.party_size, rsvp.lang), (1, Lang::EN));
     assert_eq!(rsvp.privacy_version.as_deref(), Some(PRIVACY_VERSION));
     assert!(rsvp.responded_at.is_some());
     Ok(())
@@ -92,21 +101,31 @@ async fn respond_records_the_answer(pool: PgPool) -> sqlx::Result<()> {
     let answered = respond(
         &pool,
         invite.id,
-        &Reply {
-            response: Response::Attending,
-            party_size: 2,
-            name_display: None,
-            choice: None,
-            answers: Vec::new(),
-        },
+        Response::Attending,
         Lang::EN,
         PRIVACY_VERSION,
     )
     .await?
     .expect("rsvp exists");
     assert_eq!(answered.response, Response::Attending);
-    assert_eq!((answered.party_size, answered.lang), (2, Lang::EN));
+    assert_eq!((answered.party_size, answered.lang), (1, Lang::EN));
     assert!(answered.responded_at.is_some());
+
+    // The details change how many, and leave the answer and when it was given.
+    let detailed = set_details(
+        &pool,
+        invite.id,
+        &details(2, &[]),
+        Lang::NB,
+        PRIVACY_VERSION,
+    )
+    .await?
+    .expect("rsvp exists");
+    assert_eq!(
+        (detailed.response, detailed.party_size, detailed.lang),
+        (Response::Attending, 2, Lang::NB)
+    );
+    assert_eq!(detailed.responded_at, answered.responded_at);
 
     let reread = find(&pool, invite.id).await?.expect("rsvp exists");
     assert_eq!(reread.response, Response::Attending);
@@ -122,16 +141,10 @@ async fn respond_rejects_party_larger_than_invited(pool: PgPool) -> sqlx::Result
         2,
     )
     .await?;
-    let err = respond(
+    let err = set_details(
         &pool,
         invite.id,
-        &Reply {
-            response: Response::Attending,
-            party_size: 3,
-            name_display: None,
-            choice: None,
-            answers: Vec::new(),
-        },
+        &details(3, &[]),
         Lang::NB,
         PRIVACY_VERSION,
     )
@@ -146,21 +159,14 @@ async fn unknown_id_is_not_found(pool: PgPool) -> sqlx::Result<()> {
     let id = Uuid::max();
     assert!(find(&pool, id).await?.is_none());
     assert!(
-        respond(
-            &pool,
-            id,
-            &Reply {
-                response: Response::Declined,
-                party_size: 1,
-                name_display: None,
-                choice: None,
-                answers: Vec::new()
-            },
-            Lang::NB,
-            PRIVACY_VERSION
-        )
-        .await?
-        .is_none()
+        respond(&pool, id, Response::Declined, Lang::NB, PRIVACY_VERSION)
+            .await?
+            .is_none()
+    );
+    assert!(
+        set_details(&pool, id, &details(1, &[]), Lang::NB, PRIVACY_VERSION)
+            .await?
+            .is_none()
     );
     assert!(!rename(&pool, id, "Nobody").await?);
     assert!(revoke_link(&pool, id).await?.is_none());
@@ -276,13 +282,15 @@ async fn shrinking_an_invitation_shrinks_the_party(pool: PgPool) -> sqlx::Result
     respond(
         &pool,
         invite.id,
-        &Reply {
-            response: Response::Attending,
-            party_size: 4,
-            name_display: None,
-            choice: None,
-            answers: Vec::new(),
-        },
+        Response::Attending,
+        Lang::NB,
+        PRIVACY_VERSION,
+    )
+    .await?;
+    set_details(
+        &pool,
+        invite.id,
+        &details(4, &[]),
         Lang::NB,
         PRIVACY_VERSION,
     )
@@ -355,6 +363,16 @@ async fn email_requires_consent_and_status(pool: PgPool) -> sqlx::Result<()> {
     Ok(())
 }
 
+/// Details with no choices made: `party_size` coming, with these open answers.
+fn details(party_size: i32, answers: &[&str]) -> Details {
+    Details {
+        party_size,
+        name_display: None,
+        choice: None,
+        answers: answers.iter().map(|&answer| answer.to_owned()).collect(),
+    }
+}
+
 /// The guest's answers to the open questions, as stored.
 async fn stored_answers(pool: &PgPool, id: Uuid) -> sqlx::Result<Vec<String>> {
     find(pool, id).await.map(|rsvp| rsvp.unwrap().answers)
@@ -363,28 +381,21 @@ async fn stored_answers(pool: &PgPool, id: Uuid) -> sqlx::Result<Vec<String>> {
 #[sqlx::test]
 async fn answers_follow_their_questions(pool: PgPool) -> sqlx::Result<()> {
     let event = crate::db::event::tests::event(&pool).await;
-    let reply = |answers: &[&str]| Reply {
-        response: Response::Attending,
-        party_size: 1,
-        name_display: None,
-        choice: None,
-        answers: answers.iter().map(|&answer| answer.to_owned()).collect(),
-    };
     let kari = create_invite(&pool, event.id, "Kari", 1).await?;
     let per = create_invite(&pool, event.id, "Per", 1).await?;
     let ola = create_invite(&pool, event.id, "Ola", 1).await?;
-    respond(
+    set_details(
         &pool,
         kari.id,
-        &reply(&["Vi kjører", "Takk!"]),
+        &details(1, &["Vi kjører", "Takk!"]),
         Lang::NB,
         PRIVACY_VERSION,
     )
     .await?;
-    respond(
+    set_details(
         &pool,
         per.id,
-        &reply(&["", "Hei"]),
+        &details(1, &["", "Hei"]),
         Lang::NB,
         PRIVACY_VERSION,
     )
@@ -412,13 +423,14 @@ async fn answers_follow_their_questions(pool: PgPool) -> sqlx::Result<()> {
     // control character other than a line break or tab.
     let long = "x".repeat(501);
     for bad in [vec!["a"; 6], vec![long.as_str()], vec!["Vi\u{7} kjører"]] {
-        let result = respond(&pool, kari.id, &reply(&bad), Lang::NB, PRIVACY_VERSION).await;
+        let result =
+            set_details(&pool, kari.id, &details(1, &bad), Lang::NB, PRIVACY_VERSION).await;
         assert!(result.as_ref().is_err_and(is_check_violation), "{bad:?}");
     }
-    respond(
+    set_details(
         &pool,
         kari.id,
-        &reply(&["Vi kjører,\r\n\tto plasser"]),
+        &details(1, &["Vi kjører,\r\n\tto plasser"]),
         Lang::NB,
         PRIVACY_VERSION,
     )

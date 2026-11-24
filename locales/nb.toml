@@ -66,6 +66,9 @@ keep_link = """
 Dette er din personlige side. Ta vare på lenken for å endre svaret senere, og ikke del \
 den med andre."""
 # The tabs of a guest's pages, and what the bar is called for screen readers.
+reply_details = "Si hvor mange dere blir, hvordan navnet ditt vises på gjestelisten, og svar på det verten spør om under {tab}."
+details_heading = "Om svaret ditt"
+details_save = "Lagre"
 tab_reply = "Svaret ditt"
 tab_guests = "Gjestelisten"
 tab_you = "Om deg"
@@ -239,9 +242,9 @@ join_group = "Invitert via: {group}"
 join_heading = "Si at du kommer"
 # What we store and why (GDPR Art. 13), shown where the data is collected.
 join_notice = """
-Vi lagrer bare navnet ditt og hvor mange dere blir, for å planlegge festen. Andre \
-gjester ser navnet ditt på gjestelisten slik du velger over. Alt slettes 30 dager etter \
-festen, og du kan slette det selv når som helst."""
+Vi lagrer bare navnet ditt, og hvor mange dere blir når du sier det på siden din, for å \
+planlegge festen. Andre gjester ser hele navnet ditt på gjestelisten, og det kan du endre \
+der. Alt slettes 30 dager etter festen, og du kan slette det selv når som helst."""
 your_name = "Navnet ditt"
 join_button = "Jeg kommer!"
 

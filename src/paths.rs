@@ -26,12 +26,16 @@ pub const RSVP: &str = "/r/{link}";
 pub const RSVP_NAME: &str = "/r/{link}/name";
 pub const RSVP_GUESTS: &str = "/r/{link}/guests";
 pub const RSVP_GAMES: &str = "/r/{link}/games";
-/// The event's message board, and posting on it.
+/// Posting on the event's message board, which the guest's reply page shows.
 pub const RSVP_BOARD: &str = "/r/{link}/board";
 pub const RSVP_BOARD_VOTE: &str = "/r/{link}/board/{post}/vote";
 pub const RSVP_BOARD_DELETE: &str = "/r/{link}/board/{post}/delete";
-/// The guest's details: name, e-mail, this device, their data.
+/// The guest's details: what they tell the host besides their answer, their name,
+/// e-mail, this device, their data.
 pub const RSVP_YOU: &str = "/r/{link}/you";
+/// Changing how many are coming, how their name shows, and their answers to the host's
+/// questions.
+pub const RSVP_DETAILS: &str = "/r/{link}/details";
 pub const RSVP_LISTING: &str = "/r/{link}/listing";
 pub const RSVP_EXPORT: &str = "/r/{link}/export";
 pub const RSVP_CALENDAR: &str = "/r/{link}/event.ics";
@@ -196,8 +200,10 @@ pub struct GuestLinks {
     pub delete: String,
     pub export: String,
     pub games: String,
+    /// Where a post on the board goes.
     pub board: String,
     pub you: String,
+    pub details: String,
     /// The event as a calendar file, in the guest's language.
     pub calendar: String,
     pub remember: String,
@@ -219,6 +225,7 @@ impl GuestLinks {
             games: at(RSVP_GAMES),
             board: at(RSVP_BOARD),
             you: at(RSVP_YOU),
+            details: at(RSVP_DETAILS),
             calendar: at(RSVP_CALENDAR),
             remember: at(RSVP_REMEMBER),
             forget: at(RSVP_FORGET),

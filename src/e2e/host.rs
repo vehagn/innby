@@ -45,8 +45,9 @@ async fn the_host_edits_a_guest_and_replaces_a_leaked_link(db: PgPool) {
     kari.open(&old).await.expect(&t.gone_title);
     kari.open(&new)
         .await
-        .expect(&filled(&t.greeting, "name", "Kari & Ola Nordmann"))
-        .expect(&t.people_count(2));
+        .expect(&filled(&t.greeting, "name", "Kari & Ola Nordmann"));
+    // Two may come now, which Kari says on her details tab.
+    kari.click(&t.tab_you).await.expect(&t.people_count(2));
 
     // The QR code and the CSV carry the new link.
     let qr = host.download(&a.qr_download).await;

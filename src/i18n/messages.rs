@@ -60,6 +60,12 @@ pub struct Messages {
     /// Shown until the guest has answered: what we store and why (GDPR Art. 13/14).
     pub first_visit_notice: String,
     pub keep_link: String,
+    /// Under the answer's buttons: where the rest is, with `{tab}` a link to it.
+    pub reply_details: String,
+    /// The Your details tab's form for what isn't the answer: how many, the guest list,
+    /// the host's questions; its heading and button.
+    pub details_heading: String,
+    pub details_save: String,
     /// The tabs of a guest's pages, and the bar's name for screen readers.
     pub tab_reply: String,
     pub tab_guests: String,
@@ -70,7 +76,7 @@ pub struct Messages {
     pub changed_notice: String,
     /// The empty pick for the host's question.
     pub choice_none: String,
-    /// Under the open questions on the answer and sign-up forms.
+    /// Under the open questions on the Your details tab.
     pub open_answers_hint: String,
     pub calendar_hint: String,
     pub add_to_calendar: String,

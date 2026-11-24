@@ -1,6 +1,7 @@
 //! A guest's personal pages under `/r/{link}`, their tabs: the reply (the event, the
-//! answer and the calendar) and the guest list here, the games in `games`, and their
-//! details in `you`. `Guest` finds the guest behind a link for all of them.
+//! calendar, coming or not, and the message board below, from `board`) and the guest
+//! list here, the games in `games`, and their details in `you`, with how many are coming
+//! and the host's questions. `Guest` finds the guest behind a link for all of them.
 
 use askama::Template;
 use axum::{
@@ -13,13 +14,10 @@ use jiff::Timestamp;
 use serde::Deserialize;
 
 use super::{
-    AppState, PRIVACY_VERSION, games,
+    AppState, PRIVACY_VERSION, board, games,
     pages::{Page, PageError},
     remember,
-    views::{
-        DisplayChoice, EventView, FormPage, GuestList, GuestTab, GuestsPage, OpenQuestion,
-        PartySize, Question, SentAnswers, YourListing, guest_tabs,
-    },
+    views::{EventView, FormPage, GuestList, GuestTab, GuestsPage, YourListing, guest_tabs},
 };
 use crate::{
     db::{
@@ -28,7 +26,7 @@ use crate::{
         rsvp::{self, NameDisplay, Rsvp},
     },
     http::{cookie, render},
-    i18n::{Asked, Lang, Messages, Offer},
+    i18n::{Asked, Lang, Messages, Offer, escape_html, fill},
     icons::TabLink,
     link::{IdLink, Purpose},
     paths::{self, GuestLinks},
@@ -119,7 +117,7 @@ impl Guest {
         })
     }
 
-    /// The guest's tabs, with Games and Board only when the event has them for guests.
+    /// The guest's tabs, with Games only when the event offers any.
     pub(super) fn tabs(
         &self,
         state: &AppState,
@@ -127,13 +125,7 @@ impl Guest {
         current: GuestTab,
     ) -> Vec<TabLink> {
         let games = games::offers_any(state, self);
-        guest_tabs(
-            self.lang.messages(),
-            links,
-            games,
-            self.board.for_guests(),
-            current,
-        )
+        guest_tabs(self.lang.messages(), links, games, current)
     }
 }
 
@@ -151,14 +143,9 @@ pub(super) struct RsvpPage<'a> {
     attending: bool,
     /// Whether they've said they aren't: the answer's button shows which is theirs.
     declined: bool,
-    party_sizes: Vec<PartySize>,
-    /// The host's question, with the guest's pick, if the event asks one.
-    question: Option<Question>,
-    /// The open questions, with the guest's answers.
-    open_questions: Vec<OpenQuestion>,
-    /// For the answer form: the guest's choice, or their full name if they haven't made
-    /// one, since that's the default once they're coming.
-    display_choices: Vec<DisplayChoice>,
+    /// Where to say how many are coming and answer the host's questions: the Your
+    /// details tab, as a link in a sentence, in HTML.
+    details_hint: String,
     first_visit: bool,
     /// Whether the event's time or place changed after they answered.
     changed: bool,
@@ -173,6 +160,8 @@ pub(super) struct RsvpPage<'a> {
     remembered: bool,
     tabs: Vec<TabLink>,
     error: Option<&'static str>,
+    /// The event's message board, below the answer, when it's for guests.
+    pub(super) board: Option<board::Section>,
 }
 
 impl<'a> RsvpPage<'a> {
@@ -180,9 +169,14 @@ impl<'a> RsvpPage<'a> {
         let lang = guest.lang;
         let t = lang.messages();
         let rsvp = &guest.rsvp;
-        let chosen = rsvp.name_display.unwrap_or(NameDisplay::Full);
         let links = GuestLinks::new(&guest.link, lang);
         let tabs = guest.tabs(state, &links, GuestTab::Reply);
+        let tab = format!(
+            r#"<a href="{}">{}</a>"#,
+            escape_html(&links.you),
+            escape_html(&t.tab_you)
+        );
+        let details_hint = fill(&escape_html(&t.reply_details), &[("tab", &tab)]);
         Self {
             lang,
             t,
@@ -192,10 +186,7 @@ impl<'a> RsvpPage<'a> {
             status: t.answer(rsvp.response, rsvp.party_size),
             attending: rsvp.response == rsvp::Response::Attending,
             declined: rsvp.response == rsvp::Response::Declined,
-            party_sizes: PartySize::choices(t, rsvp.max_party_size, rsvp.party_size),
-            question: Question::new(&guest.event.details, lang, rsvp.choice),
-            open_questions: OpenQuestion::all(&guest.event.details, lang, &rsvp.answers),
-            display_choices: DisplayChoice::choices(t, Some(&rsvp.name), chosen),
+            details_hint,
             first_visit: rsvp.privacy_version.is_none(),
             changed: matches!(
                 (guest.event.changed_at, rsvp.responded_at),
@@ -208,6 +199,7 @@ impl<'a> RsvpPage<'a> {
             remembered: remember::remembers(headers, state.config.is_https(), guest),
             tabs,
             error: None,
+            board: None,
         }
     }
 }
@@ -293,6 +285,8 @@ pub struct ShowQuery {
     pub(super) notice: Option<String>,
     /// Set right after a group sign-up.
     new: Option<String>,
+    /// The board's page, from 1.
+    page: Option<usize>,
 }
 
 pub async fn show(
@@ -300,16 +294,23 @@ pub async fn show(
     guest: Guest,
     headers: HeaderMap,
     Query(query): Query<ShowQuery>,
-) -> Response {
+) -> Page {
     let mut page = RsvpPage::new(&state, &guest, &headers);
+    let number = crate::board::page_number(query.page);
+    page.board = board::section(&state, &guest, number, None).await?;
     let notice = query.notice.as_deref().and_then(Notice::from_code);
-    page.flash = notice.map(|notice| notice.text(page.t));
+    let flash = notice.map(|notice| notice.text(page.t));
+    // What a post did is said on the board, where the guest is.
+    match (notice, &mut page.board) {
+        (Some(Notice::Posted | Notice::PostDeleted), Some(board)) => board.flash = flash,
+        _ => page.flash = flash,
+    }
     page.celebrate = guest.rsvp.response == rsvp::Response::Attending
         && (matches!(notice, Some(Notice::Saved)) || query.new.is_some());
     page.new_link = query
         .new
         .map(|_| state.config.url(&paths::path(paths::RSVP, &guest.link)));
-    render(page)
+    Ok(render(page))
 }
 
 /// The guest list, with how the guest shows up in it.
@@ -341,38 +342,13 @@ pub enum Answer {
     Declined,
 }
 
+/// Coming or not, as the reply page sends it; how many and the rest are on the Your
+/// details tab (`you::details`).
 #[derive(Deserialize)]
 pub struct AnswerForm {
     response: Answer,
-    party_size: i32,
-    name_display: Option<NameDisplay>,
     /// Ticked to have this device remember the guest; see `remember`.
     remember: Option<String>,
-    /// Their pick for the host's question: empty for none.
-    choice: Option<String>,
-    /// Their answers to the open questions, a field each; see `OpenQuestion::parse`.
-    #[serde(default)]
-    answer_0: String,
-    #[serde(default)]
-    answer_1: String,
-    #[serde(default)]
-    answer_2: String,
-    #[serde(default)]
-    answer_3: String,
-    #[serde(default)]
-    answer_4: String,
-}
-
-impl AnswerForm {
-    fn answers(&self) -> SentAnswers<'_> {
-        [
-            &self.answer_0,
-            &self.answer_1,
-            &self.answer_2,
-            &self.answer_3,
-            &self.answer_4,
-        ]
-    }
 }
 
 pub async fn answer(
@@ -383,37 +359,18 @@ pub async fn answer(
 ) -> Page {
     let lang = guest.lang;
     let https = state.config.is_https();
-    // Shown again to fix, with the box as this device has it.
-    let refuse = |status, pick: fn(&'static Messages) -> &'static str| -> Page {
-        Ok(RsvpPage::new(&state, &guest, &headers).render_error(status, pick))
-    };
     if !guest.event.details.accepts_answers(Timestamp::now()) {
-        return refuse(StatusCode::FORBIDDEN, |t| &t.answers_closed);
+        let mut page = RsvpPage::new(&state, &guest, &headers);
+        page.board = board::section(&state, &guest, 0, None).await?;
+        return Ok(page.render_error(StatusCode::FORBIDDEN, |t| &t.answers_closed));
     }
-    if !(1..=guest.rsvp.max_party_size).contains(&form.party_size) {
-        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size);
-    }
-    let Ok(choice) = Question::parse(&guest.event.details, form.choice.as_deref()) else {
-        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_choice);
-    };
-    let Ok(answers) = OpenQuestion::parse(&guest.event.details, form.answers()) else {
-        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_answer);
-    };
-
     let response = match form.response {
         Answer::Attending => rsvp::Response::Attending,
         Answer::Declined => rsvp::Response::Declined,
     };
     let id = guest.rsvp.id;
-    let reply = rsvp::Reply {
-        response,
-        party_size: form.party_size,
-        name_display: form.name_display,
-        choice,
-        answers,
-    };
     // None if they were deleted in the meantime.
-    rsvp::respond(&state.db, id, &reply, lang, PRIVACY_VERSION)
+    rsvp::respond(&state.db, id, response, lang, PRIVACY_VERSION)
         .await?
         .ok_or(PageError::Gone(lang))?;
     tracing::info!(rsvp = %id, ?response, "rsvp answered");

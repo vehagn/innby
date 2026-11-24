@@ -101,7 +101,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        db::rsvp::{Reply, create_invite, respond, set_name_display, tests::sign_up},
+        db::rsvp::{
+            Details, create_invite, respond, set_details, set_name_display, tests::sign_up,
+        },
         i18n::Lang,
         web::PRIVACY_VERSION,
     };
@@ -122,20 +124,14 @@ mod tests {
             1,
         )
         .await?;
-        respond(
-            &pool,
-            ola.id,
-            &Reply {
-                response: Response::Declined,
-                party_size: 1,
-                name_display: Some(NameDisplay::Full),
-                choice: None,
-                answers: Vec::new(),
-            },
-            Lang::NB,
-            PRIVACY_VERSION,
-        )
-        .await?;
+        respond(&pool, ola.id, Response::Declined, Lang::NB, PRIVACY_VERSION).await?;
+        let details = Details {
+            party_size: 1,
+            name_display: Some(NameDisplay::Full),
+            choice: None,
+            answers: Vec::new(),
+        };
+        set_details(&pool, ola.id, &details, Lang::NB, PRIVACY_VERSION).await?;
         assert!(set_name_display(&pool, kari.id, NameDisplay::Hidden).await?);
 
         let [listed] = guest_list(&pool, crate::db::event::tests::event(&pool).await.id)
@@ -151,13 +147,7 @@ mod tests {
         let answered = respond(
             &pool,
             kari.id,
-            &Reply {
-                response: Response::Attending,
-                party_size: 1,
-                name_display: None,
-                choice: None,
-                answers: Vec::new(),
-            },
+            Response::Attending,
             Lang::NB,
             PRIVACY_VERSION,
         )
@@ -189,17 +179,18 @@ mod tests {
         respond(
             &pool,
             family.id,
-            &Reply {
-                response: Response::Attending,
-                party_size: 3,
-                name_display: None,
-                choice: None,
-                answers: Vec::new(),
-            },
+            Response::Attending,
             Lang::NB,
             PRIVACY_VERSION,
         )
         .await?;
+        let details = Details {
+            party_size: 3,
+            name_display: None,
+            choice: None,
+            answers: Vec::new(),
+        };
+        set_details(&pool, family.id, &details, Lang::NB, PRIVACY_VERSION).await?;
         let busy = create_invite(
             &pool,
             crate::db::event::tests::event(&pool).await.id,
@@ -210,13 +201,7 @@ mod tests {
         respond(
             &pool,
             busy.id,
-            &Reply {
-                response: Response::Declined,
-                party_size: 1,
-                name_display: None,
-                choice: None,
-                answers: Vec::new(),
-            },
+            Response::Declined,
             Lang::NB,
             PRIVACY_VERSION,
         )

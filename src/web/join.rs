@@ -1,6 +1,8 @@
 //! Group sign-up at `/join/{link}`: the host makes a link per group of people, and anyone
 //! with it can say they're coming with just a name, and gets their own RSVP link back,
-//! which their device can remember, as on their page. Each form carries a token of its
+//! which their device can remember, as on their page. How many are coming, how their
+//! name shows and the host's questions they answer there, on the Your details tab, as
+//! every guest does: the sign-up asks no more than a reply. Each form carries a token of its
 //! own, so the same form sent twice, as when the answer to the first was lost on the
 //! way, leads to the first sign-up rather than making a second.
 
@@ -18,10 +20,7 @@ use super::{
     AppState, PRIVACY_VERSION,
     pages::{Page, PageError},
     remember,
-    views::{
-        DisplayChoice, EventView, FormPage, GuestList, GuestsPage, OpenQuestion, PartySize,
-        Question, SentAnswers,
-    },
+    views::{EventView, FormPage, GuestList, GuestsPage},
 };
 use crate::{
     db::{
@@ -46,12 +45,6 @@ struct JoinPage<'a> {
     /// This form's own token, so sending it twice signs up once.
     token: String,
     name: &'a str,
-    party_sizes: Vec<PartySize>,
-    display_choices: Vec<DisplayChoice>,
-    /// The host's question, if the event asks one.
-    question: Option<Question>,
-    /// The open questions, with what was answered if the form comes back.
-    open_questions: Vec<OpenQuestion>,
     guests_link: String,
     accepts_answers: bool,
     /// Whether "remember me on this device" is ticked, as it was sent.
@@ -71,11 +64,6 @@ impl<'a> JoinPage<'a> {
             action: paths::localized(&paths::path(paths::JOIN, link), lang),
             token: crate::random::token(),
             name: "",
-            party_sizes: PartySize::choices(t, group.max_party_size, 1),
-            // Signing up means coming, and coming shows the full name unless chosen otherwise.
-            display_choices: DisplayChoice::choices(t, None, NameDisplay::Full),
-            question: Question::new(&joining.event.details, lang, None),
-            open_questions: OpenQuestion::all(&joining.event.details, lang, &[]),
             guests_link: paths::localized(&paths::path(paths::JOIN_GUESTS, link), lang),
             accepts_answers: joining.event.details.accepts_answers(Timestamp::now()),
             remember: false,
@@ -157,40 +145,13 @@ pub async fn guests(State(state): State<AppState>, asked: Asked, Path(link): Pat
 #[derive(Deserialize)]
 pub struct JoinForm {
     name: String,
-    party_size: i32,
-    name_display: Option<NameDisplay>,
     /// Ticked to have this device remember the new guest's link; see `remember`.
     remember: Option<String>,
-    /// Their pick for the host's question: empty for none.
-    choice: Option<String>,
-    /// Their answers to the open questions, a field each; see `OpenQuestion::parse`.
-    #[serde(default)]
-    answer_0: String,
-    #[serde(default)]
-    answer_1: String,
-    #[serde(default)]
-    answer_2: String,
-    #[serde(default)]
-    answer_3: String,
-    #[serde(default)]
-    answer_4: String,
     /// The form's token; see `JoinPage::token`.
     token: Option<String>,
     /// Hidden from people; bots fill it in.
     #[serde(default)]
     website: String,
-}
-
-impl JoinForm {
-    fn answers(&self) -> SentAnswers<'_> {
-        [
-            &self.answer_0,
-            &self.answer_1,
-            &self.answer_2,
-            &self.answer_3,
-            &self.answer_4,
-        ]
-    }
 }
 
 pub async fn join(
@@ -207,10 +168,8 @@ pub async fn join(
         tracing::info!("group sign-up honeypot triggered");
         return Ok(Redirect::to("/").into_response());
     }
-    let name_display = form.name_display.unwrap_or(NameDisplay::Full);
     let mut page = JoinPage::new(lang, &joining, &link);
     page.name = &form.name;
-    page.display_choices = DisplayChoice::choices(page.t, None, name_display);
     page.remember = form.remember.is_some();
     // A token as the form has it, or none from a made-up request: then there's
     // nothing to find a first sign-up by.
@@ -222,16 +181,6 @@ pub async fn join(
         // Shown again to fix, it's still the same form.
         token.clone_into(&mut page.token);
     }
-    let picked = Question::parse(&joining.event.details, form.choice.as_deref());
-    page.question = Question::new(&joining.event.details, lang, picked.unwrap_or(None));
-    let answers = OpenQuestion::parse(&joining.event.details, form.answers());
-    // Shown again as sent, if they can't be kept, so nothing typed is lost.
-    let shown: Vec<String> = form.answers().iter().map(|&a| a.to_owned()).collect();
-    page.open_questions = OpenQuestion::all(
-        &joining.event.details,
-        lang,
-        answers.as_deref().unwrap_or(&shown),
-    );
     if !page.accepts_answers {
         return Ok(render_with(StatusCode::FORBIDDEN, page));
     }
@@ -240,15 +189,6 @@ pub async fn join(
     };
     let Some(name) = rsvp::normalize_name(&form.name, rsvp::NameKind::Person) else {
         return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_name);
-    };
-    if !(1..=group.max_party_size).contains(&form.party_size) {
-        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size);
-    }
-    let Ok(choice) = picked else {
-        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_choice);
-    };
-    let Ok(answers) = answers else {
-        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_answer);
     };
     // Only valid submissions count, so a typo doesn't use up a household's allowance.
     if !state.join_limiter.check(client) {
@@ -259,11 +199,9 @@ pub async fn join(
     let sign_up = SignUp {
         group,
         name: &name,
-        party_size: form.party_size,
-        name_display,
+        // Signing up means coming, and coming shows the full name unless chosen otherwise.
+        name_display: NameDisplay::Full,
         lang,
-        choice,
-        answers: &answers,
         token,
     };
     let (rsvp, created) = rsvp::create_open(&state.db, &sign_up, PRIVACY_VERSION).await?;

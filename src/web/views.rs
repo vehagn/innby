@@ -225,7 +225,8 @@ impl YourListing {
     }
 }
 
-/// The host's question, as the answer and sign-up forms ask it (`_question.html`).
+/// The host's question, as the Your details tab and the sign-up form ask it
+/// (`_question.html`).
 pub struct Question {
     pub text: String,
     pub choices: Vec<Choice>,
@@ -271,8 +272,8 @@ impl Question {
     }
 }
 
-/// One of the event's open questions with the guest's answer, as the answer and
-/// sign-up forms ask it (`_open_questions.html`).
+/// One of the event's open questions with the guest's answer, as the Your details tab
+/// and the sign-up form ask it (`_open_questions.html`).
 pub struct OpenQuestion {
     /// The form field the answer comes back in: `answer_0` for the first, and so on.
     pub field: String,
@@ -336,17 +337,15 @@ pub enum GuestTab {
     Reply,
     Guests,
     Games,
-    Board,
     You,
 }
 
-/// The guest's tabs, with Games only when the event offers any, and Board only when its
-/// board is for guests (`_guest_tabs.html`).
+/// The guest's tabs, with Games only when the event offers any (`_guest_tabs.html`). The
+/// message board has none: it's on the reply, below the answer.
 pub fn guest_tabs(
     t: &'static Messages,
     links: &crate::paths::GuestLinks,
     games: bool,
-    board: bool,
     current: GuestTab,
 ) -> Vec<TabLink> {
     [
@@ -370,13 +369,6 @@ pub fn guest_tabs(
             &t.games_heading,
             icons::GAMEPAD,
             games,
-        ),
-        (
-            GuestTab::Board,
-            &links.board,
-            &t.board_heading,
-            icons::SPEECH,
-            board,
         ),
         (GuestTab::You, &links.you, &t.tab_you, icons::PERSON, true),
     ]

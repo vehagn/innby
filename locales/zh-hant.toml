@@ -59,6 +59,9 @@ first_visit_notice = """
 後刪除。在賓客名單上，其他賓客會看到你的部分姓名，你也可以選擇他們看到什麼。"""
 keep_link = "這是你的個人頁面。請保存好連結，以便日後修改回覆，不要分享給別人。"
 # The tabs of a guest's pages, and what the bar is called for screen readers.
+reply_details = "在{tab}裡填寫同行人數、你在賓客名單上的名字顯示方式，以及回答主人的問題。"
+details_heading = "關於你的回覆"
+details_save = "儲存"
 tab_reply = "你的回覆"
 tab_guests = "賓客名單"
 tab_you = "你的資料"
@@ -213,8 +216,8 @@ join_group = "邀請來自：{group}"
 join_heading = "告訴我們你會來"
 # What we store and why (GDPR Art. 13), shown where the data is collected.
 join_notice = """
-我們只儲存你的姓名和同行人數，用於籌備聚會。其他賓客會依你在上方的選擇看到你的名字。所有內容會在聚會結\
-束 30 天後刪除，你也可以隨時自行刪除。"""
+我們只儲存你的姓名，以及你之後在自己頁面上填寫的同行人數，用於籌備聚會。其他賓客會在賓客名單上看到你的全名，你可\
+以在那裡更改。所有內容會在聚會結束 30 天後刪除，你也可以隨時自行刪除。"""
 your_name = "你的姓名"
 join_button = "我會參加！"
 

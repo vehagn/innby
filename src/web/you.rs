@@ -1,7 +1,9 @@
-//! The Your details tab of a guest's pages, `/r/{link}/you`: their name, their e-mail
-//! address, whether this device remembers them, and their data to download or delete.
-//! The forms for the address and the device are handled in `email` and `remember`, and
-//! come back here.
+//! The Your details tab of a guest's pages, `/r/{link}/you`: what they tell the host
+//! besides whether they're coming (how many, how their name shows on the guest list, the
+//! host's questions), their name, their e-mail address, whether this device remembers
+//! them, and their data to download or delete. Their reply page asks only whether
+//! they're coming, so it stays one tap. The forms for the address and the device are
+//! handled in `email` and `remember`, and come back here.
 
 use askama::Template;
 use axum::{
@@ -10,17 +12,18 @@ use axum::{
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
 };
+use jiff::Timestamp;
 use serde::Deserialize;
 
 use super::{
-    AppState,
+    AppState, PRIVACY_VERSION,
     pages::{MessagePage, Page, PageError},
     remember,
     rsvp::{Guest, Notice, ShowQuery},
-    views::{FormPage, GuestTab},
+    views::{DisplayChoice, FormPage, GuestTab, OpenQuestion, PartySize, Question, SentAnswers},
 };
 use crate::{
-    db::rsvp::{self, EmailStatus, Rsvp},
+    db::rsvp::{self, EmailStatus, NameDisplay, Rsvp},
     http::{cookie, render},
     i18n::{Lang, Messages},
     icons::TabLink,
@@ -36,6 +39,16 @@ pub(super) struct YouPage<'a> {
     tabs: Vec<TabLink>,
     links: GuestLinks,
     rsvp: &'a Rsvp,
+    /// Whether the details may still change: not after the event's answers close.
+    accepts_answers: bool,
+    party_sizes: Vec<PartySize>,
+    /// The guest's choice, or their full name if they haven't made one, since that's
+    /// the default once they're coming.
+    display_choices: Vec<DisplayChoice>,
+    /// The host's question, with the guest's pick, if the event asks one.
+    question: Option<Question>,
+    /// The open questions, with the guest's answers.
+    open_questions: Vec<OpenQuestion>,
     email_confirmed: bool,
     /// Whether this device remembers the guest.
     remembered: bool,
@@ -49,13 +62,20 @@ impl<'a> YouPage<'a> {
     pub(super) fn new(state: &AppState, lang: Lang, guest: &'a Guest, headers: &HeaderMap) -> Self {
         let t = lang.messages();
         let links = GuestLinks::new(&guest.link, lang);
+        let (rsvp, event) = (&guest.rsvp, &guest.event.details);
+        let chosen = rsvp.name_display.unwrap_or(NameDisplay::Full);
         Self {
             lang,
             t,
-            title: guest.event.details.title(lang),
+            title: event.title(lang),
             tabs: guest.tabs(state, &links, GuestTab::You),
             links,
-            rsvp: &guest.rsvp,
+            rsvp,
+            accepts_answers: event.accepts_answers(Timestamp::now()),
+            party_sizes: PartySize::choices(t, rsvp.max_party_size, rsvp.party_size),
+            display_choices: DisplayChoice::choices(t, Some(&rsvp.name), chosen),
+            question: Question::new(event, lang, rsvp.choice),
+            open_questions: OpenQuestion::all(event, lang, &rsvp.answers),
             email_confirmed: guest.rsvp.email_status == EmailStatus::Confirmed,
             remembered: remember::remembers(headers, state.config.is_https(), guest),
             flash: None,
@@ -80,6 +100,88 @@ pub async fn show(
     let mut page = YouPage::new(&state, lang, &guest, &headers);
     page.flash = Notice::flash(query.notice.as_deref(), page.t);
     render(page)
+}
+
+#[derive(Deserialize)]
+pub struct DetailsForm {
+    party_size: i32,
+    name_display: Option<NameDisplay>,
+    /// Their pick for the host's question: empty for none.
+    choice: Option<String>,
+    /// Their answers to the open questions, a field each; see `OpenQuestion::parse`.
+    #[serde(default)]
+    answer_0: String,
+    #[serde(default)]
+    answer_1: String,
+    #[serde(default)]
+    answer_2: String,
+    #[serde(default)]
+    answer_3: String,
+    #[serde(default)]
+    answer_4: String,
+}
+
+impl DetailsForm {
+    fn answers(&self) -> SentAnswers<'_> {
+        [
+            &self.answer_0,
+            &self.answer_1,
+            &self.answer_2,
+            &self.answer_3,
+            &self.answer_4,
+        ]
+    }
+}
+
+/// Changes how many are coming, how the guest's name shows on the guest list, and their
+/// answers to the host's questions, leaving whether they're coming as it is. None is
+/// needed before a "coming" counts: a guest who says so and no more is one person, with
+/// nothing picked or answered.
+pub async fn details(
+    State(state): State<AppState>,
+    guest: Guest,
+    headers: HeaderMap,
+    Form(form): Form<DetailsForm>,
+) -> Page {
+    let lang = guest.lang;
+    let event = &guest.event.details;
+    let refuse = |status, pick: fn(&'static Messages) -> &'static str| -> Page {
+        let mut page = YouPage::new(&state, lang, &guest, &headers);
+        // Shown again as sent, so nothing typed is lost.
+        let sent: Vec<String> = form.answers().iter().map(|&a| a.to_owned()).collect();
+        page.open_questions = OpenQuestion::all(event, lang, &sent);
+        Ok(page.render_error(status, pick))
+    };
+    if !event.accepts_answers(Timestamp::now()) {
+        return refuse(StatusCode::FORBIDDEN, |t| &t.answers_closed);
+    }
+    if !(1..=guest.rsvp.max_party_size).contains(&form.party_size) {
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_party_size);
+    }
+    let Ok(choice) = Question::parse(event, form.choice.as_deref()) else {
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_choice);
+    };
+    let Ok(answers) = OpenQuestion::parse(event, form.answers()) else {
+        return refuse(StatusCode::UNPROCESSABLE_ENTITY, |t| &t.invalid_answer);
+    };
+    // The form preselects the full name for a guest who hasn't chosen, as that's what
+    // coming shows. Left so, the choice stays unmade: a guest who hasn't answered yet
+    // goes on showing as first name and initial, as they would have before saving.
+    let name_display = match (guest.rsvp.name_display, form.name_display) {
+        (None, Some(NameDisplay::Full)) => None,
+        (_, sent) => sent,
+    };
+    let details = rsvp::Details {
+        party_size: form.party_size,
+        name_display,
+        choice,
+        answers,
+    };
+    rsvp::set_details(&state.db, guest.rsvp.id, &details, lang, PRIVACY_VERSION)
+        .await?
+        .ok_or(PageError::Gone(lang))?;
+    tracing::info!(rsvp = %guest.rsvp.id, "rsvp details changed");
+    Ok(Notice::Saved.redirect(paths::RSVP_YOU, &guest.link, lang))
 }
 
 #[derive(Deserialize)]

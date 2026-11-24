@@ -1,16 +1,17 @@
-//! The Board tab of a guest's pages, `/r/{link}/board`: the event's message board, when
-//! its hosts have it on for guests (`db::board::BoardState`). Guests read and vote on
+//! The event's message board on a guest's reply page, `/r/{link}`, below their answer,
+//! when its hosts have it on for guests (`db::board::BoardState`). Guests read and vote on
 //! what hosts post, and when it's open post and reply too, signed as the guest list
 //! shows them, in a little Markdown (`crate::markdown`), so many an hour. Nobody posts
 //! anonymously: a guest who isn't on the guest list, having hidden their name or said
 //! they aren't coming, reads and votes but doesn't post. A guest may delete their own
-//! posts; hosts any, in the admin UI.
+//! posts; hosts any, in the admin UI. The page itself is `rsvp`'s; this is its board
+//! (`Section`), and the forms on it.
 
 use askama::Template;
 use axum::{
     Form,
-    extract::{Path, Query, State},
-    http::StatusCode,
+    extract::{Path, State},
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Redirect, Response},
 };
 use serde::Deserialize;
@@ -19,28 +20,24 @@ use uuid::Uuid;
 use super::{
     AppState,
     pages::Page,
-    rsvp::{Guest, Notice},
-    views::GuestTab,
+    rsvp::{Guest, Notice, RsvpPage},
 };
 use crate::{
-    board::{Pager, PostView, page_number, refusal},
+    board::{Pager, PostView, refusal},
     db::{
         board::{self, Author, Refused, Step, Voter, Writer},
         rsvp::{NameDisplay, Response as Answer},
     },
-    http::{render, render_with},
-    i18n::{Lang, Messages, filled},
-    icons::TabLink,
+    http::render_with,
+    i18n::{Messages, filled},
     paths::{self, GuestLinks},
 };
 
+/// The board as the reply page shows it, below the answer.
 #[derive(Template)]
-#[template(path = "board.html")]
-struct BoardPage {
-    lang: Lang,
+#[template(path = "_guest_board.html")]
+pub(super) struct Section {
     t: &'static Messages,
-    title: String,
-    tabs: Vec<TabLink>,
     /// What the guest may do here.
     hint: &'static str,
     /// The guest list, where a guest who hid their name may show it to post.
@@ -51,12 +48,14 @@ struct BoardPage {
     pager: Option<Pager>,
     /// A new thread that couldn't be posted, to try again.
     draft: String,
-    flash: Option<&'static str>,
+    /// What a post or a deletion did, here rather than at the top of the page, which
+    /// the guest has scrolled away from.
+    pub(super) flash: Option<&'static str>,
     error: Option<String>,
 }
 
 /// A post that couldn't be posted: its text, and what it answered.
-struct Draft {
+pub(super) struct Draft {
     parent: Option<Uuid>,
     body: String,
 }
@@ -67,29 +66,34 @@ fn listed(guest: &Guest) -> bool {
     guest.rsvp.listed() != NameDisplay::Hidden
 }
 
-/// The board's page `number`, from 0, as `paths::RSVP_BOARD` with `?page=`, and maybe a
-/// notice and a post to show.
+/// The reply page with the board's page `number`, from 0, as `paths::RSVP` with
+/// `?page=`, and maybe a notice, scrolled to a post or else to the board.
 fn url(guest: &Guest, number: usize, notice: Option<Notice>, post: Option<Uuid>) -> String {
-    let mut url = GuestLinks::new(&guest.link, guest.lang).board;
+    let mut url = GuestLinks::new(&guest.link, guest.lang).page;
     if number > 0 {
         url.push_str(&format!("&page={}", number + 1));
     }
     if let Some(notice) = notice {
         url.push_str(&format!("&notice={}", notice.code()));
     }
-    if let Some(post) = post {
-        url.push_str(&format!("#post-{post}"));
+    match post {
+        Some(post) => url.push_str(&format!("#post-{post}")),
+        None => url.push_str("#board"),
     }
     url
 }
 
-async fn page(
+/// The board's page `number` for `guest`, if the board is for guests, with a post that
+/// couldn't be posted kept to try again.
+pub(super) async fn section(
     state: &AppState,
     guest: &Guest,
     number: usize,
     draft: Option<Draft>,
-    flash: Option<&'static str>,
-) -> sqlx::Result<BoardPage> {
+) -> sqlx::Result<Option<Section>> {
+    if !guest.board.for_guests() {
+        return Ok(None);
+    }
     let (lang, t) = (guest.lang, guest.lang.messages());
     let links = GuestLinks::new(&guest.link, lang);
     let open = guest.board.guests_post() && listed(guest);
@@ -139,45 +143,22 @@ async fn page(
         (false, true, Answer::Declined) => (t.board_hint_declined.as_str(), None),
         (false, true, _) => (t.board_hint_unlisted.as_str(), Some(links.guests.clone())),
     };
-    Ok(BoardPage {
-        lang,
+    Ok(Some(Section {
         t,
-        title: guest.event.details.title(lang).to_owned(),
-        tabs: guest.tabs(state, &links, GuestTab::Board),
         hint,
         show_name,
         post_action: open.then(|| links.board.clone()),
         steps,
         pager,
         draft: thread_draft,
-        flash,
+        flash: None,
         error: None,
-    })
+    }))
 }
 
 /// Back to the guest's reply when the board isn't for guests.
 fn no_board(guest: &Guest) -> Response {
     Redirect::to(&GuestLinks::new(&guest.link, guest.lang).page).into_response()
-}
-
-#[derive(Deserialize)]
-pub struct BoardQuery {
-    notice: Option<String>,
-    /// From 1.
-    page: Option<usize>,
-}
-
-pub async fn show(
-    State(state): State<AppState>,
-    guest: Guest,
-    Query(query): Query<BoardQuery>,
-) -> Page {
-    if !guest.board.for_guests() {
-        return Ok(no_board(&guest));
-    }
-    let flash = Notice::flash(query.notice.as_deref(), guest.lang.messages());
-    let number = page_number(query.page);
-    Ok(render(page(&state, &guest, number, None, flash).await?))
 }
 
 #[derive(Deserialize)]
@@ -193,6 +174,7 @@ pub struct PostForm {
 pub async fn create(
     State(state): State<AppState>,
     guest: Guest,
+    headers: HeaderMap,
     Form(form): Form<PostForm>,
 ) -> Page {
     if !guest.board.guests_post() {
@@ -212,7 +194,15 @@ pub async fn create(
             body: form.body,
         };
         let error = t.board_error_unlisted.clone();
-        return Ok(refuse(&state, &guest, draft, StatusCode::FORBIDDEN, error).await?);
+        return Ok(refuse(
+            &state,
+            &guest,
+            &headers,
+            draft,
+            StatusCode::FORBIDDEN,
+            error,
+        )
+        .await?);
     }
     let Some(body) = board::body(&form.body) else {
         let draft = Draft {
@@ -223,6 +213,7 @@ pub async fn create(
         return Ok(refuse(
             &state,
             &guest,
+            &headers,
             draft,
             StatusCode::UNPROCESSABLE_ENTITY,
             error,
@@ -234,7 +225,15 @@ pub async fn create(
     if !state.board_limiter.check_guest(guest.rsvp.id) {
         let draft = Draft { parent, body };
         let error = t.board_error_busy.clone();
-        return Ok(refuse(&state, &guest, draft, StatusCode::TOO_MANY_REQUESTS, error).await?);
+        return Ok(refuse(
+            &state,
+            &guest,
+            &headers,
+            draft,
+            StatusCode::TOO_MANY_REQUESTS,
+            error,
+        )
+        .await?);
     }
     let writer = Writer::Guest(guest.rsvp.id);
     let id = match board::create(&state.db, guest.event.id, parent, writer, &body).await? {
@@ -245,7 +244,7 @@ pub async fn create(
             let draft = Draft { parent, body };
             let error = refusal(t, refused);
             let status = StatusCode::UNPROCESSABLE_ENTITY;
-            return Ok(refuse(&state, &guest, draft, status, error).await?);
+            return Ok(refuse(&state, &guest, &headers, draft, status, error).await?);
         }
     };
     tracing::info!(rsvp = %guest.rsvp.id, post = %id, "posted on the board");
@@ -254,10 +253,12 @@ pub async fn create(
     Ok(Redirect::to(&to).into_response())
 }
 
-/// The board again, with the post kept to try again and why it wasn't posted.
+/// The reply page again, with the post kept on its board to try again and why it
+/// wasn't posted.
 async fn refuse(
     state: &AppState,
     guest: &Guest,
+    headers: &HeaderMap,
     draft: Draft,
     status: StatusCode,
     error: String,
@@ -267,8 +268,11 @@ async fn refuse(
         Some(parent) => board::page_of(&state.db, guest.event.id, parent).await?,
         None => 0,
     };
-    let mut page = page(state, guest, number, Some(draft), None).await?;
-    page.error = Some(error);
+    let mut page = RsvpPage::new(state, guest, headers);
+    page.board = section(state, guest, number, Some(draft)).await?;
+    if let Some(board) = &mut page.board {
+        board.error = Some(error);
+    }
     Ok(render_with(status, page))
 }
 

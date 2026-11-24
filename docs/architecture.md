@@ -20,13 +20,17 @@ explains why it's built this way, and [development.md](development.md) how to wo
 
 **A guest** opens their personal link (`/r/{link}`). Nothing else is needed: no account,
 no password, no e-mail address. Their pages are tabs, each a page of its own under the
-link: **Your reply** (the event and the answer), **Guest list**, **Games** when the event
-offers any, **Board** when its board is on for guests, and **Your details** (name,
-e-mail, this device, their data). There they:
+link: **Your reply** (the event, its calendar file once they're coming, the answer, and
+below it the message board when it's on for guests), **Guest list**, **Games** when the
+event offers any, and **Your details** (how many are coming and the rest of their answer,
+name, e-mail, this device, their data). The reply asks only whether they're coming, with
+the box to have the device remember them, so answering is one tap; the rest waits on
+Your details, and nothing there is needed for a "coming" to count: until they say
+otherwise they're one person, with nothing picked or answered. There they:
 
-- answer **Attending** or **Can't come**, with how many are coming, and the host's own
-  question if the event asks one, by picking one of its choices, and any open
-  questions it asks, in their own words;
+- answer **Attending** or **Can't come** on Your reply, and on Your details say how many
+  are coming, and answer the host's own question if the event asks one, by picking one
+  of its choices, and any open questions it asks, in their own words;
 - choose how their name shows on the guest list: in full, as first name and initial, or
   not at all;
 - see the guest list, on a page of its own (`/r/{link}/guests`);
@@ -38,16 +42,18 @@ e-mail, this device, their data). There they:
   ([below](#the-front-page-and-remembered-devices));
 - play the minigames the host offers, if any, each with a high score table
   ([games.md](games.md));
-- read the event's message board, if the host has one on, and vote posts up or down;
+- read the event's message board below their answer, if the host has one on, and vote
+  posts up or down;
   where it's open to guests, post and reply too while their name is on the guest list,
   signed with it as the list shows it, and delete their own posts
   ([below](#the-message-board));
 - change any of it until the event, rename themselves once an hour, download everything
   kept about them as JSON, or delete it all.
 
-Someone with a **group link** (`/join/{link}`) types their name and party size, answers
-the host's question and open questions if there are any, may have the device remember them, and is then sent
-to a personal link of their own, with a reminder to keep it. The form carries a random
+Someone with a **group link** (`/join/{link}`) types their name, may have the device
+remember them, and is then sent to a personal link of their own, coming, with a reminder
+to keep it; there, as any guest, they say how many are coming and answer the host's
+questions on Your details. The form carries a random
 token of its own: sent again, as when the answer to the first was lost on the way, it
 leads to that first sign-up rather than making a second.
 

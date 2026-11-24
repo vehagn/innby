@@ -33,10 +33,16 @@ async fn an_invited_household_answers_and_shows_on_the_guest_list(db: PgPool) {
         .expect(&filled(&t.greeting, "name", "Kari Nordmann"))
         .expect(&t.answer_pending);
     kari.page().expect(t.first_visit_notice.trim());
-    kari.select(&t.how_many, &t.people_count(3));
     kari.press(&t.attend)
         .await
         .expect(&t.saved)
+        .expect(&t.answer(Response::Attending, 1));
+    // How many is on her details tab, which the reply leads to.
+    kari.click(&t.tab_you).await.expect(&t.details_heading);
+    kari.select(&t.how_many, &t.people_count(3));
+    kari.press(&t.details_save).await.expect(&t.saved);
+    kari.click(&t.tab_reply)
+        .await
         .expect(&t.answer(Response::Attending, 3));
 
     // The guest list shows the household with the two Kari brings, and the
@@ -194,9 +200,11 @@ async fn the_host_asks_a_question_and_sees_what_guests_pick(db: PgPool) {
     // Kari brings dessert.
     let link = world.invite("Kari", 1).await;
     let mut kari = world.browser();
-    kari.open(&link).await.expect("What will you bring?");
-    kari.select("What will you bring?", "Dessert");
+    kari.open(&link).await.expect_not("What will you bring?");
     kari.press(&t.attend).await.expect(&t.saved);
+    kari.click(&t.tab_you).await.expect("What will you bring?");
+    kari.select("What will you bring?", "Dessert");
+    kari.press(&t.details_save).await.expect(&t.saved);
 
     // Per signs up through a group link, with a salad.
     host.click(&a.section_invitations).await;
@@ -206,9 +214,11 @@ async fn the_host_asks_a_question_and_sees_what_guests_pick(db: PgPool) {
     let group_link = host.value(&filled(&a.link_for, "name", "Climbing club"));
     let mut per = world.browser();
     per.open(&group_link).await;
-    per.fill(&t.your_name, "Per Hansen")
-        .select("What will you bring?", "Salad");
+    per.fill(&t.your_name, "Per Hansen");
     per.press(&t.join_button).await.expect(&t.save_link_title);
+    per.click(&t.tab_you).await;
+    per.select("What will you bring?", "Salad");
+    per.press(&t.details_save).await.expect(&t.saved);
 
     // The host sees who brings what, and gets it in the CSV.
     host.click(&a.guests)
@@ -232,7 +242,8 @@ async fn the_host_asks_a_question_and_sees_what_guests_pick(db: PgPool) {
     host.click(&a.guests)
         .await
         .expect("What will you bring?: Salad 0 · Dessert 0 · Drinks 0");
-    let page = kari.open(&link).await;
+    kari.open(&link).await;
+    let page = kari.click(&t.tab_you).await;
     let none = format!(r#"<option value="" selected>{}</option>"#, t.choice_none);
     assert!(page.body.contains(&none), "{}", page.body);
 }
@@ -258,9 +269,11 @@ async fn the_host_asks_open_questions_and_reads_the_answers(db: PgPool) {
     // Kari answers the first and leaves the second blank; her page keeps what she wrote.
     let link = world.invite("Kari", 1).await;
     let mut kari = world.browser();
-    kari.open(&link).await.expect(&t.open_answers_hint);
-    kari.fill("Who drives?", "  We do, with room for two.  ");
+    kari.open(&link).await;
     kari.press(&t.attend).await.expect(&t.saved);
+    kari.click(&t.tab_you).await.expect(&t.open_answers_hint);
+    kari.fill("Who drives?", "  We do, with room for two.  ");
+    kari.press(&t.details_save).await.expect(&t.saved);
     assert_eq!(kari.value("Who drives?"), "We do, with room for two.");
     assert_eq!(kari.value("A word for the hosts?"), "");
 
@@ -272,16 +285,21 @@ async fn the_host_asks_open_questions_and_reads_the_answers(db: PgPool) {
     let group_link = host.value(&filled(&a.link_for, "name", "Climbing club"));
     let mut per = world.browser();
     per.open(&group_link).await;
-    per.fill(&t.your_name, "Per Hansen")
-        .fill("A word for the hosts?", "Thanks!");
+    per.fill(&t.your_name, "Per Hansen");
     per.press(&t.join_button).await.expect(&t.save_link_title);
+    per.click(&t.tab_you).await;
+    per.fill("A word for the hosts?", "Thanks!");
+    per.press(&t.details_save).await.expect(&t.saved);
 
     // An answer too long is refused, and what was typed is shown again to shorten.
     let mut eve = world.browser();
     eve.open(&group_link).await;
+    eve.fill(&t.your_name, "Eve");
+    eve.press(&t.join_button).await;
+    eve.click(&t.tab_you).await;
     let long = "x".repeat(501);
-    eve.fill(&t.your_name, "Eve").fill("Who drives?", &long);
-    eve.press(&t.join_button).await.expect(&t.invalid_answer);
+    eve.fill("Who drives?", &long);
+    eve.press(&t.details_save).await.expect(&t.invalid_answer);
     assert_eq!(eve.value("Who drives?"), long);
 
     // The host reads them on the Guests tab and in the CSV.
@@ -324,5 +342,40 @@ async fn the_host_asks_open_questions_and_reads_the_answers(db: PgPool) {
         .expect("We do, with room for two.")
         .expect_not("Thanks!");
     kari.open(&link).await;
+    kari.click(&t.tab_you).await;
     assert_eq!(kari.value("Who drives?"), "We do, with room for two.");
+}
+
+#[sqlx::test]
+async fn a_guest_answers_and_writes_on_the_board_from_one_page(db: PgPool) {
+    let world = World::new(db);
+    let t = en();
+    let event = world.event().await;
+    crate::db::board::set_state(&world.db, event.id, crate::db::board::BoardState::Open)
+        .await
+        .unwrap();
+    let link = world.invite("Kari Nordmann", 1).await;
+
+    // The board is below the answer, on the page her link opens, not a tab of its own.
+    let mut kari = world.browser();
+    kari.open(&link)
+        .await
+        .expect(&t.board_heading)
+        .expect(&t.board_empty);
+    assert!(
+        !kari
+            .page()
+            .doc
+            .links
+            .iter()
+            .any(|l| l.text == t.board_heading),
+        "no Board tab"
+    );
+    kari.press(&t.attend).await.expect(&t.saved);
+    kari.fill(&t.board_new, "Who brings cake?");
+    kari.press(&t.board_send)
+        .await
+        .expect(&t.board_posted)
+        .expect("Who brings cake?")
+        .expect(&t.answer(Response::Attending, 1));
 }

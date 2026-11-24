@@ -214,24 +214,21 @@ pub async fn create_invite(
     .await
 }
 
-/// What someone gives when they sign up through a group's link.
+/// What someone gives when they sign up through a group's link: who they are, and no
+/// more. How many are coming and the rest they give later, as `Details`.
 pub struct SignUp<'a> {
     pub group: &'a Group,
     pub name: &'a str,
-    pub party_size: i32,
     pub name_display: NameDisplay,
     pub lang: Lang,
-    /// Their pick for the host's question, if the event asks one.
-    pub choice: Option<i16>,
-    /// Their answers to the open questions; see `Rsvp::answers`.
-    pub answers: &'a [String],
     /// The sign-up form's token: sent again, it finds this sign-up, not another.
     pub token: Option<&'a str>,
 }
 
-/// Creates an RSVP through a group link, which is "attending" from the start. A form
-/// whose token made one already gets that one instead, with `false`: its first answer
-/// was lost on the way, or the guest pressed twice.
+/// Creates an RSVP through a group link, which is "attending" from the start, for one
+/// person until they say otherwise. A form whose token made one already gets that one
+/// instead, with `false`: its first answer was lost on the way, or the guest pressed
+/// twice.
 pub async fn create_open(
     db: &PgPool,
     sign_up: &SignUp<'_>,
@@ -241,23 +238,19 @@ pub async fn create_open(
         return Ok((made, false));
     }
     let made = query_rsvp!(
-        "insert into rsvp (event_id, group_id, name, response, party_size, \
-            max_party_size, name_display, lang, privacy_version, responded_at, choice, \
-            sign_up_token, answers) \
-         values ($8, $1, $2, 'attending', $3, $4, $5, $6, $7, now(), $9, $10, $11) \
+        "insert into rsvp (event_id, group_id, name, response, max_party_size, \
+            name_display, lang, privacy_version, responded_at, sign_up_token) \
+         values ($7, $1, $2, 'attending', $3, $4, $5, $6, now(), $8) \
          on conflict (group_id, sign_up_token) where sign_up_token is not null \
          do nothing" returning,
         sign_up.group.id,
         sign_up.name,
-        sign_up.party_size,
         sign_up.group.max_party_size,
         sign_up.name_display as NameDisplay,
         sign_up.lang as Lang,
         privacy_version,
         sign_up.group.event_id,
-        sign_up.choice,
         sign_up.token,
-        sign_up.answers,
     )
     .fetch_optional(db)
     .await?;
@@ -413,12 +406,32 @@ pub async fn list(db: impl PgExecutor<'_>, event_id: Uuid) -> sqlx::Result<Vec<R
         .await
 }
 
-/// Records the guest's answer, and their choice for the guest list if they made one. A
-/// party size outside `1..=max_party_size` violates a check constraint, so callers
-/// validate it first.
-/// A guest's answer, as their page sends it.
-pub struct Reply {
-    pub response: Response,
+/// Records the guest's answer: coming or not. Everything else they tell the host is in
+/// `Details`, which they change apart from it.
+pub async fn respond(
+    db: impl PgExecutor<'_>,
+    id: Uuid,
+    response: Response,
+    lang: Lang,
+    privacy_version: &str,
+) -> sqlx::Result<Option<Rsvp>> {
+    query_rsvp!(
+        "update rsvp \
+         set response = $2, lang = $3, privacy_version = $4, responded_at = now() \
+         where id = $1" returning,
+        id,
+        response as Response,
+        lang as Lang,
+        privacy_version,
+    )
+    .fetch_optional(db)
+    .await
+}
+
+/// What a guest tells the host besides whether they're coming, as their Your details tab
+/// sends it. A party size outside `1..=max_party_size` violates a check constraint, so
+/// callers validate it first.
+pub struct Details {
     pub party_size: i32,
     /// How their name shows on the guest list; none keeps what they chose before.
     pub name_display: Option<NameDisplay>,
@@ -428,27 +441,27 @@ pub struct Reply {
     pub answers: Vec<String>,
 }
 
-pub async fn respond(
+/// Records the guest's details, leaving their answer and when they gave it as they are:
+/// how many are coming changes nothing about whether they are.
+pub async fn set_details(
     db: impl PgExecutor<'_>,
     id: Uuid,
-    reply: &Reply,
+    details: &Details,
     lang: Lang,
     privacy_version: &str,
 ) -> sqlx::Result<Option<Rsvp>> {
     query_rsvp!(
         "update rsvp \
-         set response = $2, party_size = $3, name_display = coalesce($4, name_display), \
-            lang = $5, privacy_version = $6, responded_at = now(), choice = $7, \
-            answers = $8 \
+         set party_size = $2, name_display = coalesce($3, name_display), lang = $4, \
+            privacy_version = $5, choice = $6, answers = $7 \
          where id = $1" returning,
         id,
-        reply.response as Response,
-        reply.party_size,
-        reply.name_display as Option<NameDisplay>,
+        details.party_size,
+        details.name_display as Option<NameDisplay>,
         lang as Lang,
         privacy_version,
-        reply.choice,
-        &reply.answers,
+        details.choice,
+        &details.answers,
     )
     .fetch_optional(db)
     .await

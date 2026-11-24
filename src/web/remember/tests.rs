@@ -159,12 +159,12 @@ async fn the_answer_remembers_the_device_only_when_its_box_is_ticked(db: PgPool)
     let html = body(site.get(&page).await).await;
     assert!(html.contains(&format!("{checkbox}>")), "{html}");
     assert!(!html.contains("/remember?"), "{html}");
-    let response = answer("response=attending&party_size=1", "").await;
+    let response = answer("response=attending", "").await;
     assert_eq!(location(&response), format!("{page}&notice=saved"));
     assert!(set_cookies(&response).is_empty());
 
     // Ticked, the answer remembers the device, and the box shows it.
-    let response = answer("response=attending&party_size=1&remember=yes", "").await;
+    let response = answer("response=attending&remember=yes", "").await;
     let [set] = set_cookies(&response)[..] else {
         panic!("one cookie")
     };
@@ -176,7 +176,7 @@ async fn the_answer_remembers_the_device_only_when_its_box_is_ticked(db: PgPool)
     assert!(html.contains(&format!("{checkbox} checked>")), "{html}");
 
     // Unticked again, it forgets it.
-    let response = answer("response=declined&party_size=1", &cookie).await;
+    let response = answer("response=declined", &cookie).await;
     assert!(set_cookies(&response)[0].contains("Max-Age=0"));
 
     // Once answers close there's no answer to tick it on, but the guest's details

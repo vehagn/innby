@@ -16,13 +16,15 @@ async fn set(site: &Site, state: BoardState) {
 async fn the_board_is_for_guests_only_when_its_hosts_say(db: PgPool) {
     let site = Site::new(db);
     let (_, link) = site.invite("Kari Nordmann", 1).await;
+    let page = format!("/r/{link}?lang=en");
     let board = format!("/r/{link}/board?lang=en");
     for state in [BoardState::Off, BoardState::Hidden] {
         set(&site, state).await;
-        let html = body(site.get(&format!("/r/{link}?lang=en")).await).await;
+        let html = body(site.get(&page).await).await;
         assert!(!html.contains(&format!("/r/{link}/board")), "{html}");
-        let response = site.get(&board).await;
-        assert_eq!(location(&response), format!("/r/{link}?lang=en"));
+        assert!(!html.contains(r#"id="board""#), "{html}");
+        // It has no tab of its own, nor a page: it's on the reply, below the answer.
+        assert!(!html.contains(&escape(&en().board_heading)), "{html}");
     }
 
     // Hosts post; guests read and vote, but don't post.
@@ -37,8 +39,15 @@ async fn the_board_is_for_guests_only_when_its_hosts_say(db: PgPool) {
         .await
         .unwrap()
         .unwrap();
-    let html = body(site.get(&board).await).await;
+    let html = body(site.get(&page).await).await;
     assert!(html.contains("Welcome!"), "{html}");
+    // Below the answer's buttons, and not a tab.
+    let answer = html.find(r#"value="attending""#).unwrap();
+    assert!(html.find(r#"id="board""#).unwrap() > answer, "{html}");
+    assert!(
+        !html.contains(&format!(r#"href="/r/{link}/board"#)),
+        "{html}"
+    );
     let signed = fill(
         &en().board_signed,
         &[("name", &"hagen"), ("role", &en().admin.role_editor)],
@@ -69,11 +78,15 @@ async fn guests_post_reply_and_vote_on_an_open_board(db: PgPool) {
     assert_eq!(response.status(), StatusCode::SEE_OTHER);
     let to = location(&response).to_owned();
     let (page, anchor) = to.split_once('#').unwrap();
-    assert_eq!(page, format!("/r/{kari}/board?lang=en&notice=posted"));
+    assert_eq!(page, format!("/r/{kari}?lang=en&notice=posted"));
+    // Said on the board, where Kari is, rather than at the top of the page.
+    let html = body(site.get(page).await).await;
+    let said = html.find(&escape(&en().board_posted)).unwrap();
+    assert!(said > html.find(r#"id="board""#).unwrap(), "{html}");
     let post = anchor.strip_prefix("post-").unwrap();
 
     // Ola sees it signed as the guest list shows Kari, who hasn't answered yet.
-    let html = body(site.get(&format!("/r/{ola}/board?lang=en")).await).await;
+    let html = body(site.get(&format!("/r/{ola}?lang=en")).await).await;
     assert!(html.contains("Who brings cake?"), "{html}");
     assert!(html.contains("Kari N."), "{html}");
     assert!(!html.contains("Nordmann"), "{html}");
@@ -89,7 +102,7 @@ async fn guests_post_reply_and_vote_on_an_open_board(db: PgPool) {
         .await;
     assert_eq!(response.status(), StatusCode::SEE_OTHER);
     site.post(&vote, "vote=down").await;
-    let html = body(site.get(&format!("/r/{kari}/board?lang=en")).await).await;
+    let html = body(site.get(&format!("/r/{kari}?lang=en")).await).await;
     assert!(html.contains(r#"<details class="folded">"#), "{html}");
     assert!(html.contains("I do"), "{html}");
     // Kari can't vote on her own post, but can delete it.
@@ -102,7 +115,7 @@ async fn guests_post_reply_and_vote_on_an_open_board(db: PgPool) {
         "{html}"
     );
     site.post(&vote, "vote=down").await;
-    let html = body(site.get(&format!("/r/{kari}/board?lang=en")).await).await;
+    let html = body(site.get(&format!("/r/{kari}?lang=en")).await).await;
     assert!(!html.contains(r#"class="folded""#), "{html}");
 }
 
@@ -121,18 +134,15 @@ async fn a_guest_off_the_guest_list_reads_and_votes_but_does_not_post(db: PgPool
     // Ola hides his name from the guest list; Per isn't coming, so isn't on it.
     site.post(&format!("/r/{ola}/listing?lang=en"), "name_display=hidden")
         .await;
-    site.post(
-        &format!("/r/{per}?lang=en"),
-        "party_size=1&response=declined",
-    )
-    .await;
+    site.post(&format!("/r/{per}?lang=en"), "response=declined")
+        .await;
 
     for (link, hint) in [
         (&ola, &en().board_hint_unlisted),
         (&per, &en().board_hint_declined),
     ] {
         let board = format!("/r/{link}/board?lang=en");
-        let html = body(site.get(&board).await).await;
+        let html = body(site.get(&format!("/r/{link}?lang=en")).await).await;
         assert!(html.contains("Cake?"), "{html}");
         assert!(html.contains(&escape(hint)), "{html}");
         assert!(!html.contains(r#"name="body""#), "{html}");
@@ -175,14 +185,11 @@ async fn a_post_keeps_a_name_when_its_guest_leaves_the_guest_list(db: PgPool) {
     set(&site, BoardState::Open).await;
     let (_, kari) = site.invite("Kari Nordmann", 1).await;
     let (_, ola) = site.invite("Ola Hansen", 1).await;
-    site.post(
-        &format!("/r/{kari}?lang=en"),
-        "party_size=1&response=attending",
-    )
-    .await;
+    site.post(&format!("/r/{kari}?lang=en"), "response=attending")
+        .await;
     site.post(&format!("/r/{kari}/board?lang=en"), "body=Bringing+cake")
         .await;
-    let board = format!("/r/{ola}/board?lang=en");
+    let board = format!("/r/{ola}?lang=en");
     let html = body(site.get(&board).await).await;
     assert!(html.contains("Kari Nordmann"), "{html}");
 
@@ -192,8 +199,7 @@ async fn a_post_keeps_a_name_when_its_guest_leaves_the_guest_list(db: PgPool) {
         "?lang=en&response=declined",
     ] {
         let (path, form) = leave.split_once('&').unwrap();
-        let form = format!("party_size=1&{form}");
-        site.post(&format!("/r/{kari}{path}"), &form).await;
+        site.post(&format!("/r/{kari}{path}"), form).await;
         let html = body(site.get(&board).await).await;
         assert!(html.contains("Bringing cake"), "{html}");
         assert!(html.contains("Kari N."), "{leave}: {html}");
@@ -223,7 +229,7 @@ async fn a_guest_deletes_only_their_own_posts(db: PgPool) {
         .await;
     assert_eq!(
         location(&response),
-        format!("/r/{kari_link}/board?lang=en&notice=post_deleted")
+        format!("/r/{kari_link}?lang=en&notice=post_deleted#board")
     );
     assert_eq!(board::count(&site.db, event).await.unwrap(), 0);
 }
@@ -256,7 +262,7 @@ async fn posts_are_markdown_and_never_html(db: PgPool) {
         &format!("body={}", text.replace(' ', "+").replace('\n', "%0A")),
     )
     .await;
-    let html = body(site.get(&board).await).await;
+    let html = body(site.get(&format!("/r/{link}?lang=en")).await).await;
     assert!(
         html.contains("<strong>Cake</strong> at &#60;b&#62;8&#60;/b&#62;"),
         "{html}"
@@ -313,13 +319,13 @@ async fn a_long_board_has_pages_and_a_vote_stays_on_its_own(db: PgPool) {
         first.get_or_insert(post);
     }
     let first = first.unwrap();
-    let html = body(site.get(&format!("/r/{ola}/board?lang=en")).await).await;
+    let html = body(site.get(&format!("/r/{ola}?lang=en")).await).await;
     assert!(
-        html.contains(&escape(&format!("/r/{ola}/board?lang=en&page=2"))),
+        html.contains(&escape(&format!("/r/{ola}?lang=en&page=2#board"))),
         "{html}"
     );
     assert!(!html.contains("Post 0<"), "{html}");
-    let html = body(site.get(&format!("/r/{ola}/board?lang=en&page=2")).await).await;
+    let html = body(site.get(&format!("/r/{ola}?lang=en&page=2")).await).await;
     assert!(html.contains("Post 0<"), "{html}");
 
     // Voted down, it stays on the second page, and the vote leads back there.
@@ -328,6 +334,6 @@ async fn a_long_board_has_pages_and_a_vote_stays_on_its_own(db: PgPool) {
         .await;
     assert_eq!(
         location(&response),
-        format!("/r/{ola}/board?lang=en&page=2#post-{first}")
+        format!("/r/{ola}?lang=en&page=2#post-{first}")
     );
 }

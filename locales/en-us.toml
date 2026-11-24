@@ -39,6 +39,8 @@ all deleted 30 days after the party. Other guests see your first name and initia
 guest list. You can change that."""
 keep_link = "This is your page. Keep the link to change your answer. Don't share it."
 # The tabs of a guest's pages, and what the bar is called for screen readers.
+reply_details = "Say how many are coming, and more, under {tab}."
+details_heading = "About your RSVP"
 tab_reply = "Your RSVP"
 tab_you = "Your info"
 tabs_label = "Your invite"
@@ -111,8 +113,9 @@ join_group = "Invited with: {group}"
 join_heading = "RSVP"
 # What we store and why (GDPR Art. 13), shown where the data is collected.
 join_notice = """
-We only save your name and how many are coming. Others see your name the way you pick \
-above. It's deleted 30 days after the party, or anytime you want."""
+We only save your name, and how many are coming once you say on your page. Others see \
+your full name, which you can change there. It's deleted 30 days after the party, or \
+anytime you want."""
 join_button = "I'm going!"
 
 # Errors and outcomes

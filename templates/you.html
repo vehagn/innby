@@ -8,6 +8,25 @@
 {% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
 <h1>{{ title }}</h1>
 
+<section class="card" aria-labelledby="details-heading">
+  <h2 id="details-heading">{{ t.details_heading }}</h2>
+  {% if accepts_answers %}
+  <form method="post" action="{{ links.details }}">
+    {% if party_sizes.len() > 1 %}
+    {% include "_party_size.html" %}
+    {% else %}
+    <input type="hidden" name="party_size" value="1">
+    {% endif %}
+    {% include "_name_display.html" %}
+    {% include "_question.html" %}
+    {% include "_open_questions.html" %}
+    <button class="secondary">{{ t.details_save }}</button>
+  </form>
+  {% else %}
+  <p class="muted">{{ t.answers_closed }}</p>
+  {% endif %}
+</section>
+
 <section class="card" aria-labelledby="name-heading">
   <h2 id="name-heading">{{ t.name_heading }}</h2>
   <form method="post" action="{{ links.name }}">

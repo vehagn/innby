@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "update rsvp set response = $2, party_size = $3, name_display = coalesce($4, name_display), lang = $5, privacy_version = $6, responded_at = now(), choice = $7, answers = $8 where id = $1 returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice, answers ",
+  "query": "update rsvp set party_size = $2, name_display = coalesce($3, name_display), lang = $4, privacy_version = $5, choice = $6, answers = $7 where id = $1 returning id, event_id, name, response as \"response: Response\",\n                party_size, max_party_size, link_nonce, lang as \"lang: Lang\", email,\n                email_status as \"email_status: EmailStatus\", email_consent_at,\n                privacy_version, responded_at, created_at, group_id,\n                name_display as \"name_display: NameDisplay\", choice, answers ",
   "describe": {
     "columns": [
       {
@@ -238,18 +238,6 @@
     "parameters": {
       "Left": [
         "Uuid",
-        {
-          "Custom": {
-            "name": "rsvp_response",
-            "kind": {
-              "Enum": [
-                "pending",
-                "attending",
-                "declined"
-              ]
-            }
-          }
-        },
         "Int4",
         {
           "Custom": {
@@ -290,5 +278,5 @@
       false
     ]
   },
-  "hash": "01a896742e0c32f497e013d0f600946a948d148203a0348978f6a53745a9d48e"
+  "hash": "6b64f94af5370c409c523c0a1571290afc43329a6b62964ee0d87c0f3652828e"
 }

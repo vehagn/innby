@@ -25,19 +25,22 @@ async fn someone_signs_up_through_a_group_link_and_keeps_their_own(db: PgPool) {
     ));
     let group_link = host.value(&filled(&a.link_for, "name", "Climbing club"));
 
-    // Per signs up for two from the group chat, and is asked to keep his own link.
+    // Per signs up from the group chat, and is asked to keep his own link.
     let mut per = world.browser();
     per.open(&group_link)
         .await
         .expect(&filled(&t.join_group, "group", "Climbing club"));
-    per.fill(&t.your_name, "Per Hansen")
-        .select(&t.how_many, &t.people_count(2));
+    per.fill(&t.your_name, "Per Hansen");
     per.press(&t.join_button)
         .await
         .expect(&t.save_link_title)
-        .expect(&t.answer(Response::Attending, 2));
+        .expect(&t.answer(Response::Attending, 1));
     let own_link = per.page().url.split('?').next().unwrap().to_owned();
     assert!(own_link.starts_with(&world.site("/r/")), "{own_link}");
+    // Then says on his own page that he brings one more.
+    per.click(&t.tab_you).await;
+    per.select(&t.how_many, &t.people_count(2));
+    per.press(&t.details_save).await.expect(&t.saved);
 
     // His own link works on another device; the group's link only signs people up.
     let mut laptop = world.browser();
