@@ -140,16 +140,36 @@ fn at(id: u128, parent: Option<u128>, minute: i64, score: i64, body: bool) -> Po
     }
 }
 
-/// The steps as text: a post by its number, `(` and `)` around its replies, `-` for one
-/// folded away.
-fn shape(steps: &[Step<u128>]) -> String {
+/// A post shown by its number, and the number of the one it answers, when `threads` says.
+fn numbered(post: &Post, answers: Option<&Post>) -> (u128, Option<u128>) {
+    (post.id.as_u128(), answers.map(|post| post.id.as_u128()))
+}
+
+/// The steps as text: a post by its number, `-` before one folded away, `↪` and a number
+/// after one that says whom it answers; then its list, in `(` and `)` while it nests and
+/// `[` and `]` once it doesn't. Each list closes as its post opened it, folded or not.
+fn shape(steps: &[Step<(u128, Option<u128>)>]) -> String {
+    let mut open = Vec::new();
     steps
         .iter()
         .map(|step| match step {
-            Step::Open { post, collapsed } => {
-                format!("{}{post}(", if *collapsed { "-" } else { "" })
+            Step::Open {
+                post: (post, answers),
+                collapsed,
+                nests,
+            } => {
+                open.push((*nests, *collapsed));
+                let folded = if *collapsed { "-" } else { "" };
+                let answers = answers.map(|id| format!("↪{id}")).unwrap_or_default();
+                let list = if *nests { '(' } else { '[' };
+                format!("{folded}{post}{answers}{list}")
             }
-            Step::Close { .. } => ")".to_owned(),
+            Step::Close { collapsed } => {
+                let (nests, folded) = open.pop().expect("a post to close");
+                assert_eq!(*collapsed, folded, "{steps:?}");
+                let list = if nests { ")" } else { "]" };
+                list.to_owned()
+            }
         })
         .collect()
 }
@@ -170,17 +190,72 @@ fn threads_put_the_best_and_newest_first_and_replies_in_order() {
         at(9, None, 0, 0, false),
         at(10, Some(9), 9, 0, true),
     ];
-    let steps = threads(posts, |post| post.id.as_u128());
+    let steps = threads(posts, numbered);
     assert_eq!(shape(&steps), "3()2()1(4()5()-6(7()))9(10())");
 }
 
 #[test]
-fn deep_replies_line_up_instead_of_nesting() {
-    let posts: Vec<Post> = (1..=MAX_DEPTH as u128 + 2)
+fn deep_replies_line_up_after_the_post_they_answer_and_say_whom() {
+    // Eight, each a reply to the one before: the first 0 deep, the last 7.
+    let posts: Vec<Post> = (1..=8)
         .map(|id| at(id, (id > 1).then(|| id - 1), id as i64, 0, true))
         .collect();
-    let steps = threads(posts, |post| post.id.as_u128());
-    assert_eq!(shape(&steps), "1(2(3(4(5(6()7()8())))))");
+    // Less than MAX_DEPTH deep, a post nests the next; the one at MAX_DEPTH and those
+    // past it line up, each past it saying whom it answers. For 3 that's
+    // 1(2(3(4[]5↪4[]6↪5[]7↪6[]8↪7[]))).
+    let max = MAX_DEPTH as u128;
+    let nesting = (1..=8u128).filter(|id| id - 1 < max).count();
+    let wanted: String = (1..=8u128)
+        .map(|id| match id - 1 {
+            depth if depth < max => format!("{id}("),
+            depth if depth == max => format!("{id}[]"),
+            _ => format!("{id}↪{}[]", id - 1),
+        })
+        .chain(std::iter::repeat_n(")".to_owned(), nesting))
+        .collect();
+    let steps = threads(posts, numbered);
+    assert_eq!(shape(&steps), wanted);
+}
+
+#[test]
+fn replies_lined_up_after_a_post_keep_their_order() {
+    assert_eq!(MAX_DEPTH, 3, "shapes drawn for a MAX_DEPTH of 3");
+    let posts = vec![
+        at(1, None, 1, 0, true),
+        at(2, Some(1), 2, 0, true),
+        at(3, Some(2), 3, 0, true),
+        at(4, Some(3), 4, 0, true),
+        // Under 4, at MAX_DEPTH (3): the best first, then the oldest, each with its own
+        // replies after it.
+        at(5, Some(4), 5, 0, true),
+        at(6, Some(4), 6, 1, true),
+        at(7, Some(5), 7, 0, true),
+        at(8, Some(4), 8, 0, true),
+        // And the next at MAX_DEPTH, after them all.
+        at(9, Some(3), 9, 0, true),
+    ];
+    let steps = threads(posts, numbered);
+    assert_eq!(shape(&steps), "1(2(3(4[]6↪4[]5↪4[]7↪5[]8↪4[]9[])))");
+}
+
+#[test]
+fn a_post_folded_away_takes_the_replies_lined_up_after_it() {
+    assert_eq!(MAX_DEPTH, 3, "shapes drawn for a MAX_DEPTH of 3");
+    let posts = vec![
+        at(1, None, 1, 0, true),
+        at(2, Some(1), 2, 0, true),
+        at(3, Some(2), 3, 0, true),
+        // Folded at MAX_DEPTH (3), and again past it.
+        at(4, Some(3), 4, -1, true),
+        at(5, Some(4), 5, 0, true),
+        at(6, Some(5), 6, -2, true),
+        at(7, Some(6), 7, 0, true),
+        at(8, Some(5), 8, 0, true),
+        // Under neither, and first, as it scores better.
+        at(9, Some(3), 9, 0, true),
+    ];
+    let steps = threads(posts, numbered);
+    assert_eq!(shape(&steps), "1(2(3(9[]-4[5↪4[]8↪5[]-6↪5[7↪6[]]])))");
 }
 
 #[sqlx::test]

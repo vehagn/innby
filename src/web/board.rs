@@ -120,9 +120,9 @@ pub(super) async fn section(
         }) => reply_draft = Some((parent, body)),
         None => {}
     }
-    let steps = board::threads(shown.posts, |post| {
+    let steps = board::threads(shown.posts, |post, answers| {
         let mine = matches!(post.author, Author::Guest { rsvp_id, .. } if rsvp_id == you);
-        let mut view = PostView::new(post, t, lang, tz, false);
+        let mut view = PostView::new(post, answers, t, lang, tz, false);
         view.you = mine;
         if !mine {
             view.vote_action = Some(at(paths::RSVP_BOARD_VOTE, post.id));

@@ -347,6 +347,110 @@ async fn a_new_post_is_written_below_the_posts(db: PgPool) {
 }
 
 #[sqlx::test]
+async fn deep_replies_line_up_saying_whom_they_answer(db: PgPool) {
+    let site = Site::new(db);
+    set(&site, BoardState::Open).await;
+    let (kari, link) = site.invite("Kari Nordmann", 1).await;
+    let (ola, _) = site.invite("Ola Hansen", 1).await;
+    let event = site.event().await.id;
+    // Kari and Ola answer each other, two replies deeper than replies nest.
+    let mut last = None;
+    for n in 0..=board::MAX_DEPTH + 2 {
+        let by = if n % 2 == 0 { kari.id } else { ola.id };
+        let turn = board::create(&site.db, event, last, Writer::Guest(by), "Turn")
+            .await
+            .unwrap()
+            .unwrap();
+        last = Some(turn);
+    }
+    let html = body(site.get(&format!("/r/{link}?lang=en")).await).await;
+    // The board's list, and one under each post less than MAX_DEPTH deep.
+    let nested = html.matches(r#"<ul class="thread">"#).count();
+    assert_eq!(nested, 1 + board::MAX_DEPTH, "{html}");
+    // The two past it say whom they answer, signed as the guest list shows them.
+    assert_eq!(html.matches("↪&nbsp;").count(), 2, "{html}");
+    for name in ["Ola H.", "Kari N."] {
+        assert!(html.contains(&format!("↪&nbsp;{name}")), "{html}");
+        let read = escape(&filled(&en().board_answers, "name", name));
+        assert!(html.contains(&read), "{html}");
+    }
+}
+
+#[sqlx::test]
+async fn a_deleted_reply_past_max_depth_still_says_whom_it_answered(db: PgPool) {
+    let site = Site::new(db);
+    set(&site, BoardState::Open).await;
+    let (kari, link) = site.invite("Kari Nordmann", 1).await;
+    let (ola, _) = site.invite("Ola Hansen", 1).await;
+    let event = site.event().await.id;
+    // Kari and Ola answer each other, three replies deeper than replies nest; then the
+    // first of those goes, kept for the reply under it.
+    let (mut turns, mut last) = (Vec::new(), None);
+    for n in 0..=board::MAX_DEPTH + 3 {
+        let by = if n % 2 == 0 { kari.id } else { ola.id };
+        let turn = board::create(&site.db, event, last, Writer::Guest(by), "Turn")
+            .await
+            .unwrap()
+            .unwrap();
+        turns.push(turn);
+        last = Some(turn);
+    }
+    let gone = board::MAX_DEPTH + 1;
+    assert!(
+        board::delete(&site.db, event, turns[gone], None)
+            .await
+            .unwrap()
+    );
+    let html = body(site.get(&format!("/r/{link}?lang=en")).await).await;
+    let answered = ["Kari N.", "Ola H."][(gone - 1) % 2];
+    let deleted = format!(r#"<p class="post-by muted">{}"#, en().board_deleted);
+    let line = &html[html.find(&deleted).expect(&html)..];
+    let line = &line[..line.find("</p>").unwrap()];
+    assert!(line.contains(&format!("↪&nbsp;{answered}")), "{line}");
+    assert!(
+        html.contains(&format!("↪&nbsp;{}", en().board_deleted)),
+        "{html}"
+    );
+}
+
+#[sqlx::test]
+async fn a_reply_lined_up_after_a_hosts_post_signs_them_as_the_board_does(db: PgPool) {
+    let site = Site::new(db);
+    set(&site, BoardState::Open).await;
+    let (kari, link) = site.invite("Kari Nordmann", 1).await;
+    let event = site.event().await.id;
+    // Kari's thread, as deep as replies nest, then a host's reply past it, and hers.
+    let host = Writer::Host {
+        name: "hagen@example.com",
+        role: "editor",
+    };
+    let mut last = None;
+    for n in 0..=board::MAX_DEPTH + 2 {
+        let by = match n == board::MAX_DEPTH + 1 {
+            true => host,
+            false => Writer::Guest(kari.id),
+        };
+        let turn = board::create(&site.db, event, last, by, "Turn")
+            .await
+            .unwrap()
+            .unwrap();
+        last = Some(turn);
+    }
+    let html = body(site.get(&format!("/r/{link}?lang=en")).await).await;
+    // By name and role, and no more of an address than its name.
+    let signed = fill(
+        &en().board_signed,
+        &[("name", &"hagen"), ("role", &en().admin.role_editor)],
+    );
+    assert!(
+        html.contains(&format!("↪&nbsp;{}", escape(&signed))),
+        "{html}"
+    );
+    assert!(html.contains("↪&nbsp;Kari N."), "{html}");
+    assert!(!html.contains("example.com"), "{html}");
+}
+
+#[sqlx::test]
 async fn posts_are_markdown_and_never_html(db: PgPool) {
     let site = Site::new(db);
     set(&site, BoardState::Open).await;

@@ -17,8 +17,10 @@ use super::rsvp::{NameDisplay, Response};
 /// The longest a post may be, in characters.
 pub const MAX_BODY: usize = 2000;
 
-/// How deep replies nest on the page; deeper ones line up under the last that does.
-pub const MAX_DEPTH: usize = 6;
+/// How many levels of replies nest under a post on the page, each indented under the one
+/// it answers. Deeper ones line up at the last level, after the post they answer, and
+/// say whom they answer, so a long exchange doesn't narrow away on a phone.
+pub const MAX_DEPTH: usize = 3;
 
 /// The most posts an event's board holds, deleted ones kept for their replies too, and
 /// the most a thread holds. With `MAX_BODY`, they bound what a page of the board can be,
@@ -616,11 +618,15 @@ pub async fn votes_by(db: impl PgExecutor<'_>, rsvp_id: Uuid) -> sqlx::Result<Ve
 /// of its replies opens, then closes once they're done.
 #[derive(Debug)]
 pub enum Step<T> {
-    /// A post, shown as `T`. A collapsed one, with a score below zero, is folded away
-    /// with its replies.
+    /// A post, shown as `T`, and its list. A collapsed one, with a score below zero, is
+    /// folded away with its replies.
     Open {
         post: T,
         collapsed: bool,
+        /// Whether its list nests its replies under it, as for a post less than
+        /// `MAX_DEPTH` deep. From `MAX_DEPTH` on, they line up after it instead, and its
+        /// list holds them only while it's folded away, to fold them away with it.
+        nests: bool,
     },
     Close {
         collapsed: bool,
@@ -629,9 +635,18 @@ pub enum Step<T> {
 
 /// The board's posts in the order a page shows them, each shown with `show`: threads
 /// with the best score first, then the newest; replies the same, then the oldest, as a
-/// conversation reads. A deleted post shows only while it has replies left, and replies
-/// below `MAX_DEPTH` line up under the last one that nests.
-pub fn threads<T>(posts: Vec<Post>, mut show: impl FnMut(&Post) -> T) -> Vec<Step<T>> {
+/// conversation reads. A deleted post shows only while it has replies left.
+///
+/// Replies nest `MAX_DEPTH` deep. Deeper ones line up with the reply at `MAX_DEPTH`, in
+/// the same order: each after the post it answers, and that post's replies ranked before
+/// it; `show` is given the post it answers, to say whom. One folded away still holds its
+/// replies, out of sight with it. The rest line up beside each other rather than in each
+/// other's lists, so however long a thread grows, its lists nest `MAX_DEPTH` deep and a
+/// level more for each fold past that: browsers lay a page out only so deep.
+pub fn threads<T>(
+    posts: Vec<Post>,
+    mut show: impl FnMut(&Post, Option<&Post>) -> T,
+) -> Vec<Step<T>> {
     let mut replies: HashMap<Option<Uuid>, Vec<Post>> = HashMap::new();
     for post in posts {
         replies.entry(post.parent_id).or_default().push(post);
@@ -662,43 +677,47 @@ pub fn threads<T>(posts: Vec<Post>, mut show: impl FnMut(&Post) -> T) -> Vec<Ste
         });
         list
     };
+    // What's left to do, without recursing, the next last: show a post, with the one it
+    // answers when it lines up with that one, and how deep it is, from 0 for a thread's
+    // first; or close a post's list.
+    enum Next<'a> {
+        Show(&'a Post, Option<&'a Post>, usize),
+        Close(bool),
+    }
     let mut steps = Vec::new();
-    // Each level's posts still to show, deepest last, without recursing.
-    let mut levels: Vec<(std::vec::IntoIter<&Post>, bool)> =
-        vec![(ordered(None).into_iter(), false)];
-    while let Some((next, _)) = levels.last_mut() {
-        let Some(post) = next.next() else {
-            let (_, collapsed) = levels.pop().expect("a level");
-            if !levels.is_empty() {
+    let mut next: Vec<Next> = ordered(None)
+        .into_iter()
+        .rev()
+        .map(|post| Next::Show(post, None, 0))
+        .collect();
+    while let Some(task) = next.pop() {
+        let (post, answers, depth) = match task {
+            Next::Show(post, answers, depth) => (post, answers, depth),
+            Next::Close(collapsed) => {
                 steps.push(Step::Close { collapsed });
+                continue;
             }
-            continue;
         };
         let collapsed = !post.deleted && post.score < 0;
+        let nests = depth < MAX_DEPTH;
         steps.push(Step::Open {
-            post: show(post),
+            post: show(post, answers),
             collapsed,
+            nests,
         });
-        if levels.len() < MAX_DEPTH {
-            levels.push((ordered(Some(post.id)).into_iter(), collapsed));
+        // Its replies go in its list while it nests, or to be folded away with it; else
+        // its list closes empty, and they line up after it.
+        if nests || collapsed {
+            next.push(Next::Close(collapsed));
         } else {
             steps.push(Step::Close { collapsed });
-            // Too deep to nest: the rest of its replies, in order, beside it.
-            let mut flat = Vec::new();
-            let mut stack: Vec<&Post> = ordered(Some(post.id)).into_iter().rev().collect();
-            while let Some(reply) = stack.pop() {
-                flat.push(reply);
-                stack.extend(ordered(Some(reply.id)).into_iter().rev());
-            }
-            for reply in flat {
-                let collapsed = !reply.deleted && reply.score < 0;
-                steps.push(Step::Open {
-                    post: show(reply),
-                    collapsed,
-                });
-                steps.push(Step::Close { collapsed });
-            }
         }
+        next.extend(
+            ordered(Some(post.id))
+                .into_iter()
+                .rev()
+                .map(|reply| Next::Show(reply, (!nests).then_some(post), depth + 1)),
+        );
     }
     steps
 }

@@ -1014,7 +1014,9 @@ td {
   list-style: none;
 }
 
-.thread .thread {
+/* A flat list doesn't indent: past the depth replies nest to, they line up with the
+   post they answer, so a long exchange doesn't narrow away on a phone. */
+.thread .thread:not(.flat) {
   margin-left: var(--space-3);
   padding-left: var(--space-4);
   border-left: var(--rule-thick) solid var(--border);
