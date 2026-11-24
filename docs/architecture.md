@@ -24,9 +24,11 @@ link: **Event** (the event, its calendar file once they're coming, the answer, a
 below it the message board when it's on for guests), **Guest list**, **Games** when the
 event offers any, and **Your details** (how many are coming and the rest of their answer,
 name, e-mail, this device, their data). The Event tab asks only whether they're
-coming, with the box to have the device remember them, so answering is one tap; the
-rest waits on Your details, and nothing there is needed for a "coming" to count: until
-they say otherwise they're one person, with nothing picked or answered. There they:
+coming, with the box to have the device remember them, so answering is one tap; once
+they have, it leads with their answer and folds the form away under
+*Change your answer*. The rest waits on Your details, and nothing there is needed for a
+"coming" to count: until they say otherwise they're one person, with nothing picked or
+answered. There they:
 
 - answer **Attending** or **Can't come** on the Event tab, and on Your details say how
   many are coming, and answer the host's own question if the event asks one, by picking

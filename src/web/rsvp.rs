@@ -202,6 +202,21 @@ impl<'a> RsvpPage<'a> {
             board: None,
         }
     }
+
+    /// Whether the guest has answered, coming or not.
+    fn answered(&self) -> bool {
+        self.attending || self.declined
+    }
+
+    /// Whether the answer's form is folded away under a line that opens it. Once the
+    /// guest has answered, straight after as well, the page leads with their answer:
+    /// "Saved." and the answer itself say what was saved, and a slip is one tap away.
+    /// The form stays open while the time or place has changed since they answered, as
+    /// the page then asks them to check it. Before they answer, on a first visit or a
+    /// later one, the form is all there is, and nothing folds.
+    fn folded(&self) -> bool {
+        self.answered() && !self.changed
+    }
 }
 
 impl FormPage for RsvpPage<'_> {

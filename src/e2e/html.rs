@@ -12,6 +12,15 @@ pub struct Document {
     pub forms: Vec<Form>,
     /// Fields outside any form, such as the read-only links the admin shows to copy.
     pub fields: Vec<Field>,
+    /// Each `<details>`, by its summary, and whether it's open. What a closed one folds
+    /// away is still in `text` and `forms`, as a person can open it at any time.
+    pub disclosures: Vec<Disclosure>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Disclosure {
+    pub summary: String,
+    pub open: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -76,6 +85,10 @@ struct Open {
     option: Option<(String, bool, String)>,
     select: Option<Field>,
     textarea: Option<Field>,
+    /// Whether each `<details>` the text is in is open, the innermost last.
+    details: Vec<bool>,
+    /// A `<summary>`'s text so far.
+    summary: Option<String>,
 }
 
 impl Document {
@@ -122,6 +135,8 @@ impl Document {
                             });
                         }
                         "label" => open.label = Some((attr("for"), String::new(), Vec::new())),
+                        "details" => open.details.push(attr("open").is_some()),
+                        "summary" => open.summary = Some(String::new()),
                         "input" | "select" | "textarea" => {
                             let kind = match string(&tag.name).as_str() {
                                 "select" => Kind::Select,
@@ -170,6 +185,22 @@ impl Document {
                     match string(&tag.name).as_str() {
                         "title" => open.title = false,
                         "a" => doc.links.extend(open.link.take().map(Link::tidy)),
+                        "details" => {
+                            open.details.pop();
+                        }
+                        "summary" => {
+                            // A summary outside any <details> folds nothing, so it isn't
+                            // one: a template that lost its <details> then fails
+                            // `expect_folded` rather than passing it.
+                            if let (Some(summary), Some(is_open)) =
+                                (open.summary.take(), open.details.last().copied())
+                            {
+                                doc.disclosures.push(Disclosure {
+                                    summary: collapse(&summary),
+                                    open: is_open,
+                                });
+                            }
+                        }
                         "form" => doc.forms.extend(open.form.take()),
                         "button" => {
                             if let (Some(mut button), Some(form)) =
@@ -239,6 +270,7 @@ impl Document {
                         open.button.as_mut().map(|button| &mut button.text),
                         open.label.as_mut().map(|label| &mut label.1),
                         open.option.as_mut().map(|option| &mut option.2),
+                        open.summary.as_mut(),
                     ]
                     .into_iter()
                     .flatten()
@@ -421,6 +453,25 @@ Ola</textarea>
             form.encode(&form.buttons[0]).1,
             "party_size=2&names=Kari%0D%0AOla&response=attending"
         );
+    }
+
+    #[test]
+    fn notes_which_disclosures_are_open() {
+        let doc = Document::parse(
+            r#"<summary>Stray</summary>
+              <details open><summary>Board</summary>
+              <details class="quiet"><summary>Change <b>your</b> answer</summary>
+                <button>I'm coming</button></details></details>"#,
+        );
+        let shown: Vec<_> = doc
+            .disclosures
+            .iter()
+            .map(|d| (d.summary.as_str(), d.open))
+            .collect();
+        // A summary outside any <details> isn't a disclosure.
+        assert_eq!(shown, [("Board", true), ("Change your answer", false)]);
+        // What's folded away is still read, for a person who opens it.
+        assert!(doc.text.contains("I'm coming"), "{}", doc.text);
     }
 
     #[test]

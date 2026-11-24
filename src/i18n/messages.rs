@@ -92,6 +92,8 @@ pub struct Messages {
     pub people_other: String,
     pub attend: String,
     pub decline: String,
+    /// The line the answer's form folds away under once the guest has answered.
+    pub change_answer: String,
     pub reply_by: String,
     pub answers_closed: String,
     pub name_heading: String,
