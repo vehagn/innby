@@ -1,4 +1,4 @@
-//! A guest's personal pages under `/r/{link}`, their tabs: the reply (the event, the
+//! A guest's personal pages under `/r/{link}`, their tabs: Event (the event, the
 //! calendar, coming or not, and the message board below, from `board`) and the guest
 //! list here, the games in `games`, and their details in `you`, with how many are coming
 //! and the host's questions. `Guest` finds the guest behind a link for all of them.
@@ -170,7 +170,7 @@ impl<'a> RsvpPage<'a> {
         let t = lang.messages();
         let rsvp = &guest.rsvp;
         let links = GuestLinks::new(&guest.link, lang);
-        let tabs = guest.tabs(state, &links, GuestTab::Reply);
+        let tabs = guest.tabs(state, &links, GuestTab::Event);
         let tab = format!(
             r#"<a href="{}">{}</a>"#,
             escape_html(&links.you),
@@ -342,7 +342,7 @@ pub enum Answer {
     Declined,
 }
 
-/// Coming or not, as the reply page sends it; how many and the rest are on the Your
+/// Coming or not, as the Event tab sends it; how many and the rest are on the Your
 /// details tab (`you::details`).
 #[derive(Deserialize)]
 pub struct AnswerForm {

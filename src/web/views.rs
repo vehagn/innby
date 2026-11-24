@@ -334,14 +334,14 @@ impl OpenQuestion {
 /// The tabs of a guest's pages, each a page of its own under their link.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum GuestTab {
-    Reply,
+    Event,
     Guests,
     Games,
     You,
 }
 
 /// The guest's tabs, with Games only when the event offers any (`_guest_tabs.html`). The
-/// message board has none: it's on the reply, below the answer.
+/// message board has none: it's on the Event tab, below the answer.
 pub fn guest_tabs(
     t: &'static Messages,
     links: &crate::paths::GuestLinks,
@@ -350,10 +350,10 @@ pub fn guest_tabs(
 ) -> Vec<TabLink> {
     [
         (
-            GuestTab::Reply,
+            GuestTab::Event,
             &links.page,
-            &t.tab_reply,
-            icons::ENVELOPE,
+            &t.tab_event,
+            icons::CALENDAR,
             true,
         ),
         (

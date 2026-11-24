@@ -1,4 +1,4 @@
-{#- The event's board on a guest's reply page, below their answer (`web::board::Section`). #}
+{#- The event's board on a guest's Event tab, below their answer (`web::board::Section`). #}
 <section class="card" id="board" aria-labelledby="board-heading">
   <h2 id="board-heading">{{ t.board_heading }}</h2>
   {% if let Some(flash) = flash %}<p class="notice success" role="status">{{ flash }}</p>{% endif %}

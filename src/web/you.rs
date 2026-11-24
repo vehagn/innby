@@ -1,7 +1,7 @@
 //! The Your details tab of a guest's pages, `/r/{link}/you`: what they tell the host
 //! besides whether they're coming (how many, how their name shows on the guest list, the
 //! host's questions), their name, their e-mail address, whether this device remembers
-//! them, and their data to download or delete. Their reply page asks only whether
+//! them, and their data to download or delete. Their Event tab asks only whether
 //! they're coming, so it stays one tap. The forms for the address and the device are
 //! handled in `email` and `remember`, and come back here.
 

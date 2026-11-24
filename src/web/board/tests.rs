@@ -23,7 +23,7 @@ async fn the_board_is_for_guests_only_when_its_hosts_say(db: PgPool) {
         let html = body(site.get(&page).await).await;
         assert!(!html.contains(&format!("/r/{link}/board")), "{html}");
         assert!(!html.contains(r#"id="board""#), "{html}");
-        // It has no tab of its own, nor a page: it's on the reply, below the answer.
+        // It has no tab of its own, nor a page: it's on the Event tab, below the answer.
         assert!(!html.contains(&escape(&en().board_heading)), "{html}");
     }
 

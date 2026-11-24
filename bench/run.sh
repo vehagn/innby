@@ -100,7 +100,7 @@ page 'Site: front page'                         200 $site/
 page 'Site: front page, 10 forged cookies'      200 -H "Cookie: $remember" $site/
 page 'Site: stylesheet'                         200 $site/static/style.css
 page 'Site: privacy notice'                     200 $site/privacy
-# The reply page carries the board, so it's a full thread of long posts (bench/data.sql).
+# The Event tab carries the board, so it's a full thread of long posts (bench/data.sql).
 page 'Site: guest page, a full board thread'    200 $site$link
 page 'Site: guest page, the board, page 2'     200 "$site$link?page=2"
 page 'Site: guest list (1500 guests)'           200 $site$link/guests

@@ -20,17 +20,17 @@ explains why it's built this way, and [development.md](development.md) how to wo
 
 **A guest** opens their personal link (`/r/{link}`). Nothing else is needed: no account,
 no password, no e-mail address. Their pages are tabs, each a page of its own under the
-link: **Your reply** (the event, its calendar file once they're coming, the answer, and
+link: **Event** (the event, its calendar file once they're coming, the answer, and
 below it the message board when it's on for guests), **Guest list**, **Games** when the
 event offers any, and **Your details** (how many are coming and the rest of their answer,
-name, e-mail, this device, their data). The reply asks only whether they're coming, with
-the box to have the device remember them, so answering is one tap; the rest waits on
-Your details, and nothing there is needed for a "coming" to count: until they say
-otherwise they're one person, with nothing picked or answered. There they:
+name, e-mail, this device, their data). The Event tab asks only whether they're
+coming, with the box to have the device remember them, so answering is one tap; the
+rest waits on Your details, and nothing there is needed for a "coming" to count: until
+they say otherwise they're one person, with nothing picked or answered. There they:
 
-- answer **Attending** or **Can't come** on Your reply, and on Your details say how many
-  are coming, and answer the host's own question if the event asks one, by picking one
-  of its choices, and any open questions it asks, in their own words;
+- answer **Attending** or **Can't come** on the Event tab, and on Your details say how
+  many are coming, and answer the host's own question if the event asks one, by picking
+  one of its choices, and any open questions it asks, in their own words;
 - choose how their name shows on the guest list: in full, as first name and initial, or
   not at all;
 - see the guest list, on a page of its own (`/r/{link}/guests`);

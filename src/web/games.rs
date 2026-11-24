@@ -95,7 +95,7 @@ struct GamesPage {
 }
 
 /// The Games tab: each game the event offers, with its best scores. An event with none
-/// has no such tab, so this leads back to the guest's reply.
+/// has no such tab, so this leads back to the guest's Event tab.
 pub async fn list(State(state): State<AppState>, guest: Guest) -> Page {
     let lang = guest.lang;
     let games = for_page(&state, lang, &guest).await?;

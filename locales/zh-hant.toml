@@ -58,11 +58,11 @@ first_visit_notice = """
 你被邀請囉！為了籌備聚會，我們只儲存你的姓名、回覆和同行人數，別無其他，所有內容會在聚會結束 30 天\
 後刪除。在賓客名單上，其他賓客會看到你的部分姓名，你也可以選擇他們看到什麼。"""
 keep_link = "這是你的個人頁面。請保存好連結，以便日後修改回覆，不要分享給別人。"
-# The tabs of a guest's pages, and what the bar is called for screen readers.
 reply_details = "在{tab}裡填寫同行人數、你在賓客名單上的名字顯示方式，以及回答主人的問題。"
 details_heading = "關於你的回覆"
 details_save = "儲存"
-tab_reply = "你的回覆"
+# The tabs of a guest's pages, and what the bar is called for screen readers.
+tab_event = "活動"
 tab_guests = "賓客名單"
 tab_you = "你的資料"
 tabs_label = "你的邀請"
@@ -133,7 +133,7 @@ consent_required = "請勾選方框表示同意。"
 confirm_title = "確認你的電子郵件地址"
 confirm_text = "點擊按鈕，確認你希望透過電子郵件接收提醒和你的連結。"
 confirm_button = "確認"
-confirm_invalid_text = "確認連結已過期或已失效。請在你的回覆頁面重新新增地址。"
+confirm_invalid_text = "確認連結已過期或已失效。請在你的頁面重新新增地址。"
 lost_link = "連結弄丟了？"
 lost_title = "連結弄丟了？"
 lost_text = "如果你新增並確認過電子郵件地址，我們會重新寄送你的連結。"
@@ -596,7 +596,7 @@ error_qr_emoji = "請輸入一個放在中間的表情符號。"
 # Mails. Each is plain text; `{url}` is a link on the site and `{title}` the event.
 [mail]
 # Under every mail. `{base}` is the site's address.
-footer = "你收到這封郵件，是因為有人在 {base} 上新增了這個地址。你可以隨時在回覆頁面上刪除它。"
+footer = "你收到這封郵件，是因為有人在 {base} 上新增了這個地址。你可以隨時在你的頁面上刪除它。"
 # After a reminder, when the event is attached for the guest's calendar.
 calendar_attached = "活動已作為行事曆檔案附上，你可以把它加入自己的行事曆。"
 

@@ -41,10 +41,8 @@ they see."""
 keep_link = """
 This page is yours alone. Do keep the link should you wish to change your reply, and \
 kindly don't share it."""
-# The tabs of a guest's pages, and what the bar is called for screen readers.
 reply_details = "The size of your party, how your name appears on the guest list and anything the host asks may be given under {tab}."
 details_heading = "About your reply"
-tab_reply = "Your reply"
 changed_notice = "The time or place has changed since you replied. Kindly check it above, and change your reply should you need to."
 # The event for the guest's own calendar, once they're coming: a button and a hint.
 calendar_hint = "A file with the time and place for your phone's or computer's calendar. Should the plans change, add it again."
@@ -89,7 +87,7 @@ Kindly press the button to confirm that you wish to receive reminders and your l
 e-mail."""
 confirm_invalid_text = """
 Alas, the confirmation link has expired or is no longer valid. Do add your address again \
-from your RSVP page."""
+from your page."""
 lost_link = "Mislaid your link?"
 lost_title = "Mislaid your link?"
 lost_text = "If you added and confirmed your e-mail address, we shall send your link again."
@@ -164,7 +162,7 @@ change_notices_other = "Saved. {n} guests with a confirmed address shall be told
 # Under every mail. `{base}` is the site's address.
 footer = """
 You are receiving this e-mail because the address was added on {base}. You may remove it \
-from your RSVP page at any time."""
+from your page at any time."""
 # After a reminder, when the event is attached for the guest's calendar.
 calendar_attached = "The event is attached as a calendar file, should you wish to add it to your calendar."
 

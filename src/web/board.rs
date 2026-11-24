@@ -1,4 +1,4 @@
-//! The event's message board on a guest's reply page, `/r/{link}`, below their answer,
+//! The event's message board on a guest's Event tab, `/r/{link}`, below their answer,
 //! when its hosts have it on for guests (`db::board::BoardState`). Guests read and vote on
 //! what hosts post, and when it's open post and reply too, signed as the guest list
 //! shows them, in a little Markdown (`crate::markdown`), so many an hour. Nobody posts
@@ -33,7 +33,7 @@ use crate::{
     paths::{self, GuestLinks},
 };
 
-/// The board as the reply page shows it, below the answer.
+/// The board as the Event tab shows it, below the answer.
 #[derive(Template)]
 #[template(path = "_guest_board.html")]
 pub(super) struct Section {
@@ -66,7 +66,7 @@ fn listed(guest: &Guest) -> bool {
     guest.rsvp.listed() != NameDisplay::Hidden
 }
 
-/// The reply page with the board's page `number`, from 0, as `paths::RSVP` with
+/// The Event tab with the board's page `number`, from 0, as `paths::RSVP` with
 /// `?page=`, and maybe a notice, scrolled to a post or else to the board.
 fn url(guest: &Guest, number: usize, notice: Option<Notice>, post: Option<Uuid>) -> String {
     let mut url = GuestLinks::new(&guest.link, guest.lang).page;
@@ -156,7 +156,7 @@ pub(super) async fn section(
     }))
 }
 
-/// Back to the guest's reply when the board isn't for guests.
+/// Back to the guest's Event tab when the board isn't for guests.
 fn no_board(guest: &Guest) -> Response {
     Redirect::to(&GuestLinks::new(&guest.link, guest.lang).page).into_response()
 }
@@ -253,7 +253,7 @@ pub async fn create(
     Ok(Redirect::to(&to).into_response())
 }
 
-/// The reply page again, with the post kept on its board to try again and why it
+/// The Event tab again, with the post kept on its board to try again and why it
 /// wasn't posted.
 async fn refuse(
     state: &AppState,

@@ -64,13 +64,13 @@ You're invited! To plan the event, we keep your name, your answer and how many o
 are coming. Nothing more, and all of it is deleted 30 days after the event. On the guest \
 list, other guests see your first name and initial, and you can choose what they see."""
 keep_link = "This page is yours. Keep the link to change your answer later, and don't share it."
-# The tabs of a guest's pages, and what the bar is called for screen readers.
 # Under the answer's buttons: where the rest is, with {tab} a link to the tab.
 reply_details = "Say how many are coming, how your name shows on the guest list and anything the host asks under {tab}."
 # The form on the Your details tab for all but the answer, and its button.
 details_heading = "About your answer"
 details_save = "Save"
-tab_reply = "Your answer"
+# The tabs of a guest's pages, and what the bar is called for screen readers.
+tab_event = "Event"
 tab_guests = "Guest list"
 tab_you = "Your details"
 tabs_label = "Your invitation"

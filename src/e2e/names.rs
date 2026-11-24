@@ -41,7 +41,7 @@ async fn the_host_and_guests_type_only_names_as_names(db: PgPool) {
     }
     kari.fill(&t.name_heading, "Kari Nordmann-Hansen");
     kari.press(&t.change_name).await.expect(&t.saved);
-    kari.click(&t.tab_reply)
+    kari.click(&t.tab_event)
         .await
         .expect(&filled(&t.greeting, "name", "Kari Nordmann-Hansen"));
 
