@@ -3,7 +3,7 @@ use sqlx::PgPool;
 
 use crate::{
     db::board::{self, BoardState, Writer},
-    i18n::fill,
+    i18n::{fill, filled},
     web::testing::{Site, body, en, escape, location},
 };
 
@@ -245,9 +245,105 @@ async fn an_empty_post_is_kept_to_fix(db: PgPool) {
         .await;
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let html = body(response).await;
-    let error = crate::i18n::filled(&en().board_error_body, "n", board::MAX_BODY);
-    assert!(html.contains(&escape(&error)), "{html}");
-    assert!(html.contains(&long), "the draft is kept");
+    // The form for a new thread comes back open, under "nothing here yet", with why
+    // beside the text kept.
+    let empty = html.find(&escape(&en().board_empty)).expect(&html);
+    let write = html
+        .find(r#"<details class="quiet write" id="write" open>"#)
+        .expect(&html);
+    assert!(write > empty, "{html}");
+    let error = escape(&filled(&en().board_error_body, "n", board::MAX_BODY));
+    let why = html[write..].find(&error).expect(&html);
+    let kept = html[write..].find(&long).expect("the draft is kept");
+    assert!(why < kept, "{html}");
+}
+
+#[sqlx::test]
+async fn a_reply_to_a_post_deleted_meanwhile_is_kept_for_a_new_thread(db: PgPool) {
+    let site = Site::new(db);
+    set(&site, BoardState::Open).await;
+    let (kari, link) = site.invite("Kari", 1).await;
+    let event = site.event().await.id;
+    let mut posts = Vec::new();
+    for text in ["Kept", "Gone"] {
+        let post = board::create(&site.db, event, None, Writer::Guest(kari.id), text)
+            .await
+            .unwrap()
+            .unwrap();
+        posts.push(post);
+    }
+    assert!(
+        board::delete(&site.db, event, posts[1], None)
+            .await
+            .unwrap()
+    );
+    let response = site
+        .post(
+            &format!("/r/{link}/board?lang=en"),
+            &format!("body=Too+late&parent={}", posts[1]),
+        )
+        .await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let html = body(response).await;
+    // Why, at the top of the board, as for any reply; the text, in the form for a new
+    // thread, open.
+    let why = html.find(&escape(&en().board_error_gone)).expect(&html);
+    assert!(
+        why < html.find(r#"<article class="post">"#).unwrap(),
+        "{html}"
+    );
+    let write = html
+        .find(r#"<details class="quiet write" id="write" open>"#)
+        .expect(&html);
+    assert!(html[write..].contains("Too late"), "{html}");
+}
+
+#[sqlx::test]
+async fn a_new_post_is_written_below_the_posts(db: PgPool) {
+    let site = Site::new(db);
+    set(&site, BoardState::Open).await;
+    let (kari, link) = site.invite("Kari", 1).await;
+    let event = site.event().await.id;
+    // Threads enough for a second page, so the page has links between them.
+    let mut newest = None;
+    for n in 0..=board::PAGE_POSTS {
+        let post = board::create(
+            &site.db,
+            event,
+            None,
+            Writer::Guest(kari.id),
+            &format!("Post {n}"),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        newest = Some(post);
+    }
+    let newest = newest.unwrap();
+    let html = body(site.get(&format!("/r/{link}?lang=en")).await).await;
+    // Folded, below the posts and the links between pages, bringing the page back to
+    // itself.
+    let folded = r#"<details class="quiet write" id="write">"#;
+    let write = html.find(folded).expect(&html);
+    assert!(write > html.find(r#"class="pager""#).unwrap(), "{html}");
+    assert!(
+        write > html.rfind(r#"<article class="post">"#).unwrap(),
+        "{html}"
+    );
+    assert!(html[write..].contains(&en().board_new), "{html}");
+    let board = format!("/r/{link}/board?lang=en");
+    let action = format!(r#"action="{}#write""#, escape(&board));
+    assert!(html[write..].contains(&action), "{html}");
+
+    // A reply's error is at the top of the board, above the posts its form is among, and
+    // the new post's form stays folded.
+    let error = escape(&filled(&en().board_error_body, "n", board::MAX_BODY));
+    let response = site.post(&board, &format!("body=+&parent={newest}")).await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let html = body(response).await;
+    let first = html.find(r#"<article class="post">"#).unwrap();
+    assert!(html.find(&error).unwrap() < first, "{html}");
+    assert!(html.contains(folded), "{html}");
 }
 
 #[sqlx::test]

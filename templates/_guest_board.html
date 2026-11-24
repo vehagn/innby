@@ -1,21 +1,29 @@
-{#- The event's board on a guest's Event tab, below their answer (`web::board::Section`). #}
+{#- The event's board on a guest's Event tab, below their answer (`web::board::Section`):
+    what's been said first, then a new post, folded below it, so a guest reads before
+    writing. #}
 <section class="card" id="board" aria-labelledby="board-heading">
   <h2 id="board-heading">{{ t.board_heading }}</h2>
   {% if let Some(flash) = flash %}<p class="notice success" role="status">{{ flash }}</p>{% endif %}
   {% if let Some(error) = error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
   <p class="hint">{{ hint }}{% if let Some(guests) = show_name %} <a href="{{ guests }}">{{ t.board_show_name }}</a>{% endif %}</p>
-  {% if let Some(action) = post_action %}
-  <form method="post" action="{{ action }}">
-    <label for="new-post">{{ t.board_new }}</label>
-    <textarea id="new-post" name="body" rows="4" maxlength="{{ crate::db::board::MAX_BODY }}" required aria-describedby="post-format">{{ draft }}</textarea>
-    <p class="hint" id="post-format">{{ crate::i18n::filled(t.board_format, "n", crate::db::board::MAX_BODY) }}</p>
-    <button>{{ t.board_send }}</button>
-  </form>
-  {% endif %}
   {% if steps.is_empty() %}
   <p class="muted">{{ t.board_empty }}</p>
   {% else %}
   {% include "_board_thread.html" %}
   {% endif %}
   {% include "_board_pager.html" %}
+  {% if let Some(action) = post_action %}
+  {#- Open with a post that couldn't be posted and why; the action's #write brings the
+      page back here, not to its top. #}
+  <details class="quiet write" id="write"{% if write_error.is_some() || !draft.is_empty() %} open{% endif %}>
+    <summary>{{ t.board_new }}</summary>
+    {% if let Some(error) = write_error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
+    <form method="post" action="{{ action }}#write">
+      <label class="visually-hidden" for="new-post">{{ t.board_new }}</label>
+      <textarea id="new-post" name="body" rows="4" maxlength="{{ crate::db::board::MAX_BODY }}" required aria-describedby="post-format">{{ draft }}</textarea>
+      <p class="hint" id="post-format">{{ crate::i18n::filled(t.board_format, "n", crate::db::board::MAX_BODY) }}</p>
+      <button>{{ t.board_send }}</button>
+    </form>
+  </details>
+  {% endif %}
 </section>

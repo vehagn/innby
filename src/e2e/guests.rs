@@ -374,7 +374,12 @@ async fn a_guest_answers_and_writes_on_the_board_from_one_page(db: PgPool) {
             .any(|l| l.text == t.board_heading),
         "no Board tab"
     );
-    kari.press(&t.attend).await.expect(&t.saved);
+    // Writing a post is folded away below the posts, under a line that opens it, though
+    // the test browser types through.
+    kari.press(&t.attend)
+        .await
+        .expect(&t.saved)
+        .expect_folded(&t.board_new);
     kari.fill(&t.board_new, "Who brings cake?");
     kari.press(&t.board_send)
         .await
