@@ -26,7 +26,7 @@ pub const RSVP: &str = "/r/{link}";
 pub const RSVP_NAME: &str = "/r/{link}/name";
 pub const RSVP_GUESTS: &str = "/r/{link}/guests";
 pub const RSVP_GAMES: &str = "/r/{link}/games";
-/// Posting on the event's message board, which the guest's reply page shows.
+/// Posting on the event's message board, which the guest's Event tab shows.
 pub const RSVP_BOARD: &str = "/r/{link}/board";
 pub const RSVP_BOARD_VOTE: &str = "/r/{link}/board/{post}/vote";
 pub const RSVP_BOARD_DELETE: &str = "/r/{link}/board/{post}/delete";

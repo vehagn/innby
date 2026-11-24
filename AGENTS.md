@@ -44,8 +44,8 @@ src/
     render.rs        askama templates to responses (render_form: 422 for a form to fix), the stylesheet
     icon.rs          the site's icon: favicon.svg, and the .ico and iPhone PNG `just icons` draws from it
   web/               the public site; mod.rs has the router and every route
-    rsvp.rs          a guest's pages /r/{link}: the link's guest, the Reply tab (event,
-                     calendar, coming or not, the board below) and the Guest list tab
+    rsvp.rs          a guest's pages /r/{link}: the link's guest, the Event tab (the
+                     event, calendar, coming or not, the board below) and the Guest list tab
     you.rs           the Your details tab: how many, the guest list, the host's questions,
                      name, e-mail, this device, export, delete
     calendar.rs      /r/{link}/event.ics, for a guest who's coming
@@ -57,7 +57,7 @@ src/
                      kept a few seconds; each request is handled with them on offer
     games.rs         minigames: the Games tab and its high scores, the scores API /api/, and
                      the internal API for games' servers on its own port
-    board.rs         the message board on the Reply tab, posting, replies, votes
+    board.rs         the message board on the Event tab, posting, replies, votes
     views.rs         what personal and group pages show alike (event, guest list, choices,
                      the host's question, a guest's tabs)
   admin/             the host's UI; mod.rs has the router, grouped by the role each page needs;

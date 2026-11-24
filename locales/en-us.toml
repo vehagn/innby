@@ -38,10 +38,9 @@ You're invited! We save your name, your answer, and how many are coming. That's 
 all deleted 30 days after the party. Other guests see your first name and initial on the \
 guest list. You can change that."""
 keep_link = "This is your page. Keep the link to change your answer. Don't share it."
-# The tabs of a guest's pages, and what the bar is called for screen readers.
 reply_details = "Say how many are coming, and more, under {tab}."
 details_heading = "About your RSVP"
-tab_reply = "Your RSVP"
+# The tabs of a guest's pages, and what the bar is called for screen readers.
 tab_you = "Your info"
 tabs_label = "Your invite"
 changed_notice = "The time or place changed after you RSVPed. Check it above, and change your answer if you need to."
@@ -86,7 +85,7 @@ consent_required = "Check the box to say yes."
 confirm_title = "Confirm your email"
 confirm_text = "Press the button to get reminders and your link by email."
 confirm_invalid_text = """
-This link expired or doesn't work anymore. Add your email again on your RSVP page."""
+This link expired or doesn't work anymore. Add your email again on your page."""
 lost_text = "If you added and confirmed your email, we'll send it again."
 lost_button = "Send my link"
 lost_sent_text = "If that email is confirmed, your link is on the way."

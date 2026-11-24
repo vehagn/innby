@@ -67,7 +67,7 @@ pub struct Messages {
     pub details_heading: String,
     pub details_save: String,
     /// The tabs of a guest's pages, and the bar's name for screen readers.
-    pub tab_reply: String,
+    pub tab_event: String,
     pub tab_guests: String,
     pub tab_you: String,
     pub tabs_label: String,

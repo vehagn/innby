@@ -127,7 +127,7 @@ async fn a_guest_gives_the_rest_of_their_answer_here(db: PgPool) {
         format!("/r/{link}/you?lang=en&notice=saved")
     );
     let saved = site.find(&invite).await.unwrap();
-    // Whether they're coming is the reply page's; this leaves it be.
+    // Whether they're coming is the Event tab's; this leaves it be.
     assert_eq!(saved.response, rsvp::Response::Pending);
     assert!(saved.responded_at.is_none());
     assert_eq!(saved.party_size, 2);

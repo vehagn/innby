@@ -37,11 +37,11 @@ async fn an_invited_household_answers_and_shows_on_the_guest_list(db: PgPool) {
         .await
         .expect(&t.saved)
         .expect(&t.answer(Response::Attending, 1));
-    // How many is on her details tab, which the reply leads to.
+    // How many is on her details tab, which the Event tab leads to.
     kari.click(&t.tab_you).await.expect(&t.details_heading);
     kari.select(&t.how_many, &t.people_count(3));
     kari.press(&t.details_save).await.expect(&t.saved);
-    kari.click(&t.tab_reply)
+    kari.click(&t.tab_event)
         .await
         .expect(&t.answer(Response::Attending, 3));
 
@@ -96,7 +96,7 @@ async fn a_guest_hides_their_name_then_declines(db: PgPool) {
         .expect(&t.more_guests(1));
 
     // Then Kari can't come after all, and drops off the list.
-    kari.click(&t.tab_reply).await;
+    kari.click(&t.tab_event).await;
     kari.press(&t.decline)
         .await
         .expect(&t.answer(Response::Declined, 1));
