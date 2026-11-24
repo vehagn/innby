@@ -10,7 +10,9 @@
 <h1>{{ event.details.title(crate::admin::lang::current()) }}</h1>
 
 <section class="card">
-  <form method="post" action="{{ links.details }}">
+  {#- novalidate: the time fields' step mustn't stop a host sending a minute between the
+      quarters. The server checks every field, and shows the form again with what to fix. #}
+  <form method="post" action="{{ links.details }}" novalidate>
     {% include "admin/_event_form.html" %}
     <p class="hint">{{ a.event_change_hint }}</p>
     <button>{{ a.save }}</button>

@@ -589,6 +589,23 @@ mod tests {
     }
 
     #[test]
+    fn keeps_a_minute_between_the_quarters_as_typed() {
+        // The time fields step by quarter hours, but the form takes any minute, and
+        // never rounds it to one.
+        let form = EventForm::from_fields(&fields(&[
+            ("title", "Julebord"),
+            ("starts_at", "2054-12-12T19:07"),
+            ("ends_at", "2054-12-13T00:53"),
+            ("rsvp_deadline", "2054-12-01T23:59"),
+            ("time_zone", "Europe/Oslo"),
+        ]));
+        let again = EventForm::from_details(&form.details(Timestamp::now()).unwrap());
+        assert_eq!(again.starts_at(), ("2054-12-12", "19:07"));
+        assert_eq!(again.ends_at(), ("2054-12-13", "00:53"));
+        assert_eq!(again.rsvp_deadline(), ("2054-12-01", "23:59"));
+    }
+
+    #[test]
     fn takes_a_time_typed_with_am_or_pm_and_shows_it_on_the_24_hour_clock() {
         let mut sent = fields(&[
             ("title", "Julebord"),
@@ -635,6 +652,8 @@ mod tests {
             ("title-en", "Christmas\u{1}party"),
             ("location", "Storgata\n1"),
             ("description", "Velkommen\u{0}!"),
+            // The browser doesn't check the form, so an empty start comes here too.
+            ("starts_at", ""),
             ("starts_at", "next Friday"),
             ("time_zone", "Europe/Atlantis"),
             ("rsvp_deadline", "soon"),

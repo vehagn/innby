@@ -26,10 +26,23 @@ async fn the_host_creates_an_event_invites_to_it_and_deletes_it(db: PgPool) {
         "{}",
         form.body
     );
-    // Times are picked with the browser's own time field.
-    assert!(form.body.contains(r#"name="starts_at_time" type="time""#));
-    host.fill(&a.event_title, "Summer party")
-        .fill(&format!("{} · Bokmål", a.event_title), "Sommerfest")
+    // Times are picked with the browser's own time field, in quarter hours from midnight.
+    // The form is novalidate, so that the step can't refuse a minute between.
+    for name in ["starts_at_time", "ends_at_time", "rsvp_deadline_time"] {
+        let field = format!(r#"name="{name}" type="time" step="900" min="00:00""#);
+        assert!(form.body.contains(&field), "{name}");
+    }
+    assert!(form.body.contains(r##"#new-event" novalidate>"##));
+    // With the browser checking nothing, the server refuses what's missing, one thing
+    // at a time, and shows the form again.
+    let refused = host.press(&a.create_event).await;
+    assert_eq!(refused.status, StatusCode::UNPROCESSABLE_ENTITY);
+    refused.expect(&a.error_event_title);
+    host.fill(&a.event_title, "Summer party");
+    host.press(&a.create_event)
+        .await
+        .expect(&a.error_event_time);
+    host.fill(&format!("{} · Bokmål", a.event_title), "Sommerfest")
         .fill(&a.event_location, "Bygdøy")
         .fill(&a.event_starts, "2054-12-20")
         .fill(&filled(&a.time_of, "field", &a.event_starts), "15:00");
@@ -55,11 +68,19 @@ async fn the_host_creates_an_event_invites_to_it_and_deletes_it(db: PgPool) {
         .await
         .expect(&t.answer(Response::Attending, 1));
 
-    // The host moves it; Kari's page follows.
-    host.click(&a.section_settings).await;
-    host.fill(&a.event_location, "Huk");
+    // The host moves it, to a time between the quarter hours, which the Details tab's
+    // form sends too and keeps as typed; Kari's page follows.
+    let starts = filled(&a.time_of, "field", &a.event_starts);
+    let details = host.click(&a.section_settings).await;
+    assert!(details.body.contains(r#"/details" novalidate>"#));
+    host.fill(&a.event_location, "Huk").fill(&starts, "19:07");
     host.press(&a.save).await.expect(&a.saved);
-    kari.open(&link).await.expect("Huk").expect_not("Bygdøy");
+    assert_eq!(host.value(&starts), "19:07");
+    kari.open(&link)
+        .await
+        .expect("Huk")
+        .expect("19:07")
+        .expect_not("Bygdøy");
 
     // The list of events shows the headcount, and deleting takes everything with it.
     host.click(&a.events).await.expect("Summer party");
