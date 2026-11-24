@@ -175,6 +175,8 @@ pub struct Messages {
     pub play: String,
     /// In a high score table, for a guest who isn't on the guest list.
     pub a_guest: String,
+    /// A host's name and role, signing their high score, as "Hagen (Editor)".
+    pub host_signed: String,
     pub no_scores: String,
     pub col_player: String,
     pub col_score: String,
@@ -440,6 +442,12 @@ pub struct AdminMessages {
     pub games_hint: String,
     pub games_none: String,
     pub save_games: String,
+    /// Hosts playing the games themselves: "{name}" is how their scores are signed.
+    pub games_play: String,
+    pub games_play_hint: String,
+    pub games_join: String,
+    pub games_leave: String,
+    pub games_leave_hint: String,
 
     // Message board
     pub board: String,

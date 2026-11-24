@@ -93,6 +93,10 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route(paths::ACCOUNT_PASSWORD, post(account::password));
     let viewer = Router::new()
         .route(paths::EVENT, get(guests::list))
+        // Every host of an event may play its games.
+        .route(paths::EVENT_GAMES, get(games::show))
+        .route(paths::EVENT_GAMES_PLAYERS, post(games::create))
+        .route(paths::EVENT_GAMES_LEAVE, post(games::delete))
         .route_layer(middleware::from_fn(role::viewer));
     let organiser = Router::new()
         .route(paths::EVENT_CSV, get(guests::csv))
@@ -122,7 +126,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route(paths::GUEST_QR, get(guests::qr))
         .route(paths::GROUP_QR, get(groups::qr))
         .route(paths::EVENT_QR, get(qr::show).post(qr::save))
-        .route(paths::EVENT_GAMES, get(games::show).post(games::edit))
+        .route(paths::EVENT_GAMES_OFFER, post(games::edit))
         .route_layer(middleware::from_fn(role::editor));
     let creator = Router::new()
         .route(

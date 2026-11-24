@@ -184,6 +184,8 @@ Your best score in each game is kept, and shows here and in the game by your nam
 the guest list."""
 play = "Play {name}"
 a_guest = "A guest"
+# A host's name and role, signing their high score, as "Hagen (Editor)".
+host_signed = "{name} ({role})"
 no_scores = "No scores yet."
 col_player = "Player"
 col_score = "Score"
@@ -463,9 +465,16 @@ qr_download = "Download the QR code (SVG)"
 
 # Minigames
 games = "Games"
-games_hint = "Games the guests can play from their page, each with a high score table. Turning a game off deletes its scores."
+games_hint = "Games the guests can play from their page, and hosts from here, each with a high score table. Turning a game off deletes its scores."
 games_none = "No games are set up: list them in INNBY_GAMES, as docs/games.md says."
 save_games = "Save the games"
+games_play = "Play"
+games_play_hint = """
+Play the games yourself. Your best score in each is on its high score table, which \
+guests see too, signed {name}."""
+games_join = "Play the games"
+games_leave = "Stop playing"
+games_leave_hint = "Takes you off the high score tables, and deletes your scores."
 
 # Message board
 board = "Board"

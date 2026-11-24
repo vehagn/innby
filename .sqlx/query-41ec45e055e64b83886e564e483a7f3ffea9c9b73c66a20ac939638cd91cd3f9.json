@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from game_host where event_id = $1 and host_name = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "41ec45e055e64b83886e564e483a7f3ffea9c9b73c66a20ac939638cd91cd3f9"
+}

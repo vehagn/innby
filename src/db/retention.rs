@@ -5,6 +5,8 @@
 //! retention period.
 //! A host's name and role on a board post, and their votes on posts, go with the post
 //! or its event (`board::delete`, `event::delete_started_by`).
+//! A host who plays an event's games, by name, and their scores, go when they stop
+//! playing, or with the event (`games::leave`, `event::delete_started_by`).
 
 use jiff::Timestamp;
 use jiff_sqlx::ToSqlx;

@@ -178,6 +178,8 @@ games_heading = "Spill"
 games_hint = "Den beste poengsummen din i hvert spill tas vare på, og vises her og i spillet med navnet ditt slik det står på gjestelisten."
 play = "Spill {name}"
 a_guest = "En gjest"
+# A host's name and role, signing their high score, as "Hagen (Editor)".
+host_signed = "{name} ({role})"
 no_scores = "Ingen resultater ennå."
 col_player = "Spiller"
 col_score = "Resultat"
@@ -452,9 +454,16 @@ qr_download = "Last ned QR-koden (SVG)"
 
 # Minispill
 games = "Spill"
-games_hint = "Spill gjestene kan spille fra siden sin, hvert med en resultatliste. Slår du av et spill, slettes resultatene i det."
+games_hint = "Spill gjestene kan spille fra siden sin, og vertene herfra, hvert med en resultatliste. Slår du av et spill, slettes resultatene i det."
 games_none = "Ingen spill er satt opp: list dem i INNBY_GAMES, slik docs/games.md forklarer."
 save_games = "Lagre spillene"
+games_play = "Spill"
+games_play_hint = """
+Spill selv. Den beste poengsummen din i hvert spill står på resultatlisten, som \
+gjestene også ser, signert {name}."""
+games_join = "Spill spillene"
+games_leave = "Slutt å spille"
+games_leave_hint = "Tar deg av resultatlistene, og sletter resultatene dine."
 
 board = "Tavle"
 board_hint = """

@@ -169,7 +169,7 @@ insert into event_access (event_id, user_name, role) values
     ('00000000-5eed-7000-8000-000000000001', 'helper', 'viewer');
 
 -- Julebord offers the example games in games/, which .env.example lists, and some of
--- its guests have played Reaction: time in milliseconds, the least wins.
+-- its guests and a host have played Reaction: time in milliseconds, the least wins.
 insert into event_game (event_id, game) values
     ('00000000-5eed-7000-8000-000000000001', 'reaction'),
     ('00000000-5eed-7000-8000-000000000001', 'snake'),
@@ -180,6 +180,11 @@ insert into game_score (rsvp_id, game, score, scored_at) values
     ('00000000-5eed-7000-8000-000000001006', 'reaction', 241, now() - interval '2 days'),
     ('00000000-5eed-7000-8000-000000001101', 'reaction', 312, now() - interval '1 day'),
     ('00000000-5eed-7000-8000-000000001009', 'reaction', 265, now() - interval '5 hours');
+-- The admin plays too, from the admin UI's Games tab.
+insert into game_host (id, event_id, host_name) values
+    ('00000000-5eed-7000-8000-000000004001', '00000000-5eed-7000-8000-000000000001', 'admin');
+insert into game_host_score (host_id, game, host_role, score, scored_at) values
+    ('00000000-5eed-7000-8000-000000004001', 'reaction', 'admin', 258, now() - interval '1 day');
 
 -- Julebord's board is open: a host's welcome with replies, a question, and a post voted
 -- below zero, which guests see folded away.

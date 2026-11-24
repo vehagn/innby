@@ -3,6 +3,7 @@ use axum::{
     http::{Request, StatusCode, header},
     response::Response,
 };
+use jiff::{SignedDuration, Timestamp};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
@@ -81,8 +82,8 @@ async fn a_game_keeps_a_guests_best_with_their_token(db: PgPool) {
             "game": "quiz",
             "kind": "time",
             "scores": [
-                { "name": "Ola N.", "score": 9000, "shown": "9.00 s", "you": false },
-                { "name": "Kari N.", "score": 12300, "shown": "12.30 s", "you": true },
+                { "name": "Ola N.", "score": 9000, "shown": "9.00 s", "you": false, "host": false },
+                { "name": "Kari N.", "score": 12300, "shown": "12.30 s", "you": true, "host": false },
             ],
             "yours": 12300,
         })
@@ -93,6 +94,70 @@ async fn a_game_keeps_a_guests_best_with_their_token(db: PgPool) {
         .unwrap();
     let table = json(site.send(call("GET", SCORES, &kari_quiz, None)).await).await;
     assert_eq!(table["scores"][0]["name"], en().a_guest.as_str());
+}
+
+#[sqlx::test]
+async fn a_host_plays_with_a_token_of_their_own(db: PgPool) {
+    let site = Site::with(db, GAMES);
+    let (kari, link) = site.invite("Kari", 1).await;
+    let party = site.event().await;
+    games::offer(&site.db, party.id, &["quiz".into()])
+        .await
+        .unwrap();
+    let hagen = games::join(&site.db, party.id, "hagen@example.com")
+        .await
+        .unwrap();
+    let key = &site.config.link_key;
+    let soon = Timestamp::now() + SignedDuration::from_hours(1);
+    let token = |role: &str, game: &str, expires| key.host_score_token(hagen, role, game, expires);
+    let host_quiz = token("editor", "quiz", soon);
+    let kari_quiz = key.score_token(kari.id, kari.link_nonce, "quiz");
+    site.send(call("POST", SCORES, &kari_quiz, Some(9_000)))
+        .await;
+
+    // Ranked with the guests, by their name up to the `@` and their role.
+    let response = site
+        .send(call("POST", SCORES, &host_quiz, Some(8_000)))
+        .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        json(response).await,
+        json!({
+            "game": "quiz",
+            "kind": "time",
+            "scores": [
+                { "name": "hagen (Editor)", "score": 8000, "shown": "8.00 s", "you": true, "host": true },
+                { "name": "Kari", "score": 9000, "shown": "9.00 s", "you": false, "host": false },
+            ],
+            "yours": 8000,
+        })
+    );
+    let table = json(site.send(call("GET", SCORES, &kari_quiz, None)).await).await;
+    assert_eq!(table["scores"][0]["you"], false);
+    assert_eq!(table["yours"], 9000);
+    // And on the guest's Games tab, in their language.
+    let html = body(site.get(&format!("/r/{link}/games?lang=nb")).await).await;
+    assert!(html.contains("<td>hagen (Redaktør)</td>"), "{html}");
+
+    // A token past its time, for another game, or with a role written in, is refused.
+    let past = Timestamp::now() - SignedDuration::from_secs(1);
+    let forged = host_quiz.replace(".editor.", ".admin.");
+    for token in [
+        token("editor", "quiz", past),
+        token("editor", "pinball", soon),
+        forged,
+    ] {
+        let response = site.send(call("POST", SCORES, &token, Some(1))).await;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{token}");
+    }
+    // A host who stops playing loses their scores, and their tokens stop.
+    games::leave(&site.db, party.id, "hagen@example.com")
+        .await
+        .unwrap();
+    let response = site.send(call("GET", SCORES, &host_quiz, None)).await;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let table = json(site.send(call("GET", SCORES, &kari_quiz, None)).await).await;
+    assert_eq!(table["scores"].as_array().unwrap().len(), 1);
 }
 
 #[sqlx::test]
@@ -297,6 +362,21 @@ async fn a_game_with_a_server_takes_scores_only_from_it(db: PgPool) {
     assert_eq!(json(response).await["yours"], 500);
     let table = json(internal("snake", &snake_key, None).await).await;
     assert_eq!(table["scores"][0]["name"], "Kari N.");
+    // A host's token, which their game's server passes on the same way.
+    let hagen = games::join(&site.db, party.id, "hagen").await.unwrap();
+    let expires = Timestamp::now() + SignedDuration::from_hours(1);
+    let host_token = key.host_score_token(hagen, "viewer", "snake", expires);
+    let response = site
+        .send_internal(
+            Request::post("/internal/games/snake/scores?lang=en")
+                .header(header::AUTHORIZATION, format!("Bearer {snake_key}"))
+                .header("innby-token", host_token.as_str())
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "score": 700 }).to_string()))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(json(response).await["scores"][0]["name"], "hagen (Viewer)");
 
     // Without the key, or with another game's, nothing.
     for wrong in ["", "nonsense", &key.game_key("quiz")] {

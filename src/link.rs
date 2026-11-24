@@ -117,6 +117,36 @@ impl LinkKey {
         })
     }
 
+    /// A playing host's score token for one game: `{id}.{role}.{expires}.{tag}`, where
+    /// `id` is their row of `game_host`. It signs the game, their role for the event,
+    /// which their score is signed with, and when it stops: a host's role comes from the
+    /// admin UI's login, which the site can't ask, so a token outlives it only so long.
+    /// It stops sooner if they stop playing, which deletes the row.
+    pub fn host_score_token(&self, id: Uuid, role: &str, game: &str, expires: Timestamp) -> String {
+        let expires = expires.as_second();
+        let mac = self.host_score_mac(id, role, game, expires);
+        format!("{}.{role}.{expires}.{}", encode_id(id), encode_tag(mac))
+    }
+
+    /// Checks a host's score token in constant time. Expiry is the caller's check.
+    pub fn verify_host_score(&self, token: &HostScoreToken, game: &str) -> bool {
+        self.host_score_mac(token.id, &token.role, game, token.expires.as_second())
+            .verify_truncated_left(&token.tag)
+            .is_ok()
+    }
+
+    fn host_score_mac(&self, id: Uuid, role: &str, game: &str, expires: i64) -> Hmac<Sha256> {
+        self.mac(
+            "host score",
+            &[
+                id.as_bytes(),
+                role.as_bytes(),
+                game.as_bytes(),
+                &expires.to_be_bytes(),
+            ],
+        )
+    }
+
     fn score_mac(&self, id: Uuid, nonce: i32, game: &str) -> Hmac<Sha256> {
         self.mac(
             "score",
@@ -268,6 +298,42 @@ impl FromStr for EmailLink {
     }
 }
 
+/// A parsed but not yet verified host's score token.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostScoreToken {
+    pub id: Uuid,
+    /// The host's role for the event, by its name, as `editor`.
+    pub role: String,
+    pub expires: Timestamp,
+    tag: [u8; TAG_LEN],
+}
+
+impl FromStr for HostScoreToken {
+    type Err = ();
+
+    fn from_str(token: &str) -> Result<Self, ()> {
+        let mut parts = token.split('.');
+        let (Some(id), Some(role), Some(expires), Some(tag), None) = (
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+        ) else {
+            return Err(());
+        };
+        if role.is_empty() || !role.bytes().all(|byte| byte.is_ascii_lowercase()) {
+            return Err(());
+        }
+        Ok(Self {
+            id: decode_id(id)?,
+            role: role.to_owned(),
+            expires: Timestamp::from_second(expires.parse().map_err(drop)?).map_err(drop)?,
+            tag: decode_tag(tag)?,
+        })
+    }
+}
+
 /// What a link to set a host's password says: when it stops working, and its tag.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PasswordLink {
@@ -332,6 +398,34 @@ pub mod tests {
         assert!(!key().verify(Purpose::Rsvp, &token, 0));
         let rsvp: IdLink = key().link(Purpose::Rsvp, id(), 0).parse().unwrap();
         assert!(!key().verify_score(&rsvp, 0, "quiz"));
+    }
+
+    #[test]
+    fn a_host_score_token_signs_their_role_game_and_expiry() {
+        let expires = Timestamp::from_second(1_800_000_000).unwrap();
+        let token = key().host_score_token(id(), "editor", "quiz", expires);
+        let parsed: HostScoreToken = token.parse().unwrap();
+        assert_eq!(
+            (parsed.id, parsed.role.as_str(), parsed.expires),
+            (id(), "editor", expires)
+        );
+        assert!(key().verify_host_score(&parsed, "quiz"));
+        assert!(!key().verify_host_score(&parsed, "pinball"));
+        // Neither a higher role nor a later expiry may be written in.
+        for forged in [
+            token.replace(".editor.", ".admin."),
+            token.replace("1800000000", "1900000000"),
+        ] {
+            let forged: HostScoreToken = forged.parse().unwrap();
+            assert!(!key().verify_host_score(&forged, "quiz"));
+        }
+        // A guest's token isn't a host's, nor the other way round.
+        assert!(token.parse::<IdLink>().is_err());
+        let guest = key().score_token(id(), 0, "quiz");
+        assert!(guest.parse::<HostScoreToken>().is_err());
+        for bad in ["", "a.b.c.d", &token.replace(".editor.", ".Editor.")] {
+            assert!(bad.parse::<HostScoreToken>().is_err(), "{bad:?}");
+        }
     }
 
     #[test]

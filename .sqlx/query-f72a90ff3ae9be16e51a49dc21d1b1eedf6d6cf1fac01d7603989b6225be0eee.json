@@ -1,0 +1,90 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        select id as \"id!\", host as \"host!\", name as \"name!\",\n            response as \"response?: Response\", name_display as \"name_display?: NameDisplay\",\n            role, score as \"score!\"\n        from (\n            select r.id, false as host, r.name, r.response, r.name_display,\n                null::text as role, s.score, s.scored_at\n            from game_score s join rsvp r on r.id = s.rsvp_id\n            where r.event_id = $1 and s.game = $2\n            union all\n            select h.id, true, h.host_name, null, null, s.host_role, s.score, s.scored_at\n            from game_host_score s join game_host h on h.id = s.host_id\n            where h.event_id = $1 and s.game = $2\n        ) as line\n        order by case when $3 then -score else score end, scored_at\n        limit $4\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "host!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "response?: Response",
+        "type_info": {
+          "Custom": {
+            "name": "rsvp_response",
+            "kind": {
+              "Enum": [
+                "pending",
+                "attending",
+                "declined"
+              ]
+            }
+          }
+        },
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "name_display?: NameDisplay",
+        "type_info": {
+          "Custom": {
+            "name": "name_display",
+            "kind": {
+              "Enum": [
+                "full",
+                "partial",
+                "hidden"
+              ]
+            }
+          }
+        },
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "role",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "score!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Bool",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "f72a90ff3ae9be16e51a49dc21d1b1eedf6d6cf1fac01d7603989b6225be0eee"
+}

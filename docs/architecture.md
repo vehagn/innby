@@ -79,7 +79,10 @@ fits on a phone. The pages are:
   colour, and a heart, star or emoji in the middle. Each event has its own, so each
   party's printed invitations and posters look its own; a new event starts plain.
 - **Games**, when `INNBY_GAMES` lists any: which minigames the event offers, and each
-  one's high scores. Turning a game off deletes its scores.
+  one's high scores. Turning a game off deletes its scores. Every host of the event may
+  play them from here too: once they choose to, each game has a link with a score token
+  of theirs, and their scores are ranked with the guests', signed with their login name
+  and role, as "Hagen (Editor)", until they stop playing, which deletes them.
 - **Board:** what the event's message board is, and while there is one, its posts, with
   every guest's name in full, to post and reply as a host, vote, or delete any post. A
   host's post is signed with their login name and their role for the event when they
@@ -491,6 +494,8 @@ erDiagram
     event ||--o{ event_access : "gives a role for"
     event ||--o{ event_game : offers
     rsvp ||--o{ game_score : "has a best"
+    event ||--o{ game_host : "has playing hosts"
+    game_host ||--o{ game_host_score : "has a best"
     event ||--o{ board_post : "has on its board"
     board_post |o--o{ board_post : "answers, in a thread"
     rsvp |o--o{ board_post : writes
@@ -580,6 +585,18 @@ erDiagram
         bigint score "points or ms"
         timestamptz scored_at
     }
+    game_host {
+        uuid id PK "their score tokens name it"
+        uuid event_id FK
+        text host_name "login name"
+    }
+    game_host_score {
+        uuid host_id PK, FK
+        text game PK
+        text host_role "theirs when they set it"
+        bigint score "points or ms"
+        timestamptz scored_at
+    }
     board_post {
         uuid id PK
         uuid event_id FK
@@ -639,6 +656,7 @@ In short:
 | `invite_group` | group links: name, maximum party size, link nonce |
 | `event_access` | roles for one event: the name a host logs in with, viewer, organiser or editor |
 | `event_game`, `game_score` | the minigames an event offers, and each guest's best score in each |
+| `game_host`, `game_host_score` | hosts who play an event's minigames, by login name, and each one's best score in each, with their role when they set it |
 | `board_post`, `board_vote`, `board_host_vote` | the event's message board: each post's text, whose it is (a guest, or a host by login name and role) and what it answers; each guest's and each host's vote on a post, up or down |
 | `outbox` | mail to send, to a guest or to a host made in the admin UI (in the language they asked in): kind, attempts, next try, when sent, last error |
 | `admin_user` | password users an admin makes: name, immutable account UUID, role, argon2 hash (none until they set one from a link), an optional e-mail address, and a version that a new password bumps |

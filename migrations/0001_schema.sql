@@ -311,6 +311,30 @@ create table game_score (
     primary key (rsvp_id, game)
 );
 
+-- Hosts who play an event's games from the admin UI, by the name they log in with. A
+-- host's score token names this row, so deleting it, when they stop playing, stops
+-- their tokens and takes their scores. Deleted with the event.
+create table game_host (
+    id        uuid primary key default uuidv7(),
+    event_id  uuid not null references event on delete cascade,
+    host_name text not null
+        check (length(host_name) between 1 and 254 and host_name !~ '[[:cntrl:]]'),
+    unique (event_id, host_name)
+);
+
+-- Each playing host's best score in each game, as `game_score` is a guest's, with their
+-- role for the event when they set it, which the score is signed with. Deleted with
+-- the host's row, and when the event stops offering the game.
+create table game_host_score (
+    host_id   uuid not null references game_host on delete cascade,
+    game      text not null check (game ~ '^[a-z0-9-]{1,40}$'),
+    host_role text not null
+        check (host_role in ('admin', 'creator', 'editor', 'organiser', 'viewer')),
+    score     bigint not null check (score between 0 and 1000000000000),
+    scored_at timestamptz not null default now(),
+    primary key (host_id, game)
+);
+
 -- Posts on an event's message board (`event.board`), each a thread's first or a reply to
 -- another of the same event's. A guest's or a host's: a guest by their RSVP, shown as on
 -- the guest list; a host by the name they log in with and the role they had for the

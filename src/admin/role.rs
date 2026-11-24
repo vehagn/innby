@@ -2,8 +2,9 @@
 //! the config gives them (the built-in user is an admin); a single sign-on user gets the
 //! highest role their identity provider lists for Innby. Either may have none.
 //!
-//! - **viewer** sees the events, their headcounts and who's coming. Not the personal
-//!   links, e-mail addresses or the guest export: those let you act as a guest.
+//! - **viewer** sees the events, their headcounts and who's coming, and plays their
+//!   minigames. Not the personal links, e-mail addresses or the guest export: those let
+//!   you act as a guest.
 //! - **organiser** also runs the event's message board, sends reminders, and downloads
 //!   the guest list without the links and addresses.
 //! - **editor** runs events that exist: invites guests, makes group links, sends
@@ -41,6 +42,7 @@ use crate::{
         admin_user::AccountCredential,
     },
     http::server_error,
+    i18n::{Messages, fill},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -134,6 +136,28 @@ impl Role {
 
     pub fn from_stored(name: Option<&str>) -> Option<Role> {
         name.and_then(Role::from_name)
+    }
+
+    /// How a host signs what guests see of them, such as a high score: the name they log
+    /// in with and their role for the event, by its name, as "Hagen (Editor)", in the
+    /// page's language. Guests see the name only up to an `@`, since an identity
+    /// provider may name its users by their address, which isn't for everyone invited;
+    /// hosts see it whole.
+    pub fn signature(t: &Messages, name: &str, role: &str, full_name: bool) -> String {
+        let name = match full_name {
+            true => name,
+            false => name.split_once('@').map_or(name, |(local, _)| local),
+        };
+        let a = &t.admin;
+        let role = match Role::from_name(role) {
+            Some(Role::Viewer) => &a.role_viewer,
+            Some(Role::Organiser) => &a.role_organiser,
+            Some(Role::Editor) => &a.role_editor,
+            Some(Role::Creator) => &a.role_creator,
+            Some(Role::Admin) => &a.role_admin,
+            None => return name.to_owned(),
+        };
+        fill(&t.host_signed, &[("name", &name), ("role", role)])
     }
 
     /// The role of the request being handled, if it has one.

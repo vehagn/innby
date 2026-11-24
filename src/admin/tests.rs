@@ -86,8 +86,14 @@ async fn each_role_reaches_only_its_pages(db: PgPool) {
         (Method::GET, paths::LANGUAGES.to_owned(), Role::Admin),
         (Method::GET, on(paths::EVENT_QR, e), Role::Editor),
         (Method::POST, on(paths::EVENT_QR, e), Role::Editor),
-        (Method::GET, on(paths::EVENT_GAMES, e), Role::Editor),
-        (Method::POST, on(paths::EVENT_GAMES, e), Role::Editor),
+        (Method::GET, on(paths::EVENT_GAMES, e), Role::Viewer),
+        (Method::POST, on(paths::EVENT_GAMES_OFFER, e), Role::Editor),
+        (
+            Method::POST,
+            on(paths::EVENT_GAMES_PLAYERS, e),
+            Role::Viewer,
+        ),
+        (Method::POST, on(paths::EVENT_GAMES_LEAVE, e), Role::Viewer),
         (Method::GET, on(paths::EVENT_ACCESS, e), Role::Admin),
         (Method::POST, on(paths::EVENT_ACCESS, e), Role::Admin),
         (Method::POST, on(paths::EVENT_ACCESS_REMOVE, e), Role::Admin),
@@ -171,6 +177,7 @@ async fn the_host_picks_an_events_games_and_sees_their_scores(db: PgPool) {
     let mut admin = Admin::new(db.clone());
     let event = admin.event_id().await;
     let games_tab = paths::path(paths::EVENT_GAMES, event);
+    let offer = paths::path(paths::EVENT_GAMES_OFFER, event);
     // Without games in the config, there's no tab.
     let html = body(admin.get(&admin.event().await).await).await;
     assert!(!html.contains(&format!(r#"href="{games_tab}""#)));
@@ -187,7 +194,7 @@ async fn the_host_picks_an_events_games_and_sees_their_scores(db: PgPool) {
     assert!(html.contains(&format!(r#"href="{games_tab}""#)), "{html}");
 
     // Ticking the quiz, and a game the config doesn't have, offers only the quiz.
-    let response = admin.post(&games_tab, "game=quiz&game=chess").await;
+    let response = admin.post(&offer, "game=quiz&game=chess").await;
     assert_eq!(location(&response), format!("{games_tab}?saved"));
     assert_eq!(
         crate::db::games::offered(&db, event).await.unwrap(),
@@ -206,7 +213,7 @@ async fn the_host_picks_an_events_games_and_sees_their_scores(db: PgPool) {
     assert!(html.contains(r#"value="quiz" checked"#) && html.contains(r#"value="pinball">"#));
 
     // Unticked, the quiz goes with its scores.
-    admin.post(&games_tab, "").await;
+    admin.post(&offer, "").await;
     assert!(
         crate::db::games::offered(&db, event)
             .await
@@ -215,6 +222,84 @@ async fn the_host_picks_an_events_games_and_sees_their_scores(db: PgPool) {
     );
     assert!(
         crate::db::games::of_guest(&db, kari.id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[sqlx::test]
+async fn every_host_of_an_event_plays_its_games(db: PgPool) {
+    let mut viewer = Admin::as_user(db.clone(), "hagen@example.com", Some(Role::Viewer));
+    viewer.config = crate::config::tests::parse(&[
+        ("INNBY_GAMES_URL", "https://games.example.com"),
+        ("INNBY_GAMES", "quiz:time:Quick quiz"),
+    ])
+    .unwrap();
+    let event = viewer.event_id().await;
+    let games_tab = paths::path(paths::EVENT_GAMES, event);
+    let players = paths::path(paths::EVENT_GAMES_PLAYERS, event);
+    let leave = paths::path(paths::EVENT_GAMES_LEAVE, event);
+    // A viewer has the tab, but may not choose the games; with none offered, nothing to
+    // play.
+    let html = body(viewer.get(&viewer.event().await).await).await;
+    assert!(html.contains(&format!(r#"href="{games_tab}""#)), "{html}");
+    let html = body(viewer.get(&games_tab).await).await;
+    assert!(
+        !html.contains("/games/offer") && !html.contains(&players),
+        "{html}"
+    );
+
+    crate::db::games::offer(&db, event, &["quiz".into()])
+        .await
+        .unwrap();
+    let html = body(viewer.get(&games_tab).await).await;
+    // Before they choose to play, no links to play with, but what guests would see.
+    assert!(
+        html.contains(&players) && !html.contains("games.example.com"),
+        "{html}"
+    );
+    assert!(html.contains("signed hagen (Viewer)"), "{html}");
+    let response = viewer.post(&players, "").await;
+    assert_eq!(location(&response), games_tab);
+    let hagen = crate::db::games::playing(&db, event, "hagen@example.com")
+        .await
+        .unwrap()
+        .unwrap();
+
+    // Then a link to each game, with a token of theirs, signed with their role.
+    let html = body(viewer.get(&games_tab).await).await;
+    let start = html.find("token=").expect(&html) + "token=".len();
+    let token: crate::link::HostScoreToken = html[start..]
+        .split("&#38;")
+        .next()
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert_eq!((token.id, token.role.as_str()), (hagen, "viewer"));
+    assert!(viewer.config.link_key.verify_host_score(&token, "quiz"));
+    assert!(token.expires > jiff::Timestamp::now() + jiff::SignedDuration::from_hours(11));
+    assert!(
+        html.contains("Play Quick quiz") && html.contains(&leave),
+        "{html}"
+    );
+    // Hosts see each other's names whole.
+    crate::db::games::record_host(&db, hagen, "viewer", "quiz", 5_000, false)
+        .await
+        .unwrap();
+    let mut admin = Admin::new(db.clone());
+    admin.config = viewer.config.clone();
+    let html = body(admin.get(&games_tab).await).await;
+    assert!(
+        html.contains("<td>hagen@example.com (Viewer)</td><td>5.00 s</td>"),
+        "{html}"
+    );
+
+    // Stopping deletes their scores.
+    let response = viewer.post(&leave, "").await;
+    assert_eq!(location(&response), games_tab);
+    assert!(
+        crate::db::games::table(&db, event, "quiz", false, 10)
             .await
             .unwrap()
             .is_empty()

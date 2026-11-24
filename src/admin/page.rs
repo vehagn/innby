@@ -166,12 +166,7 @@ fn event_pages(id: Uuid) -> Vec<(Tab, String, &'static str)> {
         (Tab::Groups, links.groups, &text.group_links, edit),
         (Tab::Qr, links.qr_style, &text.qr_heading, edit),
         (Tab::Board, links.board, &text.board, organise),
-        (
-            Tab::Games,
-            links.games,
-            &text.games,
-            edit && super::has_games(),
-        ),
+        (Tab::Games, links.games, &text.games, super::has_games()),
         (Tab::Details, links.details, &text.details, edit),
         (Tab::Access, links.access, &text.access, manage),
     ]

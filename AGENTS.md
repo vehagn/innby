@@ -72,7 +72,8 @@ src/
     invitations.rs   the Invitation links tab: invitations in a batch
     groups.rs        the Group links tab, and each group's page
     qr/              an event's QR code style tab and the SVG downloads; draw.rs draws them
-    games.rs         an event's Games tab: the minigames it offers, and their scores
+    games.rs         an event's Games tab: the minigames it offers, their scores, and
+                     hosts playing them
     board.rs         an event's Board tab: what its board is, and hosts' posts and deletions
     access.rs        an event's Access tab: roles for that event alone, by login name
     users.rs         the Users tab, for admins: password users kept in the database

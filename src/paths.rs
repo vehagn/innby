@@ -72,6 +72,9 @@ pub const EVENTS_IMPORT: &str = "/events/import";
 pub const EVENT_REMINDERS: &str = "/events/{event}/reminders";
 pub const EVENT_QR: &str = "/events/{event}/qr-style";
 pub const EVENT_GAMES: &str = "/events/{event}/games";
+pub const EVENT_GAMES_OFFER: &str = "/events/{event}/games/offer";
+pub const EVENT_GAMES_PLAYERS: &str = "/events/{event}/games/players";
+pub const EVENT_GAMES_LEAVE: &str = "/events/{event}/games/players/delete";
 pub const EVENT_BOARD: &str = "/events/{event}/board";
 pub const EVENT_BOARD_POSTS: &str = "/events/{event}/board/posts";
 pub const EVENT_BOARD_DELETE: &str = "/events/{event}/board/{post}/delete";
@@ -270,8 +273,12 @@ pub struct EventLinks {
     pub details: String,
     /// The QR code style.
     pub qr_style: String,
-    /// The minigames the event offers.
+    /// The minigames the event offers, which to offer, and hosts' joining and leaving
+    /// them.
     pub games: String,
+    pub games_offer: String,
+    pub games_players: String,
+    pub games_leave: String,
     /// The message board, and where hosts post on it.
     pub board: String,
     pub board_posts: String,
@@ -297,6 +304,9 @@ impl EventLinks {
             details: at(EVENT_DETAILS),
             qr_style: at(EVENT_QR),
             games: at(EVENT_GAMES),
+            games_offer: at(EVENT_GAMES_OFFER),
+            games_players: at(EVENT_GAMES_PLAYERS),
+            games_leave: at(EVENT_GAMES_LEAVE),
             board: at(EVENT_BOARD),
             board_posts: at(EVENT_BOARD_POSTS),
             access: at(EVENT_ACCESS),

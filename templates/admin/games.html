@@ -14,8 +14,9 @@
 {% if choices.is_empty() %}
 <p class="muted">{{ a.games_none }}</p>
 {% else %}
+{% if crate::admin::role::Role::can_edit() %}
 <section class="card">
-  <form method="post" action="{{ links.games }}">
+  <form method="post" action="{{ links.games_offer }}">
     <fieldset>
       <legend>{{ a.games }}</legend>
       {% for choice in choices %}
@@ -25,6 +26,25 @@
     <button>{{ a.save_games }}</button>
   </form>
 </section>
+{% endif %}
+
+{% if !tables.is_empty() %}
+<section class="card">
+  <h2>{{ a.games_play }}</h2>
+  <p class="hint">{{ crate::i18n::filled(a.games_play_hint, "name", signed) }}</p>
+  {% if let Some(play) = play %}
+  <p class="buttons">{% for game in play %}<a class="button" href="{{ game.url }}">{{ crate::i18n::filled(t.play, "name", game.name) }}</a>{% endfor %}</p>
+  <form method="post" action="{{ links.games_leave }}">
+    <p class="hint">{{ a.games_leave_hint }}</p>
+    <button class="secondary">{{ a.games_leave }}</button>
+  </form>
+  {% else %}
+  <form method="post" action="{{ links.games_players }}">
+    <button>{{ a.games_join }}</button>
+  </form>
+  {% endif %}
+</section>
+{% endif %}
 
 {% for table in tables %}
 <section class="card">

@@ -7,6 +7,11 @@
 //! server. The token saves and reads only that guest's scores in that game, and stops
 //! working with their link. A game opened any other way plays without saving.
 //!
+//! A host plays too, from the admin UI's Games tab (`admin::games`), with a token of
+//! their own (`LinkKey::host_score_token`): it names their row of `game_host`, and their
+//! role for the event, which their scores are signed with, as "Hagen (Editor)". Their
+//! scores are ranked with the guests', and guests see their name up to any `@`.
+//!
 //! The public API, which the game's page calls from the guest's browser:
 //!
 //! - `GET /api/games/{game}/scores`: the event's high score table and the guest's best.
@@ -40,15 +45,16 @@ use tower_http::cors::CorsLayer;
 
 use super::{AppState, pages::Page, rsvp::Guest, views::GuestTab};
 use crate::{
+    admin::role::Role,
     config::{Game, ScoreKind},
     db::{
-        games::{self, Entry, MAX_SCORE},
-        rsvp::{self, NameDisplay, Rsvp},
+        games::{self, Entry, MAX_SCORE, Name},
+        rsvp::{self, NameDisplay},
     },
     http::{ClientIp, render, server_error},
     i18n::{Lang, Messages},
     icons::TabLink,
-    link::IdLink,
+    link::{HostScoreToken, IdLink},
     paths::{self, GuestLinks},
 };
 
@@ -59,13 +65,16 @@ const IN_GAME: i64 = 10;
 /// One line of a high score table.
 #[derive(Debug, Serialize)]
 pub struct Line {
-    /// As on the guest list, or "A guest" for those who aren't listed.
+    /// As on the guest list, or "A guest" for those who aren't listed; a host as
+    /// "Hagen (Editor)".
     pub name: String,
     pub score: i64,
     /// The score as the page shows it: points, or seconds.
     pub shown: String,
-    /// Whether it's the guest's own.
+    /// Whether it's the player's own.
     pub you: bool,
+    /// Whether a host set it.
+    pub host: bool,
 }
 
 /// A game as the guest's page shows it: where to play it, and its best scores.
@@ -137,22 +146,35 @@ async fn for_page(state: &AppState, lang: Lang, guest: &Guest) -> sqlx::Result<V
         views.push(GameView {
             name: game.name.clone(),
             url: games.play_url(game, &state.config.base_url, &token, lang.code()),
-            lines: lines(lang.messages(), game.kind, rsvp.id, entries),
+            lines: lines(
+                lang.messages(),
+                game.kind,
+                games::Player::Guest(rsvp.id),
+                entries,
+            ),
         });
     }
     Ok(views)
 }
 
-fn lines(t: &Messages, kind: ScoreKind, you: uuid::Uuid, entries: Vec<Entry>) -> Vec<Line> {
+fn lines(t: &Messages, kind: ScoreKind, you: games::Player, entries: Vec<Entry>) -> Vec<Line> {
     entries
         .into_iter()
         .map(|entry| Line {
-            name: NameDisplay::listed(entry.response, entry.name_display)
-                .apply(&entry.name)
-                .unwrap_or_else(|| t.a_guest.clone()),
+            host: matches!(entry.name, Name::Host { .. }),
+            name: match entry.name {
+                Name::Guest {
+                    name,
+                    response,
+                    name_display,
+                } => NameDisplay::listed(response, name_display)
+                    .apply(&name)
+                    .unwrap_or_else(|| t.a_guest.clone()),
+                Name::Host { name, role } => Role::signature(t, &name, &role, false),
+            },
             shown: kind.show(entry.score, t),
             score: entry.score,
-            you: entry.rsvp_id == you,
+            you: entry.player == you,
         })
         .collect()
 }
@@ -198,13 +220,16 @@ pub struct Table {
     kind: ScoreKind,
     /// The best first.
     scores: Vec<Line>,
-    /// The guest's best, whether or not it's in the table.
+    /// The player's best, whether or not it's in the table.
     yours: Option<i64>,
 }
 
-/// The guest a score token is for, and the game it's for, once both check out.
+/// The guest or host a score token is for, and the game it's for, once both check out.
 struct Player {
-    rsvp: Rsvp,
+    who: games::Player,
+    event_id: uuid::Uuid,
+    /// A host's role for the event, which their scores are signed with.
+    role: Option<String>,
     game: Game,
 }
 
@@ -264,21 +289,36 @@ fn bearer(headers: &HeaderMap) -> Option<&str> {
     header(headers, header::AUTHORIZATION.as_str())?.strip_prefix("Bearer ")
 }
 
-/// The guest whose score token this is, for this game.
+/// The guest or host whose score token this is, for this game.
 async fn player(state: &AppState, game: Game, token: Option<&str>) -> Result<Player, Refusal> {
-    let token: IdLink = token
-        .and_then(|token| token.trim().parse().ok())
-        .ok_or(Refusal::Unauthorised)?;
-    let rsvp = rsvp::find(&state.db, token.id)
+    let token = token.map(str::trim).ok_or(Refusal::Unauthorised)?;
+    let key = &state.config.link_key;
+    if let Ok(token) = token.parse::<IdLink>() {
+        let rsvp = rsvp::find(&state.db, token.id)
+            .await?
+            .filter(|rsvp| key.verify_score(&token, rsvp.link_nonce, &game.id))
+            .ok_or(Refusal::Unauthorised)?;
+        return Ok(Player {
+            who: games::Player::Guest(rsvp.id),
+            event_id: rsvp.event_id,
+            role: None,
+            game,
+        });
+    }
+    let token: HostScoreToken = token.parse().map_err(|()| Refusal::Unauthorised)?;
+    if !key.verify_host_score(&token, &game.id) || token.expires <= jiff::Timestamp::now() {
+        return Err(Refusal::Unauthorised);
+    }
+    // Gone once they stop playing.
+    let host = games::host(&state.db, token.id)
         .await?
-        .filter(|rsvp| {
-            state
-                .config
-                .link_key
-                .verify_score(&token, rsvp.link_nonce, &game.id)
-        })
         .ok_or(Refusal::Unauthorised)?;
-    Ok(Player { rsvp, game })
+    Ok(Player {
+        who: games::Player::Host(host.id),
+        event_id: host.event_id,
+        role: Some(token.role),
+        game,
+    })
 }
 
 /// A game's server, with the game's key, and the guest it's sending for.
@@ -295,31 +335,35 @@ async fn server_player(state: &AppState, id: &str, headers: &HeaderMap) -> Resul
 }
 
 async fn answer(state: &AppState, lang: Lang, player: Player) -> Result<Json<Table>, Refusal> {
-    let Player { rsvp, game } = player;
+    let Player {
+        who,
+        event_id,
+        game,
+        ..
+    } = player;
     let higher_wins = game.kind.higher_wins();
-    let (entries, bests) = tokio::try_join!(
-        games::table(&state.db, rsvp.event_id, &game.id, higher_wins, IN_GAME),
-        games::of_guest(&state.db, rsvp.id),
+    let (entries, yours) = tokio::try_join!(
+        games::table(&state.db, event_id, &game.id, higher_wins, IN_GAME),
+        games::best(&state.db, who, &game.id),
     )?;
-    let yours = bests.into_iter().find(|best| best.game == game.id);
     Ok(Json(Table {
-        scores: lines(lang.messages(), game.kind, rsvp.id, entries),
-        yours: yours.map(|best| best.score),
+        scores: lines(lang.messages(), game.kind, who, entries),
+        yours,
         game: game.id,
         kind: game.kind,
     }))
 }
 
-/// The table, if the guest's event offers the game.
+/// The table, if the player's event offers the game.
 async fn show(state: &AppState, lang: Lang, player: Player) -> Result<Json<Table>, Refusal> {
-    let offered = games::offered(&state.db, player.rsvp.event_id).await?;
+    let offered = games::offered(&state.db, player.event_id).await?;
     if !offered.contains(&player.game.id) {
         return Err(Refusal::NoGame);
     }
     answer(state, lang, player).await
 }
 
-/// Keeps the score if it's the guest's best, and answers with the table.
+/// Keeps the score if it's the player's best, and answers with the table.
 async fn keep(
     state: &AppState,
     lang: Lang,
@@ -329,19 +373,23 @@ async fn keep(
     if !(0..=MAX_SCORE).contains(&score) {
         return Err(Refusal::BadScore);
     }
-    let higher_wins = player.game.kind.higher_wins();
-    if !games::record(
-        &state.db,
-        player.rsvp.id,
-        &player.game.id,
-        score,
-        higher_wins,
-    )
-    .await?
-    {
+    let (game, higher_wins) = (&player.game.id, player.game.kind.higher_wins());
+    let offered = match player.who {
+        games::Player::Guest(rsvp) => {
+            games::record(&state.db, rsvp, game, score, higher_wins).await?
+        }
+        games::Player::Host(host) => {
+            let role = player.role.as_deref().unwrap_or_default();
+            games::record_host(&state.db, host, role, game, score, higher_wins).await?
+        }
+    };
+    if !offered {
         return Err(Refusal::NoGame);
     }
-    tracing::info!(rsvp = %player.rsvp.id, game = player.game.id, "score sent");
+    match player.who {
+        games::Player::Guest(rsvp) => tracing::info!(rsvp = %rsvp, game, "score sent"),
+        games::Player::Host(host) => tracing::info!(game_host = %host, game, "host's score sent"),
+    }
     answer(state, lang, player).await
 }
 

@@ -2,7 +2,8 @@
 
 A host can offer minigames on an event, each with a high score table: points, or time
 taken. Guests play from their own page, and their best score in each game shows there,
-in the game, and on the event's Games tab in the admin UI.
+in the game, and on the event's Games tab in the admin UI. Hosts can play too, from
+that tab.
 
 Innby doesn't contain the games. A game is any web page, served from an origin of its
 own, that talks to Innby's scores API. There are two kinds:
@@ -65,12 +66,15 @@ https://games.example.com/reaction/#innby=https://fest.example.com&token=AZJ3…
 | Value | |
 |---|---|
 | `innby` | The site's origin, where the API is |
-| `token` | The guest's score token for this game |
+| `token` | The guest's score token for this game, or a host's |
 | `lang` | The guest's language: `nb`, `nn`, `en`, `en-us`, `zh-hans` or `zh-hant` |
 
 Browsers never send the fragment to a server, so the token doesn't reach the games'
 server or its logs. Read it, then take it out of the address bar with
 `history.replaceState`, so a bookmark or a link to the page doesn't carry it.
+
+A host's Games tab links the same way, with a token of theirs; a game needn't tell the
+two apart.
 
 Without a token, as when someone opens the game directly, let them play, and say that
 their score is kept only when they play from their invitation's page.
@@ -94,8 +98,9 @@ Both answer:
   "game": "reaction",
   "kind": "time",
   "scores": [
-    { "name": "Ola N.", "score": 213, "shown": "0.21 s", "you": false },
-    { "name": "Kari Nordmann", "score": 248, "shown": "0.24 s", "you": true }
+    { "name": "Ola N.", "score": 213, "shown": "0.21 s", "you": false, "host": false },
+    { "name": "Hagen (Editor)", "score": 230, "shown": "0.23 s", "you": false, "host": true },
+    { "name": "Kari Nordmann", "score": 248, "shown": "0.24 s", "you": true, "host": false }
   ],
   "yours": 248
 }
@@ -104,14 +109,15 @@ Both answer:
 | Field | |
 |---|---|
 | `scores` | The ten best, the best first; of two equal, the earlier |
-| `name` | As on the guest list: full, or first name and initial, as each guest chose; *A guest*, in their language, for those not on it |
+| `name` | As on the guest list: full, or first name and initial, as each guest chose; *A guest*, in their language, for those not on it; a host by their login name, up to any `@`, and their role, as *Hagen (Editor)* |
 | `shown` | The score as Innby's pages show it: points, or seconds to a hundredth |
-| `you` | Whether it's the guest's own |
-| `yours` | The guest's best, whether or not it's in the ten; `null` before their first |
+| `you` | Whether it's the player's own |
+| `host` | Whether a host set it |
+| `yours` | The player's best, whether or not it's in the ten; `null` before their first |
 
 | Status | |
 |---|---|
-| 401 | No token, or one that isn't valid for this game: malformed, forged, for a guest who got a new link or was deleted |
+| 401 | No token, or one that isn't valid for this game: malformed, forged, for a guest who got a new link or was deleted, or a host's that's more than 12 hours old or whose host stopped playing |
 | 404 | No such game, or the guest's event doesn't offer it |
 | 422 | A score that isn't a whole number from 0 to 10¹² |
 | 429 | Too many scores from one address |
@@ -241,3 +247,20 @@ when the event stops offering the game, and with the event, 30 days after it sta
 guest's export includes their scores, and the privacy notice says all this. The code is
 in `src/web/games.rs` (the guest's page and the API), `src/admin/games.rs` (the Games
 tab), `src/db/games.rs` and `src/config/games.rs`.
+
+## Hosts playing
+
+Any host with a role on an event may play its games, from its Games tab: a viewer as
+much as an admin, since playing changes nothing of the event's. They choose to first,
+with *Play the games*, which makes them a row of `game_host`; from then on the tab links
+each game with a score token of theirs, and *Stop playing* deletes the row and their
+scores with it. Their best in each game is kept in `game_host_score`, with their role for
+the event when they set it, ranked with the guests' and signed as the message board
+signs a host's post: their login name and role, as *Hagen (Editor)*, with the name only
+up to any `@` for guests. Hosts see it whole in the admin UI.
+
+A host's token is `{id}.{role}.{expires}.{tag}`: it names their row, never their login
+name, and signs the game, their role and when it stops. Their role comes from the admin
+UI's login, which the site can't ask, so the token lasts 12 hours, and the tab makes a new
+one each time it's opened. Leaving the tab's link to play, rather than a button that
+posts and redirects, keeps the admin UI's `form-action 'self'`.
