@@ -179,7 +179,8 @@ board_score = "得分"
 board_folded = "已摺疊，得分 {score}。展開"
 board_deleted = "[已刪除]"
 board_host = "主人"
-board_a_host = "主人"
+# A host's name and role, signing their post on the board, as "Hagen (Editor)".
+board_signed = "{name}（{role}）"
 board_empty = "這裡還什麼都沒有。"
 board_posted = "已發佈！"
 board_deleted_notice = "你的留言已刪除。"
@@ -400,7 +401,7 @@ games_none = "還沒有設定遊戲：請依 docs/games.md 的說明在 INNBY_GA
 save_games = "儲存遊戲設定"
 
 board = "留言板"
-board_hint = "賓客頁面上的留言板。賓客名單上的賓客可以發言，依名單的方式署名，之後不在名單上的則顯示部分姓名；主人只顯示為主人；賓客可以刪除自己的留言，你可以刪除任何留言。投票從不公開，只顯示總分，得分低於零的留言會被摺疊。不會替你做任何審核。"
+board_hint = "賓客頁面上的留言板。賓客名單上的賓客可以發言，依名單的方式署名，之後不在名單上的則顯示部分姓名；主人以登入名稱和角色署名，也能像賓客一樣投票；賓客可以刪除自己的留言，你可以刪除任何留言。投票從不公開，只顯示總分，得分低於零的留言會被摺疊。不會替你做任何審核。"
 board_state = "留言板"
 board_off = "關閉"
 board_off_hint = "沒有留言板，這裡和賓客都看不到。留言會被保留。"

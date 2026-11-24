@@ -74,7 +74,11 @@ fits on a phone. The pages are:
 - **Games**, when `INNBY_GAMES` lists any: which minigames the event offers, and each
   one's high scores. Turning a game off deletes its scores.
 - **Board:** what the event's message board is, and while there is one, its posts, with
-  every guest's name in full, to post and reply as a host, or delete any post.
+  every guest's name in full, to post and reply as a host, vote, or delete any post. A
+  host's post is signed with their login name and their role for the event when they
+  wrote it, as "Hagen (Editor)"; guests see the name up to any `@`, since a provider may
+  name its users by their address. A host votes once a post, by login name, as each
+  guest does, and the score adds both up.
 - **Details:** the language the event is written in, its title and description (in that
   language, and optionally in each other), place, start and end, time zone and answer
   deadline; the event as a file; or deleting the event. The host may ask guests one
@@ -481,6 +485,7 @@ erDiagram
     rsvp |o--o{ board_post : writes
     board_post ||--o{ board_vote : gets
     rsvp ||--o{ board_vote : casts
+    board_post ||--o{ board_host_vote : "gets from hosts"
     rsvp |o--o{ outbox : "is mailed"
     admin_user |o--o{ outbox : "is mailed"
     admin_user |o..o{ event : "made, by name"
@@ -569,12 +574,18 @@ erDiagram
         uuid thread_id FK "its thread's first"
         uuid rsvp_id FK "a guest's"
         text host_name "or a host's"
+        text host_role "theirs when they wrote it"
         text body "none once deleted"
         timestamptz created_at
     }
     board_vote {
         uuid post_id PK, FK
         uuid rsvp_id PK, FK
+        smallint vote "1 or -1"
+    }
+    board_host_vote {
+        uuid post_id PK, FK
+        text host_name PK "by login name"
         smallint vote "1 or -1"
     }
     admin_user {
@@ -615,7 +626,7 @@ In short:
 | `invite_group` | group links: name, maximum party size, link nonce |
 | `event_access` | roles for one event: the name a host logs in with, viewer, organiser or editor |
 | `event_game`, `game_score` | the minigames an event offers, and each guest's best score in each |
-| `board_post`, `board_vote` | the event's message board: each post's text, whose it is (a guest, or a host by login name) and what it answers; each guest's vote on a post, up or down |
+| `board_post`, `board_vote`, `board_host_vote` | the event's message board: each post's text, whose it is (a guest, or a host by login name and role) and what it answers; each guest's and each host's vote on a post, up or down |
 | `outbox` | mail to send, to a guest or to a host made in the admin UI (in the language they asked in): kind, attempts, next try, when sent, last error |
 | `admin_user` | password users an admin makes: name, immutable account UUID, role, argon2 hash (none until they set one from a link), an optional e-mail address, and a version that a new password bumps |
 | `site_languages` | the languages the site offers guests and its default, once an admin has picked: one row |

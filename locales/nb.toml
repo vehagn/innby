@@ -205,7 +205,8 @@ board_score = "Poeng"
 board_folded = "Lagt sammen, med {score} poeng. Vis"
 board_deleted = "[slettet]"
 board_host = "vert"
-board_a_host = "Vertene"
+# A host's name and role, signing their post on the board, as "Hagen (Editor)".
+board_signed = "{name} ({role})"
 board_empty = "Ingenting her ennå."
 board_posted = "Publisert!"
 board_deleted_notice = "Innlegget ditt er slettet."
@@ -449,8 +450,9 @@ save_games = "Lagre spillene"
 board = "Tavle"
 board_hint = """
 En oppslagstavle på gjestenes sider. Gjestene på gjestelisten skriver, signert slik \
-den viser dem, eller med fornavn og initial hvis de senere ikke står der; de ser \
-verter bare som verter, og kan slette sine egne innlegg; du kan slette alle. Stemmene \
+den viser dem, eller med fornavn og initial hvis de senere ikke står der; verter \
+signerer med brukernavn og rolle, og stemmer som gjestene. Gjestene kan slette sine \
+egne innlegg; du kan slette alle. Stemmene \
 vises aldri, bare summen, og innlegg under null legges sammen. Ingenting modereres for \
 deg."""
 board_state = "Tavlen"

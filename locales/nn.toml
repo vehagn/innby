@@ -202,7 +202,8 @@ board_score = "Poeng"
 board_folded = "Lagt saman, med {score} poeng. Vis"
 board_deleted = "[sletta]"
 board_host = "vert"
-board_a_host = "Vertane"
+# A host's name and role, signing their post on the board, as "Hagen (Editor)".
+board_signed = "{name} ({role})"
 board_empty = "Ingenting her enno."
 board_posted = "Publisert!"
 board_deleted_notice = "Innlegget ditt er sletta."
@@ -446,8 +447,9 @@ save_games = "Lagre spela"
 board = "Tavle"
 board_hint = """
 Ei oppslagstavle på sidene til gjestene. Gjestene på gjestelista skriv, signert slik \
-ho viser dei, eller med førenamn og initial viss dei seinare ikkje står der; dei ser \
-vertar berre som vertar, og kan sletta sine eigne innlegg; du kan sletta alle. \
+ho viser dei, eller med førenamn og initial viss dei seinare ikkje står der; vertar \
+signerer med brukarnamn og rolle, og stemmer som gjestene. Gjestene kan sletta sine \
+eigne innlegg; du kan sletta alle. \
 Stemmene vert aldri viste, berre summen, og innlegg under null vert lagde saman. \
 Ingenting vert moderert for deg."""
 board_state = "Tavla"

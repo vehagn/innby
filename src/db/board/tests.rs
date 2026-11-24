@@ -3,6 +3,12 @@ use sqlx::PgPool;
 use super::*;
 use crate::db::{event, rsvp};
 
+/// A host who posts as the admin they are.
+const HOST: Writer = Writer::Host {
+    name: "admin",
+    role: "admin",
+};
+
 /// An event with an open board, and two guests.
 async fn setup(db: &PgPool) -> (Uuid, Uuid, Uuid) {
     let event = event::tests::event(db).await.id;
@@ -29,21 +35,30 @@ fn find(posts: &[Post], id: Uuid) -> &Post {
 async fn votes_add_up_and_the_same_vote_takes_it_back(db: PgPool) {
     let (event, kari, ola) = setup(&db).await;
     let hello = post(&db, event, None, kari, "Hello").await;
-    vote(&db, event, hello, ola, 1).await.unwrap();
-    let posts = page(&db, event, Some(ola), 0).await.unwrap().posts;
+    vote(&db, event, hello, Voter::Guest(ola), 1).await.unwrap();
+    let posts = page(&db, event, Some(Voter::Guest(ola)), 0)
+        .await
+        .unwrap()
+        .posts;
     assert_eq!(
         (find(&posts, hello).score, find(&posts, hello).vote),
         (1, 1)
     );
 
     // Down instead, then down again, which takes it back.
-    vote(&db, event, hello, ola, -1).await.unwrap();
+    vote(&db, event, hello, Voter::Guest(ola), -1)
+        .await
+        .unwrap();
     assert_eq!(super::posts(&db, event, None).await.unwrap()[0].score, -1);
-    vote(&db, event, hello, ola, -1).await.unwrap();
+    vote(&db, event, hello, Voter::Guest(ola), -1)
+        .await
+        .unwrap();
     assert_eq!(super::posts(&db, event, None).await.unwrap()[0].score, 0);
 
     // Not on one's own.
-    vote(&db, event, hello, kari, 1).await.unwrap();
+    vote(&db, event, hello, Voter::Guest(kari), 1)
+        .await
+        .unwrap();
     assert_eq!(super::posts(&db, event, None).await.unwrap()[0].score, 0);
 }
 
@@ -54,7 +69,7 @@ async fn a_reply_is_to_a_post_of_the_same_event(db: PgPool) {
         .await
         .unwrap()
         .id;
-    let elsewhere = create(&db, other, None, Writer::Host("admin"), "Elsewhere")
+    let elsewhere = create(&db, other, None, HOST, "Elsewhere")
         .await
         .unwrap()
         .unwrap();
@@ -87,7 +102,9 @@ async fn a_deleted_guests_posts_lose_their_text(db: PgPool) {
     let (event, kari, ola) = setup(&db).await;
     let hello = post(&db, event, None, kari, "Hello").await;
     let reply = post(&db, event, Some(hello), ola, "Hi Kari").await;
-    vote(&db, event, reply, kari, 1).await.unwrap();
+    vote(&db, event, reply, Voter::Guest(kari), 1)
+        .await
+        .unwrap();
     rsvp::delete(&db, kari).await.unwrap();
 
     let posts = page(&db, event, None, 0).await.unwrap().posts;
@@ -170,11 +187,11 @@ fn deep_replies_line_up_instead_of_nesting() {
 async fn the_board_goes_with_its_event(db: PgPool) {
     let (event, kari, ola) = setup(&db).await;
     let hello = post(&db, event, None, kari, "Hello").await;
-    create(&db, event, Some(hello), Writer::Host("admin"), "Hi")
+    create(&db, event, Some(hello), HOST, "Hi")
         .await
         .unwrap()
         .unwrap();
-    vote(&db, event, hello, ola, 1).await.unwrap();
+    vote(&db, event, hello, Voter::Guest(ola), 1).await.unwrap();
     assert!(event::delete(&db, event).await.unwrap());
     let left = sqlx::query_scalar!(
         r#"select (select count(*) from board_post) + (select count(*) from board_vote) as "n!""#
@@ -202,9 +219,7 @@ async fn a_thread_and_the_board_hold_so_many(db: PgPool) {
     for _ in MAX_THREAD..MAX_POSTS {
         post(&db, event, None, kari, "Thread").await;
     }
-    let refused = create(&db, event, None, Writer::Host("admin"), "Full")
-        .await
-        .unwrap();
+    let refused = create(&db, event, None, HOST, "Full").await.unwrap();
     assert_eq!(refused, Err(Refused::BoardFull));
 }
 
@@ -231,4 +246,81 @@ async fn a_page_is_whole_threads_with_their_text(db: PgPool) {
     // Past the last, the last.
     let past = page(&db, event, None, 99).await.unwrap();
     assert_eq!(past.number, 1);
+}
+
+#[sqlx::test]
+async fn hosts_vote_as_guests_do_once_each_and_sign_with_their_role(db: PgPool) {
+    let (event, kari, ola) = setup(&db).await;
+    let hello = post(&db, event, None, kari, "Hello").await;
+    let welcome = create(&db, event, None, HOST, "Welcome")
+        .await
+        .unwrap()
+        .unwrap();
+    let posts = super::posts(&db, event, None).await.unwrap();
+    assert_eq!(
+        find(&posts, welcome).author,
+        Author::Host {
+            name: "admin".into(),
+            role: "admin".into()
+        }
+    );
+
+    // A host's vote adds to the guests', and the host sees their own.
+    vote(&db, event, hello, Voter::Guest(ola), 1).await.unwrap();
+    vote(&db, event, hello, Voter::Host("admin"), 1)
+        .await
+        .unwrap();
+    vote(&db, event, hello, Voter::Host("editor@example.com"), 1)
+        .await
+        .unwrap();
+    let posts = page(&db, event, Some(Voter::Host("admin")), 0)
+        .await
+        .unwrap()
+        .posts;
+    assert_eq!(
+        (find(&posts, hello).score, find(&posts, hello).vote),
+        (3, 1)
+    );
+    // Once each: down instead, then down again, which takes it back.
+    vote(&db, event, hello, Voter::Host("admin"), -1)
+        .await
+        .unwrap();
+    let score = |posts: Vec<Post>, id| find(&posts, id).score;
+    assert_eq!(
+        score(super::posts(&db, event, None).await.unwrap(), hello),
+        1
+    );
+    vote(&db, event, hello, Voter::Host("admin"), -1)
+        .await
+        .unwrap();
+    assert_eq!(
+        score(super::posts(&db, event, None).await.unwrap(), hello),
+        2
+    );
+
+    // Not on their own, but on another host's.
+    vote(&db, event, welcome, Voter::Host("admin"), 1)
+        .await
+        .unwrap();
+    assert_eq!(
+        score(super::posts(&db, event, None).await.unwrap(), welcome),
+        0
+    );
+    vote(&db, event, welcome, Voter::Host("editor@example.com"), 1)
+        .await
+        .unwrap();
+    vote(&db, event, welcome, Voter::Guest(kari), 1)
+        .await
+        .unwrap();
+    assert_eq!(
+        score(super::posts(&db, event, None).await.unwrap(), welcome),
+        2
+    );
+
+    // A deleted post kept for its replies loses its votes and its host's name.
+    post(&db, event, Some(welcome), kari, "Thanks").await;
+    assert!(delete(&db, event, welcome, None).await.unwrap());
+    let posts = super::posts(&db, event, None).await.unwrap();
+    assert_eq!(find(&posts, welcome).author, Author::Gone);
+    assert_eq!(find(&posts, welcome).score, 0);
 }

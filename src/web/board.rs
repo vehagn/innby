@@ -25,7 +25,7 @@ use super::{
 use crate::{
     board::{Pager, PostView, page_number, refusal},
     db::{
-        board::{self, Author, Refused, Step, Writer},
+        board::{self, Author, Refused, Step, Voter, Writer},
         rsvp::{NameDisplay, Response as Answer},
     },
     http::{render, render_with},
@@ -95,7 +95,7 @@ async fn page(
     let open = guest.board.guests_post() && listed(guest);
     let you = guest.rsvp.id;
     let tz = guest.event.details.starts_at.time_zone();
-    let shown = board::page(&state.db, guest.event.id, Some(you), number).await?;
+    let shown = board::page(&state.db, guest.event.id, Some(Voter::Guest(you)), number).await?;
     let pager = Pager::new(t, &shown, |n| url(guest, n, None, None));
     let at = |pattern: &str, post: Uuid| {
         paths::localized(
@@ -297,7 +297,8 @@ pub async fn vote(
         "down" => -1,
         _ => return Ok(StatusCode::BAD_REQUEST.into_response()),
     };
-    board::vote(&state.db, guest.event.id, post, guest.rsvp.id, vote).await?;
+    let voter = Voter::Guest(guest.rsvp.id);
+    board::vote(&state.db, guest.event.id, post, voter, vote).await?;
     // A vote can move its thread to another page.
     let number = board::page_of(&state.db, guest.event.id, post).await?;
     Ok(Redirect::to(&url(&guest, number, None, Some(post))).into_response())

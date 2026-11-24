@@ -3,6 +3,7 @@ use sqlx::PgPool;
 
 use crate::{
     db::board::{self, BoardState, Writer},
+    i18n::fill,
     web::testing::{Site, body, en, escape, location},
 };
 
@@ -27,15 +28,24 @@ async fn the_board_is_for_guests_only_when_its_hosts_say(db: PgPool) {
     // Hosts post; guests read and vote, but don't post.
     set(&site, BoardState::Hosts).await;
     let event = site.event().await.id;
-    board::create(&site.db, event, None, Writer::Host("admin"), "Welcome!")
+    // Signed by name and role, but with no more of an address than its name.
+    let host = Writer::Host {
+        name: "hagen@example.com",
+        role: "editor",
+    };
+    board::create(&site.db, event, None, host, "Welcome!")
         .await
         .unwrap()
         .unwrap();
     let html = body(site.get(&board).await).await;
     assert!(html.contains("Welcome!"), "{html}");
-    // Signed as a host, never by name.
-    assert!(html.contains(&en().board_a_host), "{html}");
-    assert!(!html.contains("admin"), "{html}");
+    let signed = fill(
+        &en().board_signed,
+        &[("name", &"hagen"), ("role", &en().admin.role_editor)],
+    );
+    assert!(html.contains(&escape(&signed)), "{html}");
+    assert!(html.contains(&en().board_host), "{html}");
+    assert!(!html.contains("example.com"), "{html}");
     assert!(html.contains(&escape(&en().board_hint_hosts)), "{html}");
     assert!(!html.contains(r#"name="body""#), "{html}");
     let response = site.post(&board, "body=Hello").await;

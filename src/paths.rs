@@ -71,6 +71,7 @@ pub const EVENT_GAMES: &str = "/events/{event}/games";
 pub const EVENT_BOARD: &str = "/events/{event}/board";
 pub const EVENT_BOARD_POSTS: &str = "/events/{event}/board/posts";
 pub const EVENT_BOARD_DELETE: &str = "/events/{event}/board/{post}/delete";
+pub const EVENT_BOARD_VOTE: &str = "/events/{event}/board/{post}/vote";
 pub const EVENT_ACCESS: &str = "/events/{event}/access";
 pub const EVENT_ACCESS_REMOVE: &str = "/events/{event}/access/remove";
 pub const GUEST: &str = "/guests/{guest}";

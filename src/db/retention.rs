@@ -1,6 +1,8 @@
 //! Deleting what we no longer need. `innby janitor` runs these every hour.
 //! A stored host account's UUID is kept only with its account row and has no separate
 //! retention period.
+//! A host's name and role on a board post, and their votes on posts, go with the post
+//! or its event (`board::delete`, `event::delete_started_by`).
 
 use jiff::Timestamp;
 use jiff_sqlx::ToSqlx;

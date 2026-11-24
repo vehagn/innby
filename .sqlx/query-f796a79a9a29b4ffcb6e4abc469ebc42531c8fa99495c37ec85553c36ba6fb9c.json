@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        insert into board_post (event_id, parent_id, thread_id, rsvp_id, host_name, body)\n        values ($1, $2, $3, $4, $5, $6)\n        returning id\n        ",
+  "query": "\n        insert into board_post (event_id, parent_id, thread_id, rsvp_id, host_name, host_role,\n            body)\n        values ($1, $2, $3, $4, $5, $6, $7)\n        returning id\n        ",
   "describe": {
     "columns": [
       {
@@ -22,6 +22,7 @@
         "Uuid",
         "Uuid",
         "Text",
+        "Text",
         "Text"
       ]
     },
@@ -29,5 +30,5 @@
       false
     ]
   },
-  "hash": "df601c78a3de168d4f8d1a529fa5198357c1a30b7bb19926407cc4b2a2c3faae"
+  "hash": "f796a79a9a29b4ffcb6e4abc469ebc42531c8fa99495c37ec85553c36ba6fb9c"
 }

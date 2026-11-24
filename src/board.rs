@@ -7,6 +7,7 @@ use jiff::tz::TimeZone;
 use uuid::Uuid;
 
 use crate::{
+    admin::role::Role,
     db::{
         board::{self, Author, Page, Post, Refused},
         rsvp::NameDisplay,
@@ -50,13 +51,33 @@ pub fn page_number(asked: Option<usize>) -> usize {
     asked.unwrap_or(1).saturating_sub(1)
 }
 
+/// How a host signs a post: by the name they log in with and their role for the event,
+/// as "Hagen (Editor)", in the page's language. Guests see the name only up to an `@`,
+/// since an identity provider may name its users by their address, which isn't for
+/// everyone invited; hosts see it whole.
+pub fn host_signature(t: &Messages, name: &str, role: &str, full_name: bool) -> String {
+    let name = match full_name {
+        true => name,
+        false => name.split_once('@').map_or(name, |(local, _)| local),
+    };
+    let a = &t.admin;
+    let role = match Role::from_name(role) {
+        Some(Role::Viewer) => &a.role_viewer,
+        Some(Role::Organiser) => &a.role_organiser,
+        Some(Role::Editor) => &a.role_editor,
+        Some(Role::Creator) => &a.role_creator,
+        Some(Role::Admin) => &a.role_admin,
+        None => &t.board_host,
+    };
+    fill(&t.board_signed, &[("name", &name), ("role", role)])
+}
+
 /// A post, with what the one looking may do with it.
 pub struct PostView {
     pub id: Uuid,
     /// Who wrote it, as the one looking may see them.
     pub author: String,
-    /// Whether a host wrote it, to say so beside their name; guests see hosts only as
-    /// hosts, which says it already.
+    /// Whether a host wrote it, to say so beside their name.
     pub host: bool,
     /// Whether the one looking did.
     pub you: bool,
@@ -65,9 +86,9 @@ pub struct PostView {
     /// kept for its replies.
     pub body: Option<String>,
     pub score: i64,
-    /// The looking guest's vote: 1, -1 or 0.
+    /// The looking guest's or host's vote: 1, -1 or 0.
     pub vote: i16,
-    /// Where the vote buttons post, for a guest who may vote on it.
+    /// Where the vote buttons post, for someone who may vote on it.
     pub vote_action: Option<String>,
     /// Where a reply posts, for someone who may reply.
     pub reply_action: Option<String>,
@@ -78,9 +99,9 @@ pub struct PostView {
 
 impl PostView {
     /// The post, with no actions yet: its guest as the guest list shows them, or in full
-    /// for a host (`full_names`); a host as a host, or by name for hosts. Only a guest on
-    /// the guest list may post, so a post always has a name: one who leaves the list later
-    /// keeps their first name and initial on what they wrote.
+    /// for a host (`full_names`); a host by `host_signature`. Only a guest on the guest
+    /// list may post, so a post always has a name: one who leaves the list later keeps
+    /// their first name and initial on what they wrote.
     pub fn new(post: &Post, t: &Messages, lang: Lang, tz: &TimeZone, full_names: bool) -> Self {
         let (author, host) = match &post.author {
             Author::Guest {
@@ -96,9 +117,7 @@ impl PostView {
                 let unlisted = || NameDisplay::Partial.apply(name).unwrap_or_default();
                 (shown.unwrap_or_else(unlisted), false)
             }
-            Author::Host(name) if full_names => (name.clone(), true),
-            // "The hosts" says it already.
-            Author::Host(_) => (t.board_a_host.clone(), false),
+            Author::Host { name, role } => (host_signature(t, name, role, full_names), true),
             Author::Gone => (String::new(), false),
         };
         Self {

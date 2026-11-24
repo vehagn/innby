@@ -295,7 +295,8 @@ create table game_score (
 
 -- Posts on an event's message board (`event.board`), each a thread's first or a reply to
 -- another of the same event's. A guest's or a host's: a guest by their RSVP, shown as on
--- the guest list; a host by the name they log in with, shown to guests only as a host.
+-- the guest list; a host by the name they log in with and the role they had for the
+-- event when they wrote it, which the post is signed with.
 create table board_post (
     id         uuid primary key default uuidv7(),
     event_id   uuid not null references event on delete cascade,
@@ -304,6 +305,7 @@ create table board_post (
     thread_id  uuid,
     rsvp_id    uuid,
     host_name  text check (length(host_name) between 1 and 254 and host_name !~ '[[:cntrl:]]'),
+    host_role  text check (host_role in ('admin', 'creator', 'editor', 'organiser', 'viewer')),
     -- Lines and tabs allowed. None for a post deleted, or whose guest was, which stays,
     -- empty, while there are replies to it.
     body       text check (length(body) between 1 and 2000
@@ -315,6 +317,7 @@ create table board_post (
     check ((parent_id is null) = (thread_id is null)),
     foreign key (rsvp_id, event_id) references rsvp (id, event_id) on delete set null (rsvp_id),
     check (rsvp_id is null or host_name is null),
+    check ((host_name is null) = (host_role is null)),
     check ((body is null) = (rsvp_id is null and host_name is null))
 );
 
@@ -347,3 +350,13 @@ create table board_vote (
 );
 
 create index board_vote_rsvp on board_vote (rsvp_id);
+
+-- Hosts' votes on posts, as guests', one each a post by the name they log in with.
+-- Deleted with the post, and so with the event.
+create table board_host_vote (
+    post_id   uuid not null references board_post on delete cascade,
+    host_name text not null
+        check (length(host_name) between 1 and 254 and host_name !~ '[[:cntrl:]]'),
+    vote      smallint not null check (vote in (-1, 1)),
+    primary key (post_id, host_name)
+);

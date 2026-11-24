@@ -100,6 +100,7 @@ pub(crate) fn router(config: Config, admin_config: &AdminConfig, db: PgPool) -> 
         .route(paths::EVENT_BOARD, get(board::show).post(board::edit))
         .route(paths::EVENT_BOARD_POSTS, post(board::create))
         .route(paths::EVENT_BOARD_DELETE, post(board::delete))
+        .route(paths::EVENT_BOARD_VOTE, post(board::vote))
         .route_layer(middleware::from_fn(role::organiser));
     let editor = Router::new()
         .route(

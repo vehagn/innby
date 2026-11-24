@@ -1,6 +1,7 @@
 //! An event's message board: whether it has one, and who may post (`BoardState`), its
-//! posts and replies, and guests' votes on them. A guest writes as their RSVP and a host
-//! as the name they log in with. Posts go with the event; a guest's lose their text with
+//! posts and replies, and guests' and hosts' votes on them. A guest writes and votes as
+//! their RSVP, and a host as the name they log in with, signing with the role they had
+//! for the event when they wrote. Posts go with the event; a guest's lose their text with
 //! the guest, and a deleted post with replies stays, empty, so the replies keep their
 //! place (`delete`, and the `board_post_forget` trigger).
 
@@ -86,8 +87,9 @@ pub enum Author {
         response: Response,
         name_display: Option<NameDisplay>,
     },
-    /// A host, by the name they log in with.
-    Host(String),
+    /// A host, by the name they log in with, and the role they had for the event when
+    /// they wrote it, as its name in the database (`admin::role::Role::name`).
+    Host { name: String, role: String },
     /// Nobody now: the post was deleted, or its guest was.
     Gone,
 }
@@ -96,7 +98,30 @@ pub enum Author {
 #[derive(Debug, Clone, Copy)]
 pub enum Writer<'a> {
     Guest(Uuid),
+    /// A host, by the name they log in with, and their role for the event by its name.
+    Host {
+        name: &'a str,
+        role: &'a str,
+    },
+}
+
+/// Who is voting, or looking at the board with their votes: a guest by their RSVP, or a
+/// host by the name they log in with. Each has a vote of their own on a post.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Voter<'a> {
+    Guest(Uuid),
     Host(&'a str),
+}
+
+impl<'a> Voter<'a> {
+    /// The guest's RSVP and the host's name, for queries that take either.
+    fn parts(voter: Option<Self>) -> (Option<Uuid>, Option<&'a str>) {
+        match voter {
+            Some(Self::Guest(id)) => (Some(id), None),
+            Some(Self::Host(name)) => (None, Some(name)),
+            None => (None, None),
+        }
+    }
 }
 
 /// Why a post wasn't posted.
@@ -124,7 +149,7 @@ pub struct Post {
     pub created_at: Timestamp,
     /// Its votes added up.
     pub score: i64,
-    /// The vote of the guest looking, if any: 1, -1 or 0.
+    /// The vote of the guest or host looking, if any: 1, -1 or 0.
     pub vote: i16,
 }
 
@@ -170,28 +195,36 @@ pub async fn set_state(
 }
 
 /// Every post on the event's board, deleted ones too, with `voter`'s votes, but not
-/// their text, which `page` loads for the posts a page shows.
+/// their text, which `page` loads for the posts a page shows. A post's score adds up
+/// guests' and hosts' votes alike.
 pub async fn posts(
     db: impl PgExecutor<'_>,
     event_id: Uuid,
-    voter: Option<Uuid>,
+    voter: Option<Voter<'_>>,
 ) -> sqlx::Result<Vec<Post>> {
+    let (guest, host) = Voter::parts(voter);
     let rows = sqlx::query!(
         r#"
-        select p.id, p.parent_id, p.thread_id, p.rsvp_id, p.host_name,
+        select p.id, p.parent_id, p.thread_id, p.rsvp_id, p.host_name, p.host_role,
             p.body is null as "deleted!", p.created_at,
             r.name as "name?", r.response as "response?: Response",
             r.name_display as "name_display: NameDisplay",
             coalesce((select sum(v.vote) from board_vote v where v.post_id = p.id), 0)
+                + coalesce((select sum(h.vote) from board_host_vote h where h.post_id = p.id), 0)
                 as "score!",
-            coalesce((select v.vote from board_vote v
-                      where v.post_id = p.id and v.rsvp_id = $2), 0)::smallint as "vote!"
+            coalesce(
+                (select v.vote from board_vote v where v.post_id = p.id and v.rsvp_id = $2),
+                (select h.vote from board_host_vote h
+                 where h.post_id = p.id and h.host_name = $3),
+                0
+            )::smallint as "vote!"
         from board_post p left join rsvp r on r.id = p.rsvp_id
         where p.event_id = $1
         order by p.id
         "#,
         event_id,
-        voter,
+        guest,
+        host,
     )
     .fetch_all(db)
     .await?;
@@ -209,7 +242,10 @@ pub async fn posts(
                     response,
                     name_display: row.name_display,
                 },
-                (_, _, _, Some(host)) => Author::Host(host),
+                (_, _, _, Some(name)) => Author::Host {
+                    name,
+                    role: row.host_role.unwrap_or_default(),
+                },
                 _ => Author::Gone,
             },
             body: None,
@@ -235,7 +271,7 @@ pub struct Page {
 pub async fn page(
     db: &PgPool,
     event_id: Uuid,
-    voter: Option<Uuid>,
+    voter: Option<Voter<'_>>,
     number: usize,
 ) -> sqlx::Result<Page> {
     let all = posts(db, event_id, voter).await?;
@@ -350,9 +386,9 @@ pub async fn create(
     writer: Writer<'_>,
     body: &str,
 ) -> sqlx::Result<Result<Uuid, Refused>> {
-    let (rsvp_id, host_name) = match writer {
-        Writer::Guest(id) => (Some(id), None),
-        Writer::Host(name) => (None, Some(name)),
+    let (rsvp_id, host_name, host_role) = match writer {
+        Writer::Guest(id) => (Some(id), None, None),
+        Writer::Host { name, role } => (None, Some(name), Some(role)),
     };
     let mut tx = db.begin().await?;
     sqlx::query!("select from event where id = $1 for update", event_id)
@@ -395,8 +431,9 @@ pub async fn create(
     };
     let id = sqlx::query_scalar!(
         r#"
-        insert into board_post (event_id, parent_id, thread_id, rsvp_id, host_name, body)
-        values ($1, $2, $3, $4, $5, $6)
+        insert into board_post (event_id, parent_id, thread_id, rsvp_id, host_name, host_role,
+            body)
+        values ($1, $2, $3, $4, $5, $6, $7)
         returning id
         "#,
         event_id,
@@ -404,6 +441,7 @@ pub async fn create(
         thread,
         rsvp_id,
         host_name,
+        host_role,
         body,
     )
     .fetch_one(&mut *tx)
@@ -412,15 +450,19 @@ pub async fn create(
     Ok(Ok(id))
 }
 
-/// A guest's vote on a post of their event's, other than their own: up (1) or down
-/// (-1). The same vote again takes it back.
+/// A guest's or a host's vote on a post of the event's, other than their own: up (1) or
+/// down (-1). The same vote again takes it back.
 pub async fn vote(
     db: impl PgExecutor<'_>,
     event_id: Uuid,
     post_id: Uuid,
-    rsvp_id: Uuid,
+    voter: Voter<'_>,
     vote: i16,
 ) -> sqlx::Result<()> {
+    let rsvp_id = match voter {
+        Voter::Guest(rsvp_id) => rsvp_id,
+        Voter::Host(name) => return host_vote(db, event_id, post_id, name, vote).await,
+    };
     sqlx::query!(
         r#"
         with target as (
@@ -439,6 +481,39 @@ pub async fn vote(
         event_id,
         post_id,
         rsvp_id,
+        vote,
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+/// `vote`, for a host.
+async fn host_vote(
+    db: impl PgExecutor<'_>,
+    event_id: Uuid,
+    post_id: Uuid,
+    host_name: &str,
+    vote: i16,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        r#"
+        with target as (
+            select id from board_post
+            where id = $2 and event_id = $1 and body is not null
+                and host_name is distinct from $3
+        ), taken_back as (
+            delete from board_host_vote
+            where post_id in (select id from target) and host_name = $3 and vote = $4
+            returning 1
+        )
+        insert into board_host_vote (post_id, host_name, vote)
+        select id, $3, $4 from target where not exists (select from taken_back)
+        on conflict (post_id, host_name) do update set vote = excluded.vote
+        "#,
+        event_id,
+        post_id,
+        host_name,
         vote,
     )
     .execute(db)
@@ -476,12 +551,16 @@ pub async fn delete(
     };
     if found.replied {
         sqlx::query!(
-            "update board_post set body = null, rsvp_id = null, host_name = null where id = $1",
+            "update board_post set body = null, rsvp_id = null, host_name = null, \
+                host_role = null where id = $1",
             post_id
         )
         .execute(&mut *tx)
         .await?;
         sqlx::query!("delete from board_vote where post_id = $1", post_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query!("delete from board_host_vote where post_id = $1", post_id)
             .execute(&mut *tx)
             .await?;
     } else {

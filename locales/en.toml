@@ -209,7 +209,8 @@ board_score = "Score"
 board_folded = "Folded away, with a score of {score}. Show"
 board_deleted = "[deleted]"
 board_host = "host"
-board_a_host = "The hosts"
+# A host's name and role, signing their post on the board, as "Hagen (Editor)".
+board_signed = "{name} ({role})"
 board_empty = "Nothing here yet."
 board_posted = "Posted!"
 board_deleted_notice = "Your post is deleted."
@@ -458,9 +459,9 @@ save_games = "Save the games"
 board = "Board"
 board_hint = """
 A message board on the guests' pages. Guests on the guest list post, signed as it \
-shows them, or by first name and initial if they leave it later; they see hosts only \
-as hosts, and may delete their own posts; you may delete any. Votes are never shown, \
-only their sum, and posts below zero are folded away. Nothing is moderated for you."""
+shows them, or by first name and initial if they leave it later; hosts sign with \
+their login name and role, and vote as guests do. Guests may delete their own posts; \
+you may delete any. Votes are never shown, only their sum, and posts below zero are folded away. Nothing is moderated for you."""
 board_state = "The board"
 board_off = "Off"
 board_off_hint = "No board, here or for guests. Its posts are kept."

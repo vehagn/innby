@@ -1,6 +1,8 @@
 //! An event's Board tab: what its message board is (`db::board::BoardState`), and,
 //! while there is one, its posts with every guest's name in full, for hosts to post,
-//! reply and delete. Hosts don't vote; guests do, on their Board tab (`web::board`).
+//! reply, vote and delete. A host posts signed with the name they log in with and their
+//! role for the event (`crate::board::host_signature`), and votes once a post, as each
+//! guest does on their Board tab (`web::board`).
 
 use askama::Template;
 use axum::{
@@ -20,7 +22,7 @@ use super::{
 use crate::{
     board::{Pager, PostView, page_number, refusal},
     db::{
-        board::{self, BoardState, Refused, Step, Writer},
+        board::{self, Author, BoardState, Refused, Step, Voter, Writer},
         event::Event,
     },
     http::render_with,
@@ -116,15 +118,22 @@ async fn page(
     }
     if board_state.for_hosts() {
         let tz = event.details.starts_at.time_zone();
-        let shown = board::page(&state.db, event.id, None, number).await?;
+        let host = Host::current();
+        let voter = Voter::Host(&host.user);
+        let shown = board::page(&state.db, event.id, Some(voter), number).await?;
         pager = Pager::new(t, &shown, |n| paths::admin(&url(event.id, n, None)));
+        let at = |pattern: &str, post: Uuid| {
+            paths::admin(&paths::path(pattern, event.id).replace("{post}", &post.to_string()))
+        };
         steps = board::threads(shown.posts, |post| {
+            let mine = matches!(&post.author, Author::Host { name, .. } if **name == *host.user);
             let mut view = PostView::new(post, t, lang, tz, true);
+            view.you = mine;
+            if !mine {
+                view.vote_action = Some(at(paths::EVENT_BOARD_VOTE, post.id));
+            }
             view.reply_action = Some(links.board_posts.clone());
-            view.delete_action = Some(paths::admin(
-                &paths::path(paths::EVENT_BOARD_DELETE, event.id)
-                    .replace("{post}", &post.id.to_string()),
-            ));
+            view.delete_action = Some(at(paths::EVENT_BOARD_DELETE, post.id));
             if let Some((parent, body)) = &reply_draft
                 && *parent == post.id
             {
@@ -236,7 +245,14 @@ pub(super) async fn create(
         return refuse(draft, filled(&t.board_error_body, "n", board::MAX_BODY)).await;
     };
     let host = Host::current();
-    let writer = Writer::Host(&host.user);
+    // Signed with their role for this event, which the board's routes ask for.
+    let Some(role) = host.role else {
+        return Ok(StatusCode::FORBIDDEN.into_response());
+    };
+    let writer = Writer::Host {
+        name: &host.user,
+        role: role.name(),
+    };
     let post = match board::create(&state.db, event.id, parent, writer, &body).await? {
         Ok(post) => post,
         Err(refused) => {
@@ -253,6 +269,31 @@ pub(super) async fn create(
 pub(super) struct PostPath {
     event: Uuid,
     post: Uuid,
+}
+
+#[derive(Deserialize)]
+pub(super) struct VoteForm {
+    vote: String,
+}
+
+/// Votes a post up or down as this host, other than their own; the same again takes it
+/// back.
+pub(super) async fn vote(
+    State(state): State<AdminState>,
+    Path(PostPath { event, post }): Path<PostPath>,
+    Form(form): Form<VoteForm>,
+) -> Result<Response, PageError> {
+    let event = load_event(&state, event).await?;
+    let vote = match form.vote.as_str() {
+        "up" => 1,
+        "down" => -1,
+        _ => return Ok(StatusCode::BAD_REQUEST.into_response()),
+    };
+    let host = Host::current();
+    board::vote(&state.db, event.id, post, Voter::Host(&host.user), vote).await?;
+    // A vote can move its thread to another page.
+    let number = board::page_of(&state.db, event.id, post).await?;
+    Ok(redirect(&url(event.id, number, Some(post))))
 }
 
 /// Deletes any post on the board.
@@ -347,6 +388,68 @@ mod tests {
         // Off keeps the posts.
         admin.post(&tab, "state=off").await;
         assert_eq!(board::count(&db, event).await.unwrap(), 1);
+    }
+
+    #[sqlx::test]
+    async fn a_host_signs_with_their_role_and_votes_once(db: PgPool) {
+        let editor = Admin::as_user(db.clone(), "hagen", Some(Role::Editor));
+        let event = editor.event_id().await;
+        board::set_state(&db, event, BoardState::Open)
+            .await
+            .unwrap();
+        let kari = rsvp::create_invite(&db, event, "Kari Nordmann", 1)
+            .await
+            .unwrap();
+        let hers = board::create(&db, event, None, Writer::Guest(kari.id), "Hello")
+            .await
+            .unwrap()
+            .unwrap();
+        let posts = paths::path(paths::EVENT_BOARD_POSTS, event);
+        editor.post(&posts, "body=Welcome").await;
+        let mine = board::posts(&db, event, None)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|post| post.id != hers)
+            .unwrap();
+        assert_eq!(
+            mine.author,
+            board::Author::Host {
+                name: "hagen".into(),
+                role: "editor".into()
+            }
+        );
+
+        // Hosts vote on others' posts, once each, and not on their own.
+        let vote = |post: uuid::Uuid| {
+            paths::path(paths::EVENT_BOARD_VOTE, event).replace("{post}", &post.to_string())
+        };
+        let tab = paths::path(paths::EVENT_BOARD, event);
+        let response = editor.post(&vote(hers), "vote=up").await;
+        assert!(
+            location(&response).starts_with(&tab),
+            "{}",
+            location(&response)
+        );
+        editor.post(&vote(hers), "vote=down").await;
+        let admin = Admin::new(db.clone());
+        admin.post(&vote(hers), "vote=down").await;
+        admin.post(&vote(mine.id), "vote=up").await;
+        editor.post(&vote(mine.id), "vote=up").await;
+        let score =
+            |posts: &[board::Post], id| posts.iter().find(|post| post.id == id).unwrap().score;
+        let shown = board::posts(&db, event, None).await.unwrap();
+        assert_eq!((score(&shown, hers), score(&shown, mine.id)), (-2, 1));
+        assert_eq!(
+            editor.post(&vote(hers), "vote=sideways").await.status(),
+            StatusCode::BAD_REQUEST
+        );
+
+        // The page has vote buttons for Kari's post but not for the host's own.
+        let html = body(editor.get(&tab).await).await;
+        assert!(html.contains(&vote(hers)), "{html}");
+        assert!(!html.contains(&vote(mine.id)), "{html}");
+        assert!(html.contains("hagen (Editor)"), "{html}");
     }
 
     #[sqlx::test]

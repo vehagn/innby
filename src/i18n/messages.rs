@@ -193,9 +193,10 @@ pub struct Messages {
     /// A post folded away for its score below zero: "{score}".
     pub board_folded: String,
     pub board_deleted: String,
-    /// Beside a host's name, and a host as guests see them.
+    /// Beside a host's name on the board.
     pub board_host: String,
-    pub board_a_host: String,
+    /// A host's name and role, signing their post, as "Hagen (Editor)".
+    pub board_signed: String,
     pub board_empty: String,
     pub board_posted: String,
     pub board_deleted_notice: String,

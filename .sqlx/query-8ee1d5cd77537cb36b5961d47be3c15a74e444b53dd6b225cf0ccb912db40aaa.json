@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        with target as (\n            select id from board_post\n            where id = $2 and event_id = $1 and body is not null\n                and host_name is distinct from $3\n        ), taken_back as (\n            delete from board_host_vote\n            where post_id in (select id from target) and host_name = $3 and vote = $4\n            returning 1\n        )\n        insert into board_host_vote (post_id, host_name, vote)\n        select id, $3, $4 from target where not exists (select from taken_back)\n        on conflict (post_id, host_name) do update set vote = excluded.vote\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8ee1d5cd77537cb36b5961d47be3c15a74e444b53dd6b225cf0ccb912db40aaa"
+}
