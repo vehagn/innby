@@ -476,7 +476,10 @@ host any. A deleted post with replies stays as "[deleted]", so the replies keep 
 place; without replies it goes, with any empty posts above it that were only kept for
 it. Deleting a guest does the same to their posts, in the database (`board_post_forget`),
 and deletes their votes. Forms post and the page comes back, with no JavaScript: a reply
-form folds out under each post, and the vote buttons say which way the guest voted.
+form folds out under each post, and on a guest's page the form for a new thread folds out
+below them all, so a guest has read what's been said before writing; a new thread that
+can't be posted comes back to its form, open, with why. The vote buttons say which way
+the guest voted.
 Everything on the board, posts, replies and votes, is deleted with its event.
 
 ## Data and retention

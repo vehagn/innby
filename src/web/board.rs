@@ -42,15 +42,19 @@ pub(super) struct Section {
     hint: &'static str,
     /// The guest list, where a guest who hid their name may show it to post.
     show_name: Option<String>,
-    /// Where a new thread posts, when the guest may post.
+    /// Where a new thread posts, when the guest may post: a form folded below the posts.
     post_action: Option<String>,
     steps: Vec<Step<PostView>>,
     pager: Option<Pager>,
-    /// A new thread that couldn't be posted, to try again.
+    /// A new thread that couldn't be posted, to try again, and why: the form shows them,
+    /// open.
     draft: String,
+    write_error: Option<String>,
     /// What a post or a deletion did, here rather than at the top of the page, which
     /// the guest has scrolled away from.
     pub(super) flash: Option<&'static str>,
+    /// Why a post couldn't be posted, at the top of the board: a reply, kept in its form
+    /// among the posts, or a post from a guest with no form to keep it in.
     error: Option<String>,
 }
 
@@ -151,6 +155,7 @@ pub(super) async fn section(
         steps,
         pager,
         draft: thread_draft,
+        write_error: None,
         flash: None,
         error: None,
     }))
@@ -187,6 +192,8 @@ pub async fn create(
             Err(_) => return Ok(StatusCode::BAD_REQUEST.into_response()),
         },
     };
+    // Sent from the form for a new thread, rather than a reply's.
+    let thread = parent.is_none();
     let t = guest.lang.messages();
     if !listed(&guest) {
         let draft = Draft {
@@ -199,6 +206,7 @@ pub async fn create(
             &guest,
             &headers,
             draft,
+            thread,
             StatusCode::FORBIDDEN,
             error,
         )
@@ -215,6 +223,7 @@ pub async fn create(
             &guest,
             &headers,
             draft,
+            thread,
             StatusCode::UNPROCESSABLE_ENTITY,
             error,
         )
@@ -230,6 +239,7 @@ pub async fn create(
             &guest,
             &headers,
             draft,
+            thread,
             StatusCode::TOO_MANY_REQUESTS,
             error,
         )
@@ -239,12 +249,14 @@ pub async fn create(
     let id = match board::create(&state.db, guest.event.id, parent, writer, &body).await? {
         Ok(id) => id,
         Err(refused) => {
-            // What it answered was deleted meanwhile: a thread of its own, then.
+            // What it answered was deleted meanwhile: a thread of its own, then, though
+            // its error shows where a reply's does.
             let parent = parent.filter(|_| refused != Refused::Gone);
             let draft = Draft { parent, body };
             let error = refusal(t, refused);
             let status = StatusCode::UNPROCESSABLE_ENTITY;
-            return Ok(refuse(&state, &guest, &headers, draft, status, error).await?);
+            let page = refuse(&state, &guest, &headers, draft, thread, status, error);
+            return Ok(page.await?);
         }
     };
     tracing::info!(rsvp = %guest.rsvp.id, post = %id, "posted on the board");
@@ -254,12 +266,15 @@ pub async fn create(
 }
 
 /// The Event tab again, with the post kept on its board to try again and why it
-/// wasn't posted.
+/// wasn't posted: beside the text when the guest sent a new `thread`, in its form below
+/// the posts, which can be far from the top of the board; at the top for a reply, as for
+/// a guest with no form.
 async fn refuse(
     state: &AppState,
     guest: &Guest,
     headers: &HeaderMap,
     draft: Draft,
+    thread: bool,
     status: StatusCode,
     error: String,
 ) -> sqlx::Result<Response> {
@@ -271,7 +286,10 @@ async fn refuse(
     let mut page = RsvpPage::new(state, guest, headers);
     page.board = section(state, guest, number, Some(draft)).await?;
     if let Some(board) = &mut page.board {
-        board.error = Some(error);
+        match thread && board.post_action.is_some() {
+            true => board.write_error = Some(error),
+            false => board.error = Some(error),
+        }
     }
     Ok(render_with(status, page))
 }

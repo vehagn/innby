@@ -1113,6 +1113,12 @@ button.vote[aria-pressed="true"] {
   margin-top: var(--space-2);
 }
 
+/* A new thread's form, quietly folded below the posts: set apart from the last of
+   them, as the board's own rather than a post's. */
+.write {
+  margin-top: var(--space-5);
+}
+
 /* The links between a board's pages, either side of where it is. */
 .pager {
   display: flex;

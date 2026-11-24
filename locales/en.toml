@@ -210,7 +210,7 @@ Read and vote on what everyone invited writes; posts voted below zero are folded
 Posts show who wrote them, so only guests on the guest list post, and those who aren't \
 coming aren't on it."""
 board_show_name = "Show your name there"
-board_new = "New post"
+board_new = "Write a post"
 board_send = "Post"
 board_reply = "Reply"
 board_delete = "Delete"

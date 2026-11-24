@@ -195,6 +195,7 @@ pub struct Messages {
     pub board_hint_unlisted: String,
     pub board_hint_declined: String,
     pub board_show_name: String,
+    /// Below the posts, folding out the form for a new thread, and its box's label.
     pub board_new: String,
     pub board_send: String,
     pub board_reply: String,

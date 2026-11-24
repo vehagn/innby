@@ -203,7 +203,7 @@ Les og stem på det de inviterte skriver; innlegg som er stemt under null, legge
 sammen. Innlegg viser hvem som skrev dem, så bare gjester på gjestelisten skriver, og \
 de som ikke kommer, står ikke der."""
 board_show_name = "Vis navnet ditt der"
-board_new = "Nytt innlegg"
+board_new = "Skriv et innlegg"
 board_send = "Publiser"
 board_reply = "Svar"
 board_delete = "Slett"
