@@ -1052,6 +1052,7 @@ dependencies = [
  "jiff",
  "jiff-sqlx",
  "lettre",
+ "libc",
  "libmimalloc-sys",
  "mimalloc",
  "qrcode",
