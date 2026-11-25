@@ -5,7 +5,7 @@
   {% match step %}
   {% when crate::db::board::Step::Open with { post, collapsed } %}
   <li id="post-{{ post.id }}">
-    {% if collapsed %}<details class="folded"><summary>{{ crate::i18n::filled(t.board_folded, "score", post.score) }}</summary>{% endif %}
+    {% if collapsed %}<details class="quiet folded"><summary>{{ crate::i18n::filled(t.board_folded, "score", post.score) }}</summary>{% endif %}
     <article class="post">
       {% if let Some(body) = post.body %}
       <p class="post-by"><strong>{{ post.author }}</strong>{% if post.host %} <span class="badge">{{ t.board_host }}</span>{% endif %}{% if post.you %} {{ t.you }}{% endif %} <span class="muted">· {{ post.when }}</span></p>
@@ -26,7 +26,7 @@
         {% endif %}
       </div>
       {% if let Some(action) = post.reply_action %}
-      <details class="reply"{% if post.draft.is_some() %} open{% endif %}>
+      <details class="quiet reply"{% if post.draft.is_some() %} open{% endif %}>
         <summary>{{ t.board_reply }}</summary>
         <form method="post" action="{{ action }}">
           <input type="hidden" name="parent" value="{{ post.id }}">

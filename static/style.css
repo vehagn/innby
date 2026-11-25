@@ -1102,13 +1102,9 @@ button.vote[aria-pressed="true"] {
   text-align: center;
 }
 
-.folded > summary,
-.reply > summary {
-  color: var(--text-muted);
-  font-size: var(--text-s);
-  cursor: pointer;
-}
-
+/* A post folded away for its score, and each post's Reply form, are quiet
+   disclosures (.quiet), as the page's others are; these only space them among the
+   posts. */
 .folded > summary {
   padding: var(--space-2) 0;
 }
