@@ -103,7 +103,7 @@ async fn guests_post_reply_and_vote_on_an_open_board(db: PgPool) {
     assert_eq!(response.status(), StatusCode::SEE_OTHER);
     site.post(&vote, "vote=down").await;
     let html = body(site.get(&format!("/r/{kari}?lang=en")).await).await;
-    assert!(html.contains(r#"<details class="folded">"#), "{html}");
+    assert!(html.contains(r#"<details class="quiet folded">"#), "{html}");
     assert!(html.contains("I do"), "{html}");
     // Kari can't vote on her own post, but can delete it.
     assert!(
@@ -116,7 +116,7 @@ async fn guests_post_reply_and_vote_on_an_open_board(db: PgPool) {
     );
     site.post(&vote, "vote=down").await;
     let html = body(site.get(&format!("/r/{kari}?lang=en")).await).await;
-    assert!(!html.contains(r#"class="folded""#), "{html}");
+    assert!(!html.contains(r#"class="quiet folded""#), "{html}");
 }
 
 #[sqlx::test]
