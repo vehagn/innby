@@ -100,7 +100,9 @@ page 'Site: front page'                         200 $site/
 page 'Site: front page, 10 forged cookies'      200 -H "Cookie: $remember" $site/
 page 'Site: stylesheet'                         200 $site/static/style.css
 page 'Site: privacy notice'                     200 $site/privacy
-page 'Site: guest page'                         200 $site$link
+# The reply page carries the board, so it's a full thread of long posts (bench/data.sql).
+page 'Site: guest page, a full board thread'    200 $site$link
+page 'Site: guest page, the board, page 2'     200 "$site$link?page=2"
 page 'Site: guest list (1500 guests)'           200 $site$link/guests
 page 'Site: guest details'                      200 $site$link/you
 page 'Site: guest export'                       200 $site$link/export
@@ -108,8 +110,6 @@ page 'Site: group sign-up page'                 200 $site$group
 page 'Site: forged link'                        404 $site/r/AAAAAAAAAAAAAAAAAAAAAA.AAAAAAAAAAAAAAAAAAAAAA
 page 'Site: answering'                          303 -m POST "${form[@]}" \
   -d 'response=attending&party_size=2' $site$link
-page 'Site: board, a full thread of long posts' 200 $site$link/board
-page 'Site: board, another page'                200 "$site$link/board?page=2"
 page 'Site: voting on a post'                   303 -m POST "${form[@]}" \
   -d 'vote=up' $site$link/board/$post/vote
 # The hour's posts first, so the run measures what a flood gets: the page again, refused.

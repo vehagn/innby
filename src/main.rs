@@ -106,7 +106,7 @@ enum EventCommand {
 
 fn main() -> anyhow::Result<()> {
     // Before the runtime starts its threads, as mimalloc's options want.
-    alloc::purge_at_once();
+    alloc::configure();
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
