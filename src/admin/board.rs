@@ -20,7 +20,7 @@ use super::{
     role::Host,
 };
 use crate::{
-    board::{Pager, PostView, page_number, refusal},
+    board::{Draft, Drafts, Pager, PostForm, PostView, VoteForm, page_number, refusal},
     db::{
         board::{self, Author, BoardState, Refused, Step, Voter, Writer},
         event::Event,
@@ -75,12 +75,6 @@ fn choices(a: &'static AdminMessages, state: BoardState) -> Vec<Choice> {
         .collect()
 }
 
-/// A post that couldn't be posted: its text, and what it answered.
-struct Draft {
-    parent: Option<Uuid>,
-    body: String,
-}
-
 /// The board's page `number`, from 0, maybe at a post.
 fn url(event: Uuid, number: usize, post: Option<Uuid>) -> String {
     let mut url = paths::path(paths::EVENT_BOARD, event);
@@ -107,15 +101,7 @@ async fn page(
     let (t, a) = (lang.messages(), lang::text());
     let links = EventLinks::new(event.id);
     let (mut steps, mut kept, mut pager) = (Vec::new(), 0, None);
-    let (mut thread_draft, mut reply_draft) = (String::new(), None);
-    match draft {
-        Some(Draft { parent: None, body }) => thread_draft = body,
-        Some(Draft {
-            parent: Some(parent),
-            body,
-        }) => reply_draft = Some((parent, body)),
-        None => {}
-    }
+    let drafts = Drafts::new(draft);
     if board_state.for_hosts() {
         let tz = event.details.starts_at.time_zone();
         let host = Host::current();
@@ -134,11 +120,7 @@ async fn page(
             }
             view.reply_action = Some(links.board_posts.clone());
             view.delete_action = Some(at(paths::EVENT_BOARD_DELETE, post.id));
-            if let Some((parent, body)) = &reply_draft
-                && *parent == post.id
-            {
-                view.draft = Some(body.clone());
-            }
+            view.draft = drafts.reply_to(post.id);
             view
         });
     } else {
@@ -152,7 +134,7 @@ async fn page(
         kept,
         steps,
         pager,
-        draft: thread_draft,
+        draft: drafts.thread,
         saved: false,
         error: None,
     })
@@ -195,14 +177,6 @@ pub(super) async fn edit(
     Ok(saved(paths::EVENT_BOARD, event.id))
 }
 
-#[derive(Deserialize)]
-pub(super) struct PostForm {
-    body: String,
-    /// The post it answers; empty for a new thread.
-    #[serde(default)]
-    parent: String,
-}
-
 /// Posts a thread or a reply as a host, while there's a board.
 pub(super) async fn create(
     State(state): State<AdminState>,
@@ -216,12 +190,8 @@ pub(super) async fn create(
     if !open {
         return Ok(saved(paths::EVENT_BOARD, event.id));
     }
-    let parent = match form.parent.as_str() {
-        "" => None,
-        id => match id.parse() {
-            Ok(id) => Some(id),
-            Err(_) => return Ok(StatusCode::BAD_REQUEST.into_response()),
-        },
+    let Ok(parent) = form.parent() else {
+        return Ok(StatusCode::BAD_REQUEST.into_response());
     };
     let t = lang::current().messages();
     let refuse = |draft: Draft, error: String| {
@@ -271,11 +241,6 @@ pub(super) struct PostPath {
     post: Uuid,
 }
 
-#[derive(Deserialize)]
-pub(super) struct VoteForm {
-    vote: String,
-}
-
 /// Votes a post up or down as this host, other than their own; the same again takes it
 /// back.
 pub(super) async fn vote(
@@ -284,10 +249,8 @@ pub(super) async fn vote(
     Form(form): Form<VoteForm>,
 ) -> Result<Response, PageError> {
     let event = load_event(&state, event).await?;
-    let vote = match form.vote.as_str() {
-        "up" => 1,
-        "down" => -1,
-        _ => return Ok(StatusCode::BAD_REQUEST.into_response()),
+    let Some(vote) = form.value() else {
+        return Ok(StatusCode::BAD_REQUEST.into_response());
     };
     let host = Host::current();
     board::vote(&state.db, event.id, post, Voter::Host(&host.user), vote).await?;

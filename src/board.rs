@@ -1,9 +1,11 @@
 //! A post on an event's message board as a page shows it, for the guests' Board tab
 //! (`web::board`) and the hosts' (`admin::board`) alike, which `_board_thread.html`
-//! draws, and the links between the board's pages (`_board_pager.html`). The posts
+//! draws, and the links between the board's pages (`_board_pager.html`); and what both
+//! boards' forms send, with a post that couldn't be posted kept to try again. The posts
 //! themselves are in `db::board`.
 
 use jiff::tz::TimeZone;
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
@@ -58,6 +60,83 @@ pub fn host_signature(t: &Messages, name: &str, role: &str, full_name: bool) -> 
     let name = Role::signed_name(name, full_name);
     let role = Role::from_name(role).map_or(t.board_host.as_str(), |role| t.admin.role_name(role));
     fill(&t.board_signed, &[("name", &name), ("role", &role)])
+}
+
+/// A post or a reply, as either board's form sends it.
+#[derive(Deserialize)]
+pub struct PostForm {
+    pub body: String,
+    /// The post it answers; empty for a new thread.
+    #[serde(default)]
+    parent: String,
+}
+
+impl PostForm {
+    /// The post it answers, or None for a new thread; an error for what isn't a post's id.
+    pub fn parent(&self) -> Result<Option<Uuid>, uuid::Error> {
+        match self.parent.as_str() {
+            "" => Ok(None),
+            id => id.parse().map(Some),
+        }
+    }
+}
+
+/// A vote on a post, as either board's buttons send it.
+#[derive(Deserialize)]
+pub struct VoteForm {
+    vote: String,
+}
+
+impl VoteForm {
+    /// 1 for up, -1 for down, or None for anything else.
+    pub fn value(&self) -> Option<i16> {
+        match self.vote.as_str() {
+            "up" => Some(1),
+            "down" => Some(-1),
+            _ => None,
+        }
+    }
+}
+
+/// A post that couldn't be posted: its text, and what it answered.
+pub struct Draft {
+    pub parent: Option<Uuid>,
+    pub body: String,
+}
+
+/// Where a post that couldn't be posted goes back to on the board's page, to try again:
+/// a new thread's text to the form below the posts, a reply's to the post it answers.
+#[derive(Default)]
+pub struct Drafts {
+    pub thread: String,
+    reply: Option<(Uuid, String)>,
+}
+
+impl Drafts {
+    pub fn new(draft: Option<Draft>) -> Self {
+        match draft {
+            None => Self::default(),
+            Some(Draft { parent: None, body }) => Self {
+                thread: body,
+                reply: None,
+            },
+            Some(Draft {
+                parent: Some(parent),
+                body,
+            }) => Self {
+                thread: String::new(),
+                reply: Some((parent, body)),
+            },
+        }
+    }
+
+    /// The reply kept for `post`, if it was the one answered.
+    pub fn reply_to(&self, post: Uuid) -> Option<String> {
+        self.reply
+            .as_ref()
+            .filter(|(parent, _)| *parent == post)
+            .map(|(_, body)| body.clone())
+    }
 }
 
 /// A post, with what the one looking may do with it.

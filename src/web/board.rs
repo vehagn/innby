@@ -23,7 +23,7 @@ use super::{
     rsvp::{Guest, Notice, RsvpPage},
 };
 use crate::{
-    board::{Pager, PostView, refusal},
+    board::{Draft, Drafts, Pager, PostForm, PostView, VoteForm, refusal},
     db::{
         board::{self, Author, Refused, Step, Voter, Writer},
         rsvp::{NameDisplay, Response as Answer},
@@ -56,12 +56,6 @@ pub(super) struct Section {
     /// Why a post couldn't be posted, at the top of the board: a reply, kept in its form
     /// among the posts, or a post from a guest with no form to keep it in.
     error: Option<String>,
-}
-
-/// A post that couldn't be posted: its text, and what it answered.
-pub(super) struct Draft {
-    parent: Option<Uuid>,
-    body: String,
 }
 
 /// Whether the guest is on the guest list, as a guest must be to post: their posts show
@@ -111,15 +105,7 @@ pub(super) async fn section(
             lang,
         )
     };
-    let (mut thread_draft, mut reply_draft) = (String::new(), None);
-    match draft {
-        Some(Draft { parent: None, body }) => thread_draft = body,
-        Some(Draft {
-            parent: Some(parent),
-            body,
-        }) => reply_draft = Some((parent, body)),
-        None => {}
-    }
+    let drafts = Drafts::new(draft);
     let steps = board::threads(shown.posts, |post, answers| {
         let mine = matches!(post.author, Author::Guest { rsvp_id, .. } if rsvp_id == you);
         let mut view = PostView::new(post, answers, t, lang, tz, false);
@@ -133,11 +119,7 @@ pub(super) async fn section(
         if open {
             view.reply_action = Some(links.board.clone());
         }
-        if let Some((parent, body)) = &reply_draft
-            && *parent == post.id
-        {
-            view.draft = Some(body.clone());
-        }
+        view.draft = drafts.reply_to(post.id);
         view
     });
     // Open to guests, but not to this one: say why, and where to change it if they can.
@@ -154,7 +136,7 @@ pub(super) async fn section(
         post_action: open.then(|| links.board.clone()),
         steps,
         pager,
-        draft: thread_draft,
+        draft: drafts.thread,
         write_error: None,
         flash: None,
         error: None,
@@ -164,14 +146,6 @@ pub(super) async fn section(
 /// Back to the guest's Event tab when the board isn't for guests.
 fn no_board(guest: &Guest) -> Response {
     Redirect::to(&GuestLinks::new(&guest.link, guest.lang).page).into_response()
-}
-
-#[derive(Deserialize)]
-pub struct PostForm {
-    body: String,
-    /// The post it answers; empty for a new thread.
-    #[serde(default)]
-    parent: String,
 }
 
 /// Posts a thread or a reply, when the board is open to guests and the guest is on the
@@ -185,65 +159,30 @@ pub async fn create(
     if !guest.board.guests_post() {
         return Ok(no_board(&guest));
     }
-    let parent = match form.parent.as_str() {
-        "" => None,
-        id => match id.parse() {
-            Ok(id) => Some(id),
-            Err(_) => return Ok(StatusCode::BAD_REQUEST.into_response()),
-        },
+    let Ok(parent) = form.parent() else {
+        return Ok(StatusCode::BAD_REQUEST.into_response());
     };
+    let t = guest.lang.messages();
     // Sent from the form for a new thread, rather than a reply's.
     let thread = parent.is_none();
-    let t = guest.lang.messages();
+    let try_again = |parent, body, status, error| {
+        let draft = Draft { parent, body };
+        refuse(&state, &guest, &headers, draft, thread, status, error)
+    };
     if !listed(&guest) {
-        let draft = Draft {
-            parent,
-            body: form.body,
-        };
         let error = t.board_error_unlisted.clone();
-        return Ok(refuse(
-            &state,
-            &guest,
-            &headers,
-            draft,
-            thread,
-            StatusCode::FORBIDDEN,
-            error,
-        )
-        .await?);
+        return Ok(try_again(parent, form.body, StatusCode::FORBIDDEN, error).await?);
     }
     let Some(body) = board::body(&form.body) else {
-        let draft = Draft {
-            parent,
-            body: form.body,
-        };
         let error = filled(&t.board_error_body, "n", board::MAX_BODY);
-        return Ok(refuse(
-            &state,
-            &guest,
-            &headers,
-            draft,
-            thread,
-            StatusCode::UNPROCESSABLE_ENTITY,
-            error,
-        )
-        .await?);
+        let status = StatusCode::UNPROCESSABLE_ENTITY;
+        return Ok(try_again(parent, form.body, status, error).await?);
     };
     // Kept to so many an hour each, so nobody can flood the board; counted by the guest
     // rather than their address, so a household on one network doesn't share it.
     if !state.board_limiter.check_guest(guest.rsvp.id) {
-        let draft = Draft { parent, body };
         let error = t.board_error_busy.clone();
-        return Ok(refuse(
-            &state,
-            &guest,
-            &headers,
-            draft,
-            thread,
-            StatusCode::TOO_MANY_REQUESTS,
-            error,
-        )
-        .await?);
+        return Ok(try_again(parent, body, StatusCode::TOO_MANY_REQUESTS, error).await?);
     }
     let writer = Writer::Guest(guest.rsvp.id);
     let id = match board::create(&state.db, guest.event.id, parent, writer, &body).await? {
@@ -252,11 +191,9 @@ pub async fn create(
             // What it answered was deleted meanwhile: a thread of its own, then, though
             // its error shows where a reply's does.
             let parent = parent.filter(|_| refused != Refused::Gone);
-            let draft = Draft { parent, body };
             let error = refusal(t, refused);
             let status = StatusCode::UNPROCESSABLE_ENTITY;
-            let page = refuse(&state, &guest, &headers, draft, thread, status, error);
-            return Ok(page.await?);
+            return Ok(try_again(parent, body, status, error).await?);
         }
     };
     tracing::info!(rsvp = %guest.rsvp.id, post = %id, "posted on the board");
@@ -299,11 +236,6 @@ pub struct PostPath {
     post: Uuid,
 }
 
-#[derive(Deserialize)]
-pub struct VoteForm {
-    vote: String,
-}
-
 /// Votes a post up or down; the same again takes it back.
 pub async fn vote(
     State(state): State<AppState>,
@@ -314,10 +246,8 @@ pub async fn vote(
     if !guest.board.for_guests() {
         return Ok(no_board(&guest));
     }
-    let vote = match form.vote.as_str() {
-        "up" => 1,
-        "down" => -1,
-        _ => return Ok(StatusCode::BAD_REQUEST.into_response()),
+    let Some(vote) = form.value() else {
+        return Ok(StatusCode::BAD_REQUEST.into_response());
     };
     let voter = Voter::Guest(guest.rsvp.id);
     board::vote(&state.db, guest.event.id, post, voter, vote).await?;
