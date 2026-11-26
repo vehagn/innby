@@ -35,11 +35,23 @@ pub fn bold(text: &str, key: &str, value: &str) -> String {
 
 /// `text` with the characters HTML gives a meaning escaped, for a value put into markup by hand.
 pub fn escape_html(text: &str) -> String {
-    text.replace('&', "&#38;")
-        .replace('<', "&#60;")
-        .replace('>', "&#62;")
-        .replace('"', "&#34;")
-        .replace('\'', "&#39;")
+    let mut escaped = String::with_capacity(text.len());
+    text.chars().for_each(|c| push_escaped(c, &mut escaped));
+    escaped
+}
+
+/// A character as HTML text, as `escape_html` writes it, for markup written a character
+/// at a time. The entities are those askama's templates write, so text escaped either
+/// way reads the same.
+pub fn push_escaped(c: char, out: &mut String) {
+    match c {
+        '&' => out.push_str("&#38;"),
+        '<' => out.push_str("&#60;"),
+        '>' => out.push_str("&#62;"),
+        '"' => out.push_str("&#34;"),
+        '\'' => out.push_str("&#39;"),
+        c => out.push(c),
+    }
 }
 
 /// `text` with each `{key}` replaced by its value, in one pass, so a value that contains

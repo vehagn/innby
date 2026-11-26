@@ -46,11 +46,7 @@ pub fn set_cookies(response: &Response) -> Vec<&str> {
 
 /// A text as a template writes it into HTML.
 pub fn escape(text: &str) -> String {
-    text.replace('&', "&#38;")
-        .replace('<', "&#60;")
-        .replace('>', "&#62;")
-        .replace('"', "&#34;")
-        .replace('\'', "&#39;")
+    crate::i18n::escape_html(text)
 }
 
 #[cfg(test)]

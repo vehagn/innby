@@ -20,7 +20,7 @@ mod messages;
 mod offer;
 mod texts;
 
-pub use fill::{bold, bold_count, count, escape_html, fill, filled};
+pub use fill::{bold, bold_count, count, escape_html, fill, filled, push_escaped};
 pub use language::load;
 pub use messages::{AdminMessages, Messages};
 pub use offer::{Asked, LangSet, Offer};

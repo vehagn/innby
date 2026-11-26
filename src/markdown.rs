@@ -13,7 +13,7 @@
 //! No headings, images or tables: a post is a few lines among others, and an image would
 //! load from another site, which the site's Content Security Policy forbids anyway.
 
-use crate::i18n::escape_html;
+use crate::i18n::{escape_html, push_escaped};
 
 /// The post as HTML: block elements, each line's text escaped.
 pub fn to_html(text: &str) -> String {
@@ -127,7 +127,7 @@ fn inline(text: &str, links: bool, out: &mut String) {
             rest = after;
             continue;
         }
-        escape_char(c, out);
+        push_escaped(c, out);
         rest = &rest[c.len_utf8()..];
     }
 }
@@ -187,18 +187,6 @@ fn span<'a>(rest: &'a str, at_word_start: bool, links: bool, out: &mut String) -
         return Some(&rest[url.len()..]);
     }
     None
-}
-
-/// A character as HTML text, as `escape_html` writes it, without a string for each.
-fn escape_char(c: char, out: &mut String) {
-    match c {
-        '&' => out.push_str("&#38;"),
-        '<' => out.push_str("&#60;"),
-        '>' => out.push_str("&#62;"),
-        '"' => out.push_str("&#34;"),
-        '\'' => out.push_str("&#39;"),
-        c => out.push(c),
-    }
 }
 
 /// Where emphasis that opened just before `text` closes: the next `mark` with something
