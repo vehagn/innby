@@ -14,7 +14,7 @@ use super::{
     forms::{BatchForm, DeleteForm, NameForm, SavedQuery, commit_once, form_token, sent_before},
     guests::GuestRow,
     lang,
-    page::{AdminState, PageError, load_event, redirect, saved, timestamp},
+    page::{AdminState, PageError, load_event, load_group, redirect, saved, timestamp},
     qr::{self as admin_qr, qr_file},
 };
 use crate::{
@@ -169,9 +169,7 @@ struct GroupPage {
 
 impl GroupPage {
     async fn load(state: &AdminState, id: Uuid) -> Result<Self, PageError> {
-        let group = group::find(&state.db, id)
-            .await?
-            .ok_or(PageError::Missing)?;
+        let group = load_group(state, id).await?;
         let event = load_event(state, group.event_id).await?;
         let (rsvps, style) = tokio::try_join!(
             rsvp::list(&state.db, group.event_id),
@@ -224,9 +222,7 @@ pub(super) async fn qr(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, PageError> {
-    let group = group::find(&state.db, id)
-        .await?
-        .ok_or(PageError::Missing)?;
+    let group = load_group(&state, id).await?;
     let style = qr::style(&state.db, group.event_id).await?;
     Ok(qr_file(
         &group_url(&state.config, &group),
@@ -274,9 +270,7 @@ pub(super) async fn delete(
         let error = lang::text().error_confirm_delete.clone();
         return GroupPage::render_error(&state, id, error).await;
     }
-    let group = group::find(&state.db, id)
-        .await?
-        .ok_or(PageError::Missing)?;
+    let group = load_group(&state, id).await?;
     if !group::delete_unused(&state.db, id).await? {
         let error = lang::text().error_group_in_use.clone();
         return GroupPage::render_error(&state, id, error).await;

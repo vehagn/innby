@@ -17,7 +17,7 @@ use serde::Deserialize;
 use super::{
     forms::{DeleteForm, SavedQuery},
     lang,
-    page::{AdminState, PageError, redirect, saved},
+    page::{AdminState, PageError, saved, saved_to},
     role::{Host, Role},
 };
 use crate::{
@@ -93,14 +93,7 @@ fn role_choices(current: &str) -> Vec<RoleChoice> {
 /// A role's name in the page's language.
 pub fn role_name(role: &Option<Role>) -> &'static str {
     let text = lang::text();
-    match *role {
-        Some(Role::Admin) => &text.role_admin,
-        Some(Role::Creator) => &text.role_creator,
-        Some(Role::Editor) => &text.role_editor,
-        Some(Role::Organiser) => &text.role_organiser,
-        Some(Role::Viewer) => &text.role_viewer,
-        None => &text.role_none,
-    }
+    role.map_or(&text.role_none, |role| text.role_name(role))
 }
 
 #[derive(Template)]
@@ -405,5 +398,5 @@ pub(super) async fn delete(
         return Err(PageError::Missing);
     }
     tracing::info!("admin user deleted");
-    Ok(redirect(&format!("{}?saved", paths::USERS)))
+    Ok(saved_to(paths::USERS))
 }

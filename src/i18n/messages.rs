@@ -6,10 +6,13 @@ use std::{borrow::Borrow, fmt::Display};
 use serde::{Deserialize, Serialize};
 
 use super::{count, fill};
-use crate::db::{
-    access::EventRole,
-    qr,
-    rsvp::{NameDisplay, Response},
+use crate::{
+    admin::role::Role,
+    db::{
+        access::EventRole,
+        qr,
+        rsvp::{NameDisplay, Response},
+    },
 };
 
 /// Every user-facing string. A language's file may leave any of them out, for its
@@ -657,12 +660,20 @@ impl AdminMessages {
         }
     }
 
-    pub fn event_role_name(&self, role: impl Borrow<EventRole>) -> &str {
-        match role.borrow() {
-            EventRole::Viewer => &self.role_viewer,
-            EventRole::Organiser => &self.role_organiser,
-            EventRole::Editor => &self.role_editor,
+    /// A host's role by its name in this language, as the users, access and sign-offs
+    /// show it.
+    pub fn role_name(&self, role: Role) -> &str {
+        match role {
+            Role::Viewer => &self.role_viewer,
+            Role::Organiser => &self.role_organiser,
+            Role::Editor => &self.role_editor,
+            Role::Creator => &self.role_creator,
+            Role::Admin => &self.role_admin,
         }
+    }
+
+    pub fn event_role_name(&self, role: impl Borrow<EventRole>) -> &str {
+        self.role_name(Role::from(*role.borrow()))
     }
 
     pub fn qr_icon_name(&self, icon: impl Borrow<qr::Icon>) -> &str {
