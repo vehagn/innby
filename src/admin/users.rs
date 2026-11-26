@@ -93,14 +93,7 @@ fn role_choices(current: &str) -> Vec<RoleChoice> {
 /// A role's name in the page's language.
 pub fn role_name(role: &Option<Role>) -> &'static str {
     let text = lang::text();
-    match *role {
-        Some(Role::Admin) => &text.role_admin,
-        Some(Role::Creator) => &text.role_creator,
-        Some(Role::Editor) => &text.role_editor,
-        Some(Role::Organiser) => &text.role_organiser,
-        Some(Role::Viewer) => &text.role_viewer,
-        None => &text.role_none,
-    }
+    role.map_or(&text.role_none, |role| text.role_name(role))
 }
 
 #[derive(Template)]

@@ -51,25 +51,13 @@ pub fn page_number(asked: Option<usize>) -> usize {
     asked.unwrap_or(1).saturating_sub(1)
 }
 
-/// How a host signs a post: by the name they log in with and their role for the event,
-/// as "Hagen (Editor)", in the page's language. Guests see the name only up to an `@`,
-/// since an identity provider may name its users by their address, which isn't for
-/// everyone invited; hosts see it whole.
+/// How a host signs a post: by the name they log in with (`Role::signed_name`) and their
+/// role for the event, as "Hagen (Editor)", in the page's language; with a role Innby
+/// doesn't know, as a host.
 pub fn host_signature(t: &Messages, name: &str, role: &str, full_name: bool) -> String {
-    let name = match full_name {
-        true => name,
-        false => name.split_once('@').map_or(name, |(local, _)| local),
-    };
-    let a = &t.admin;
-    let role = match Role::from_name(role) {
-        Some(Role::Viewer) => &a.role_viewer,
-        Some(Role::Organiser) => &a.role_organiser,
-        Some(Role::Editor) => &a.role_editor,
-        Some(Role::Creator) => &a.role_creator,
-        Some(Role::Admin) => &a.role_admin,
-        None => &t.board_host,
-    };
-    fill(&t.board_signed, &[("name", &name), ("role", role)])
+    let name = Role::signed_name(name, full_name);
+    let role = Role::from_name(role).map_or(t.board_host.as_str(), |role| t.admin.role_name(role));
+    fill(&t.board_signed, &[("name", &name), ("role", &role)])
 }
 
 /// A post, with what the one looking may do with it.
