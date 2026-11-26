@@ -18,7 +18,7 @@ use super::{
     auth::jwt::PasswordIdentity,
     forms::SavedQuery,
     lang,
-    page::{AdminState, PageError, redirect},
+    page::{AdminState, PageError, saved_to},
     role::Host,
     users::check_password,
 };
@@ -118,7 +118,7 @@ pub(super) async fn edit(
     match set.await? {
         Ok(true) => {
             tracing::info!("own address changed");
-            Ok(redirect(&format!("{}?saved", paths::ACCOUNT)))
+            Ok(saved_to(paths::ACCOUNT))
         }
         Ok(false) => Ok(state.auth.to_login().await),
         Err(Taken::Email | Taken::Name) => {
@@ -171,6 +171,6 @@ pub(super) async fn password(
     let cookies = cookies
         .into_iter()
         .map(|cookie| (header::SET_COOKIE, cookie));
-    let page = redirect(&format!("{}?saved", paths::ACCOUNT));
+    let page = saved_to(paths::ACCOUNT);
     Ok((AppendHeaders(cookies), page).into_response())
 }

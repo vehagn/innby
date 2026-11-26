@@ -16,7 +16,11 @@ use uuid::Uuid;
 use super::{auth, lang, role::Role};
 use crate::{
     config::Config,
-    db::event::{self, Event},
+    db::{
+        event::{self, Event},
+        group::{self, Group},
+        rsvp::{self, Rsvp},
+    },
     http::{ClientIp, server_error},
     icons::{self, TabLink},
     paths::{self, EventLinks},
@@ -327,6 +331,16 @@ pub(super) async fn load_event(state: &AdminState, id: Uuid) -> Result<Event, Pa
     event::find(&state.db, id).await?.ok_or(PageError::Missing)
 }
 
+/// The guest behind an admin path's `{rsvp}`.
+pub(super) async fn load_guest(state: &AdminState, id: Uuid) -> Result<Rsvp, PageError> {
+    rsvp::find(&state.db, id).await?.ok_or(PageError::Missing)
+}
+
+/// The group behind an admin path's `{group}`.
+pub(super) async fn load_group(state: &AdminState, id: Uuid) -> Result<Group, PageError> {
+    group::find(&state.db, id).await?.ok_or(PageError::Missing)
+}
+
 /// Why a request about one guest or group failed.
 pub(super) enum PageError {
     Missing,
@@ -359,5 +373,11 @@ pub(super) fn redirect(page: &str) -> Response {
 /// Back to the page a change was made on, `pattern` filled with `id`, with `?saved`
 /// for it to say so (see `forms::SavedQuery`).
 pub(super) fn saved(pattern: &str, id: impl std::fmt::Display) -> Response {
-    redirect(&format!("{}?saved", paths::path(pattern, id)))
+    saved_to(&paths::path(pattern, id))
+}
+
+/// Back to `page`, which may have a query already, with `saved` added to it.
+pub(super) fn saved_to(page: &str) -> Response {
+    let join = if page.contains('?') { '&' } else { '?' };
+    redirect(&format!("{page}{join}saved"))
 }

@@ -24,7 +24,7 @@ use crate::{
     admin::{
         forms::DeleteForm,
         lang,
-        page::{AdminState, PageError, load_event, redirect},
+        page::{AdminState, PageError, load_event, redirect, saved},
     },
     db::{
         event::{self, Details, Event},
@@ -148,11 +148,13 @@ pub(in crate::admin) async fn edit(
     };
     tx.commit().await?;
     tracing::info!(event = %id, ?told, "event changed");
-    let base = paths::path(paths::EVENT_DETAILS, id);
-    Ok(redirect(&match told {
-        Some(n) => format!("{base}?told={n}"),
-        None => format!("{base}?saved"),
-    }))
+    Ok(match told {
+        Some(n) => redirect(&format!(
+            "{}?told={n}",
+            paths::path(paths::EVENT_DETAILS, id)
+        )),
+        None => saved(paths::EVENT_DETAILS, id),
+    })
 }
 
 /// The event and its group links as a file, to keep, copy or import as a new event.

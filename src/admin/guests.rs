@@ -15,7 +15,7 @@ use uuid::Uuid;
 use super::{
     forms::{DeleteForm, NameForm, SavedQuery},
     lang,
-    page::{AdminState, PageError, load_event, redirect, saved, timestamp},
+    page::{AdminState, PageError, load_event, load_guest, redirect, saved, timestamp},
     qr::qr_file,
     role::Role,
 };
@@ -308,7 +308,7 @@ impl GuestPage {
 
     /// The guest's page again with an error, for an invalid form.
     pub(super) async fn load(state: &AdminState, id: Uuid) -> Result<Self, PageError> {
-        let rsvp = rsvp::find(&state.db, id).await?.ok_or(PageError::Missing)?;
+        let rsvp = load_guest(state, id).await?;
         let (event, groups, style) = tokio::try_join!(
             load_event(state, rsvp.event_id),
             async { Ok::<_, PageError>(group::list(&state.db, rsvp.event_id).await?) },
@@ -337,7 +337,7 @@ pub(super) async fn qr(
     State(state): State<AdminState>,
     Path(id): Path<Uuid>,
 ) -> Result<Response, PageError> {
-    let rsvp = rsvp::find(&state.db, id).await?.ok_or(PageError::Missing)?;
+    let rsvp = load_guest(&state, id).await?;
     let style = db::qr::style(&state.db, rsvp.event_id).await?;
     Ok(qr_file(
         &guest_url(&state.config, &rsvp),
@@ -391,7 +391,7 @@ pub(super) async fn delete(
         let error = lang::text().error_confirm_delete.clone();
         return GuestPage::render_error(&state, id, error).await;
     }
-    let rsvp = rsvp::find(&state.db, id).await?.ok_or(PageError::Missing)?;
+    let rsvp = load_guest(&state, id).await?;
     rsvp::delete(&state.db, id).await?;
     tracing::info!(rsvp = %id, "rsvp deleted by host");
     let event = paths::path(paths::EVENT, rsvp.event_id);

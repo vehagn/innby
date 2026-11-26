@@ -14,7 +14,7 @@ use axum::{
 use super::{
     forms::SavedQuery,
     lang,
-    page::{AdminState, PageError, redirect},
+    page::{AdminState, PageError, saved_to},
 };
 use crate::{
     db::languages,
@@ -123,7 +123,7 @@ pub(super) async fn edit(
         default = default.code(),
         "site languages saved"
     );
-    Ok(redirect(&format!("{}?saved", paths::LANGUAGES)))
+    Ok(saved_to(paths::LANGUAGES))
 }
 
 #[cfg(test)]

@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use super::{
     lang,
-    page::{AdminState, PageError, load_event, redirect, saved},
+    page::{AdminState, PageError, load_event, redirect, saved, saved_to},
     role::Host,
 };
 use crate::{
@@ -271,12 +271,7 @@ pub(super) async fn delete(
         return Err(PageError::Missing);
     }
     tracing::info!(event = %event.id, %post, "host deleted a post on the board");
-    let to = url(event.id, number, None);
-    let to = match to.contains('?') {
-        true => format!("{to}&saved"),
-        false => format!("{to}?saved"),
-    };
-    Ok(redirect(&to))
+    Ok(saved_to(&url(event.id, number, None)))
 }
 
 #[cfg(test)]

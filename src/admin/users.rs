@@ -17,7 +17,7 @@ use serde::Deserialize;
 use super::{
     forms::{DeleteForm, SavedQuery},
     lang,
-    page::{AdminState, PageError, redirect, saved},
+    page::{AdminState, PageError, saved, saved_to},
     role::{Host, Role},
 };
 use crate::{
@@ -398,5 +398,5 @@ pub(super) async fn delete(
         return Err(PageError::Missing);
     }
     tracing::info!("admin user deleted");
-    Ok(redirect(&format!("{}?saved", paths::USERS)))
+    Ok(saved_to(paths::USERS))
 }
